@@ -1,0 +1,8 @@
+﻿backend/node_modules/
+frontend/node_modules/
+*.vsidx
+.vscode/
+.DS_Store
+frontend/.dart_tool/
+frontend/build/
+.env
