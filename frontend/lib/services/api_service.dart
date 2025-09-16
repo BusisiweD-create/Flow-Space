@@ -1,17 +1,37 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../config/environment.dart';
 
 class ApiService {
-  // Base URL for your backend API (you'll need to create this)
-  static const String baseUrl = 'http://localhost:3000/api';
+  // Base URL for the backend API
+  static const String baseUrl = Environment.apiBaseUrl;
   
   // Initialize the service
   static Future<void> initialize() async {
     debugPrint('API Service initialized');
   }
   
-  // Authentication methods
+  // Health checks
+  static Future<bool> health() async {
+    try {
+      final response = await http.get(Uri.parse(baseUrl.replaceFirst('/api/v1', '/health')));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> root() async {
+    try {
+      final response = await http.get(Uri.parse(baseUrl.replaceFirst('/api/v1', '/')));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+  
+  // Authentication methods (placeholder; backend has no auth routes yet)
   static Future<Map<String, dynamic>?> signUp({
     required String email,
     required String password,
@@ -20,63 +40,23 @@ class ApiService {
     required String company,
     required String role,
   }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/signup'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-          'firstName': firstName,
-          'lastName': lastName,
-          'company': company,
-          'role': role,
-        }),
-      );
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        debugPrint('Sign up failed: ${response.statusCode} - ${response.body}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('Error during sign up: $e');
-      return null;
-    }
+    debugPrint('signUp not implemented on backend');
+    return null;
   }
   
   static Future<Map<String, dynamic>?> signIn({
     required String email,
     required String password,
   }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/signin'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
-      );
-      
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        debugPrint('Sign in failed: ${response.statusCode} - ${response.body}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('Error during sign in: $e');
-      return null;
-    }
+    debugPrint('signIn not implemented on backend');
+    return null;
   }
   
-  // Database methods for deliverables
-  static Future<List<Map<String, dynamic>>> getDeliverables() async {
+  // Deliverables
+  static Future<List<Map<String, dynamic>>> getDeliverables({int skip = 0, int limit = 100}) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/deliverables'),
+        Uri.parse('$baseUrl/deliverables?skip=$skip&limit=$limit'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -84,7 +64,7 @@ class ApiService {
         final data = jsonDecode(response.body);
         return List<Map<String, dynamic>>.from(data);
       } else {
-        debugPrint('Failed to fetch deliverables: ${response.statusCode}');
+        debugPrint('Failed to fetch deliverables: ${response.statusCode} - ${response.body}');
         return [];
       }
     } catch (e) {
@@ -95,11 +75,9 @@ class ApiService {
   
   static Future<Map<String, dynamic>?> createDeliverable({
     required String title,
-    required String description,
-    required String definitionOfDone,
-    required String status,
-    required String assignedTo,
-    required String createdBy,
+    String? description,
+    String status = 'pending',
+    int? sprintId,
   }) async {
     try {
       final response = await http.post(
@@ -108,17 +86,15 @@ class ApiService {
         body: jsonEncode({
           'title': title,
           'description': description,
-          'definitionOfDone': definitionOfDone,
           'status': status,
-          'assignedTo': assignedTo,
-          'createdBy': createdBy,
+          'sprint_id': sprintId,
         }),
       );
       
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
-        debugPrint('Failed to create deliverable: ${response.statusCode}');
+        debugPrint('Failed to create deliverable: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
@@ -127,26 +103,54 @@ class ApiService {
     }
   }
   
-  static Future<void> updateDeliverableStatus({
-    required String id,
-    required String status,
+  static Future<Map<String, dynamic>?> updateDeliverable({
+    required int id,
+    String? title,
+    String? description,
+    String? status,
+    int? sprintId,
   }) async {
     try {
-      await http.put(
+      final response = await http.put(
         Uri.parse('$baseUrl/deliverables/$id'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'status': status}),
+        body: jsonEncode({
+          'title': title,
+          'description': description,
+          'status': status,
+          'sprint_id': sprintId,
+        }),
       );
+      
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('Failed to update deliverable: ${response.statusCode} - ${response.body}');
+        return null;
+      }
     } catch (e) {
-      debugPrint('Error updating deliverable status: $e');
+      debugPrint('Error updating deliverable: $e');
+      return null;
     }
   }
   
-  // Database methods for sprints
-  static Future<List<Map<String, dynamic>>> getSprints() async {
+  static Future<bool> deleteDeliverable(int id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/deliverables/$id'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error deleting deliverable: $e');
+      return false;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getDeliverablesBySprint(int sprintId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/sprints'),
+        Uri.parse('$baseUrl/deliverables/sprint/$sprintId'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -154,7 +158,28 @@ class ApiService {
         final data = jsonDecode(response.body);
         return List<Map<String, dynamic>>.from(data);
       } else {
-        debugPrint('Failed to fetch sprints: ${response.statusCode}');
+        debugPrint('Failed to fetch deliverables by sprint: ${response.statusCode} - ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error fetching deliverables by sprint: $e');
+      return [];
+    }
+  }
+  
+  // Sprints
+  static Future<List<Map<String, dynamic>>> getSprints({int skip = 0, int limit = 100}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/sprints?skip=$skip&limit=$limit'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        debugPrint('Failed to fetch sprints: ${response.statusCode} - ${response.body}');
         return [];
       }
     } catch (e) {
@@ -165,11 +190,10 @@ class ApiService {
   
   static Future<Map<String, dynamic>?> createSprint({
     required String name,
-    required DateTime startDate,
-    required DateTime endDate,
-    required int plannedPoints,
-    required int completedPoints,
-    required String createdBy,
+    String? description,
+    DateTime? startDate,
+    DateTime? endDate,
+    String status = 'planning',
   }) async {
     try {
       final response = await http.post(
@@ -177,18 +201,17 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'name': name,
-          'startDate': startDate.toIso8601String(),
-          'endDate': endDate.toIso8601String(),
-          'plannedPoints': plannedPoints,
-          'completedPoints': completedPoints,
-          'createdBy': createdBy,
+          'description': description,
+          'start_date': startDate?.toIso8601String(),
+          'end_date': endDate?.toIso8601String(),
+          'status': status,
         }),
       );
       
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
-        debugPrint('Failed to create sprint: ${response.statusCode}');
+        debugPrint('Failed to create sprint: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
@@ -197,157 +220,196 @@ class ApiService {
     }
   }
 
-  // Sprint metrics methods
-  static Future<List<Map<String, dynamic>>> getSprintMetrics(String sprintId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sprints/$sprintId/metrics'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['metrics']);
-      } else {
-        debugPrint('Failed to load sprint metrics: ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      debugPrint('Error loading sprint metrics: $e');
-      return [];
-    }
-  }
-
-  // Sign-off report methods
-  static Future<Map<String, dynamic>?> createSignOffReport({
-    required String deliverableId,
-    required String reportTitle,
-    required String reportContent,
-    String? sprintPerformanceData,
-    String? knownLimitations,
-    String? nextSteps,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/sign-off-reports'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'deliverable_id': deliverableId,
-          'report_title': reportTitle,
-          'report_content': reportContent,
-          'sprint_performance_data': sprintPerformanceData,
-          'known_limitations': knownLimitations,
-          'next_steps': nextSteps,
-        }),
-      );
-
-      if (response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        debugPrint('Failed to create sign-off report: ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('Error creating sign-off report: $e');
-      return null;
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> getSignOffReports() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sign-off-reports'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['reports']);
-      } else {
-        debugPrint('Failed to load sign-off reports: ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      debugPrint('Error loading sign-off reports: $e');
-      return [];
-    }
-  }
-
-  // Client review methods
-  static Future<Map<String, dynamic>?> submitClientReview({
-    required String signOffReportId,
-    required String reviewStatus,
-    String? reviewComments,
-    String? changeRequestDetails,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/client-reviews'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'sign_off_report_id': signOffReportId,
-          'review_status': reviewStatus,
-          'review_comments': reviewComments,
-          'change_request_details': changeRequestDetails,
-        }),
-      );
-
-      if (response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        debugPrint('Failed to submit client review: ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('Error submitting client review: $e');
-      return null;
-    }
-  }
-
-  // Release readiness methods
-  static Future<List<Map<String, dynamic>>> getReleaseReadinessChecks(String deliverableId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/deliverables/$deliverableId/readiness-checks'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['checks']);
-      } else {
-        debugPrint('Failed to load readiness checks: ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      debugPrint('Error loading readiness checks: $e');
-      return [];
-    }
-  }
-
-  static Future<Map<String, dynamic>?> updateReadinessCheck({
-    required String checkId,
-    required bool isPassed,
-    String? checkDetails,
+  static Future<Map<String, dynamic>?> updateSprint({
+    required int id,
+    String? name,
+    String? description,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? status,
   }) async {
     try {
       final response = await http.put(
-        Uri.parse('$baseUrl/readiness-checks/$checkId'),
+        Uri.parse('$baseUrl/sprints/$id'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'is_passed': isPassed,
-          'check_details': checkDetails,
+          'name': name,
+          'description': description,
+          'start_date': startDate?.toIso8601String(),
+          'end_date': endDate?.toIso8601String(),
+          'status': status,
         }),
       );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        debugPrint('Failed to update readiness check: ${response.statusCode}');
+        debugPrint('Failed to update sprint: ${response.statusCode} - ${response.body}');
         return null;
       }
     } catch (e) {
-      debugPrint('Error updating readiness check: $e');
+      debugPrint('Error updating sprint: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> deleteSprint(int id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/sprints/$id'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error deleting sprint: $e');
+      return false;
+    }
+  }
+
+  // Signoff
+  static Future<List<Map<String, dynamic>>> getSignoffsBySprint(int sprintId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/signoff/sprint/$sprintId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        debugPrint('Failed to fetch signoffs: ${response.statusCode} - ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error fetching signoffs: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> createSignoff({
+    required int sprintId,
+    required String signerName,
+    required String signerEmail,
+    String? comments,
+    bool isApproved = false,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/signoff'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'sprint_id': sprintId,
+          'signer_name': signerName,
+          'signer_email': signerEmail,
+          'comments': comments,
+          'is_approved': isApproved,
+        }),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('Failed to create signoff: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error creating signoff: $e');
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> approveSignoff(int signoffId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/signoff/$signoffId/approve'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('Failed to approve signoff: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error approving signoff: $e');
+      return null;
+    }
+  }
+
+  // Audit Logs
+  static Future<List<Map<String, dynamic>>> getAuditLogs({int skip = 0, int limit = 100}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/audit?skip=$skip&limit=$limit'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        debugPrint('Failed to fetch audit logs: ${response.statusCode} - ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error fetching audit logs: $e');
+      return [];
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getAuditLogsForEntity({
+    required String entityType,
+    required int entityId,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/audit/entity/$entityType/$entityId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        debugPrint('Failed to fetch audit logs by entity: ${response.statusCode} - ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error fetching audit logs by entity: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> createAuditLog({
+    required String entityType,
+    required int entityId,
+    required String action,
+    String? user,
+    String? details,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/audit'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'entity_type': entityType,
+          'entity_id': entityId,
+          'action': action,
+          'user': user,
+          'details': details,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('Failed to create audit log: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error creating audit log: $e');
       return null;
     }
   }
