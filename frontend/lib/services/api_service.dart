@@ -76,8 +76,11 @@ class ApiService {
   static Future<Map<String, dynamic>?> createDeliverable({
     required String title,
     String? description,
+    String? definitionOfDone,
     String status = 'pending',
     int? sprintId,
+    String? assignedTo,
+    String? createdBy,
   }) async {
     try {
       final response = await http.post(
@@ -86,8 +89,11 @@ class ApiService {
         body: jsonEncode({
           'title': title,
           'description': description,
+          'definition_of_done': definitionOfDone,
           'status': status,
           'sprint_id': sprintId,
+          'assigned_to': assignedTo,
+          'created_by': createdBy,
         }),
       );
       
@@ -194,6 +200,9 @@ class ApiService {
     DateTime? startDate,
     DateTime? endDate,
     String status = 'planning',
+    int? plannedPoints,
+    int? completedPoints,
+    String? createdBy,
   }) async {
     try {
       final response = await http.post(
@@ -202,9 +211,12 @@ class ApiService {
         body: jsonEncode({
           'name': name,
           'description': description,
+          'planned_points': plannedPoints,
+          'completed_points': completedPoints,
           'start_date': startDate?.toIso8601String(),
           'end_date': endDate?.toIso8601String(),
           'status': status,
+          'created_by': createdBy,
         }),
       );
       
