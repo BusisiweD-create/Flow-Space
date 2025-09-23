@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 from models import Base
-from routers import deliverables, sprints, signoff, audit
+from routers import deliverables, sprints, signoff, audit, settings, profile
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -32,6 +32,8 @@ app.include_router(deliverables.router, prefix="/api/v1/deliverables", tags=["de
 app.include_router(sprints.router, prefix="/api/v1/sprints", tags=["sprints"])
 app.include_router(signoff.router, prefix="/api/v1/signoff", tags=["signoff"])
 app.include_router(audit.router, prefix="/api/v1/audit", tags=["audit"])
+app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
+app.include_router(profile.router, prefix="/api/v1/profile", tags=["profile"])
 
 @app.get("/")
 async def root():
@@ -45,4 +47,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="127.0.0.1", port=8002)

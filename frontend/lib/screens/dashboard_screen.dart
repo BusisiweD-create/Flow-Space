@@ -1,3 +1,7 @@
+// ignore_for_file: unused_element, no_leading_underscores_for_local_identifiers, duplicate_ignore, prefer_const_constructors, deprecated_member_use
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/deliverable.dart';
@@ -5,15 +9,21 @@ import '../models/sprint.dart';
 import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
+// ignore: unused_import
+import '../services/settings_service.dart';
+import '../services/backend_settings_service.dart';
+import '../services/notification_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/theme_provider.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // Sample data for demonstration
   final List<Deliverable> deliverables = [
     Deliverable(
@@ -131,11 +141,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'logout') {
+              if (value == 'profile') {
+                _navigateToProfile();
+              } else if (value == 'logout') {
                 _handleLogout();
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person),
+                    SizedBox(width: 8),
+                    Text('Profile'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'logout',
                 child: Row(
@@ -312,7 +334,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 'planned_points': sprint.committedPoints,
                 'completed_points': sprint.completedPoints,
                 'status': 'completed',
-              }).toList()),
+              },).toList(),),
             ),
           ],
         ),
@@ -351,23 +373,89 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _showDeliverableDetailsDialog(deliverable);
                 },
               ),
-            )),
+            ),),
       ],
     );
   }
 
   void _showCreateDeliverableDialog() {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    final TextEditingController dueDateController = TextEditingController();
+    String selectedPriority = 'Medium';
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create New Deliverable'),
-        content: const Text('This feature will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Create New Deliverable'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Deliverable Name',
+                    hintText: 'Enter deliverable name',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    hintText: 'Enter description',
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: dueDateController,
+                  decoration: const InputDecoration(
+                    labelText: 'Due Date',
+                    hintText: 'YYYY-MM-DD',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Priority',
+                  ),
+                  initialValue: selectedPriority,
+                  items: ['Low', 'Medium', 'High'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        selectedPriority = newValue;
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('New deliverable created')),
+                );
+                Navigator.of(context).pop();
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -389,33 +477,448 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showSettingsDialog() {
+    bool darkMode = false;
+    // ignore: no_leading_underscores_for_local_identifiers
+    bool _notifications = true;
+    String selectedLanguage = 'English';
+
+    // Load saved settings
+    // ignore: no_leading_underscores_for_local_identifiers
+    Future<void> _loadSettings() async {
+      try {
+        final settings = await BackendSettingsService.getUserSettings();
+        setState(() {
+          darkMode = settings['dark_mode'] ?? false;
+          _notifications = settings['notifications_enabled'] ?? true;
+          selectedLanguage = settings['language'] ?? 'English';
+        });
+      } catch (e) {
+        // Fallback to theme provider state if backend fails
+        final currentTheme = ref.read(themeProvider);
+        setState(() {
+          darkMode = currentTheme == ThemeMode.dark;
+          _notifications = true;
+          selectedLanguage = 'English';
+        });
+      }
+    }
+
+    // Save settings
+    Future<void> saveSettings() async {
+      try {
+        // Save to backend using batch update
+        await BackendSettingsService.updateMultipleSettings({
+          'dark_mode': darkMode,
+          'notifications_enabled': _notifications,
+          'language': selectedLanguage,
+        });
+        
+        // Also update theme using ThemeProvider
+        await ref.read(themeProvider.notifier).setTheme(darkMode);
+        
+        // Update notification service with new settings
+        await NotificationService.setNotificationsEnabled(_notifications);
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved successfully')),
+        );
+        Navigator.of(context).pop();
+      } catch (e) {
+        // Only update theme if backend fails (settings won't persist)
+        await ref.read(themeProvider.notifier).setTheme(darkMode);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings could not be saved to backend')),
+        );
+        Navigator.of(context).pop();
+      }
+    }
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Settings'),
-        content: const Text('Settings panel will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          // Load settings when dialog opens and sync with theme provider
+          Future.microtask(() async {
+            await _loadSettings();
+            // Ensure UI matches theme provider state - use the actual theme provider state
+            final currentTheme = ref.read(themeProvider);
+            setState(() {
+              darkMode = currentTheme == ThemeMode.dark;
+            });
+          });
+          return AlertDialog(
+            title: const Text('Settings'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Theme Settings
+                  const Text('Appearance', style: TextStyle(fontWeight: FontWeight.bold)),
+                  SwitchListTile(
+                    title: const Text('Dark Mode'),
+                    value: darkMode,
+                    onChanged: (value) {
+                      setState(() => darkMode = value);
+                    },
+                  ),
+                  const Divider(),
+
+                  // Notification Settings
+                  const Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold)),
+                  SwitchListTile(
+                    title: const Text('Enable Notifications'),
+                    value: _notifications,
+                    onChanged: (value) {
+                      setState(() => _notifications = value);
+                    },
+                  ),
+                  const Divider(),
+
+                  // Language Settings
+                  const Text('Language', style: TextStyle(fontWeight: FontWeight.bold)),
+                  DropdownButton<String>(
+                    value: selectedLanguage,
+                    isExpanded: true,
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() => selectedLanguage = newValue);
+                      }
+                    },
+                    items: <String>['English', 'Spanish', 'French', 'German']
+                      .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                  ),
+                  const Divider(),
+
+                  // Advanced Settings
+                  const Text('Advanced', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ListTile(
+                    title: const Text('Data Synchronization'),
+                    subtitle: const Text('Manage how your data syncs'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _showDataSyncSettingsDialog();
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('Privacy Settings'),
+                    subtitle: const Text('Manage your privacy preferences'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _showPrivacySettingsDialog();
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => saveSettings(),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+  
+  void _showDataSyncSettingsDialog() {
+    bool syncOnMobileData = false;
+    bool autoBackup = false;
+
+    // Load saved settings
+    loadDataSyncSettings() async {
+      try {
+        final settings = await BackendSettingsService.getUserSettings();
+        setState(() {
+          syncOnMobileData = settings['sync_on_mobile_data'] ?? false;
+          autoBackup = settings['auto_backup'] ?? false;
+        });
+      } catch (e) {
+        // Fallback to default settings if backend fails
+        setState(() {
+          syncOnMobileData = false;
+          autoBackup = false;
+        });
+      }
+    }
+
+    // Save settings
+    _saveDataSyncSettings() async {
+      try {
+        // Save to backend using batch update
+        await BackendSettingsService.updateMultipleSettings({
+          'sync_on_mobile_data': syncOnMobileData,
+          'auto_backup': autoBackup,
+        });
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Data sync settings saved successfully')),
+        );
+        Navigator.of(context).pop();
+      } catch (e) {
+        // If backend fails, just show error message
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Data sync settings could not be saved to backend')),
+        );
+        Navigator.of(context).pop();
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          // Load settings when dialog opens
+          Future.microtask(() async {
+            try {
+              final settings = await BackendSettingsService.getUserSettings();
+              setState(() {
+                syncOnMobileData = settings['sync_on_mobile_data'] ?? false;
+                autoBackup = settings['auto_backup'] ?? false;
+              });
+            } catch (e) {
+              setState(() {
+                syncOnMobileData = false;
+                autoBackup = false;
+              });
+            }
+          });
+
+          return AlertDialog(
+            title: const Text('Data Synchronization Settings'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  title: const Text('Sync over Mobile Data'),
+                  value: syncOnMobileData,
+                  onChanged: (value) {
+                    setState(() {
+                      syncOnMobileData = value;
+                    });
+                  },
+                ),
+                SwitchListTile(
+                  title: const Text('Automatic Backup'),
+                  value: autoBackup,
+                  onChanged: (value) {
+                    setState(() => autoBackup = value);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: _saveDataSyncSettings,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+  
+  void _showPrivacySettingsDialog() {
+    bool _shareAnalytics = false;
+    bool _allowNotifications = true;
+
+    // Load saved settings
+    _loadPrivacySettings() async {
+      try {
+        final settings = await BackendSettingsService.getUserSettings();
+        setState(() {
+          _shareAnalytics = settings['share_analytics'] ?? false;
+          _allowNotifications = settings['allow_notifications'] ?? true;
+        });
+      } catch (e) {
+        // Fallback to default settings if backend fails
+        setState(() {
+          _shareAnalytics = false;
+          _allowNotifications = true;
+        });
+      }
+    }
+
+    // Save settings
+    _savePrivacySettings() async {
+      try {
+        // Save to backend
+        await BackendSettingsService.setShareAnalytics(_shareAnalytics);
+        await BackendSettingsService.setAllowNotifications(_allowNotifications);
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Privacy settings saved successfully')),
+        );
+        Navigator.of(context).pop();
+      } catch (e) {
+        // If backend fails, just show error message
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Privacy settings could not be saved to backend')),
+        );
+        Navigator.of(context).pop();
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          // Load settings when dialog opens
+          Future.microtask(() => _loadPrivacySettings());
+
+          return AlertDialog(
+            title: const Text('Privacy Settings'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  title: const Text('Share Analytics Data'),
+                  value: _shareAnalytics,
+                  onChanged: (value) {
+                    setState(() => _shareAnalytics = value);
+                  },
+                ),
+                SwitchListTile(
+                  title: const Text('Allow Notifications'),
+                  value: _allowNotifications,
+                  onChanged: (value) {
+                    setState(() => _allowNotifications = value);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: _savePrivacySettings,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   void _showSprintManagementDialog() {
+    final List<String> sprints = ['Sprint 1', 'Sprint 2', 'Sprint 3', 'Current Sprint'];
+    String selectedSprint = 'Current Sprint';
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sprint Management'),
-        content: const Text('Sprint management features will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Sprint Management'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Active Sprint:', style: TextStyle(fontWeight: FontWeight.bold)),
+                DropdownButton<String>(
+                  value: selectedSprint,
+                  isExpanded: true,
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        selectedSprint = newValue;
+                      });
+                    }
+                  },
+                  items: sprints.map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                const Text('Sprint Details:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                _buildSprintInfoRow('Start Date:', '2023-10-15'),
+                _buildSprintInfoRow('End Date:', '2023-10-29'),
+                _buildSprintInfoRow('Story Points:', '34/45'),
+                _buildSprintInfoRow('Completion:', '75%'),
+                const SizedBox(height: 16),
+                const Text('Team Members:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    _buildTeamMemberChip('Alex'),
+                    _buildTeamMemberChip('Maria'),
+                    _buildTeamMemberChip('John'),
+                    _buildTeamMemberChip('Sarah'),
+                  ],
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Sprint details updated')),
+                );
+                Navigator.of(context).pop();
+              },
+              child: const Text('Update Sprint'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildSprintInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildTeamMemberChip(String name) {
+    return Chip(
+      label: Text(name),
+      avatar: CircleAvatar(
+        child: Text(name[0]),
       ),
     );
   }
@@ -425,13 +928,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('All Deliverables'),
-        content: const Text('Complete deliverables list will be implemented in the next phase.'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              _buildDeliverableItem('Project Requirements Document', 'Completed', Colors.green),
+              _buildDeliverableItem('System Architecture Design', 'Completed', Colors.green),
+              _buildDeliverableItem('Database Schema', 'Completed', Colors.green),
+              _buildDeliverableItem('Frontend Prototype', 'In Progress', Colors.orange),
+              _buildDeliverableItem('API Documentation', 'In Progress', Colors.orange),
+              _buildDeliverableItem('User Testing Report', 'Not Started', Colors.grey),
+              _buildDeliverableItem('Deployment Guide', 'Not Started', Colors.grey),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Deliverables exported to PDF')),
+              );
+              Navigator.of(context).pop();
+            },
+            child: const Text('Export to PDF'),
           ),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildDeliverableItem(String name, String status, Color statusColor) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        title: Text(name),
+        subtitle: Text('Due: November 30, 2023'),
+        trailing: Chip(
+          label: Text(status),
+          backgroundColor: statusColor.withOpacity(0.2),
+          labelStyle: TextStyle(color: statusColor),
+        ),
+        onTap: () {
+          // View deliverable details
+        },
       ),
     );
   }
@@ -450,6 +994,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  void _navigateToProfile() {
+    context.go('/profile');
   }
 
   void _handleLogout() {
@@ -474,4 +1022,5 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
 }

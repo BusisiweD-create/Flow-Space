@@ -65,3 +65,40 @@ class AuditLog(Base):
     user = Column(String(255))
     details = Column(Text)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+class UserSettings(Base):
+    """Model for user settings and preferences"""
+    __tablename__ = "user_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), nullable=False, index=True)  # Could be email or username
+    dark_mode = Column(Boolean, default=False)
+    notifications_enabled = Column(Boolean, default=True)
+    language = Column(String(50), default='English')
+    sync_on_mobile_data = Column(Boolean, default=False)
+    auto_backup = Column(Boolean, default=False)
+    share_analytics = Column(Boolean, default=False)
+    allow_notifications = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class UserProfile(Base):
+    """Model for user profiles"""
+    __tablename__ = "user_profiles"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), nullable=False, unique=True, index=True)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    email = Column(String(255), nullable=False, unique=True)
+    phone_number = Column(String(50))
+    profile_picture = Column(String(500))  # URL to profile picture
+    bio = Column(Text)
+    job_title = Column(String(100))
+    company = Column(String(100))
+    location = Column(String(200))
+    website = Column(String(300))
+    date_of_birth = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

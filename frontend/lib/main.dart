@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'providers/theme_provider.dart';
 import 'services/api_service.dart';
+// ignore: unused_import
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -9,6 +11,7 @@ import 'screens/email_verification_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/deliverable_setup_screen.dart';
 import 'screens/sprint_console_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,30 +22,18 @@ void main() async {
   runApp(const ProviderScope(child: KhonoApp()));
 }
 
-class KhonoApp extends StatelessWidget {
+class KhonoApp extends ConsumerWidget {
   const KhonoApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+
     return MaterialApp.router(
       title: 'Khonology - Deliverable & Sprint Sign-Off Hub',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB), // Professional blue
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
+      theme: AppThemes.lightTheme,
+      darkTheme: AppThemes.darkTheme,
+      themeMode: themeMode,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
@@ -50,11 +41,11 @@ class KhonoApp extends StatelessWidget {
 }
 
 final GoRouter _router = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/login',
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const WelcomeScreen(),
+      builder: (context, state) => const LoginScreen(),
     ),
     GoRoute(
       path: '/login',
@@ -79,6 +70,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/sprint-console',
       builder: (context, state) => const SprintConsoleScreen(),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfileScreen(),
     ),
   ],
 );

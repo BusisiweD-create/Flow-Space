@@ -28,7 +28,7 @@ class Deliverable(DeliverableBase):
     updated_at: Optional[datetime] = None
     
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Sprint schemas
 class SprintBase(BaseModel):
@@ -56,7 +56,7 @@ class Sprint(SprintBase):
     signoffs: List["Signoff"] = []
     
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Signoff schemas
 class SignoffBase(BaseModel):
@@ -80,7 +80,7 @@ class Signoff(SignoffBase):
     signed_at: datetime
     
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Audit log schemas
 class AuditLogBase(BaseModel):
@@ -98,7 +98,77 @@ class AuditLog(AuditLogBase):
     timestamp: datetime
     
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Update forward references
 Sprint.model_rebuild()
+
+# Settings schemas
+class SettingsBase(BaseModel):
+    dark_mode: bool = False
+    notifications_enabled: bool = True
+    language: str = "English"
+    sync_on_mobile_data: bool = False
+    auto_backup: bool = False
+    share_analytics: bool = False
+    allow_notifications: bool = True
+
+class SettingsCreate(SettingsBase):
+    pass
+
+class SettingsUpdate(SettingsBase):
+    dark_mode: Optional[bool] = None
+    notifications_enabled: Optional[bool] = None
+    language: Optional[str] = None
+    sync_on_mobile_data: Optional[bool] = None
+    auto_backup: Optional[bool] = None
+    share_analytics: Optional[bool] = None
+    allow_notifications: Optional[bool] = None
+
+class SettingsResponse(SettingsBase):
+    user_id: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        orm_mode = True
+
+
+# User Profile schemas
+class UserProfileBase(BaseModel):
+    user_id: str
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone_number: Optional[str] = None
+    profile_picture: Optional[str] = None
+    bio: Optional[str] = None
+    job_title: Optional[str] = None
+    company: Optional[str] = None
+    location: Optional[str] = None
+    website: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+
+class UserProfileCreate(UserProfileBase):
+    pass
+
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    profile_picture: Optional[str] = None
+    bio: Optional[str] = None
+    job_title: Optional[str] = None
+    company: Optional[str] = None
+    location: Optional[str] = None
+    website: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+
+class UserProfile(UserProfileBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        orm_mode = True

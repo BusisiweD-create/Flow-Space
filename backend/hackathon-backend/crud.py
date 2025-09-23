@@ -4,12 +4,13 @@ CRUD operations for database models
 
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from models import Deliverable, Sprint, Signoff, AuditLog
+from models import Deliverable, Sprint, Signoff, AuditLog, UserProfile
 from schemas import (
     DeliverableCreate, DeliverableUpdate,
     SprintCreate, SprintUpdate,
     SignoffCreate, SignoffUpdate,
-    AuditLogCreate
+    AuditLogCreate,
+    UserProfileCreate, UserProfileUpdate
 )
 
 # Deliverable CRUD operations
@@ -127,3 +128,39 @@ def get_audit_logs_by_entity(db: Session, entity_type: str, entity_id: int) -> L
         AuditLog.entity_type == entity_type,
         AuditLog.entity_id == entity_id
     ).all()
+
+
+# User Profile CRUD operations
+def get_user_profile(db: Session, user_id: str) -> Optional[UserProfile]:
+    return db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+
+def get_user_profile_by_email(db: Session, email: str) -> Optional[UserProfile]:
+    return db.query(UserProfile).filter(UserProfile.email == email).first()
+
+def get_user_profiles(db: Session, skip: int = 0, limit: int = 100) -> List[UserProfile]:
+    return db.query(UserProfile).offset(skip).limit(limit).all()
+
+def create_user_profile(db: Session, profile: UserProfileCreate) -> UserProfile:
+    db_profile = UserProfile(**profile.dict())
+    db.add(db_profile)
+    db.commit()
+    db.refresh(db_profile)
+    return db_profile
+
+def update_user_profile(db: Session, user_id: str, profile: UserProfileUpdate) -> Optional[UserProfile]:
+    db_profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    if db_profile:
+        update_data = profile.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_profile, field, value)
+        db.commit()
+        db.refresh(db_profile)
+    return db_profile
+
+def delete_user_profile(db: Session, user_id: str) -> bool:
+    db_profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    if db_profile:
+        db.delete(db_profile)
+        db.commit()
+        return True
+    return False

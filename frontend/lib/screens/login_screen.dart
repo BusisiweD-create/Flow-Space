@@ -234,7 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: OutlinedButton.icon(
                               onPressed: authState.isLoading ? null : _handleGoogleSignIn,
                               icon: Image.asset(
-                                'assets/images/google_logo.png',
+                                'assets/images/google_logo.svg',
                                 height: 20,
                                 width: 20,
                                 errorBuilder: (context, error, stackTrace) => const Icon(

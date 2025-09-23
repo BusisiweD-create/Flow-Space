@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_single_quotes
+
 class Environment {
   // App Configuration
   static const String appName = 'Khonology';
@@ -5,7 +7,7 @@ class Environment {
   static const String appDescription = 'A social learning platform built with Flutter';
 
   // API Configuration
-  static const String apiBaseUrl = 'http://127.0.0.1:8000/api/v1';
+  static const String apiBaseUrl = "http://127.0.0.1:8002/api/v1";
   static const int apiTimeout = 30000;
 
   // Feature Flags
