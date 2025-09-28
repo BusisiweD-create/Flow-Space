@@ -24,7 +24,8 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
             end: Alignment.bottomRight,
             colors: [
               Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+              Theme.of(context).colorScheme.primary.withOpacity(0.8),
+              Theme.of(context).colorScheme.secondary,
             ],
           ),
         ),

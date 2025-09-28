@@ -56,7 +56,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             end: Alignment.bottomRight,
             colors: [
               Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+              Theme.of(context).colorScheme.primary.withOpacity(0.8),
+              Theme.of(context).colorScheme.secondary,
             ],
           ),
         ),
@@ -87,14 +88,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 16),
                           Text(
                             'Welcome Back',
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Sign in to your Khonology account',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
                                   color: Colors.grey[600],
                                 ),
                           ),
@@ -117,7 +124,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';
                               }
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                  .hasMatch(value)) {
                                 return 'Please enter a valid email';
                               }
                               return null;
@@ -179,9 +187,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: authState.isLoading ? null : _handleLogin,
+                              onPressed:
+                                  authState.isLoading ? null : _handleLogin,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).colorScheme.primary,
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -194,7 +204,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       width: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
                                       ),
                                     )
                                   : const Text(
@@ -213,7 +225,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             children: [
                               Expanded(child: Divider(color: Colors.grey[300])),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
                                 child: Text(
                                   'OR',
                                   style: TextStyle(
@@ -232,12 +245,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: double.infinity,
                             height: 56,
                             child: OutlinedButton.icon(
-                              onPressed: authState.isLoading ? null : _handleGoogleSignIn,
+                              onPressed: authState.isLoading
+                                  ? null
+                                  : _handleGoogleSignIn,
                               icon: Image.asset(
                                 'assets/images/google_logo.png',
                                 height: 20,
                                 width: 20,
-                                errorBuilder: (context, error, stackTrace) => const Icon(
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
                                   Icons.g_mobiledata,
                                   size: 24,
                                   color: Colors.red,
@@ -295,9 +311,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     await ref.read(authStateProvider.notifier).signInWithEmailAndPassword(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -306,7 +322,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _showForgotPasswordDialog() {
     final emailController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -314,7 +330,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Enter your email address and we\'ll send you a password reset link.'),
+            const Text(
+                'Enter your email address and we\'ll send you a password reset link.'),
             const SizedBox(height: 16),
             TextField(
               controller: emailController,
@@ -338,9 +355,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 final navigator = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
                 navigator.pop();
-                await ref.read(authStateProvider.notifier).sendPasswordResetEmail(
-                  emailController.text.trim(),
-                );
+                await ref
+                    .read(authStateProvider.notifier)
+                    .sendPasswordResetEmail(
+                      emailController.text.trim(),
+                    );
                 if (mounted) {
                   messenger.showSnackBar(
                     const SnackBar(

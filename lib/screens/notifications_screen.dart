@@ -1,0 +1,267 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/notification_item.dart';
+import '../theme/flownet_theme.dart';
+import '../widgets/flownet_logo.dart';
+
+class NotificationsScreen extends ConsumerStatefulWidget {
+  const NotificationsScreen({super.key});
+
+  @override
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  final List<NotificationItem> _notifications = [
+    NotificationItem(
+      id: '1',
+      title: 'New Approval Request',
+      message: 'John Doe has requested approval for User Authentication System.',
+      type: NotificationType.approval,
+      timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
+      isRead: false,
+    ),
+    NotificationItem(
+      id: '2',
+      title: 'Sprint Completed',
+      message: 'Sprint 3 has been completed successfully.',
+      type: NotificationType.sprint,
+      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+      isRead: false,
+    ),
+    NotificationItem(
+      id: '3',
+      title: 'File Uploaded',
+      message: 'Alice Johnson uploaded project_design.pdf to repository.',
+      type: NotificationType.file,
+      timestamp: DateTime.now().subtract(const Duration(hours: 4)),
+      isRead: true,
+    ),
+    NotificationItem(
+      id: '4',
+      title: 'Deliverable Due',
+      message: 'Database Schema Update deliverable is due tomorrow.',
+      type: NotificationType.deliverable,
+      timestamp: DateTime.now().subtract(const Duration(days: 1)),
+      isRead: true,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadCount = _notifications.where((n) => !n.isRead).length;
+    final totalCount = _notifications.length;
+
+    return Scaffold(
+      backgroundColor: FlownetColors.charcoalBlack,
+      appBar: AppBar(
+        title: const FlownetLogo(showText: true),
+        backgroundColor: FlownetColors.charcoalBlack,
+        foregroundColor: FlownetColors.pureWhite,
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.mark_email_read),
+            onPressed: _markAllAsRead,
+            tooltip: 'Mark all as read',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Summary cards
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Card(
+                    color: FlownetColors.amberOrange,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Text(
+                            '$unreadCount',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: FlownetColors.pureWhite,
+                            ),
+                          ),
+                          const Text(
+                            'Unread',
+                            style: TextStyle(
+                              color: FlownetColors.pureWhite,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Card(
+                    color: FlownetColors.electricBlue,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Text(
+                            '$totalCount',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: FlownetColors.pureWhite,
+                            ),
+                          ),
+                          const Text(
+                            'Total',
+                            style: TextStyle(
+                              color: FlownetColors.pureWhite,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Notifications list
+          Expanded(
+            child: ListView.builder(
+              itemCount: _notifications.length,
+              itemBuilder: (context, index) {
+                final notification = _notifications[index];
+                return Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  color: notification.isRead
+                      ? FlownetColors.graphiteGray
+                      : FlownetColors.slate,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _getNotificationTypeColor(
+                          notification.type),
+                      child: Icon(
+                        _getNotificationTypeIcon(notification.type),
+                        color: FlownetColors.pureWhite,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      notification.title,
+                      style: TextStyle(
+                        fontWeight: notification.isRead
+                            ? FontWeight.normal
+                            : FontWeight.bold,
+                        color: FlownetColors.pureWhite,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          notification.message,
+                          style: TextStyle(
+                            color: FlownetColors.coolGray,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatTimestamp(notification.timestamp),
+                          style: TextStyle(
+                            color: FlownetColors.coolGray,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: notification.isRead
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.mark_email_read,
+                                color: FlownetColors.electricBlue),
+                            onPressed: () => _markAsRead(notification.id),
+                            tooltip: 'Mark as read',
+                          ),
+                    isThreeLine: true,
+                    onTap: () => _markAsRead(notification.id),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getNotificationTypeColor(NotificationType type) {
+    switch (type) {
+      case NotificationType.approval:
+        return FlownetColors.amberOrange;
+      case NotificationType.sprint:
+        return FlownetColors.emeraldGreen;
+      case NotificationType.file:
+        return FlownetColors.crimsonRed;
+      case NotificationType.deliverable:
+        return FlownetColors.electricBlue;
+    }
+  }
+
+  IconData _getNotificationTypeIcon(NotificationType type) {
+    switch (type) {
+      case NotificationType.approval:
+        return Icons.approval;
+      case NotificationType.sprint:
+        return Icons.trending_up;
+      case NotificationType.file:
+        return Icons.upload_file;
+      case NotificationType.deliverable:
+        return Icons.assignment;
+    }
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
+  }
+
+  void _markAsRead(String id) {
+    setState(() {
+      final index = _notifications.indexWhere((n) => n.id == id);
+      if (index != -1) {
+        _notifications[index] = _notifications[index].copyWith(isRead: true);
+      }
+    });
+  }
+
+  void _markAllAsRead() {
+    setState(() {
+      for (int i = 0; i < _notifications.length; i++) {
+        _notifications[i] = _notifications[i].copyWith(isRead: true);
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('All notifications marked as read'),
+        backgroundColor: FlownetColors.electricBlue,
+      ),
+    );
+  }
+}
