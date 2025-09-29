@@ -24,24 +24,6 @@ class FlownetLogo extends StatefulWidget {
 class _FlownetLogoState extends State<FlownetLogo> {
   bool _hovering = false;
 
-  Future<bool> _checkAssetExists(String assetPath) async {
-    try {
-      await rootBundle.load(assetPath);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<String?> _resolveAssetPath({required bool fullLogo}) async {
-    final primary = fullLogo ? 'assets/logo.png' : 'assets/logo_icon.png';
-    if (await _checkAssetExists(primary)) return primary;
-    // Fallback: use full logo for collapsed state if icon isn't present
-    const fallback = 'assets/logo.png';
-    if (!fullLogo && await _checkAssetExists(fallback)) return fallback;
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final handleTap = widget.onTap ?? () => context.go('/dashboard');
@@ -79,41 +61,86 @@ class _FlownetLogoState extends State<FlownetLogo> {
               child: SizedBox(
                 width: targetWidth,
                 height: targetHeight,
-                child: FutureBuilder<String?>(
-                  future: _resolveAssetPath(fullLogo: widget.showText),
-                  builder: (context, snapshot) {
-                    final path = snapshot.data;
-                    if (path != null) {
-                      return ClipRRect(
-                        borderRadius:
-                            BorderRadius.circular(widget.showText ? 8 : 6),
-                        child: Image.asset(
-                          path,
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                        ),
-                      );
-                    }
-                    // Simple fallback if the asset is missing so the app still runs
-                    return Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        borderRadius:
-                            BorderRadius.circular(widget.showText ? 8 : 6),
-                        color: FlownetColors.graphiteGray,
-                      ),
-                      child: Icon(
-                        Icons.blur_circular,
-                        color: FlownetColors.crimsonRed,
-                        size: widget.showText ? targetHeight * 0.8 : 20,
-                      ),
-                    );
-                  },
-                ),
+                child: widget.showText ? _buildFullLogo() : _buildIconOnly(),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFullLogo() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 3x3 Grid Logo
+        _buildGridLogo(size: 32),
+        const SizedBox(height: 8),
+        // Text
+        Column(
+          children: [
+            Text(
+              'FLOWNET',
+              style: TextStyle(
+                color: FlownetColors.crimsonRed,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+            Text(
+              'WORKSPACES',
+              style: TextStyle(
+                color: FlownetColors.pureWhite,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIconOnly() {
+    return _buildGridLogo(size: 24);
+  }
+
+  Widget _buildGridLogo({required double size}) {
+    return Container(
+      width: size,
+      height: size,
+      child: GridView.count(
+        crossAxisCount: 3,
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
+        children: [
+          // Row 1
+          _buildCircle(FlownetColors.crimsonRed),
+          _buildCircle(FlownetColors.crimsonRed),
+          _buildCircle(FlownetColors.crimsonRed),
+          
+          // Row 2
+          _buildCircle(FlownetColors.crimsonRed),
+          _buildCircle(FlownetColors.crimsonRed),
+          _buildCircle(FlownetColors.crimsonRed),
+          
+          // Row 3
+          _buildCircle(FlownetColors.crimsonRed),
+          _buildCircle(FlownetColors.crimsonRed),
+          _buildCircle(FlownetColors.pureWhite),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCircle(Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
       ),
     );
   }
