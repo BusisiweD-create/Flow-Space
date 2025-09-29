@@ -16,10 +16,10 @@ import 'widgets/sidebar_scaffold.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize API Service
   await ApiService.initialize();
-  
+
   runApp(const ProviderScope(child: KhonoApp()));
 }
 
@@ -75,32 +75,32 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/dashboard',
       builder: (context, state) =>
-          const SidebarScaffold(child: DashboardScreen()),
+          SidebarScaffold(child: const DashboardScreen()),
     ),
     GoRoute(
       path: '/deliverable-setup',
       builder: (context, state) =>
-          const SidebarScaffold(child: DeliverableSetupScreen()),
+          SidebarScaffold(child: const DeliverableSetupScreen()),
     ),
     GoRoute(
       path: '/sprint-console',
       builder: (context, state) =>
-          const SidebarScaffold(child: SprintConsoleScreen()),
+          SidebarScaffold(child: const SprintConsoleScreen()),
     ),
     GoRoute(
       path: '/approvals',
       builder: (context, state) =>
-          const SidebarScaffold(child: ApprovalsScreen()),
+          SidebarScaffold(child: const ApprovalsScreen()),
     ),
     GoRoute(
       path: '/repository',
       builder: (context, state) =>
-          const SidebarScaffold(child: RepositoryScreen()),
+          SidebarScaffold(child: const RepositoryScreen()),
     ),
     GoRoute(
       path: '/notifications',
       builder: (context, state) =>
-          const SidebarScaffold(child: NotificationsScreen()),
+          SidebarScaffold(child: const NotificationsScreen()),
     ),
     // Optional routes (settings/account) to avoid 404
     GoRoute(
@@ -115,4 +115,3 @@ final GoRouter _router = GoRouter(
     ),
   ],
 );
-

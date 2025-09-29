@@ -119,9 +119,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              _showNotificationsDialog();
-            },
+            onPressed: () => context.go('/notifications'),
+            tooltip: 'Notifications',
+          ),
+          IconButton(
+            icon: const Icon(Icons.approval),
+            onPressed: () => context.go('/approvals'),
+            tooltip: 'Approvals',
+          ),
+          IconButton(
+            icon: const Icon(Icons.folder),
+            onPressed: () => context.go('/repository'),
+            tooltip: 'Repository',
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -170,6 +179,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             // Deliverables Section
             _buildDeliverablesSection(),
+            // Quick Access Cards
+            _buildQuickAccessSection(),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -312,7 +324,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 'planned_points': sprint.committedPoints,
                 'completed_points': sprint.completedPoints,
                 'status': 'completed',
-              }).toList(),),
+              },).toList(),),
             ),
           ],
         ),
@@ -356,28 +368,112 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildQuickAccessSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quick Access',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQuickAccessCard(
+                'Approvals',
+                Icons.approval,
+                Colors.orange,
+                () => context.go('/approvals'),
+                'Manage approval requests',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildQuickAccessCard(
+                'Repository',
+                Icons.folder,
+                Colors.purple,
+                () => context.go('/repository'),
+                'Browse files and documents',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQuickAccessCard(
+                'Notifications',
+                Icons.notifications,
+                Colors.blue,
+                () => context.go('/notifications'),
+                'View all notifications',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildQuickAccessCard(
+                'Sprint Console',
+                Icons.timeline,
+                Colors.green,
+                () => context.go('/sprint-console'),
+                'Manage sprints',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickAccessCard(
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+    String subtitle,
+  ) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showCreateDeliverableDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Create New Deliverable'),
         content: const Text('This feature will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showNotificationsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Notifications'),
-        content: const Text('No new notifications at this time.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
