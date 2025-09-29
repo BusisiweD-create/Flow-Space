@@ -72,10 +72,12 @@ class SprintPerformanceChart extends StatelessWidget {
     final spots = <FlSpot>[];
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      spots.add(FlSpot(
-        i.toDouble(),
-        (sprint['completed_points'] ?? 0).toDouble(),
-      ));
+      spots.add(
+        FlSpot(
+          i.toDouble(),
+          (sprint['completed_points'] ?? 0).toDouble(),
+        ),
+      );
     }
 
     return LineChart(
@@ -96,8 +98,10 @@ class SprintPerformanceChart extends StatelessWidget {
               },
             ),
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: true),
         lineBarsData: [
@@ -121,7 +125,8 @@ class SprintPerformanceChart extends StatelessWidget {
     final spots = <FlSpot>[];
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      final remaining = (sprint['planned_points'] ?? 0) - (sprint['completed_points'] ?? 0);
+      final remaining =
+          (sprint['planned_points'] ?? 0) - (sprint['completed_points'] ?? 0);
       spots.add(FlSpot(i.toDouble(), remaining.toDouble()));
     }
 
@@ -143,8 +148,10 @@ class SprintPerformanceChart extends StatelessWidget {
               },
             ),
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: true),
         lineBarsData: [
@@ -187,8 +194,10 @@ class SprintPerformanceChart extends StatelessWidget {
               },
             ),
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: true),
         lineBarsData: [
@@ -236,8 +245,10 @@ class SprintPerformanceChart extends StatelessWidget {
               },
             ),
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: true),
         lineBarsData: [
@@ -284,8 +295,10 @@ class SprintPerformanceChart extends StatelessWidget {
               },
             ),
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: true),
         lineBarsData: [
@@ -315,7 +328,8 @@ class SprintMetricsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final plannedPoints = sprint['planned_points'] ?? 0;
     final completedPoints = sprint['completed_points'] ?? 0;
-    final completionRate = plannedPoints > 0 ? (completedPoints / plannedPoints) : 0.0;
+    final completionRate =
+        plannedPoints > 0 ? (completedPoints / plannedPoints) : 0.0;
 
     return Card(
       child: Padding(
@@ -383,7 +397,8 @@ class SprintMetricsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricItem(String label, String value, IconData icon, Color color) {
+  Widget _buildMetricItem(
+      String label, String value, IconData icon, Color color) {
     return Column(
       children: [
         Icon(icon, color: color, size: 24),

@@ -312,7 +312,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 'planned_points': sprint.committedPoints,
                 'completed_points': sprint.completedPoints,
                 'status': 'completed',
-              }).toList()),
+              },).toList(),),
             ),
           ],
         ),
@@ -351,7 +351,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _showDeliverableDetailsDialog(deliverable);
                 },
               ),
-            )),
+            ),),
       ],
     );
   }
