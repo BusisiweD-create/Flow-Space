@@ -304,14 +304,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: SprintPerformanceChart(sprints: sprints.map((sprint) => {
-                'id': sprint.id,
-                'name': sprint.name,
-                'start_date': sprint.startDate.toIso8601String(),
-                'end_date': sprint.endDate.toIso8601String(),
-                'planned_points': sprint.committedPoints,
-                'completed_points': sprint.completedPoints,
-                'status': 'completed',
+              child: SprintPerformanceChart(sprints: sprints.map((sprint) {
+                return {
+                  'id': sprint.id,
+                  'name': sprint.name,
+                  'start_date': sprint.startDate.toIso8601String(),
+                  'end_date': sprint.endDate.toIso8601String(),
+                  'planned_points': sprint.committedPoints,
+                  'completed_points': sprint.completedPoints,
+                  'status': 'completed',
+                };
               }).toList(),),
             ),
           ],

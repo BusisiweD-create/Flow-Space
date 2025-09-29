@@ -20,27 +20,27 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     _NavItem(
         label: 'Deliverables',
         icon: Icons.dashboard_outlined,
-        route: '/dashboard'),
+        route: '/dashboard',),
     _NavItem(
-        label: 'Sprints', icon: Icons.timer_outlined, route: '/sprint-console'),
+        label: 'Sprints', icon: Icons.timer_outlined, route: '/sprint-console',),
     _NavItem(
         label: 'Notifications',
         icon: Icons.notifications_outlined,
-        route: '/notifications'),
+        route: '/notifications',),
     _NavItem(
         label: 'Approvals',
         icon: Icons.check_box_outlined,
-        route: '/approvals'),
+        route: '/approvals',),
     _NavItem(
-        label: 'Repository', icon: Icons.folder_outlined, route: '/repository'),
+        label: 'Repository', icon: Icons.folder_outlined, route: '/repository',),
     _NavItem(
         label: 'Settings',
         icon: Icons.settings_outlined,
-        route: '/settings'), // optional
+        route: '/settings',), // optional
     _NavItem(
         label: 'Account',
         icon: Icons.person_outline,
-        route: '/account'), // optional
+        route: '/account',), // optional
   ];
 
   @override
@@ -109,7 +109,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             leading: Icon(item.icon,
                                 color: active
                                     ? Theme.of(context).colorScheme.primary
-                                    : null),
+                                    : null,),
                             title: Text(item.label),
                             selected: active,
                             onTap: () {
@@ -152,11 +152,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       // Header with collapse toggle
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12),
+                            horizontal: 12, vertical: 12,),
                         child: Row(
                           children: [
                             const CircleAvatar(
-                                radius: 16, child: Icon(Icons.apps, size: 18)),
+                                radius: 16, child: Icon(Icons.apps, size: 18),),
                             if (!_collapsed) const SizedBox(width: 8),
                             if (!_collapsed)
                               Text(
@@ -172,7 +172,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                               },
                               icon: Icon(_collapsed
                                   ? Icons.chevron_right
-                                  : Icons.chevron_left),
+                                  : Icons.chevron_left,),
                             ),
                           ],
                         ),
@@ -228,5 +228,5 @@ class _NavItem {
   final IconData icon;
   final String route;
   const _NavItem(
-      {required this.label, required this.icon, required this.route});
+      {required this.label, required this.icon, required this.route,});
 }

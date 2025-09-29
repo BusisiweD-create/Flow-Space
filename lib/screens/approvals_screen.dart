@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/approval_request.dart';
+import 'package:khono/models/approval_request.dart';
 
 class ApprovalsScreen extends ConsumerStatefulWidget {
   const ApprovalsScreen({super.key});
@@ -99,7 +99,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                         Container(
                           margin: const EdgeInsets.only(top: 4),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                              horizontal: 8, vertical: 2,),
                           decoration: BoxDecoration(
                             color: _getStatusColor(request.status),
                             borderRadius: BorderRadius.circular(12),
@@ -121,7 +121,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.check,
-                                    color: Colors.green),
+                                    color: Colors.green,),
                                 onPressed: () => _approveRequest(request.id),
                                 tooltip: 'Approve',
                               ),
