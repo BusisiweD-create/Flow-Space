@@ -1,4 +1,3 @@
-
 enum ApprovalStatus {
   pending,
   approved,

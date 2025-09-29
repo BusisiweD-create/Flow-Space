@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../theme/flownet_theme.dart';
+import 'flownet_logo.dart';
 
 class SidebarScaffold extends StatefulWidget {
   final Widget child;
@@ -12,214 +13,385 @@ class SidebarScaffold extends StatefulWidget {
 }
 
 class _SidebarScaffoldState extends State<SidebarScaffold> {
-  static const _prefsKey = '__sidebar_collapsed';
   bool _collapsed = false;
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  static const double _sidebarWidth = 280;
+  static const double _collapsedWidth = 80;
 
-  final _items = const <_NavItem>[
-    _NavItem(
-        label: 'Deliverables',
-        icon: Icons.dashboard_outlined,
+  final List<_NavItem> _navItems = [
+    const _NavItem(
+        label: 'Dashboard', icon: Icons.dashboard_outlined,
         route: '/dashboard',),
-    _NavItem(
+    const _NavItem(
         label: 'Sprints', icon: Icons.timer_outlined, route: '/sprint-console',),
-    _NavItem(
+    const _NavItem(
         label: 'Notifications',
         icon: Icons.notifications_outlined,
         route: '/notifications',),
-    _NavItem(
+    const _NavItem(
         label: 'Approvals',
         icon: Icons.check_box_outlined,
         route: '/approvals',),
-    _NavItem(
+    const _NavItem(
         label: 'Repository', icon: Icons.folder_outlined, route: '/repository',),
-    _NavItem(
-        label: 'Settings',
-        icon: Icons.settings_outlined,
-        route: '/settings',), // optional
-    _NavItem(
-        label: 'Account',
-        icon: Icons.person_outline,
-        route: '/account',), // optional
+    const _NavItem(
+        label: 'Settings', icon: Icons.settings_outlined, route: '/settings',),
+    const _NavItem(label: 'Account', icon: Icons.person_outline, route: '/account'),
   ];
 
   @override
   void initState() {
     super.initState();
-    _restoreCollapsed();
+    _restoreSidebarState();
   }
 
-  Future<void> _restoreCollapsed() async {
-    final prefs = await SharedPreferences.getInstance();
+  void _restoreSidebarState() {
+    // Restore sidebar state from SharedPreferences or other storage
+    // For now, we'll use a default state
+    _collapsed = false;
+  }
+
+  void _persistSidebarState() {
+    // Save sidebar state to SharedPreferences or other storage
+    // Implementation would go here
+  }
+
+  void _toggleSidebar() {
     setState(() {
-      _collapsed = prefs.getBool(_prefsKey) ?? false;
+      _collapsed = !_collapsed;
     });
-  }
-
-  Future<void> _persistCollapsed() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsKey, _collapsed);
-  }
-
-  int _currentIndex(String location) {
-    final i = _items.indexWhere((e) => location.startsWith(e.route));
-    return i == -1 ? 0 : i;
+    _persistSidebarState();
   }
 
   @override
   Widget build(BuildContext context) {
     final routeLocation = GoRouterState.of(context).uri.toString();
+    final isDesktop = MediaQuery.of(context).size.width > 768;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 800;
-
-        // Mobile: slide-in drawer + app bar with menu
-        if (isMobile) {
-          return Scaffold(
-            key: _scaffoldKey,
-            appBar: AppBar(
-              title: const Text('Flow Space'),
-              leading: IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                tooltip: 'Menu',
+    if (isDesktop) {
+      return Row(
+        children: [
+          // Sidebar
+          Container(
+            width: _collapsed ? _collapsedWidth : _sidebarWidth,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              color: FlownetColors.charcoalBlack,
+              border: Border(
+                right: BorderSide(color: FlownetColors.slate, width: 1),
               ),
             ),
-            drawer: Drawer(
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.apps)),
-                      title: const Text('Flow Space'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
-                    const Divider(),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _items.length,
-                        itemBuilder: (context, index) {
-                          final item = _items[index];
-                          final active = index == _currentIndex(routeLocation);
-                          return ListTile(
-                            leading: Icon(item.icon,
-                                color: active
-                                    ? Theme.of(context).colorScheme.primary
-                                    : null,),
-                            title: Text(item.label),
-                            selected: active,
-                            onTap: () {
-                              Navigator.pop(context);
-                              if (!routeLocation.startsWith(item.route)) {
-                                context.go(item.route);
-                              }
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            body: widget.child,
-          );
-        }
-
-        // Desktop/tablet: fixed sidebar (NavigationRail)
-        return Scaffold(
-          body: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOut,
-                width: _collapsed ? 72 : 260,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  border: Border(
-                    right: BorderSide(
-                      color: Theme.of(context).dividerColor,
-                    ),
-                  ),
-                ),
-                child: SafeArea(
-                  child: Column(
+            child: Column(
+              children: [
+                // Header with logo and collapse toggle
+                Padding(
+                  padding: const EdgeInsets.only(
+                      left: 12, right: 12, top: 24, bottom: 16,),
+                  child: Row(
                     children: [
-                      // Header with collapse toggle
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12,),
-                        child: Row(
-                          children: [
-                            const CircleAvatar(
-                                radius: 16, child: Icon(Icons.apps, size: 18),),
-                            if (!_collapsed) const SizedBox(width: 8),
-                            if (!_collapsed)
-                              Text(
-                                'Flow Space',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            const Spacer(),
-                            IconButton(
-                              tooltip: _collapsed ? 'Expand' : 'Collapse',
-                              onPressed: () async {
-                                setState(() => _collapsed = !_collapsed);
-                                await _persistCollapsed();
-                              },
-                              icon: Icon(_collapsed
-                                  ? Icons.chevron_right
-                                  : Icons.chevron_left,),
-                            ),
-                          ],
+                      const FlownetLogo(
+                        showText: false,
+                        width: 32,
+                        height: 32,
+                      ),
+                      if (!_collapsed) const SizedBox(width: 8),
+                      if (!_collapsed)
+                        const Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FlownetLogo(showText: true),
+                          ),
+                        ),
+                      IconButton(
+                        onPressed: _toggleSidebar,
+                        icon: Icon(
+                          _collapsed
+                              ? Icons.chevron_right
+                              : Icons.chevron_left,
+                          color: FlownetColors.coolGray,
                         ),
                       ),
-                      Expanded(
-                        child: NavigationRail(
-                          extended: !_collapsed,
-                          selectedIndex: _currentIndex(routeLocation),
-                          onDestinationSelected: (index) {
-                            final dest = _items[index];
-                            if (!routeLocation.startsWith(dest.route)) {
-                              context.go(dest.route);
-                            }
-                          },
-                          labelType: _collapsed
-                              ? NavigationRailLabelType.none
-                              : NavigationRailLabelType.none,
-                          leading: const SizedBox(height: 8),
-                          destinations: _items
-                              .map(
-                                (e) => NavigationRailDestination(
-                                  icon: Icon(e.icon),
-                                  selectedIcon: Icon(
-                                    e.icon,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
-                                  label: Text(e.label),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                     ],
                   ),
                 ),
+                // Navigation items
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    itemCount: _navItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _navItems[index];
+                      final active = routeLocation.startsWith(item.route);
+                      return Container(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2,),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? FlownetColors.crimsonRed.withValues(alpha: 0.1)
+                              : null,
+                          borderRadius: BorderRadius.circular(12),
+                          border: active
+                              ? const Border(
+                                  left: BorderSide(
+                                    color: FlownetColors.crimsonRed,
+                                    width: 4,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        child: ListTile(
+                          leading: Icon(
+                            item.icon,
+                            color: active
+                                ? FlownetColors.crimsonRed
+                                : FlownetColors.coolGray,
+                          ),
+                          title: Text(
+                            item.label,
+                            style: TextStyle(
+                              color: active
+                                  ? FlownetColors.crimsonRed
+                                  : FlownetColors.pureWhite,
+                              fontWeight: active
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          onTap: () {
+                            if (!routeLocation.startsWith(item.route)) {
+                              context.go(item.route);
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Main content
+          Expanded(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: FlownetColors.charcoalBlack,
               ),
-              // Main content
-              Expanded(
-                child: widget.child,
+              child: Column(
+                children: [
+                  // Top navigation bar with back/forward buttons
+                  if (routeLocation != '/dashboard')
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8,),
+                      decoration: const BoxDecoration(
+                        color: FlownetColors.graphiteGray,
+                        border: Border(
+                          bottom: BorderSide(
+                              color: FlownetColors.slate, width: 1,),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            onPressed: () => Navigator.of(context).pop(),
+                            tooltip: 'Back',
+                            color: FlownetColors.pureWhite,
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_forward),
+                            onPressed: () {
+                              // Forward navigation logic (can be enhanced)
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Forward navigation coming soon',),
+                                  backgroundColor:
+                                      FlownetColors.amberOrange,
+                                ),
+                              );
+                            },
+                            tooltip: 'Forward',
+                            color: FlownetColors.pureWhite,
+                          ),
+                          const Spacer(),
+                          // Current page indicator
+                          Text(
+                            _getPageTitle(routeLocation),
+                            style: const TextStyle(
+                              color: FlownetColors.coolGray,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Expanded(child: widget.child),
+                ],
               ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      // Mobile layout with drawer
+      return Scaffold(
+        backgroundColor: FlownetColors.charcoalBlack,
+        appBar: AppBar(
+          title: const FlownetLogo(showText: false),
+          centerTitle: false,
+          actions: [
+            if (routeLocation != '/dashboard')
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).pop(),
+                tooltip: 'Back',
+              ),
+          ],
+        ),
+        drawer: Drawer(
+          backgroundColor: FlownetColors.charcoalBlack,
+          child: SafeArea(
+            child: Column(
+              children: [
+                const Center(child: FlownetLogo(showText: true)),
+                const Divider(color: FlownetColors.slate),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _navItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _navItems[index];
+                      final active = routeLocation.startsWith(item.route);
+                      return Container(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2,),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? FlownetColors.crimsonRed.withValues(alpha: 0.1)
+                              : null,
+                          borderRadius: BorderRadius.circular(12),
+                          border: active
+                              ? const Border(
+                                  left: BorderSide(
+                                    color: FlownetColors.crimsonRed,
+                                    width: 4,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        child: ListTile(
+                          leading: Icon(
+                            item.icon,
+                            color: active
+                                ? FlownetColors.crimsonRed
+                                : FlownetColors.coolGray,
+                          ),
+                          title: Text(
+                            item.label,
+                            style: TextStyle(
+                              color: active
+                                  ? FlownetColors.crimsonRed
+                                  : FlownetColors.pureWhite,
+                              fontWeight: active
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            if (!routeLocation.startsWith(item.route)) {
+                              context.go(item.route);
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        body: Container(
+          decoration: const BoxDecoration(
+            color: FlownetColors.charcoalBlack,
+          ),
+          child: Column(
+            children: [
+              // Top navigation bar with back/forward buttons
+              if (routeLocation != '/dashboard')
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8,),
+                  decoration: const BoxDecoration(
+                    color: FlownetColors.graphiteGray,
+                    border: Border(
+                      bottom: BorderSide(
+                          color: FlownetColors.slate, width: 1,),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.of(context).pop(),
+                        tooltip: 'Back',
+                        color: FlownetColors.pureWhite,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward),
+                        onPressed: () {
+                          // Forward navigation logic (can be enhanced)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Forward navigation coming soon',),
+                              backgroundColor:
+                                  FlownetColors.amberOrange,
+                            ),
+                          );
+                        },
+                        tooltip: 'Forward',
+                        color: FlownetColors.pureWhite,
+                      ),
+                      const Spacer(),
+                      // Current page indicator
+                      Text(
+                        _getPageTitle(routeLocation),
+                        style: const TextStyle(
+                          color: FlownetColors.coolGray,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Expanded(child: widget.child),
             ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    }
+  }
+
+  String _getPageTitle(String route) {
+    switch (route) {
+      case '/approvals':
+        return 'Approvals';
+      case '/notifications':
+        return 'Notifications';
+      case '/repository':
+        return 'Repository';
+      case '/sprint-console':
+        return 'Sprint Console';
+      case '/settings':
+        return 'Settings';
+      case '/account':
+        return 'Account';
+      default:
+        return 'Flownet Workspaces';
+    }
   }
 }
 
@@ -227,6 +399,7 @@ class _NavItem {
   final String label;
   final IconData icon;
   final String route;
+
   const _NavItem(
       {required this.label, required this.icon, required this.route,});
 }

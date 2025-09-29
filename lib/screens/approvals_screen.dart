@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:khono/models/approval_request.dart';
+import '../models/approval_request.dart';
+import '../theme/flownet_theme.dart';
+import '../widgets/flownet_logo.dart';
 
 class ApprovalsScreen extends ConsumerStatefulWidget {
   const ApprovalsScreen({super.key});
@@ -40,9 +42,12 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
-        title: const Text('Approvals'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const FlownetLogo(showText: true),
+        backgroundColor: FlownetColors.charcoalBlack,
+        foregroundColor: FlownetColors.pureWhite,
+        centerTitle: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -90,8 +95,8 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               request.description,
-                              style: TextStyle(
-                                color: Colors.grey[600],
+                              style: const TextStyle(
+                                color: FlownetColors.coolGray,
                                 fontSize: 12,
                               ),
                             ),
@@ -107,7 +112,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                           child: Text(
                             request.status.name.toUpperCase(),
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: FlownetColors.pureWhite,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -121,13 +126,13 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.check,
-                                    color: Colors.green,),
+                                    color: FlownetColors.emeraldGreen,),
                                 onPressed: () => _approveRequest(request.id),
                                 tooltip: 'Approve',
                               ),
                               IconButton(
-                                icon:
-                                    const Icon(Icons.close, color: Colors.red),
+                                icon: const Icon(Icons.close,
+                                    color: FlownetColors.crimsonRed,),
                                 onPressed: () => _denyRequest(request.id),
                                 tooltip: 'Deny',
                               ),
@@ -148,11 +153,11 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   Color _getStatusColor(ApprovalStatus status) {
     switch (status) {
       case ApprovalStatus.pending:
-        return Colors.orange;
+        return FlownetColors.amberOrange;
       case ApprovalStatus.approved:
-        return Colors.green;
+        return FlownetColors.emeraldGreen;
       case ApprovalStatus.denied:
-        return Colors.red;
+        return FlownetColors.crimsonRed;
     }
   }
 
@@ -170,7 +175,10 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       }
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Request approved successfully')),
+      const SnackBar(
+        content: Text('Request approved successfully'),
+        backgroundColor: FlownetColors.emeraldGreen,
+      ),
     );
   }
 
@@ -184,7 +192,10 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       }
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Request denied')),
+      const SnackBar(
+        content: Text('Request denied'),
+        backgroundColor: FlownetColors.crimsonRed,
+      ),
     );
   }
 
@@ -192,6 +203,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
         title: const Text('Filter Approvals'),
         content: const Text('Filter options would go here'),
         actions: [

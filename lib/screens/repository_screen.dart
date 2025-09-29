@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/repository_file.dart';
+import '../theme/flownet_theme.dart';
+import '../widgets/flownet_logo.dart';
 
 class RepositoryScreen extends ConsumerStatefulWidget {
   const RepositoryScreen({super.key});
@@ -10,80 +12,56 @@ class RepositoryScreen extends ConsumerStatefulWidget {
 }
 
 class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
-  final TextEditingController _searchController = TextEditingController();
   final List<RepositoryFile> _files = [
     RepositoryFile(
       id: '1',
       name: 'project_design.pdf',
-      fileType: 'PDF',
+      fileType: 'pdf',
       uploadDate: DateTime.now().subtract(const Duration(days: 3)),
       uploadedBy: 'Alice Johnson',
       size: '2.3 MB',
       description: 'Project design document',
+      uploader: 'Alice Johnson',
+      sizeInMB: 2.3,
     ),
     RepositoryFile(
       id: '2',
       name: 'api_specs.json',
-      fileType: 'JSON',
+      fileType: 'json',
       uploadDate: DateTime.now().subtract(const Duration(days: 1)),
       uploadedBy: 'Bob Smith',
       size: '156 KB',
       description: 'API specifications',
+      uploader: 'Bob Smith',
+      sizeInMB: 0.156,
     ),
     RepositoryFile(
       id: '3',
       name: 'database_schema.sql',
-      fileType: 'SQL',
-      uploadDate: DateTime.now().subtract(const Duration(hours: 6)),
+      fileType: 'sql',
+      uploadDate: DateTime.now().subtract(const Duration(hours: 5)),
       uploadedBy: 'Carol Davis',
       size: '89 KB',
       description: 'Database schema file',
+      uploader: 'Carol Davis',
+      sizeInMB: 0.089,
     ),
   ];
-
-  List<RepositoryFile> _filteredFiles = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredFiles = _files;
-    _searchController.addListener(_filterFiles);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterFiles() {
-    setState(() {
-      if (_searchController.text.isEmpty) {
-        _filteredFiles = _files;
-      } else {
-        _filteredFiles = _files.where((file) {
-          return file.name
-                  .toLowerCase()
-                  .contains(_searchController.text.toLowerCase()) ||
-              file.fileType
-                  .toLowerCase()
-                  .contains(_searchController.text.toLowerCase());
-        }).toList();
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
-        title: const Text('Repository'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const FlownetLogo(showText: true),
+        backgroundColor: FlownetColors.charcoalBlack,
+        foregroundColor: FlownetColors.pureWhite,
+        centerTitle: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.upload_file),
-            onPressed: _showUploadDialog,
-            tooltip: 'Upload File',
+            icon: const Icon(Icons.folder),
+            onPressed: () {},
+            tooltip: 'Repository',
           ),
         ],
       ),
@@ -93,7 +71,6 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
-              controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search files...',
                 prefixIcon: const Icon(Icons.search),
@@ -105,92 +82,101 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
           ),
           // Files list
           Expanded(
-            child: _filteredFiles.isEmpty
-                ? const Center(
-                    child: Text('No files found'),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredFiles.length,
-                    itemBuilder: (context, index) {
-                      final file = _filteredFiles[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4,),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: _getFileTypeColor(file.fileType),
+            child: ListView.builder(
+              itemCount: _files.length,
+              itemBuilder: (context, index) {
+                final file = _files[index];
+                return Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _getFileTypeColor(file.fileType),
+                      child: Text(
+                        file.fileType.toUpperCase().substring(0, 1),
+                        style: const TextStyle(
+                          color: FlownetColors.pureWhite,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      file.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Uploaded by: ${file.uploader}'),
+                        Text('Size: ${_formatFileSize(file.sizeInMB)}'),
+                        Text(_formatDate(file.uploadDate)),
+                        if (file.description.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              file.fileType.substring(0, 1),
+                              file.description,
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                                color: FlownetColors.coolGray,
+                                fontSize: 12,
                               ),
                             ),
                           ),
-                          title: Text(
-                            file.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Uploaded by: ${file.uploadedBy}'),
-                              Text(
-                                  'Size: ${file.size} • ${_formatDate(file.uploadDate)}',),
-                              if (file.description.isNotEmpty)
-                                Text(
-                                  file.description,
-                                  style: TextStyle(
-                                    fontStyle: FontStyle.italic,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                            ],
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.download),
-                                onPressed: () => _downloadFile(file.id),
-                                tooltip: 'Download',
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () => _deleteFile(file.id),
-                                tooltip: 'Delete',
-                              ),
-                            ],
-                          ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.download,
+                              color: FlownetColors.electricBlue,),
+                          onPressed: () => _downloadFile(file.id),
+                          tooltip: 'Download',
                         ),
-                      );
-                    },
+                        IconButton(
+                          icon: const Icon(Icons.delete,
+                              color: FlownetColors.crimsonRed,),
+                          onPressed: () => _deleteFile(file.id),
+                          tooltip: 'Delete',
+                        ),
+                      ],
+                    ),
+                    isThreeLine: true,
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showUploadDialog,
-        tooltip: 'Upload File',
-        child: const Icon(Icons.add),
+        onPressed: _uploadFile,
+        backgroundColor: FlownetColors.crimsonRed,
+        child: const Icon(Icons.add, color: FlownetColors.pureWhite),
       ),
     );
   }
 
   Color _getFileTypeColor(String fileType) {
-    switch (fileType.toUpperCase()) {
-      case 'PDF':
-        return Colors.red;
-      case 'JSON':
-        return Colors.blue;
-      case 'SQL':
-        return Colors.green;
-      case 'DOC':
-      case 'DOCX':
-        return Colors.indigo;
+    switch (fileType.toLowerCase()) {
+      case 'pdf':
+        return FlownetColors.crimsonRed;
+      case 'json':
+        return FlownetColors.electricBlue;
+      case 'sql':
+        return FlownetColors.emeraldGreen;
+      case 'doc':
+      case 'docx':
+        return FlownetColors.amberOrange;
       default:
-        return Colors.grey;
+        return FlownetColors.slate;
     }
+  }
+
+  String _formatFileSize(double sizeInMB) {
+    if (sizeInMB < 1) {
+      return '${(sizeInMB * 1024).toStringAsFixed(0)} KB';
+    }
+    return '${sizeInMB.toStringAsFixed(1)} MB';
   }
 
   String _formatDate(DateTime date) {
@@ -199,7 +185,10 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
 
   void _downloadFile(String id) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Download started')),
+      const SnackBar(
+        content: Text('Download started'),
+        backgroundColor: FlownetColors.electricBlue,
+      ),
     );
   }
 
@@ -207,6 +196,7 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
         title: const Text('Delete File'),
         content: const Text('Are you sure you want to delete this file?'),
         actions: [
@@ -218,11 +208,13 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
             onPressed: () {
               setState(() {
                 _files.removeWhere((file) => file.id == id);
-                _filterFiles();
               });
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('File deleted')),
+                const SnackBar(
+                  content: Text('File deleted'),
+                  backgroundColor: FlownetColors.crimsonRed,
+                ),
               );
             },
             child: const Text('Delete'),
@@ -232,28 +224,11 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
     );
   }
 
-  void _showUploadDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Upload File'),
-        content: const Text('File upload functionality would go here'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('File upload feature coming soon'),),
-              );
-            },
-            child: const Text('Upload'),
-          ),
-        ],
+  void _uploadFile() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Upload functionality would be implemented here'),
+        backgroundColor: FlownetColors.electricBlue,
       ),
     );
   }

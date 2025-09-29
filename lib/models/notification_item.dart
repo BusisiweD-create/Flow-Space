@@ -5,6 +5,7 @@ enum NotificationType {
   repository,
   system,
   team,
+  file,
 }
 
 class NotificationItem {
@@ -14,6 +15,8 @@ class NotificationItem {
   final DateTime date;
   final bool isRead;
   final NotificationType type;
+  final String message;
+  final DateTime timestamp;
 
   const NotificationItem({
     required this.id,
@@ -22,6 +25,8 @@ class NotificationItem {
     required this.date,
     required this.isRead,
     required this.type,
+    required this.message,
+    required this.timestamp,
   });
 
   NotificationItem copyWith({
@@ -31,6 +36,8 @@ class NotificationItem {
     DateTime? date,
     bool? isRead,
     NotificationType? type,
+    String? message,
+    DateTime? timestamp,
   }) {
     return NotificationItem(
       id: id ?? this.id,
@@ -39,6 +46,8 @@ class NotificationItem {
       date: date ?? this.date,
       isRead: isRead ?? this.isRead,
       type: type ?? this.type,
+      message: message ?? this.message,
+      timestamp: timestamp ?? this.timestamp,
     );
   }
 
@@ -50,6 +59,8 @@ class NotificationItem {
       'date': date.toIso8601String(),
       'isRead': isRead,
       'type': type.name,
+      'message': message,
+      'timestamp': timestamp.toIso8601String(),
     };
   }
 
@@ -64,6 +75,8 @@ class NotificationItem {
         (e) => e.name == json['type'],
         orElse: () => NotificationType.system,
       ),
+      message: json['message'] ?? '',
+      timestamp: json['timestamp'] != null ? DateTime.parse(json['timestamp']) : DateTime.now(),
     );
   }
 }

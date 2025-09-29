@@ -13,13 +13,14 @@ import 'screens/approvals_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
+import 'theme/flownet_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize API Service
   await ApiService.initialize();
-  
+
   runApp(const ProviderScope(child: KhonoApp()));
 }
 
@@ -29,24 +30,8 @@ class KhonoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Khonology - Deliverable & Sprint Sign-Off Hub',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB), // Professional blue
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
+      title: 'Flownet Workspaces - Project Management Hub',
+      theme: FlownetTheme.darkTheme, // Dark mode as default
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
@@ -74,45 +59,39 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/dashboard',
-      builder: (context, state) =>
-          const SidebarScaffold(child: DashboardScreen()),
+      builder: (context, state) => const SidebarScaffold(
+        child: DashboardScreen(),
+      ),
     ),
     GoRoute(
       path: '/deliverable-setup',
-      builder: (context, state) =>
-          const SidebarScaffold(child: DeliverableSetupScreen()),
+      builder: (context, state) => const SidebarScaffold(
+        child: DeliverableSetupScreen(),
+      ),
     ),
     GoRoute(
       path: '/sprint-console',
-      builder: (context, state) =>
-          const SidebarScaffold(child: SprintConsoleScreen()),
+      builder: (context, state) => const SidebarScaffold(
+        child: SprintConsoleScreen(),
+      ),
     ),
     GoRoute(
       path: '/approvals',
-      builder: (context, state) =>
-          const SidebarScaffold(child: ApprovalsScreen()),
+      builder: (context, state) => const SidebarScaffold(
+        child: ApprovalsScreen(),
+      ),
     ),
     GoRoute(
       path: '/repository',
-      builder: (context, state) =>
-          const SidebarScaffold(child: RepositoryScreen()),
+      builder: (context, state) => const SidebarScaffold(
+        child: RepositoryScreen(),
+      ),
     ),
     GoRoute(
       path: '/notifications',
-      builder: (context, state) =>
-          const SidebarScaffold(child: NotificationsScreen()),
-    ),
-    // Optional routes (settings/account) to avoid 404
-    GoRoute(
-      path: '/settings',
-      builder: (context, state) =>
-          const Scaffold(body: Center(child: Text('Settings'))),
-    ),
-    GoRoute(
-      path: '/account',
-      builder: (context, state) =>
-          const Scaffold(body: Center(child: Text('Account'))),
+      builder: (context, state) => const SidebarScaffold(
+        child: NotificationsScreen(),
+      ),
     ),
   ],
 );
-

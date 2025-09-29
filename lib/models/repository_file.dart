@@ -6,6 +6,8 @@ class RepositoryFile {
   final String uploadedBy;
   final String size;
   final String description;
+  final String uploader;
+  final double sizeInMB; // in MB
 
   const RepositoryFile({
     required this.id,
@@ -15,6 +17,8 @@ class RepositoryFile {
     required this.uploadedBy,
     required this.size,
     required this.description,
+    required this.uploader,
+    required this.sizeInMB,
   });
 
   RepositoryFile copyWith({
@@ -25,6 +29,8 @@ class RepositoryFile {
     String? uploadedBy,
     String? size,
     String? description,
+    String? uploader,
+    double? sizeInMB,
   }) {
     return RepositoryFile(
       id: id ?? this.id,
@@ -34,6 +40,8 @@ class RepositoryFile {
       uploadedBy: uploadedBy ?? this.uploadedBy,
       size: size ?? this.size,
       description: description ?? this.description,
+      uploader: uploader ?? this.uploader,
+      sizeInMB: sizeInMB ?? this.sizeInMB,
     );
   }
 
@@ -46,6 +54,8 @@ class RepositoryFile {
       'uploadedBy': uploadedBy,
       'size': size,
       'description': description,
+      'uploader': uploader,
+      'sizeInMB': sizeInMB,
     };
   }
 
@@ -58,6 +68,8 @@ class RepositoryFile {
       uploadedBy: json['uploadedBy'],
       size: json['size'],
       description: json['description'],
+      uploader: json['uploader'] ?? '',
+      sizeInMB: json['sizeInMB']?.toDouble() ?? 0.0,
     );
   }
 }

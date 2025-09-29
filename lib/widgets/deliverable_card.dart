@@ -126,10 +126,10 @@ class DeliverableCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: deliverable.statusColor.withValues(alpha: 0.1),
+        color: deliverable.statusColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: deliverable.statusColor.withValues(alpha: 0.3),
+          color: deliverable.statusColor.withOpacity(0.3),
           width: 1,
         ),
       ),
