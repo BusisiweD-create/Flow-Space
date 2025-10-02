@@ -4,17 +4,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../models/deliverable.dart';
-import '../models/sprint.dart';
 import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
-// ignore: unused_import
-import '../services/settings_service.dart';
 import '../services/backend_settings_service.dart';
 import '../services/notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/theme_provider.dart';
+import '../providers/dashboard_provider.dart';
+import '../models/deliverable.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -24,90 +22,14 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  // Sample data for demonstration
-  final List<Deliverable> deliverables = [
-    Deliverable(
-      id: '1',
-      title: 'User Authentication System',
-      description: 'Complete user login, registration, and role-based access control',
-      status: DeliverableStatus.submitted,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      dueDate: DateTime.now().add(const Duration(days: 2)),
-      sprintIds: ['1', '2'],
-      definitionOfDone: [
-        'All unit tests pass',
-        'Code review completed',
-        'Security audit passed',
-        'Documentation updated',
-      ],
-    ),
-    Deliverable(
-      id: '2',
-      title: 'Payment Integration',
-      description: 'Stripe payment gateway integration with subscription management',
-      status: DeliverableStatus.draft,
-      createdAt: DateTime.now().subtract(const Duration(days: 3)),
-      dueDate: DateTime.now().add(const Duration(days: 7)),
-      sprintIds: ['3'],
-      definitionOfDone: [
-        'Payment flow tested',
-        'PCI compliance verified',
-        'Error handling implemented',
-        'User documentation created',
-      ],
-    ),
-    Deliverable(
-      id: '3',
-      title: 'Mobile App Release',
-      description: 'iOS and Android app store deployment',
-      status: DeliverableStatus.approved,
-      createdAt: DateTime.now().subtract(const Duration(days: 10)),
-      dueDate: DateTime.now().subtract(const Duration(days: 1)),
-      sprintIds: ['4', '5'],
-      definitionOfDone: [
-        'App store approval received',
-        'Performance testing completed',
-        'User acceptance testing passed',
-        'Release notes published',
-      ],
-    ),
-  ];
-
-  final List<Sprint> sprints = [
-    Sprint(
-      id: '1',
-      name: 'Sprint 1 - Auth Foundation',
-      startDate: DateTime.now().subtract(const Duration(days: 14)),
-      endDate: DateTime.now().subtract(const Duration(days: 7)),
-      committedPoints: 21,
-      completedPoints: 18,
-      velocity: 18,
-      testPassRate: 95.5,
-      defectCount: 3,
-    ),
-    Sprint(
-      id: '2',
-      name: 'Sprint 2 - Auth Enhancement',
-      startDate: DateTime.now().subtract(const Duration(days: 7)),
-      endDate: DateTime.now(),
-      committedPoints: 19,
-      completedPoints: 19,
-      velocity: 19,
-      testPassRate: 98.2,
-      defectCount: 1,
-    ),
-    Sprint(
-      id: '3',
-      name: 'Sprint 3 - Payment Integration',
-      startDate: DateTime.now(),
-      endDate: DateTime.now().add(const Duration(days: 7)),
-      committedPoints: 25,
-      completedPoints: 12,
-      velocity: 0, // In progress
-      testPassRate: 92.1,
-      defectCount: 2,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Load dashboard data when the screen is first displayed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(dashboardProvider.notifier).loadDashboardData();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,27 +95,69 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Section
-            _buildWelcomeSection(),
-            const SizedBox(height: 24),
+      body: Consumer(
+        builder: (context, ref, child) {
+          final dashboardState = ref.watch(dashboardProvider);
+          
+          if (dashboardState.isLoading && dashboardState.deliverables.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (dashboardState.error != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error loading dashboard data',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    dashboardState.error!,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      ref.read(dashboardProvider.notifier).loadDashboardData();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+          
+          return RefreshIndicator(
+            onRefresh: () async {
+              await ref.read(dashboardProvider.notifier).refreshData();
+            },
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Welcome Section
+                  _buildWelcomeSection(),
+                  const SizedBox(height: 24),
 
-            // Key Metrics Row
-            _buildMetricsRow(),
-            const SizedBox(height: 24),
+                  // Key Metrics Row
+                  _buildMetricsRow(),
+                  const SizedBox(height: 24),
 
-            // Sprint Performance Chart
-            _buildSprintPerformanceSection(),
-            const SizedBox(height: 24),
+                  // Sprint Performance Chart
+                  _buildSprintPerformanceSection(),
+                  const SizedBox(height: 24),
 
-            // Deliverables Section
-            _buildDeliverablesSection(),
-          ],
-        ),
+                  // Deliverables Section
+                  _buildDeliverablesSection(),
+                ],
+              ),
+            ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -253,6 +217,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildMetricsRow() {
+    final dashboardState = ref.watch(dashboardProvider);
+    final deliverables = dashboardState.deliverables;
+    
     final totalDeliverables = deliverables.length;
     final approvedDeliverables = deliverables.where((d) => d.status == DeliverableStatus.approved).length;
     final pendingDeliverables = deliverables.where((d) => d.status == DeliverableStatus.submitted).length;
@@ -286,11 +253,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: MetricsCard(
-            title: 'Avg. Sign-off',
-            value: '2.3d',
-            icon: Icons.schedule,
+            title: 'Sprints',
+            value: dashboardState.sprints.length.toString(),
+            icon: Icons.timeline,
             color: Colors.purple,
           ),
         ),
@@ -299,6 +266,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildSprintPerformanceSection() {
+    final dashboardState = ref.watch(dashboardProvider);
+    final sprints = dashboardState.sprints;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -326,15 +296,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: SprintPerformanceChart(sprints: sprints.map((sprint) => {
-                'id': sprint.id,
-                'name': sprint.name,
-                'start_date': sprint.startDate.toIso8601String(),
-                'end_date': sprint.endDate.toIso8601String(),
-                'planned_points': sprint.committedPoints,
-                'completed_points': sprint.completedPoints,
-                'status': 'completed',
-              },).toList(),),
+              child: sprints.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No sprint data available',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                      ),
+                    )
+                  : SprintPerformanceChart(sprints: sprints.map((sprint) => {
+                      'id': sprint.id,
+                      'name': sprint.name,
+                      'start_date': sprint.startDate,
+                      'end_date': sprint.endDate,
+                      'planned_points': sprint.committedPoints,
+                      'completed_points': sprint.completedPoints,
+                      'status': sprint.endDate.isBefore(DateTime.now()) ? 'completed' : 'active',
+                    },).toList(),),
             ),
           ],
         ),
@@ -343,6 +322,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildDeliverablesSection() {
+    final dashboardState = ref.watch(dashboardProvider);
+    final deliverables = dashboardState.deliverables;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -365,15 +347,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        ...deliverables.map((deliverable) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DeliverableCard(
-                deliverable: deliverable,
-                onTap: () {
-                  _showDeliverableDetailsDialog(deliverable);
-                },
-              ),
-            ),),
+        if (deliverables.isEmpty)
+          Center(
+            child: Text(
+              'No deliverables found',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+            ),
+          )
+        else
+          ...deliverables.take(5).map((deliverable) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DeliverableCard(
+                  deliverable: deliverable,
+                  onTap: () {
+                    _showDeliverableDetailsDialog(deliverable);
+                  },
+                ),
+              ),),
       ],
     );
   }

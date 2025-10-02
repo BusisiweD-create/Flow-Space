@@ -2,10 +2,13 @@
 SQLAlchemy database models
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date, JSON
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
-from database import Base
+from datetime import datetime
+
+Base = declarative_base()
 
 class Deliverable(Base):
     """Model for project deliverables"""
@@ -83,22 +86,94 @@ class UserSettings(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
-class UserProfile(Base):
-    """Model for user profiles"""
-    __tablename__ = "user_profiles"
+class User(Base):
+    """Model for user authentication"""
+    __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(255), nullable=False, unique=True, index=True)
+    email = Column(String(255), nullable=False, unique=True, index=True)
+    hashed_password = Column(String(255), nullable=False)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    email = Column(String(255), nullable=False, unique=True)
-    phone_number = Column(String(50))
-    profile_picture = Column(String(500))  # URL to profile picture
-    bio = Column(Text)
-    job_title = Column(String(100))
     company = Column(String(100))
-    location = Column(String(200))
-    website = Column(String(300))
-    date_of_birth = Column(DateTime(timezone=True))
+    role = Column(String(50), default="user")  # admin, manager, user, client
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    verification_token = Column(String(255))
+    reset_token = Column(String(255))
+    last_login = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    profile = relationship("UserProfile", back_populates="user", uselist=False)
+
+class RefreshToken(Base):
+    """Model for refresh tokens"""
+    __tablename__ = "refresh_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(String(500), nullable=False, unique=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_revoked = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User")
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, index=True)
+    first_name = Column(String, index=True)
+    last_name = Column(String, index=True)
+    email = Column(String, unique=True, index=True)
+    phone_number = Column(String, nullable=True)
+    profile_picture = Column(String, nullable=True)
+    bio = Column(String, nullable=True)
+    job_title = Column(String, nullable=True)
+    company = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    website = Column(String, nullable=True)
+    date_of_birth = Column(Date, nullable=True)
+    headline = Column(String, nullable=True)
+    skills = Column(JSON, nullable=True)  # Store as JSON array of strings
+    experience_years = Column(Integer, nullable=True)
+    education = Column(JSON, nullable=True)  # Store as JSON array of objects
+    social_links = Column(JSON, nullable=True)  # Store as JSON object
+    availability_status = Column(String, default="available")  # e.g., "available", "busy", "offline"
+    timezone = Column(String, nullable=True)
+    preferred_language = Column(String, default="en")
+    is_email_verified = Column(Boolean, default=False)
+    is_phone_verified = Column(Boolean, default=False)
+    verification_badge = Column(String, nullable=True)  # e.g., "verified", "trusted"
+    profile_visibility = Column(String, default="public")  # e.g., "public", "private", "connections_only"
+    show_email = Column(Boolean, default=True)
+    show_phone = Column(Boolean, default=True)
+    last_active_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User", back_populates="profile")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipient_id = Column(Integer, ForeignKey("users.id"), index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    type = Column(String, index=True)  # e.g., "message", "task_assigned", "sprint_update"
+    message = Column(String)
+    payload = Column(JSON, nullable=True)  # Additional data related to the notification
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    recipient = relationship("User", foreign_keys=[recipient_id], back_populates="notifications_received")
+    sender = relationship("User", foreign_keys=[sender_id], back_populates="notifications_sent")
+
+# Add relationships to User model
+User.notifications_received = relationship("Notification", foreign_keys=[Notification.recipient_id], back_populates="recipient")
+User.notifications_sent = relationship("Notification", foreign_keys=[Notification.sender_id], back_populates="sender")

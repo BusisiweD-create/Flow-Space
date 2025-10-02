@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison, unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
@@ -57,16 +59,16 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      final deliverable = await ApiService.createDeliverable(
+      await ApiService.createDeliverable(
         title: _titleController.text,
         description: _descriptionController.text,
         definitionOfDone: _dodController.text,
         status: _status,
         assignedTo: '00000000-0000-0000-0000-000000000002', // Default to Jane Smith
-        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
+        createdBy: '00000000-0000-0000-0000-000000000001', priority: '', evidenceLinks: [], contributingSprints: [], // Default to John Doe
       );
 
-      if (deliverable != null && mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Deliverable created successfully!')),
         );

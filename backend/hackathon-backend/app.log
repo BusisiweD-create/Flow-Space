@@ -1,0 +1,1244 @@
+2025-09-30 11:56:53,322 - services.logging_service - INFO - Logging service started
+2025-09-30 11:59:07,024 - services.logging_service - INFO - Logging service stopped
+2025-09-30 11:59:11,215 - services.logging_service - INFO - Logging service started
+2025-09-30 12:02:31,149 - services.logging_service - INFO - Logging service started
+2025-09-30 12:02:35,382 - services.logging_service - INFO - Request started: GET /
+2025-09-30 12:02:35,411 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:02:35,423 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:06:54,202 - services.logging_service - INFO - Request started: OPTIONS /api/v1/settings/me
+2025-09-30 12:06:54,230 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:06:54,237 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:06:54,261 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:06:54,264 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:06:54,268 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:24,910 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:24,913 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:24,913 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:25,258 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:25,261 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:25,262 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:25,513 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:25,515 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:25,516 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:25,841 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:25,843 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:25,845 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:26,285 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:26,288 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:26,291 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:26,666 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:26,668 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:26,669 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,024 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:27,026 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,027 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,129 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:27,131 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,132 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,322 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:27,324 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,325 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,490 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:27,492 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,493 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,694 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:27,696 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,697 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,944 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:27,946 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:27,947 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,215 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:28,217 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,218 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,489 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:28,491 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,492 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,594 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:28,596 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,597 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,820 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:28,822 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,824 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,974 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:28,975 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:28,976 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,193 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:29,196 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,196 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,349 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:29,351 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,352 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,568 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:29,570 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,571 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,730 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:29,732 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:29,733 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,024 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:30,025 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,026 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,195 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:30,197 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,198 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,429 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:30,431 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,432 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,586 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:30,588 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,589 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,782 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:30,784 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,785 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,983 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:30,985 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,986 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,992 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:30,994 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:30,995 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,208 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:31,210 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,210 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,222 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-09-30 12:07:31,226 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,226 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,363 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:31,365 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,365 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,424 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:31,426 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,427 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,626 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:31,634 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,635 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,707 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-09-30 12:07:31,712 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,713 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,913 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:31,915 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:31,916 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,006 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:32,008 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,010 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,180 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:32,183 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,184 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,244 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-09-30 12:07:32,248 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,249 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,398 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:32,401 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,401 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,729 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:07:32,731 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:32,732 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:07:37,914 - services.logging_service - INFO - Request started: OPTIONS /api/v1/profile/demo_user
+2025-09-30 12:07:37,916 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:07:37,917 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:07:37,922 - services.logging_service - INFO - Request started: GET /api/v1/profile/demo_user
+2025-09-30 12:07:38,389 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:07:38,390 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:07:38,391 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:08:51,637 - services.logging_service - INFO - Request started: GET /api/v1/profile/demo_user
+2025-09-30 12:08:51,649 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:08:51,651 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:08:51,651 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:08:51,774 - services.logging_service - INFO - Request started: OPTIONS /api/v1/profile/
+2025-09-30 12:08:51,775 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:08:51,776 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:08:51,781 - services.logging_service - INFO - Request started: POST /api/v1/profile/
+2025-09-30 12:08:51,839 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:08:51,840 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:08:51,841 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:11,879 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints
+2025-09-30 12:09:11,881 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:09:11,881 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:09:11,888 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-09-30 12:09:11,890 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:11,891 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:11,959 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints/
+2025-09-30 12:09:11,961 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:09:11,962 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:09:11,967 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-09-30 12:09:11,994 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:09:11,995 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:11,995 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:14,024 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-09-30 12:09:14,026 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:14,027 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:14,032 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-09-30 12:09:14,045 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:09:14,046 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:14,046 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:18,060 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-09-30 12:09:18,061 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:18,062 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:18,083 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-09-30 12:09:18,100 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:09:18,101 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:18,101 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:19,376 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-09-30 12:09:19,379 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:19,381 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:19,574 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-09-30 12:09:19,588 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:09:19,589 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:19,590 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:21,610 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-09-30 12:09:21,611 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:21,612 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:21,624 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-09-30 12:09:21,640 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:09:21,641 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:21,641 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:25,661 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-09-30 12:09:25,664 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:25,665 - services.logging_service - INFO - Request completed: 307
+2025-09-30 12:09:25,677 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-09-30 12:09:25,698 - services.logging_service - ERROR - Unhandled exception in request: One or more mappers failed to initialize - can't proceed with initialization of other mappers. Triggering mapper: 'Mapper[UserProfile(user_profiles)]'. Original exception was: Mapper 'Mapper[User(users)]' has no property 'profile'.  If this property was indicated from other mappers or configure events, ensure registry.configure() has been called.
+2025-09-30 12:09:25,701 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:09:25,702 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:11:34,578 - services.logging_service - INFO - Logging service stopped
+2025-09-30 12:16:07,005 - services.logging_service - INFO - Logging service started
+2025-09-30 12:16:12,281 - services.logging_service - INFO - Request started: GET /
+2025-09-30 12:16:12,285 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:16:12,286 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:17:13,525 - services.logging_service - INFO - Logging service started
+2025-09-30 12:17:18,088 - services.logging_service - INFO - Request started: GET /
+2025-09-30 12:17:18,098 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:17:18,106 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:18:31,889 - services.logging_service - INFO - Request started: OPTIONS /api/v1/settings/me
+2025-09-30 12:18:31,899 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:18:31,902 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:18:31,909 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:18:31,914 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:18:31,915 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:19,516 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:19,519 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:19,520 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:19,827 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:19,829 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:19,830 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:20,090 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:20,092 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:20,093 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:20,381 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:20,384 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:20,385 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:20,776 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:20,780 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:20,781 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,085 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:21,087 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,088 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,352 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:21,354 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,355 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,598 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:21,602 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,603 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,697 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:21,699 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,700 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,887 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:21,889 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:21,890 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,054 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:22,061 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,062 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,280 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:22,282 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,283 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,544 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:22,547 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,548 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,814 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:22,816 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:22,817 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,123 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:23,124 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,125 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,458 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:23,460 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,461 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,742 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:23,744 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,745 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,983 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:23,986 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:23,987 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:24,278 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:24,281 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:24,281 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:24,504 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:24,506 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:24,507 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:24,770 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:24,773 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:24,773 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:25,606 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:25,608 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:25,609 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:25,825 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:25,827 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:25,828 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,106 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:26,109 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,110 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,328 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:26,336 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,336 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,627 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:26,629 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,629 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,915 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:26,917 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:26,918 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,196 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:27,198 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,199 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,458 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:27,460 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,461 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,715 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:27,717 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,718 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,986 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:27,988 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:27,989 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,113 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:28,116 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,116 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,328 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:28,330 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,331 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,485 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:28,487 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,488 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,673 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:28,674 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,675 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,814 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:28,816 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:28,817 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,013 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:29,015 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,016 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,214 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:29,216 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,217 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,470 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:29,472 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,474 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,676 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:29,679 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,680 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,982 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:29,985 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:29,986 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,157 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:30,160 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,161 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,380 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:30,382 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,383 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,669 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:30,675 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,678 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,990 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:30,993 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:30,994 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:31,295 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:31,298 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:31,298 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:31,569 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:31,574 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:31,575 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:31,871 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:31,873 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:31,874 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,148 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:32,149 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,150 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,399 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:32,402 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,404 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,656 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:32,658 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,659 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,812 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:32,816 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,817 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,985 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:32,987 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:32,988 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,145 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:33,147 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,148 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,346 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:33,348 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,349 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,599 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:33,603 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,604 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,856 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:33,860 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:33,863 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,138 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:34,140 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,141 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,403 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:34,405 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,406 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,701 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:34,704 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,705 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,924 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:34,927 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:34,928 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,199 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:35,202 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,203 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,441 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:35,443 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,444 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,690 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:35,692 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,693 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,937 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:35,940 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:35,941 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:36,246 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:36,248 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:36,249 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:36,479 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:36,481 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:36,482 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:36,823 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:36,826 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:36,827 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,093 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:37,096 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,097 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,329 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:37,332 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,333 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,569 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:37,571 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,572 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,816 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:37,818 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,819 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,824 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:37,826 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,827 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,951 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-09-30 12:19:37,956 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:37,956 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,096 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:38,099 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,100 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,162 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:38,163 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,164 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,363 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:38,365 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,366 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,373 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-09-30 12:19:38,376 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,377 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,474 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:38,476 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,476 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,611 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:38,613 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,614 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,660 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-09-30 12:19:38,662 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,663 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,909 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-09-30 12:19:38,911 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:38,912 - services.logging_service - ERROR - Request completed: 401
+2025-09-30 12:19:44,954 - services.logging_service - INFO - Request started: OPTIONS /api/v1/profile/demo_user
+2025-09-30 12:19:44,955 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:19:44,956 - services.logging_service - INFO - Request completed: 200
+2025-09-30 12:19:44,962 - services.logging_service - INFO - Request started: GET /api/v1/profile/demo_user
+2025-09-30 12:19:45,016 - services.logging_service - ERROR - Unhandled exception in request: 1 validation errors:
+  {'type': 'missing', 'loc': ('response', 'created_at'), 'msg': 'Field required', 'input': <models.UserProfile object at 0x000002A36E4027B0>}
+
+2025-09-30 12:19:45,017 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:19:45,018 - services.logging_service - ERROR - Request completed: 500
+2025-09-30 12:23:37,488 - services.logging_service - INFO - Logging service stopped
+2025-10-02 09:00:34,948 - services.logging_service - INFO - Logging service started
+2025-10-02 09:00:49,451 - services.logging_service - INFO - Request started: GET /
+2025-10-02 09:00:49,497 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:00:49,528 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:01:23,994 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:23,999 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:24,000 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:29,376 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:29,381 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:29,382 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:30,006 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:30,009 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:30,026 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:30,453 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:30,458 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:30,463 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:30,876 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:30,879 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:30,879 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:31,227 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:31,229 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:31,230 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:31,591 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:31,594 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:31,595 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:32,166 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:32,170 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:32,171 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:32,596 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:32,599 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:32,603 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:32,753 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:32,756 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:32,757 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,005 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:33,007 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,007 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,228 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:33,232 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,233 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,563 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:33,565 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,567 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,818 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:33,825 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:33,826 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:34,173 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:34,177 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:34,178 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:34,502 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:34,505 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:34,506 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,022 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:35,025 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,027 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,362 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:35,364 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,366 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,372 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:35,373 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,374 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,672 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:35,674 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,675 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,684 - services.logging_service - INFO - Request started: OPTIONS /api/v1/settings/me
+2025-10-02 09:01:35,687 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:01:35,688 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:01:35,695 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-10-02 09:01:35,699 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,700 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,899 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:35,903 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,904 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,994 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:35,997 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:35,998 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,260 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:36,263 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,265 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,488 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:36,491 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,492 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,498 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-10-02 09:01:36,506 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,507 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,596 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:36,598 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,599 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,807 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:36,809 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,811 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,888 - services.logging_service - INFO - Request started: PUT /api/v1/settings/me
+2025-10-02 09:01:36,893 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:36,894 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:37,107 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:37,109 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:37,110 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:37,553 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:01:37,556 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:01:37,557 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:05:34,934 - services.logging_service - INFO - Logging service started
+2025-10-02 09:05:43,429 - services.logging_service - INFO - Request started: GET /
+2025-10-02 09:05:43,439 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:05:43,441 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:09:05,119 - services.logging_service - INFO - Logging service started
+2025-10-02 09:09:10,434 - services.logging_service - INFO - Request started: GET /
+2025-10-02 09:09:10,443 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:09:10,448 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:11:02,030 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:11:02,043 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:11:02,046 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:56:33,723 - services.logging_service - INFO - Logging service stopped
+2025-10-02 09:56:53,568 - services.logging_service - INFO - Logging service started
+2025-10-02 09:56:58,054 - services.logging_service - INFO - Request started: GET /
+2025-10-02 09:56:58,064 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:56:58,067 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:58:34,147 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 09:58:34,165 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:58:34,168 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 09:59:00,863 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/login
+2025-10-02 09:59:00,865 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:59:00,865 - services.logging_service - INFO - Request completed: 200
+2025-10-02 09:59:00,871 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 09:59:00,883 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 09:59:00,883 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 10:00:34,838 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:00:34,840 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:00:34,840 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:00:34,846 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:00:35,472 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:00:35,473 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:35,474 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:37,552 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:00:37,571 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:00:37,572 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:37,573 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:41,635 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:00:41,651 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:00:41,652 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:41,653 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:49,177 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:00:49,194 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:00:49,195 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:49,196 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:51,434 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:00:51,452 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:00:51,453 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:51,455 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:55,507 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:00:55,528 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:00:55,528 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:00:55,530 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:01:52,197 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 10:01:52,201 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 10:01:52,202 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 10:03:18,660 - services.logging_service - INFO - Logging service started
+2025-10-02 10:03:19,776 - services.logging_service - INFO - Logging service stopped
+2025-10-02 10:09:24,732 - services.logging_service - INFO - Logging service started
+2025-10-02 10:09:25,948 - services.logging_service - INFO - Logging service stopped
+2025-10-02 10:11:23,238 - services.logging_service - INFO - Logging service started
+2025-10-02 10:11:28,447 - services.logging_service - INFO - Request started: GET /
+2025-10-02 10:11:28,454 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:11:28,461 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:11:32,752 - services.logging_service - INFO - Request started: GET /favicon.ico
+2025-10-02 10:11:32,754 - services.logging_service - ERROR - Request completed: 404
+2025-10-02 10:11:32,755 - services.logging_service - ERROR - Request completed: 404
+2025-10-02 10:11:50,748 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 10:11:50,754 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 10:11:50,755 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 10:12:37,241 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 10:12:37,599 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:12:37,600 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:12:37,600 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:13:00,585 - services.logging_service - INFO - Request started: GET /api/v1/health
+2025-10-02 10:13:00,588 - services.logging_service - ERROR - Request completed: 404
+2025-10-02 10:13:00,589 - services.logging_service - ERROR - Request completed: 404
+2025-10-02 10:13:27,267 - services.logging_service - INFO - Request started: GET /
+2025-10-02 10:13:27,268 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:13:27,269 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:13:44,295 - services.logging_service - INFO - Request started: GET /health
+2025-10-02 10:13:44,297 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:13:44,297 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:14:10,680 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:14:10,710 - services.logging_service - ERROR - Unhandled exception in request: Column expression, FROM clause, or other columns clause element expected, got <class 'schemas.User'>.
+2025-10-02 10:14:10,711 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:14:10,712 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:19:43,569 - services.logging_service - INFO - Logging service started
+2025-10-02 10:19:44,728 - services.logging_service - INFO - Logging service stopped
+2025-10-02 10:21:06,755 - services.logging_service - INFO - Logging service started
+2025-10-02 10:21:13,771 - services.logging_service - INFO - Request started: GET /
+2025-10-02 10:21:13,781 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:21:13,786 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:21:37,613 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:21:37,626 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 10:21:37,627 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 10:22:10,391 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:22:10,416 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\ThabangN\AppData\Roaming\Python\Python313\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-10-02 10:22:11,127 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:22:11,128 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:22:27,978 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 10:22:28,588 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:22:28,589 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:31:37,702 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 10:31:37,704 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:31:37,705 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:32:40,325 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:32:40,327 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:32:40,328 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:32:40,333 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:32:40,406 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 10:32:40,407 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:40,408 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:42,423 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:32:42,451 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 10:32:42,451 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:42,452 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:46,512 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:32:46,538 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 10:32:46,539 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:46,539 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:52,179 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:32:52,196 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 10:32:52,196 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:52,197 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:54,254 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:32:54,278 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 10:32:54,279 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:54,281 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:58,298 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:32:58,367 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 10:32:58,372 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:32:58,381 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 10:35:47,866 - services.logging_service - INFO - Logging service started
+2025-10-02 10:35:55,218 - services.logging_service - INFO - Request started: GET /
+2025-10-02 10:35:55,222 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:35:55,224 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:36:19,958 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:36:19,991 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\ThabangN\AppData\Roaming\Python\Python313\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-10-02 10:36:20,643 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:36:20,643 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:36:34,433 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:36:35,044 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:36:35,046 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:37:47,024 - services.logging_service - INFO - Logging service started
+2025-10-02 10:37:51,736 - services.logging_service - INFO - Request started: GET /
+2025-10-02 10:37:51,739 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:37:51,742 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:39:31,136 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 10:39:31,147 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:39:31,149 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:40:20,098 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 10:40:20,114 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:40:20,115 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:40:22,294 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 10:40:22,301 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:40:22,302 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:40:26,354 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 10:40:26,373 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:40:26,383 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:42:27,761 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:42:27,763 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:42:27,763 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:42:29,960 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:42:29,961 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:42:29,961 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:42:33,994 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:42:33,995 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:42:33,996 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:45:35,340 - services.logging_service - INFO - Logging service started
+2025-10-02 10:45:44,942 - services.logging_service - INFO - Request started: GET /
+2025-10-02 10:45:44,946 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:45:44,954 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:46:16,886 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 10:46:16,914 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\ThabangN\AppData\Roaming\Python\Python313\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-10-02 10:46:17,559 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:46:17,559 - services.logging_service - INFO - Request completed: 200
+2025-10-02 10:47:32,335 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 10:47:32,338 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:47:32,339 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 10:57:23,347 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:57:23,349 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:57:23,350 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:57:25,599 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:57:25,600 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:57:25,601 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:57:29,648 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 10:57:29,650 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 10:57:29,651 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 11:29:15,834 - services.logging_service - INFO - Logging service started
+2025-10-02 11:30:00,035 - services.logging_service - INFO - Request started: GET /
+2025-10-02 11:30:00,051 - services.logging_service - INFO - Request completed: 200
+2025-10-02 11:30:00,059 - services.logging_service - INFO - Request completed: 200
+2025-10-02 12:58:11,316 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 12:58:11,323 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 12:58:11,324 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 12:58:13,521 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 12:58:13,522 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 12:58:13,523 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 12:58:17,559 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 12:58:17,561 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 12:58:17,561 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:00:32,572 - services.logging_service - INFO - Logging service started
+2025-10-02 13:00:37,736 - services.logging_service - INFO - Request started: GET /
+2025-10-02 13:00:37,739 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:00:37,740 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:03:27,686 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:03:27,687 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:03:27,688 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:03:29,901 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:03:29,902 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:03:29,903 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:03:33,946 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:03:33,947 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:03:33,948 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:04:16,265 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 13:04:16,296 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 13:04:16,297 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 13:04:18,400 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 13:04:18,410 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 13:04:18,410 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 13:04:22,438 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 13:04:22,446 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 13:04:22,447 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 13:06:10,487 - services.logging_service - INFO - Logging service started
+2025-10-02 13:06:16,605 - services.logging_service - INFO - Request started: GET /
+2025-10-02 13:06:16,610 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:06:16,610 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:08:04,908 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:08:04,910 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:08:04,911 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:08:04,917 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:08:05,397 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 13:08:05,398 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 13:08:05,399 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 13:08:07,441 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:08:07,471 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 13:08:07,471 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 13:08:07,472 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 13:08:11,540 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:08:11,556 - services.logging_service - ERROR - Unhandled exception in request: name 'UserRole' is not defined
+2025-10-02 13:08:11,557 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 13:08:11,557 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 13:11:19,721 - services.logging_service - INFO - Logging service started
+2025-10-02 13:11:33,222 - services.logging_service - INFO - Request started: GET /
+2025-10-02 13:11:33,226 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:11:33,227 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:12:13,913 - services.logging_service - INFO - Logging service started
+2025-10-02 13:12:18,138 - services.logging_service - INFO - Request started: GET /
+2025-10-02 13:12:18,142 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:12:18,145 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:15:05,687 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:15:05,689 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:15:05,690 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:15:07,749 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:15:07,751 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:15:07,752 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:15:11,784 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:15:11,786 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:15:11,786 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:20:09,867 - services.logging_service - INFO - Logging service started
+2025-10-02 13:20:10,983 - services.logging_service - INFO - Logging service stopped
+2025-10-02 13:21:25,180 - services.logging_service - INFO - Logging service started
+2025-10-02 13:21:31,122 - services.logging_service - INFO - Request started: GET /
+2025-10-02 13:21:31,128 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:21:31,129 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:23:09,315 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:23:09,319 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:23:09,320 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:23:09,331 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:23:09,395 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:23:09,396 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:23:16,488 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:23:16,499 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:23:16,500 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:24:08,861 - services.logging_service - INFO - Logging service started
+2025-10-02 13:24:13,858 - services.logging_service - INFO - Request started: GET /
+2025-10-02 13:24:13,862 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:24:13,864 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:25:20,021 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:25:20,053 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\ThabangN\AppData\Roaming\Python\Python313\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-10-02 13:25:20,765 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:25:20,765 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:28:45,355 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:28:45,358 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 13:28:45,359 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 13:29:02,483 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:29:02,491 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:29:02,492 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:29:21,683 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:29:21,689 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:29:21,690 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:29:41,620 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:29:41,629 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:29:41,630 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:30:40,513 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:30:41,139 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:30:41,140 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:32:08,467 - services.logging_service - INFO - Logging service started
+2025-10-02 13:32:13,644 - services.logging_service - INFO - Request started: GET /
+2025-10-02 13:32:13,655 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:32:13,672 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:34:52,982 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:34:52,984 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:34:52,984 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:34:52,990 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:34:53,029 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\ThabangN\AppData\Roaming\Python\Python313\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-10-02 13:34:53,784 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:34:53,785 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:35:05,939 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:35:05,946 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:35:05,947 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:35:08,859 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:35:08,866 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:35:08,866 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:35:34,305 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:35:34,317 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:35:34,319 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:36:59,316 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:36:59,322 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 13:36:59,323 - services.logging_service - ERROR - Request completed: 422
+2025-10-02 13:37:13,293 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:37:13,915 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:37:13,916 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:38:19,206 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:38:19,207 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:38:19,208 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:40:56,992 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:40:57,626 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:40:57,626 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:45:03,384 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:45:03,386 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:45:03,386 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:45:03,391 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:45:04,034 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:45:04,035 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:45:13,626 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:45:13,634 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:45:13,634 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:50:55,706 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:50:55,721 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:50:55,722 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:51:06,209 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:51:06,218 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:51:06,218 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:56:24,160 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 13:56:24,162 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:56:24,163 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:56:24,169 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:56:24,839 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:56:24,840 - services.logging_service - INFO - Request completed: 200
+2025-10-02 13:56:40,076 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:56:40,095 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:56:40,118 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:59:34,650 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 13:59:34,661 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 13:59:34,662 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:02:59,872 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 14:02:59,883 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:02:59,883 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:07:19,677 - services.logging_service - INFO - Logging service stopped
+2025-10-02 14:07:27,607 - services.logging_service - INFO - Logging service started
+2025-10-02 14:07:34,643 - services.logging_service - INFO - Request started: GET /
+2025-10-02 14:07:34,649 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:07:34,650 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:10:15,550 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 14:10:15,552 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:10:15,553 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:10:15,560 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 14:10:15,599 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:10:15,600 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:15:23,572 - services.logging_service - INFO - Request started: OPTIONS /api/v1/auth/register
+2025-10-02 14:15:23,574 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:15:23,574 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:15:23,580 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 14:15:23,589 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:15:23,590 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:16:38,355 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 14:16:38,362 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:16:38,362 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:16:52,481 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 14:16:52,488 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:16:52,489 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:17:09,845 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 14:17:09,853 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\ThabangN\AppData\Roaming\Python\Python313\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-10-02 14:17:10,505 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:17:10,506 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:17:28,092 - services.logging_service - INFO - Request started: POST /api/v1/auth/register
+2025-10-02 14:17:28,100 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:17:28,100 - services.logging_service - ERROR - Request completed: 400
+2025-10-02 14:18:17,217 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:18:17,930 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:18:17,931 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:19:04,720 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:19:05,366 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:19:05,367 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:19:12,487 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:19:13,147 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:19:13,148 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:19:33,318 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:19:33,965 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:19:33,966 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:20:38,431 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:20:39,113 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:20:39,113 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:23:16,762 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:23:17,349 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 14:23:17,349 - services.logging_service - ERROR - Request completed: 401
+2025-10-02 14:23:30,951 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:23:31,559 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:23:31,560 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:25:46,800 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:25:47,450 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:25:47,451 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:26,306 - services.logging_service - INFO - Request started: POST /api/v1/auth/login
+2025-10-02 14:30:27,046 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:27,047 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:27,119 - services.logging_service - INFO - Request started: OPTIONS /api/v1/settings/me
+2025-10-02 14:30:27,122 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:27,123 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:27,128 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:30:27,192 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:30:27,193 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:27,193 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:28,316 - services.logging_service - INFO - Request started: OPTIONS /api/v1/deliverables
+2025-10-02 14:30:28,322 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints
+2025-10-02 14:30:28,325 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,326 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,333 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,334 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,345 - services.logging_service - INFO - Request started: GET /api/v1/deliverables
+2025-10-02 14:30:28,351 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-10-02 14:30:28,353 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:30:28,354 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:30:28,355 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:30:28,356 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:30:28,514 - services.logging_service - INFO - Request started: OPTIONS /api/v1/deliverables/
+2025-10-02 14:30:28,517 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints/
+2025-10-02 14:30:28,519 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,519 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,520 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,521 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,527 - services.logging_service - INFO - Request started: GET /api/v1/deliverables/
+2025-10-02 14:30:28,536 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-10-02 14:30:28,561 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,563 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,571 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:28,571 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:30:58,733 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:30:58,773 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:30:58,774 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:58,776 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,131 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:30:59,207 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:30:59,208 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,209 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,396 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:30:59,424 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:30:59,426 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,428 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,578 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:30:59,595 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:30:59,596 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,597 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,765 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:30:59,786 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:30:59,786 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,787 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,951 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:30:59,972 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:30:59,973 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:30:59,973 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,185 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:00,203 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:00,204 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,205 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,342 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:00,357 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:00,358 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,359 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,505 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:00,524 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:00,525 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,525 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,613 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:00,632 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:00,632 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,634 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,758 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:00,775 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:00,776 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,776 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,898 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:00,913 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:00,914 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:00,915 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,040 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:01,066 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:01,067 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,068 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,185 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:01,203 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:01,204 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,205 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,314 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:01,332 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:01,333 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,334 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,442 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:01,461 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:01,462 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,463 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,570 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:01,591 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:01,592 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,593 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,704 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:01,722 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:01,723 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,724 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,877 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:01,901 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:01,902 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:01,902 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,072 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,090 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,091 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,092 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,240 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,257 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,258 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,259 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,381 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,399 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,400 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,401 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,555 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,579 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,580 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,581 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,608 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,626 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,627 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,627 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,728 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,743 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,744 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,745 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,770 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,789 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,790 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,791 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,912 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:02,935 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:02,936 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:02,937 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:03,191 - services.logging_service - INFO - Request started: GET /api/v1/settings/me
+2025-10-02 14:31:03,212 - services.logging_service - ERROR - Unhandled exception in request: 'User' object is not subscriptable
+2025-10-02 14:31:03,213 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:03,214 - services.logging_service - ERROR - Request completed: 500
+2025-10-02 14:31:27,731 - services.logging_service - INFO - Request started: GET /api/v1/deliverables
+2025-10-02 14:31:27,733 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-10-02 14:31:27,736 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:31:27,737 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:31:27,738 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:31:27,739 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:31:27,892 - services.logging_service - INFO - Request started: GET /api/v1/deliverables/
+2025-10-02 14:31:27,894 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-10-02 14:31:27,906 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:31:27,911 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:31:27,918 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:31:27,919 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:03,262 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints
+2025-10-02 14:38:03,264 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:03,265 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:03,271 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-10-02 14:38:03,272 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:03,273 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:03,425 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints/
+2025-10-02 14:38:03,427 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:03,428 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:03,433 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-10-02 14:38:03,443 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:03,444 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:37,342 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints
+2025-10-02 14:38:37,343 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:37,344 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:37,349 - services.logging_service - INFO - Request started: POST /api/v1/sprints
+2025-10-02 14:38:37,351 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:37,352 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:37,467 - services.logging_service - INFO - Request started: OPTIONS /api/v1/sprints/
+2025-10-02 14:38:37,469 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:37,470 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:37,474 - services.logging_service - INFO - Request started: POST /api/v1/sprints/
+2025-10-02 14:38:37,577 - services.logging_service - INFO - Request completed: 201
+2025-10-02 14:38:37,579 - services.logging_service - INFO - Request completed: 201
+2025-10-02 14:38:37,686 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-10-02 14:38:37,689 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:37,691 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:37,820 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-10-02 14:38:37,835 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:37,836 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:58,869 - services.logging_service - INFO - Request started: GET /api/v1/deliverables
+2025-10-02 14:38:58,876 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-10-02 14:38:58,883 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:58,897 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:58,901 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:58,914 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:38:58,977 - services.logging_service - INFO - Request started: GET /api/v1/deliverables/
+2025-10-02 14:38:58,984 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-10-02 14:38:58,999 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:59,000 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:59,007 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:38:59,009 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:02,130 - services.logging_service - INFO - Request started: GET /api/v1/deliverables
+2025-10-02 14:39:02,133 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-10-02 14:39:02,137 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:02,138 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:02,141 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:02,142 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:02,175 - services.logging_service - INFO - Request started: GET /api/v1/deliverables/
+2025-10-02 14:39:02,178 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-10-02 14:39:02,200 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:02,202 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:02,207 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:02,209 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:14,211 - services.logging_service - INFO - Request started: GET /api/v1/deliverables
+2025-10-02 14:39:14,213 - services.logging_service - INFO - Request started: GET /api/v1/sprints
+2025-10-02 14:39:14,215 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:14,216 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:14,217 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:14,217 - services.logging_service - INFO - Request completed: 307
+2025-10-02 14:39:14,256 - services.logging_service - INFO - Request started: GET /api/v1/deliverables/
+2025-10-02 14:39:14,258 - services.logging_service - INFO - Request started: GET /api/v1/sprints/
+2025-10-02 14:39:14,270 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:14,271 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:14,274 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:39:14,275 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:40:53,732 - services.logging_service - INFO - Logging service started
+2025-10-02 14:41:07,376 - services.logging_service - INFO - Request started: GET /
+2025-10-02 14:41:07,442 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:41:07,444 - services.logging_service - INFO - Request completed: 200
+2025-10-02 14:41:07,696 - services.logging_service - INFO - Request started: GET /@vite/client
+2025-10-02 14:41:07,698 - services.logging_service - ERROR - Request completed: 404
+2025-10-02 14:41:07,698 - services.logging_service - ERROR - Request completed: 404

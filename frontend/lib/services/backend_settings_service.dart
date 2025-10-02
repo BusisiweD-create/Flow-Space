@@ -1,18 +1,22 @@
-// ignore_for_file: avoid_print
+// ignore_for_file: avoid_print, unused_element, duplicate_ignore
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/environment.dart';
+import 'api_service.dart';
 
 class BackendSettingsService {
   static const String _userIdKey = 'current_user_id';
-  static const String _defaultUserId = 'demo_user';
 
-  // Get current user ID from shared preferences or use default
+  // Get current user ID from shared preferences
   static Future<String> _getUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_userIdKey) ?? _defaultUserId;
+    final userId = prefs.getString(_userIdKey);
+    if (userId == null || userId.isEmpty) {
+      throw Exception('No user ID found. Please log in first.');
+    }
+    return userId;
   }
 
   // Save user ID to shared preferences
@@ -25,16 +29,16 @@ class BackendSettingsService {
   // Get user settings from backend
   static Future<Map<String, dynamic>> getUserSettings() async {
     try {
-      final userId = await _getUserId();
       final response = await http.get(
-        Uri.parse('${Environment.apiBaseUrl}/settings/$userId'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('${Environment.apiBaseUrl}/settings/me'),
+        headers: await ApiService.getAuthHeaders(),
       );
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
         // If settings don't exist, return default settings
+        final userId = await _getUserId();
         return _getDefaultSettings(userId);
       }
     } catch (e) {
@@ -47,10 +51,9 @@ class BackendSettingsService {
   // Update user settings in backend
   static Future<Map<String, dynamic>> updateUserSettings(Map<String, dynamic> settings) async {
     try {
-      final userId = await _getUserId();
       final response = await http.put(
-        Uri.parse('${Environment.apiBaseUrl}/settings/$userId'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('${Environment.apiBaseUrl}/settings/me'),
+        headers: await ApiService.getAuthHeaders(),
         body: json.encode(settings),
       );
 

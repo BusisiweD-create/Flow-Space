@@ -5,7 +5,6 @@ Profile router for user profile management
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Optional, List
-import shutil
 import os
 from datetime import datetime
 
@@ -16,12 +15,10 @@ from crud import (
     get_user_profile, create_user_profile, update_user_profile,
     delete_user_profile, get_user_profiles, get_user_profile_by_email
 )
+from services.file_upload_service import file_upload_service
+from schemas import FileUploadResponse
 
 router = APIRouter()
-
-# Configure upload directory
-UPLOAD_DIR = "uploads/profile_pictures"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.get("/", response_model=List[UserProfile])
 def get_all_profiles(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -66,7 +63,7 @@ def delete_profile(user_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Profile not found")
     return {"message": "Profile deleted successfully"}
 
-@router.post("/{user_id}/upload-picture")
+@router.post("/{user_id}/upload-picture", response_model=FileUploadResponse)
 async def upload_profile_picture(
     user_id: str,
     file: UploadFile = File(...),
@@ -78,27 +75,18 @@ async def upload_profile_picture(
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     
-    # Validate file type
-    if not file.content_type.startswith('image/'):
-        raise HTTPException(status_code=400, detail="Only image files are allowed")
-    
-    # Generate unique filename
-    file_extension = os.path.splitext(file.filename)[1]
-    filename = f"{user_id}_{int(datetime.now().timestamp())}{file_extension}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    
     try:
-        # Save the file
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Upload file using the file upload service
+        upload_result = await file_upload_service.upload_file(file, prefix=f"profile_pictures/{user_id}")
         
         # Update profile with picture URL
-        picture_url = f"/{file_path}"
-        update_data = UserProfileUpdate(profile_picture=picture_url)
+        update_data = UserProfileUpdate(profile_picture=upload_result["url"])
         update_user_profile(db, user_id, update_data)
         
-        return {"message": "Profile picture uploaded successfully", "picture_url": picture_url}
+        return upload_result
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 

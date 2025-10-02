@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/simple_auth_provider.dart';
+import '../providers/api_auth_riverpod_provider.dart';
 
 class EmailVerificationScreen extends ConsumerStatefulWidget {
   const EmailVerificationScreen({super.key});
@@ -13,8 +13,8 @@ class EmailVerificationScreen extends ConsumerStatefulWidget {
 class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScreen> {
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final currentUser = ref.watch(currentUserProvider);
+    final authState = ref.watch(apiAuthProvider);
+    final currentUser = ref.watch(apiCurrentUserProvider);
 
     return Scaffold(
       body: Container(
@@ -90,7 +90,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                                     data: (userEmail) => userEmail ?? 'Unknown email',
                                     loading: () => 'Loading...',
                                     error: (_, __) => 'Error loading email',
-                                  ),
+                                  ) as String,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -165,7 +165,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                         TextButton(
                           onPressed: () async {
                             final router = GoRouter.of(context);
-                            await ref.read(authStateProvider.notifier).signOut();
+                            await ref.read(apiAuthProvider.notifier).signOut();
                             if (mounted) {
                               router.go('/');
                             }
@@ -190,7 +190,27 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
   }
 
   Future<void> _resendVerification() async {
-    await ref.read(authStateProvider.notifier).resendEmailVerification();
+    try {
+      await ref.read(apiAuthProvider.notifier).resendVerificationEmail();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to resend email: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Email verification resend functionality coming soon!'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

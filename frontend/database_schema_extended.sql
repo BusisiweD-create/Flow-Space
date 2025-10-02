@@ -198,61 +198,7 @@ CREATE TRIGGER update_sprints_updated_at BEFORE UPDATE ON sprints FOR EACH ROW E
 CREATE TRIGGER update_deliverables_updated_at BEFORE UPDATE ON deliverables FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_sign_off_reports_updated_at BEFORE UPDATE ON sign_off_reports FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert sample data
-INSERT INTO profiles (id, email, password_hash, first_name, last_name, role, is_verified) VALUES
-('00000000-0000-0000-0000-000000000001', 'john@acme.com', '$2b$10$rQZ8k8QZ8k8QZ8k8QZ8k8O', 'John', 'Doe', 'manager', true),
-('00000000-0000-0000-0000-000000000002', 'jane@acme.com', '$2b$10$rQZ8k8QZ8k8QZ8k8QZ8k8O', 'Jane', 'Smith', 'user', true),
-('00000000-0000-0000-0000-000000000003', 'client@acme.com', '$2b$10$rQZ8k8QZ8k8QZ8k8QZ8k8O', 'Client', 'User', 'client', true);
-
-INSERT INTO sprints (id, name, description, start_date, end_date, planned_points, completed_points, status, created_by) VALUES
-('sprint-001', 'Sprint 1 - Auth Foundation', 'User authentication and basic security features', '2024-01-01', '2024-01-14', 21, 18, 'completed', '00000000-0000-0000-0000-000000000001'),
-('sprint-002', 'Sprint 2 - Auth Enhancement', 'Advanced authentication features and security hardening', '2024-01-15', '2024-01-28', 19, 19, 'completed', '00000000-0000-0000-0000-000000000001'),
-('sprint-003', 'Sprint 3 - Payment Integration', 'Stripe payment gateway integration', '2024-01-29', '2024-02-11', 25, 12, 'in_progress', '00000000-0000-0000-0000-000000000001');
-
-INSERT INTO deliverables (id, title, description, definition_of_done, status, priority, due_date, assigned_to, created_by) VALUES
-('deliverable-001', 'User Authentication System', 'Complete user login, registration, and role-based access control', 'All unit tests pass, Code review completed, Security audit passed, Documentation updated', 'submitted', 'high', '2024-02-15', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001'),
-('deliverable-002', 'Payment Integration', 'Stripe payment gateway integration with subscription management', 'Payment flow tested, PCI compliance verified, Error handling implemented, User documentation created', 'draft', 'high', '2024-02-28', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001'),
-('deliverable-003', 'Mobile App Release', 'iOS and Android app store deployment', 'App store approval received, Performance testing completed, User acceptance testing passed, Release notes published', 'approved', 'critical', '2024-01-31', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001');
-
-INSERT INTO sprint_deliverables (sprint_id, deliverable_id) VALUES
-('sprint-001', 'deliverable-001'),
-('sprint-002', 'deliverable-001'),
-('sprint-003', 'deliverable-002');
-
-INSERT INTO sprint_metrics (sprint_id, metric_type, metric_value, metric_date) VALUES
-('sprint-001', 'velocity', 18.0, '2024-01-14'),
-('sprint-001', 'test_pass_rate', 95.5, '2024-01-14'),
-('sprint-001', 'defects', 3.0, '2024-01-14'),
-('sprint-002', 'velocity', 19.0, '2024-01-28'),
-('sprint-002', 'test_pass_rate', 98.2, '2024-01-28'),
-('sprint-002', 'defects', 1.0, '2024-01-28'),
-('sprint-003', 'velocity', 12.0, '2024-02-05'),
-('sprint-003', 'test_pass_rate', 92.1, '2024-02-05'),
-('sprint-003', 'defects', 2.0, '2024-02-05');
-
-INSERT INTO deliverable_evidence (deliverable_id, evidence_type, title, url, description, uploaded_by) VALUES
-('deliverable-001', 'demo_link', 'Authentication Demo', 'https://demo.acme.com/auth', 'Live demonstration of authentication features', '00000000-0000-0000-0000-000000000002'),
-('deliverable-001', 'repository', 'Auth Module Repository', 'https://github.com/acme/auth-module', 'Source code repository for authentication module', '00000000-0000-0000-0000-000000000002'),
-('deliverable-001', 'test_summary', 'Test Results Summary', 'https://reports.acme.com/auth-tests', 'Comprehensive test results and coverage report', '00000000-0000-0000-0000-000000000002'),
-('deliverable-002', 'demo_link', 'Payment Demo', 'https://demo.acme.com/payment', 'Live demonstration of payment integration', '00000000-0000-0000-0000-000000000002');
-
-INSERT INTO sign_off_reports (id, deliverable_id, report_title, report_content, sprint_performance_data, status, created_by) VALUES
-('report-001', 'deliverable-001', 'User Authentication System - Sign-Off Report', '{"sections": ["Executive Summary", "Deliverable Overview", "Sprint Performance", "Quality Metrics", "Evidence Attached"]}', '{"velocity_trend": [18, 19], "test_pass_rates": [95.5, 98.2], "defect_counts": [3, 1]}', 'ready_for_review', '00000000-0000-0000-0000-000000000001');
-
-INSERT INTO client_reviews (sign_off_report_id, reviewer_id, review_status, review_comments, reviewed_at) VALUES
-('report-001', '00000000-0000-0000-0000-000000000003', 'pending', NULL, NULL);
-
-INSERT INTO release_readiness_checks (deliverable_id, check_type, check_name, is_required, is_passed, checked_by, checked_at) VALUES
-('deliverable-001', 'dod_complete', 'Definition of Done Complete', true, true, '00000000-0000-0000-0000-000000000001', NOW()),
-('deliverable-001', 'evidence_attached', 'Evidence Attached', true, true, '00000000-0000-0000-0000-000000000001', NOW()),
-('deliverable-001', 'sprint_outcomes', 'Sprint Outcomes Documented', true, true, '00000000-0000-0000-0000-000000000001', NOW()),
-('deliverable-001', 'test_evidence', 'Test Evidence Provided', true, true, '00000000-0000-0000-0000-000000000001', NOW()),
-('deliverable-002', 'dod_complete', 'Definition of Done Complete', true, false, NULL, NULL),
-('deliverable-002', 'evidence_attached', 'Evidence Attached', true, false, NULL, NULL);
-
-INSERT INTO notifications (user_id, type, title, message, related_entity_type, related_entity_id) VALUES
-('00000000-0000-0000-0000-000000000003', 'sign_off_requested', 'Sign-Off Request', 'A new deliverable is ready for your review: User Authentication System', 'deliverable', 'deliverable-001'),
-('00000000-0000-0000-0000-000000000002', 'deliverable_assigned', 'Deliverable Assigned', 'You have been assigned to work on: Payment Integration', 'deliverable', 'deliverable-002');
+-- Sample data removed for production use
 
 -- Create indexes for better performance
 CREATE INDEX idx_sprints_status ON sprints(status);

@@ -27,7 +27,9 @@ class KhonoApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeProvider);
+    // Use read instead of watch to prevent immediate initialization
+    // Theme provider will be initialized when needed by individual screens
+    final themeMode = ref.read(themeProvider);
 
     return MaterialApp.router(
       title: 'Khonology - Deliverable & Sprint Sign-Off Hub',

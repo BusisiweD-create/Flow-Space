@@ -1,7 +1,11 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/simple_auth_provider.dart';
+
+import '../providers/api_auth_riverpod_provider.dart';
+import '../models/user.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -18,20 +22,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _companyController = TextEditingController();
-  final _roleController = TextEditingController();
   
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _acceptTerms = false;
-  String _selectedRole = 'Developer';
+  String _selectedRole = 'user';
 
   final List<String> _roles = [
-    'Developer',
-    'Project Manager',
-    'Scrum Master',
-    'QA Engineer',
-    'Client',
-    'Stakeholder',
+    'admin',
+    'manager',
+    'user',
+    'client',
   ];
 
   @override
@@ -42,18 +43,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _companyController.dispose();
-    _roleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
+    final authState = ref.watch(apiAuthProvider);
 
     // Listen to auth state changes
-    ref.listen<AsyncValue<String?>>(currentUserProvider, (previous, next) {
-      next.whenData((userEmail) {
-        if (userEmail != null) {
+    ref.listen<AsyncValue<User?>>(apiCurrentUserProvider, (previous, next) {
+      next.whenData((user) {
+        if (user != null) {
           context.go('/dashboard');
         }
       });
@@ -68,7 +68,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        ref.read(authStateProvider.notifier).clearError();
+        ref.read(apiAuthProvider.notifier).clearError();
       });
     }
 
@@ -99,6 +99,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     padding: const EdgeInsets.all(32.0),
                     child: Form(
                       key: _formKey,
+                      onWillPop: () async {
+                        // Prevent form submission when back button is pressed
+                        return !_isRegistering;
+                      },
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      onChanged: () {
+                        // Prevent automatic form submission
+                      },
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -131,6 +139,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               Expanded(
                                 child: TextFormField(
                                   controller: _firstNameController,
+                                  textInputAction: TextInputAction.next,
                                   decoration: InputDecoration(
                                     labelText: 'First Name',
                                     prefixIcon: const Icon(Icons.person_outline),
@@ -152,6 +161,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               Expanded(
                                 child: TextFormField(
                                   controller: _lastNameController,
+                                  textInputAction: TextInputAction.next,
                                   decoration: InputDecoration(
                                     labelText: 'Last Name',
                                     border: OutlineInputBorder(
@@ -176,6 +186,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               labelText: 'Email',
                               prefixIcon: const Icon(Icons.email_outlined),
@@ -200,6 +211,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           // Company Field
                           TextFormField(
                             controller: _companyController,
+                            textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               labelText: 'Company',
                               prefixIcon: const Icon(Icons.business_outlined),
@@ -220,7 +232,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
                           // Role Dropdown
                           DropdownButtonFormField<String>(
-                            initialValue: _selectedRole,
+                            value: _selectedRole,
                             decoration: InputDecoration(
                               labelText: 'Role',
                               prefixIcon: const Icon(Icons.work_outline),
@@ -241,6 +253,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 _selectedRole = newValue!;
                               });
                             },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please select a role';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
 
@@ -248,6 +266,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
+                            textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               labelText: 'Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
@@ -288,6 +307,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           TextFormField(
                             controller: _confirmPasswordController,
                             obscureText: !_isConfirmPasswordVisible,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) {
+                              // Only submit if not already registering
+                              if (!_isRegistering && !authState.isLoading) {
+                                _handleRegister();
+                              }
+                            },
                             decoration: InputDecoration(
                               labelText: 'Confirm Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
@@ -350,7 +376,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: authState.isLoading ? null : _handleRegister,
+                              onPressed: (authState.isLoading || _isRegistering) ? null : _handleRegister,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Theme.of(context).colorScheme.primary,
                                 foregroundColor: Colors.white,
@@ -409,7 +435,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
+  bool _isRegistering = false;
+
   Future<void> _handleRegister() async {
+    if (_isRegistering) return;
+    
     if (!_formKey.currentState!.validate()) return;
     
     if (!_acceptTerms) {
@@ -422,13 +452,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
-    await ref.read(authStateProvider.notifier).createUserWithEmailAndPassword(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-      firstName: _firstNameController.text.trim(),
-      lastName: _lastNameController.text.trim(),
-      company: _companyController.text.trim(),
-      role: _selectedRole,
-    );
+    setState(() {
+      _isRegistering = true;
+    });
+
+    try {
+      await ref.read(apiAuthProvider.notifier).signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        company: _companyController.text.trim(),
+        role: _selectedRole,
+      );
+    } finally {
+      setState(() {
+        _isRegistering = false;
+      });
+    }
   }
 }

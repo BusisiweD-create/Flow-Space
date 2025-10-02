@@ -1,17 +1,21 @@
-// ignore_for_file: unused_element, avoid_print, prefer_final_locals, require_trailing_commas
+// ignore_for_file: unused_element, avoid_print, prefer_final_locals, require_trailing_commas, unused_import
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/environment.dart';
+import 'api_service.dart';
 
 class ProfileService {
   static const String _userIdKey = 'current_user_id';
-  static const String _defaultUserId = 'demo_user';
 
   static Future<String> _getUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_userIdKey) ?? _defaultUserId;
+    final userId = prefs.getString(_userIdKey);
+    if (userId == null || userId.isEmpty) {
+      throw Exception('No user ID found. Please log in first.');
+    }
+    return userId;
   }
 
   static Future<Map<String, dynamic>> getUserProfile() async {

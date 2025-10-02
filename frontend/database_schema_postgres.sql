@@ -86,8 +86,4 @@ CREATE TRIGGER update_deliverables_updated_at BEFORE UPDATE ON deliverables
 CREATE TRIGGER update_sprints_updated_at BEFORE UPDATE ON sprints
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Sample data (optional)
-INSERT INTO profiles (id, first_name, last_name, company, role, email, password_hash) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'John', 'Doe', 'Acme Corp', 'Project Manager', 'john@acme.com', '123456'),
-  ('00000000-0000-0000-0000-000000000002', 'Jane', 'Smith', 'Acme Corp', 'Developer', 'jane@acme.com', '123456')
-ON CONFLICT (id) DO NOTHING;
+-- Sample data removed for production use

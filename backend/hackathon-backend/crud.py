@@ -4,13 +4,14 @@ CRUD operations for database models
 
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from models import Deliverable, Sprint, Signoff, AuditLog, UserProfile
+from models import Deliverable, Sprint, Signoff, AuditLog, UserProfile, Notification
 from schemas import (
     DeliverableCreate, DeliverableUpdate,
     SprintCreate, SprintUpdate,
     SignoffCreate, SignoffUpdate,
     AuditLogCreate,
-    UserProfileCreate, UserProfileUpdate
+    UserProfileCreate, UserProfileUpdate,
+    NotificationCreate
 )
 
 # Deliverable CRUD operations
@@ -164,3 +165,32 @@ def delete_user_profile(db: Session, user_id: str) -> bool:
         db.commit()
         return True
     return False
+
+# Notification CRUD operations
+def create_notification(db: Session, notification: NotificationCreate):
+    db_notification = Notification(**notification.dict())
+    db.add(db_notification)
+    db.commit()
+    db.refresh(db_notification)
+    return db_notification
+
+def get_notification(db: Session, notification_id: int):
+    return db.query(Notification).filter(Notification.id == notification_id).first()
+
+def get_notifications_for_user(db: Session, user_id: int, skip: int = 0, limit: int = 100):
+    return db.query(Notification).filter(Notification.recipient_id == user_id).offset(skip).limit(limit).all()
+
+def mark_notification_as_read(db: Session, notification_id: int):
+    db_notification = db.query(Notification).filter(Notification.id == notification_id).first()
+    if db_notification:
+        db_notification.is_read = True
+        db.commit()
+        db.refresh(db_notification)
+    return db_notification
+
+def delete_notification(db: Session, notification_id: int):
+    db_notification = db.query(Notification).filter(Notification.id == notification_id).first()
+    if db_notification:
+        db.delete(db_notification)
+        db.commit()
+    return db_notification

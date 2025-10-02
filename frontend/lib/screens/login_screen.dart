@@ -1,7 +1,10 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/simple_auth_provider.dart';
+import '../providers/api_auth_riverpod_provider.dart';
+import '../models/user.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -25,12 +28,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
+    final authState = ref.watch(apiAuthProvider);
 
     // Listen to auth state changes
-    ref.listen<AsyncValue<String?>>(currentUserProvider, (previous, next) {
-      next.whenData((userEmail) {
-        if (userEmail != null) {
+    ref.listen<AsyncValue<User?>>(apiCurrentUserProvider, (previous, next) {
+      next.whenData((user) {
+        if (user != null) {
           context.go('/dashboard');
         }
       });
@@ -45,7 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        ref.read(authStateProvider.notifier).clearError();
+        ref.read(apiAuthProvider.notifier).clearError();
       });
     }
     return Scaffold(
@@ -294,14 +297,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    await ref.read(authStateProvider.notifier).signInWithEmailAndPassword(
+    await ref.read(apiAuthProvider.notifier).signIn(
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
   }
 
   Future<void> _handleGoogleSignIn() async {
-    await ref.read(authStateProvider.notifier).signInWithGoogle();
+    try {
+      await ref.read(apiAuthProvider.notifier).signInWithGoogle();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Google sign-in failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    // For now, show a message that Google sign-in is not implemented
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Google sign-in is not yet implemented'),
+      ),
+    );
   }
 
   void _showForgotPasswordDialog() {
@@ -338,13 +356,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 final navigator = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
                 navigator.pop();
-                await ref.read(authStateProvider.notifier).sendPasswordResetEmail(
-                  emailController.text.trim(),
-                );
+                try {
+                  await ref.read(apiAuthProvider.notifier).requestPasswordReset(emailController.text.trim());
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Password reset link sent! Please check your email.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to send reset link: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                // For now, show a message that password reset is not implemented
                 if (mounted) {
                   messenger.showSnackBar(
                     const SnackBar(
-                      content: Text('Password reset link sent to your email'),
+                      content: Text('Password reset functionality is not yet implemented'),
                     ),
                   );
                 }

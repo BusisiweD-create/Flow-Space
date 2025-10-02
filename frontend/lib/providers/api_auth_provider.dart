@@ -1,12 +1,15 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
+import '../models/user.dart';
 
 class ApiAuthProvider with ChangeNotifier {
-  Map<String, dynamic>? _user;
+  User? _user;
   bool _isLoading = false;
   String? _error;
 
-  Map<String, dynamic>? get user => _user;
+  User? get user => _user;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isAuthenticated => _user != null;
@@ -16,6 +19,25 @@ class ApiAuthProvider with ChangeNotifier {
     _setLoading(true);
     try {
       await ApiService.initialize();
+      
+      // Check if user is already authenticated (has valid tokens)
+      if (ApiService.isAuthenticated) {
+        // User is authenticated, we can try to get user info
+        // For now, we'll just set a minimal user object
+        // In a real implementation, you might fetch user profile
+        _user = User(
+          id: int.parse(ApiService.currentUserId ?? '0'),
+          email: 'authenticated@user.com', // This would come from token claims
+          firstName: 'User',
+          lastName: 'Authenticated',
+          company: 'Unknown',
+          role: 'user',
+          isActive: true,
+          isVerified: true,
+          createdAt: DateTime.now(),
+        );
+        notifyListeners();
+      }
     } catch (e) {
       _setError('Failed to initialize API service: $e');
     } finally {
@@ -36,7 +58,7 @@ class ApiAuthProvider with ChangeNotifier {
     _clearError();
 
     try {
-      final response = await ApiService.signUp(
+      final userCreate = UserCreate(
         email: email,
         password: password,
         firstName: firstName,
@@ -44,15 +66,11 @@ class ApiAuthProvider with ChangeNotifier {
         company: company,
         role: role,
       );
-
-      if (response != null && response['user'] != null) {
-        _user = response['user'];
-        notifyListeners();
-        return true;
-      } else {
-        _setError('Failed to create account');
-        return false;
-      }
+      
+      final tokenResponse = await ApiService.signUp(userCreate);
+      _user = tokenResponse.user;
+      notifyListeners();
+      return true;
     } catch (e) {
       _setError('Sign up failed: $e');
       return false;
@@ -70,19 +88,10 @@ class ApiAuthProvider with ChangeNotifier {
     _clearError();
 
     try {
-      final response = await ApiService.signIn(
-        email: email,
-        password: password,
-      );
-
-      if (response != null && response['user'] != null) {
-        _user = response['user'];
-        notifyListeners();
-        return true;
-      } else {
-        _setError('Invalid email or password');
-        return false;
-      }
+      final tokenResponse = await ApiService.signIn(email, password);
+      _user = tokenResponse.user;
+      notifyListeners();
+      return true;
     } catch (e) {
       _setError('Sign in failed: $e');
       return false;
@@ -95,6 +104,8 @@ class ApiAuthProvider with ChangeNotifier {
   Future<void> signOut() async {
     _user = null;
     _clearError();
+    // Clear authentication tokens
+    await ApiService.clearTokens();
     notifyListeners();
   }
 
@@ -103,13 +114,13 @@ class ApiAuthProvider with ChangeNotifier {
     if (_user == null) return null;
     
     return {
-      'id': _user!['id'],
-      'email': _user!['email'],
-      'first_name': _user!['user_metadata']['first_name'],
-      'last_name': _user!['user_metadata']['last_name'],
-      'company': _user!['user_metadata']['company'],
-      'role': _user!['user_metadata']['role'],
-      'created_at': _user!['created_at'],
+      'id': _user!.id,
+      'email': _user!.email,
+      'first_name': _user!.firstName,
+      'last_name': _user!.lastName,
+      'company': _user!.company,
+      'role': _user!.role,
+      'created_at': _user!.createdAt.toIso8601String(),
     };
   }
 

@@ -1,5 +1,5 @@
 """
-Router for deliverable-related endpoints
+Router for deliverable-related endpoints with role-based access control
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,6 +10,14 @@ from schemas import Deliverable, DeliverableCreate, DeliverableUpdate
 from crud import (
     get_deliverable, get_deliverables, get_deliverables_by_sprint,
     create_deliverable, update_deliverable, delete_deliverable
+)
+from routers.auth import get_current_user
+from models import User
+from rbac import (
+    require_permission,
+    require_admin_or_manager,
+    Permission,
+    can_access_entity
 )
 
 router = APIRouter()

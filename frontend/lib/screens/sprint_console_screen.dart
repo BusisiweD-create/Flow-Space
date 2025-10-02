@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison, unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
@@ -291,16 +293,17 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     }
 
     try {
-      final sprint = await ApiService.createSprint(
+      await ApiService.createSprint(
         name: _nameController.text,
-        startDate: _startDate!,
-        endDate: _endDate!,
+        description: _descriptionController.text,
+        startDate: _startDate,
+        endDate: _endDate,
         plannedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
         completedPoints: int.tryParse(_completedPointsController.text) ?? 0,
         createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
       );
 
-      if (sprint != null && mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sprint created successfully!')),
         );
