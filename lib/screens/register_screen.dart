@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/simple_auth_provider.dart';
+import '../services/auth_service.dart';
+import '../services/error_handler.dart';
+import '../models/user_role.dart';
 
-class RegisterScreen extends ConsumerStatefulWidget {
+class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -48,29 +49,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-
-    // Listen to auth state changes
-    ref.listen<AsyncValue<String?>>(currentUserProvider, (previous, next) {
-      next.whenData((userEmail) {
-        if (userEmail != null) {
-          context.go('/dashboard');
-        }
-      });
-    });
-
-    // Show error if any
-    if (authState.error != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authState.error!),
-            backgroundColor: Colors.red,
-          ),
-        );
-        ref.read(authStateProvider.notifier).clearError();
-      });
-    }
 
     return Scaffold(
       body: Container(
@@ -81,6 +59,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             colors: [
               Theme.of(context).colorScheme.primary,
               Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+              Theme.of(context).colorScheme.secondary,
             ],
           ),
         ),
@@ -350,7 +329,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: authState.isLoading ? null : _handleRegister,
+                              onPressed: _isLoading ? null : _handleRegister,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Theme.of(context).colorScheme.primary,
                                 foregroundColor: Colors.white,
@@ -359,7 +338,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 ),
                                 elevation: 2,
                               ),
-                              child: authState.isLoading
+                              child: _isLoading
                                   ? const SizedBox(
                                       height: 20,
                                       width: 20,
@@ -409,26 +388,69 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
+  final AuthService _authService = AuthService();
+  final ErrorHandler _errorHandler = ErrorHandler();
+  bool _isLoading = false;
+
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
     
     if (!_acceptTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please accept the Terms of Service and Privacy Policy'),
-          backgroundColor: Colors.red,
-        ),
+      _errorHandler.showErrorSnackBar(
+        context,
+        'Please accept the Terms of Service and Privacy Policy',
       );
       return;
     }
 
-    await ref.read(authStateProvider.notifier).createUserWithEmailAndPassword(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-      firstName: _firstNameController.text.trim(),
-      lastName: _lastNameController.text.trim(),
-      company: _companyController.text.trim(),
-      role: _selectedRole,
-    );
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Map role string to UserRole enum
+      UserRole userRole;
+      switch (_selectedRole.toLowerCase()) {
+        case 'project manager':
+        case 'scrum master':
+          userRole = UserRole.deliveryLead;
+          break;
+        case 'client':
+        case 'stakeholder':
+          userRole = UserRole.clientReviewer;
+          break;
+        default:
+          userRole = UserRole.teamMember;
+      }
+
+      final success = await _authService.signUp(
+        _emailController.text.trim(),
+        _passwordController.text,
+        '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
+        userRole,
+      );
+
+      if (success && mounted) {
+        // Navigate to email verification screen
+        context.go('/verify-email', extra: {
+          'email': _emailController.text.trim(),
+        },);
+      } else if (mounted) {
+        _errorHandler.showErrorSnackBar(
+          context,
+          'Registration failed. Please try again.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _errorHandler.showErrorSnackBar(context, 'Error: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 }

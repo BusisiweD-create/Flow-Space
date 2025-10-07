@@ -18,15 +18,18 @@ class SprintPerformanceChart extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               _getChartTitle(),
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: _buildChart(),
+            Flexible(
+              child: SizedBox(
+                height: 200,
+                child: _buildChart(),
+              ),
             ),
           ],
         ),
@@ -75,7 +78,7 @@ class SprintPerformanceChart extends StatelessWidget {
       spots.add(FlSpot(
         i.toDouble(),
         (sprint['completed_points'] ?? 0).toDouble(),
-      ));
+      ),);
     }
 
     return LineChart(

@@ -46,24 +46,26 @@ class WelcomeScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         'Khonology',
-                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.headlineLarge?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Deliverable & Sprint Sign-Off Hub',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
                         textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 40),
-                
+
                 // Features
                 _buildFeatureCard(
                   context,
@@ -85,9 +87,9 @@ class WelcomeScreen extends StatelessWidget {
                   'Client Approval',
                   'Streamlined sign-off process with digital approvals',
                 ),
-                
+
                 const SizedBox(height: 40),
-                
+
                 // Action Buttons
                 Column(
                   children: [
@@ -98,7 +100,8 @@ class WelcomeScreen extends StatelessWidget {
                         onPressed: () => context.go('/login'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
-                          foregroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.primary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),

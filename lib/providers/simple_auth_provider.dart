@@ -25,8 +25,9 @@ class AuthState {
   }
 }
 
-class SimpleAuthNotifier extends StateNotifier<AuthState> {
-  SimpleAuthNotifier() : super(AuthState());
+class SimpleAuthNotifier extends Notifier<AuthState> {
+  @override
+  AuthState build() => AuthState();
 
   Future<void> signInWithEmailAndPassword({
     required String email,
@@ -125,7 +126,7 @@ class SimpleAuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authStateProvider = StateNotifierProvider<SimpleAuthNotifier, AuthState>((ref) {
+final authStateProvider = NotifierProvider<SimpleAuthNotifier, AuthState>(() {
   return SimpleAuthNotifier();
 });
 

@@ -304,15 +304,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: SprintPerformanceChart(sprints: sprints.map((sprint) => {
-                'id': sprint.id,
-                'name': sprint.name,
-                'start_date': sprint.startDate.toIso8601String(),
-                'end_date': sprint.endDate.toIso8601String(),
-                'planned_points': sprint.committedPoints,
-                'completed_points': sprint.completedPoints,
-                'status': 'completed',
-              }).toList()),
+              child: SprintPerformanceChart(sprints: sprints.map((sprint) {
+                return {
+                  'id': sprint.id,
+                  'name': sprint.name,
+                  'start_date': sprint.startDate.toIso8601String(),
+                  'end_date': sprint.endDate.toIso8601String(),
+                  'planned_points': sprint.committedPoints,
+                  'completed_points': sprint.completedPoints,
+                  'status': 'completed',
+                };
+              }).toList(),),
             ),
           ],
         ),
@@ -351,7 +353,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _showDeliverableDetailsDialog(deliverable);
                 },
               ),
-            )),
+            ),),
       ],
     );
   }
@@ -361,11 +363,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Create New Deliverable'),
-        content: const Text('This feature will be implemented in the next phase.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Choose the type of deliverable setup:'),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.speed),
+              title: const Text('Quick Setup'),
+              subtitle: const Text('Basic deliverable creation'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.go('/deliverable-setup');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.engineering),
+              title: const Text('Enhanced Setup'),
+              subtitle: const Text('Full DoD, evidence, and readiness check'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.go('/enhanced-deliverable-setup');
+              },
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Cancel'),
           ),
         ],
       ),
