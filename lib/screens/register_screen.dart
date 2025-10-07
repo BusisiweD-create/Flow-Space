@@ -26,13 +26,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _acceptTerms = false;
   String _selectedRole = 'Developer';
 
-  final List<String> _roles = [
-    'Developer',
-    'Project Manager',
-    'Scrum Master',
-    'QA Engineer',
-    'Client',
-    'Stakeholder',
+  final List<Map<String, dynamic>> _roles = [
+    {
+      'name': 'Developer',
+      'description': 'Create and manage deliverables, track progress',
+      'icon': Icons.code,
+      'color': Colors.blue,
+      'permissions': ['Create deliverables', 'Edit own work', 'View team progress'],
+    },
+    {
+      'name': 'Project Manager',
+      'description': 'Lead delivery teams, manage sprints, submit for review',
+      'icon': Icons.leaderboard,
+      'color': Colors.orange,
+      'permissions': ['Manage team', 'Submit for review', 'View team dashboard'],
+    },
+    {
+      'name': 'Scrum Master',
+      'description': 'Facilitate sprints, remove blockers, ensure team efficiency',
+      'icon': Icons.sports_esports,
+      'color': Colors.green,
+      'permissions': ['Manage sprints', 'View team metrics', 'Remove blockers'],
+    },
+    {
+      'name': 'QA Engineer',
+      'description': 'Test deliverables, ensure quality standards',
+      'icon': Icons.bug_report,
+      'color': Colors.purple,
+      'permissions': ['Test deliverables', 'Create test reports', 'Quality assurance'],
+    },
+    {
+      'name': 'Client',
+      'description': 'Review and approve deliverables, provide feedback',
+      'icon': Icons.verified_user,
+      'color': Colors.teal,
+      'permissions': ['Review deliverables', 'Approve submissions', 'Provide feedback'],
+    },
+    {
+      'name': 'Stakeholder',
+      'description': 'Monitor project progress, make strategic decisions',
+      'icon': Icons.business,
+      'color': Colors.indigo,
+      'permissions': ['View project status', 'Strategic oversight', 'High-level decisions'],
+    },
   ];
 
   @override
@@ -197,30 +233,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Role Dropdown
-                          DropdownButtonFormField<String>(
-                            initialValue: _selectedRole,
-                            decoration: InputDecoration(
-                              labelText: 'Role',
-                              prefixIcon: const Icon(Icons.work_outline),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            items: _roles.map((String role) {
-                              return DropdownMenuItem<String>(
-                                value: role,
-                                child: Text(role),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                _selectedRole = newValue!;
-                              });
-                            },
-                          ),
+                          // Role Selection
+                          _buildRoleSelection(),
                           const SizedBox(height: 16),
 
                           // Password Field
@@ -392,20 +406,157 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final ErrorHandler _errorHandler = ErrorHandler();
   bool _isLoading = false;
 
+  Widget _buildRoleSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Select Your Role',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Choose the role that best describes your responsibilities',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 16),
+        ..._roles.map((role) => _buildRoleCard(role)),
+      ],
+    );
+  }
+
+  Widget _buildRoleCard(Map<String, dynamic> role) {
+    final isSelected = _selectedRole == role['name'];
+    final color = role['color'] as Color;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedRole = role['name'];
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isSelected ? color : Colors.grey[300]!,
+              width: isSelected ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            color: isSelected ? color.withValues(alpha: 0.1) : Colors.grey[50],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isSelected ? color : Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  role['icon'],
+                  color: isSelected ? Colors.white : Colors.grey[600],
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      role['name'],
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? color : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      role['description'],
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: (role['permissions'] as List<String>).map((permission) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: color.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            permission,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: color,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(
+                  Icons.check_circle,
+                  color: color,
+                  size: 24,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleRegister() async {
-    if (!_formKey.currentState!.validate()) return;
+    debugPrint('🔵 Register button clicked!');
+    
+    // Check each field individually for debugging
+    debugPrint('📝 Form field values:');
+    debugPrint('   First Name: "${_firstNameController.text}"');
+    debugPrint('   Last Name: "${_lastNameController.text}"');
+    debugPrint('   Email: "${_emailController.text}"');
+    debugPrint('   Company: "${_companyController.text}"');
+    debugPrint('   Password: "${_passwordController.text}" (length: ${_passwordController.text.length})');
+    debugPrint('   Confirm Password: "${_confirmPasswordController.text}"');
+    debugPrint('   Terms Accepted: $_acceptTerms');
+    
+    if (!_formKey.currentState!.validate()) {
+      debugPrint('❌ Form validation failed - check field values above');
+      return;
+    }
+    debugPrint('✅ Form validation passed');
     
     if (!_acceptTerms) {
+      debugPrint('❌ Terms not accepted');
       _errorHandler.showErrorSnackBar(
         context,
         'Please accept the Terms of Service and Privacy Policy',
       );
       return;
     }
+    debugPrint('✅ Terms accepted');
 
     setState(() {
       _isLoading = true;
     });
+    debugPrint('🔄 Starting registration process...');
 
     try {
       // Map role string to UserRole enum
@@ -423,12 +574,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
           userRole = UserRole.teamMember;
       }
 
+      debugPrint('📧 Email: ${_emailController.text.trim()}');
+      debugPrint('👤 Name: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
+      debugPrint('🎭 Role: $userRole');
+      
       final success = await _authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
         '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
         userRole,
       );
+      
+      debugPrint('📊 Registration result: $success');
 
       if (success && mounted) {
         // Navigate to email verification screen

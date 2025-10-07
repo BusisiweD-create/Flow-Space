@@ -130,7 +130,7 @@ class _SmtpConfigScreenState extends State<SmtpConfigScreen> {
             children: steps.map((step) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Text(step),
-            )).toList(),
+            ),).toList(),
           ),
         ),
         actions: [

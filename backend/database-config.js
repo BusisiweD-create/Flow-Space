@@ -13,10 +13,10 @@ const config = {
   
   // Shared PostgreSQL (for collaborators)
   shared: {
-    user: 'flowspace_user',
-    host: '172.19.48.1', // Your computer's IP address
+    user: 'postgres', // Use postgres user for local connections
+    host: 'localhost', // Connect to localhost when server is on same machine
     database: 'flow_space',
-    password: 'FlowSpace2024!', // Shared password for collaborators
+    password: 'postgres', // Use postgres password for local connections
     port: 5432,
   },
   
