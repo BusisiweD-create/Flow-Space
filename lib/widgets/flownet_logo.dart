@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
 
@@ -48,7 +47,7 @@ class _FlownetLogoState extends State<FlownetLogo> {
               boxShadow: _hovering
                   ? [
                       BoxShadow(
-                        color: FlownetColors.crimsonRed.withOpacity(0.25),
+                        color: FlownetColors.crimsonRed.withValues(alpha: 0.25),
                         blurRadius: 14,
                         spreadRadius: 1,
                         offset: const Offset(0, 6),
@@ -75,30 +74,26 @@ class _FlownetLogoState extends State<FlownetLogo> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // 3x3 Grid Logo
-        _buildGridLogo(size: 32),
-        const SizedBox(height: 8),
+        _buildGridLogo(size: 20),
+        const SizedBox(height: 2),
         // Text
-        Column(
-          children: [
-            Text(
-              'FLOWNET',
-              style: TextStyle(
-                color: FlownetColors.crimsonRed,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
-            ),
-            Text(
-              'WORKSPACES',
-              style: TextStyle(
-                color: FlownetColors.pureWhite,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
+        const Text(
+          'FLOWNET',
+          style: TextStyle(
+            color: FlownetColors.crimsonRed,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const Text(
+          'WORKSPACES',
+          style: TextStyle(
+            color: FlownetColors.pureWhite,
+            fontSize: 6,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.2,
+          ),
         ),
       ],
     );
@@ -109,7 +104,7 @@ class _FlownetLogoState extends State<FlownetLogo> {
   }
 
   Widget _buildGridLogo({required double size}) {
-    return Container(
+    return SizedBox(
       width: size,
       height: size,
       child: GridView.count(

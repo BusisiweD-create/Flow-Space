@@ -36,6 +36,9 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       });
     } catch (e) {
       debugPrint('Error loading sprints: $e');
+      setState(() {
+        _availableSprints = [];
+      });
     }
   }
 
@@ -57,6 +60,16 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
     if (!_formKey.currentState!.validate()) return;
 
     try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Use the API service (now with mock implementation)
       final deliverable = await ApiService.createDeliverable(
         title: _titleController.text,
         description: _descriptionController.text,
@@ -66,16 +79,44 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
       );
 
-      if (deliverable != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Deliverable created successfully!')),
-        );
-        Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        
+        if (deliverable != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Deliverable "${_titleController.text}" created successfully!'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          
+          // Clear form
+          _titleController.clear();
+          _descriptionController.clear();
+          _dodController.clear();
+          _evidenceLinksController.clear();
+          setState(() {
+            _dueDate = null;
+            _selectedSprints.clear();
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to create deliverable'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
+        Navigator.pop(context); // Close loading dialog if open
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating deliverable: $e')),
+          SnackBar(
+            content: Text('Error creating deliverable: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

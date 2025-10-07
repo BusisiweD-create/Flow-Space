@@ -75,7 +75,7 @@ class SprintPerformanceChart extends StatelessWidget {
       spots.add(FlSpot(
         i.toDouble(),
         (sprint['completed_points'] ?? 0).toDouble(),
-      ));
+      ),);
     }
 
     return LineChart(

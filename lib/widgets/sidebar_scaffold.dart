@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
 import 'flownet_logo.dart';
+import '../services/auth_service.dart';
 
 class SidebarScaffold extends StatefulWidget {
   final Widget child;
@@ -17,26 +18,71 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   static const double _sidebarWidth = 280;
   static const double _collapsedWidth = 80;
 
-  final List<_NavItem> _navItems = [
-    const _NavItem(
-        label: 'Dashboard', icon: Icons.dashboard_outlined,
-        route: '/dashboard',),
-    const _NavItem(
-        label: 'Sprints', icon: Icons.timer_outlined, route: '/sprint-console',),
-    const _NavItem(
+  List<_NavItem> get _navItems {
+    final authService = AuthService();
+    final allItems = [
+      const _NavItem(
+        label: 'Dashboard', 
+        icon: Icons.dashboard_outlined,
+        route: '/dashboard',
+        requiredPermission: null, // All authenticated users can access dashboard
+      ),
+      const _NavItem(
+        label: 'Sprints', 
+        icon: Icons.timer_outlined, 
+        route: '/sprint-console',
+        requiredPermission: 'view_team_dashboard',
+      ),
+      const _NavItem(
         label: 'Notifications',
         icon: Icons.notifications_outlined,
-        route: '/notifications',),
-    const _NavItem(
+        route: '/notifications',
+        requiredPermission: null, // All users can access notifications
+      ),
+      const _NavItem(
+        label: 'Notification Center',
+        icon: Icons.notification_important_outlined,
+        route: '/notification-center',
+        requiredPermission: null, // All users can access notification center
+      ),
+      const _NavItem(
         label: 'Approvals',
         icon: Icons.check_box_outlined,
-        route: '/approvals',),
-    const _NavItem(
-        label: 'Repository', icon: Icons.folder_outlined, route: '/repository',),
-    const _NavItem(
-        label: 'Settings', icon: Icons.settings_outlined, route: '/settings',),
-    const _NavItem(label: 'Account', icon: Icons.person_outline, route: '/account'),
-  ];
+        route: '/approvals',
+        requiredPermission: 'approve_deliverable',
+      ),
+      const _NavItem(
+        label: 'Repository', 
+        icon: Icons.folder_outlined, 
+        route: '/repository',
+        requiredPermission: 'view_all_deliverables',
+      ),
+      const _NavItem(
+        label: 'Reports', 
+        icon: Icons.assessment_outlined, 
+        route: '/report-repository',
+        requiredPermission: 'view_team_dashboard',
+      ),
+      const _NavItem(
+        label: 'Settings', 
+        icon: Icons.settings_outlined, 
+        route: '/settings',
+        requiredPermission: 'manage_users',
+      ),
+      const _NavItem(
+        label: 'Account', 
+        icon: Icons.person_outline, 
+        route: '/account',
+        requiredPermission: null, // All users can access account
+      ),
+    ];
+
+    // Filter items based on user permissions
+    return allItems.where((item) {
+      if (item.requiredPermission == null) return true;
+      return authService.hasPermission(item.requiredPermission!);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -138,29 +184,32 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 )
                               : null,
                         ),
-                        child: ListTile(
-                          leading: Icon(
-                            item.icon,
-                            color: active
-                                ? FlownetColors.crimsonRed
-                                : FlownetColors.coolGray,
-                          ),
-                          title: Text(
-                            item.label,
-                            style: TextStyle(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: ListTile(
+                            leading: Icon(
+                              item.icon,
                               color: active
                                   ? FlownetColors.crimsonRed
-                                  : FlownetColors.pureWhite,
-                              fontWeight: active
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
+                                  : FlownetColors.coolGray,
                             ),
+                            title: Text(
+                              item.label,
+                              style: TextStyle(
+                                color: active
+                                    ? FlownetColors.crimsonRed
+                                    : FlownetColors.pureWhite,
+                                fontWeight: active
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                            onTap: () {
+                              if (!routeLocation.startsWith(item.route)) {
+                                context.go(item.route);
+                              }
+                            },
                           ),
-                          onTap: () {
-                            if (!routeLocation.startsWith(item.route)) {
-                              context.go(item.route);
-                            }
-                          },
                         ),
                       );
                     },
@@ -399,7 +448,12 @@ class _NavItem {
   final String label;
   final IconData icon;
   final String route;
+  final String? requiredPermission;
 
-  const _NavItem(
-      {required this.label, required this.icon, required this.route,});
+  const _NavItem({
+    required this.label, 
+    required this.icon, 
+    required this.route,
+    this.requiredPermission,
+  });
 }

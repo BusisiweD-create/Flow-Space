@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/simple_auth_provider.dart';
+import '../services/auth_service.dart';
+import '../services/error_handler.dart';
+import '../theme/flownet_theme.dart';
+import '../widgets/flownet_logo.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -15,6 +18,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -23,41 +27,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    // Listen to auth state changes
-    ref.listen<AsyncValue<String?>>(currentUserProvider, (previous, next) {
-      next.whenData((userEmail) {
-        if (userEmail != null) {
-          context.go('/dashboard');
-        }
-      });
+    setState(() {
+      _isLoading = true;
     });
 
-    // Show error if any
-    if (authState.error != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authState.error!),
-            backgroundColor: Colors.red,
-          ),
-        );
-        ref.read(authStateProvider.notifier).clearError();
-      });
+    try {
+      final authService = AuthService();
+      final success = await authService.signIn(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      if (success && mounted) {
+        ErrorHandler().showSuccessSnackBar(context, 'Login successful!');
+        context.go('/dashboard');
+      } else if (mounted) {
+        ErrorHandler().showErrorSnackBar(context, 'Invalid email or password');
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandler().showErrorSnackBar(context, 'Login failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: FlownetColors.charcoalBlack,
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
-              Theme.of(context).colorScheme.secondary,
+              FlownetColors.charcoalBlack,
+              FlownetColors.slate,
+              FlownetColors.graphiteGray,
             ],
           ),
         ),
@@ -68,6 +83,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Card(
+                  color: FlownetColors.graphiteGray,
                   elevation: 8,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -80,11 +96,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Logo and Title
-                          Icon(
-                            Icons.dashboard,
-                            size: 60,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                          const FlownetLogo(showText: true),
                           const SizedBox(height: 16),
                           Text(
                             'Welcome Back',
@@ -92,17 +104,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 .textTheme
                                 .headlineMedium
                                 ?.copyWith(
+                                  color: FlownetColors.pureWhite,
                                   fontWeight: FontWeight.bold,
                                 ),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Sign in to your Khonology account',
+                            'Sign in to your Flownet account',
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
                                 ?.copyWith(
-                                  color: Colors.grey[600],
+                                  color: FlownetColors.coolGray,
                                 ),
                           ),
                           const SizedBox(height: 32),
@@ -111,14 +124,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            style: const TextStyle(color: FlownetColors.pureWhite),
                             decoration: InputDecoration(
                               labelText: 'Email',
-                              prefixIcon: const Icon(Icons.email_outlined),
+                              labelStyle: const TextStyle(color: FlownetColors.coolGray),
+                              prefixIcon: const Icon(Icons.email_outlined, color: FlownetColors.electricBlue),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: FlownetColors.slate),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: FlownetColors.slate),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: FlownetColors.electricBlue),
                               ),
                               filled: true,
-                              fillColor: Colors.grey[50],
+                              fillColor: FlownetColors.slate,
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -137,14 +161,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
+                            style: const TextStyle(color: FlownetColors.pureWhite),
                             decoration: InputDecoration(
                               labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outlined),
+                              labelStyle: const TextStyle(color: FlownetColors.coolGray),
+                              prefixIcon: const Icon(Icons.lock_outlined, color: FlownetColors.electricBlue),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _isPasswordVisible
                                       ? Icons.visibility_off
                                       : Icons.visibility,
+                                  color: FlownetColors.coolGray,
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -154,9 +181,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: FlownetColors.slate),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: FlownetColors.slate),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: FlownetColors.electricBlue),
                               ),
                               filled: true,
-                              fillColor: Colors.grey[50],
+                              fillColor: FlownetColors.slate,
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -177,7 +213,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               onPressed: () {
                                 _showForgotPasswordDialog();
                               },
-                              child: const Text('Forgot Password?'),
+                              child: const Text(
+                                'Forgot Password?',
+                                style: TextStyle(color: FlownetColors.electricBlue),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -187,26 +226,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed:
-                                  authState.isLoading ? null : _handleLogin,
+                              onPressed: _isLoading ? null : _handleLogin,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                foregroundColor: Colors.white,
+                                backgroundColor: FlownetColors.electricBlue,
+                                foregroundColor: FlownetColors.pureWhite,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 elevation: 2,
                               ),
-                              child: authState.isLoading
+                              child: _isLoading
                                   ? const SizedBox(
                                       height: 20,
                                       width: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Colors.white,),
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          FlownetColors.pureWhite,
+                                        ),
                                       ),
                                     )
                                   : const Text(
@@ -220,76 +257,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 24),
 
-                          // Divider
-                          Row(
-                            children: [
-                              Expanded(child: Divider(color: Colors.grey[300])),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  'OR',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
+                          // Demo Users Info
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: FlownetColors.slate,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: FlownetColors.electricBlue.withValues(alpha: 0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Demo Users:',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: FlownetColors.electricBlue,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ),
-                              Expanded(child: Divider(color: Colors.grey[300])),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Google Sign In Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: OutlinedButton.icon(
-                              onPressed: authState.isLoading
-                                  ? null
-                                  : _handleGoogleSignIn,
-                              icon: Image.asset(
-                                'assets/images/google_logo.png',
-                                height: 20,
-                                width: 20,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(
-                                  Icons.g_mobiledata,
-                                  size: 24,
-                                  color: Colors.red,
-                                ),
-                              ),
-                              label: const Text(
-                                'Continue with Google',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.black87,
-                                side: BorderSide(color: Colors.grey[300]!),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
+                                const SizedBox(height: 8),
+                                _buildDemoUser('team@example.com', 'Team Member'),
+                                _buildDemoUser('lead@example.com', 'Delivery Lead'),
+                                _buildDemoUser('client@example.com', 'Client Reviewer'),
+                                _buildDemoUser('admin@example.com', 'System Admin'),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 24),
 
-                          // Create Account Link
+                          // Register Link
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(
+                              const Text(
                                 "Don't have an account? ",
-                                style: TextStyle(color: Colors.grey[600]),
+                                style: TextStyle(color: FlownetColors.coolGray),
                               ),
                               TextButton(
-                                onPressed: () => context.go('/register'),
+                                onPressed: () {
+                                  context.go('/register');
+                                },
                                 child: const Text(
-                                  'Create Account',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                  'Sign Up',
+                                  style: TextStyle(color: FlownetColors.electricBlue),
                                 ),
                               ),
                             ],
@@ -307,39 +317,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    await ref.read(authStateProvider.notifier).signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-    await ref.read(authStateProvider.notifier).signInWithGoogle();
+  Widget _buildDemoUser(String email, String role) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            '$email - ',
+            style: const TextStyle(
+              color: FlownetColors.pureWhite,
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            role,
+            style: const TextStyle(
+              color: FlownetColors.electricBlue,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showForgotPasswordDialog() {
     final emailController = TextEditingController();
-
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Password'),
+        backgroundColor: FlownetColors.charcoalBlack,
+        title: const Text(
+          'Reset Password',
+          style: TextStyle(color: FlownetColors.pureWhite),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-                'Enter your email address and we\'ll send you a password reset link.',),
+              'Enter your email address and we\'ll send you a link to reset your password.',
+              style: TextStyle(color: FlownetColors.coolGray),
+            ),
             const SizedBox(height: 16),
-            TextField(
+            TextFormField(
               controller: emailController,
-              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: FlownetColors.pureWhite),
               decoration: const InputDecoration(
                 labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
+                labelStyle: TextStyle(color: FlownetColors.coolGray),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: FlownetColors.slate),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: FlownetColors.electricBlue),
+                ),
               ),
             ),
           ],
@@ -347,29 +380,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: FlownetColors.coolGray),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
               if (emailController.text.isNotEmpty) {
                 final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
-                navigator.pop();
-                await ref
-                    .read(authStateProvider.notifier)
-                    .sendPasswordResetEmail(
-                      emailController.text.trim(),
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                
+                try {
+                  final authService = AuthService();
+                  await authService.forgotPassword(emailController.text);
+                  
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Password reset email sent!'),
+                        backgroundColor: FlownetColors.electricBlue,
+                      ),
                     );
-                if (mounted) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Password reset link sent to your email'),
-                    ),
-                  );
+                    navigator.pop();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: FlownetColors.crimsonRed,
+                      ),
+                    );
+                  }
                 }
               }
             },
-            child: const Text('Send Reset Link'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: FlownetColors.electricBlue,
+            ),
+            child: const Text(
+              'Send Reset Link',
+              style: TextStyle(color: FlownetColors.pureWhite),
+            ),
           ),
         ],
       ),

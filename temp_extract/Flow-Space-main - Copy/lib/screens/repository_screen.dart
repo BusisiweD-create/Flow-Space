@@ -115,7 +115,7 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
                       final file = _filteredFiles[index];
                       return Card(
                         margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4),
+                            horizontal: 16, vertical: 4,),
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: _getFileTypeColor(file.fileType),
@@ -136,7 +136,7 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
                             children: [
                               Text('Uploaded by: ${file.uploadedBy}'),
                               Text(
-                                  'Size: ${file.size} • ${_formatDate(file.uploadDate)}'),
+                                  'Size: ${file.size} • ${_formatDate(file.uploadDate)}',),
                               if (file.description.isNotEmpty)
                                 Text(
                                   file.description,
@@ -248,7 +248,7 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                    content: Text('File upload feature coming soon')),
+                    content: Text('File upload feature coming soon'),),
               );
             },
             child: const Text('Upload'),

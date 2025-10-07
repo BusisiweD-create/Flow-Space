@@ -34,6 +34,9 @@ dependencies:
   # Database
   http: ^1.1.0
   crypto: ^3.0.3
+  
+  # Email
+  mailer: ^6.0.1
 
 dev_dependencies:
   flutter_test:
@@ -44,11 +47,10 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/
     - assets/images/
-    - assets/fonts/
+    # assets/fonts/
     - assets/videos/
     - assets/audios/
-    - assets/rive_animations/
-    - assets/pdfs/
-    - assets/jsons/
+    #assets/rive_animations/
+    # assets/pdfs/
+    #assets/jsons/

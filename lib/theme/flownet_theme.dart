@@ -16,6 +16,9 @@ class FlownetColors {
   static const Color electricBlue = Color(0xFF0077B6);
   static const Color emeraldGreen = Color(0xFF28A745);
   static const Color amberOrange = Color(0xFFFF8800);
+  static const Color purple = Color(0xFF6F42C1);
+  static const Color red = Color(0xFFDC3545);
+  static const Color teal = Color(0xFF20C997);
 
   // Dark theme specific
   static const Color darkSurface = Color(0xFF1A1A1A);
@@ -38,10 +41,8 @@ class FlownetTheme {
         onSecondary: FlownetColors.pureWhite,
         surface: FlownetColors.darkSurface,
         onSurface: FlownetColors.darkOnSurface,
-        surfaceVariant: FlownetColors.darkSurfaceVariant,
+        surfaceContainerHighest: FlownetColors.darkSurfaceVariant,
         onSurfaceVariant: FlownetColors.darkOnSurfaceVariant,
-        background: FlownetColors.charcoalBlack,
-        onBackground: FlownetColors.pureWhite,
         error: FlownetColors.crimsonRed,
         onError: FlownetColors.pureWhite,
         outline: FlownetColors.slate,
@@ -134,7 +135,7 @@ class FlownetTheme {
       cardTheme: CardThemeData(
         color: FlownetColors.graphiteGray,
         elevation: 4,
-        shadowColor: FlownetColors.charcoalBlack.withOpacity(0.3),
+        shadowColor: FlownetColors.charcoalBlack.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -146,7 +147,7 @@ class FlownetTheme {
           backgroundColor: FlownetColors.crimsonRed,
           foregroundColor: FlownetColors.pureWhite,
           elevation: 2,
-          shadowColor: FlownetColors.crimsonRed.withOpacity(0.3),
+          shadowColor: FlownetColors.crimsonRed.withValues(alpha: 0.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -156,7 +157,7 @@ class FlownetTheme {
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.all(
-            FlownetColors.crimsonRed.withOpacity(0.1),
+            FlownetColors.crimsonRed.withValues(alpha: 0.1),
           ),
         ),
       ),
@@ -174,7 +175,7 @@ class FlownetTheme {
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.all(
-            FlownetColors.slate.withOpacity(0.1),
+            FlownetColors.slate.withValues(alpha: 0.1),
           ),
         ),
       ),
@@ -277,7 +278,7 @@ class FlownetTheme {
       // ListTile Theme
       listTileTheme: ListTileThemeData(
         tileColor: FlownetColors.graphiteGray,
-        selectedTileColor: FlownetColors.crimsonRed.withOpacity(0.1),
+        selectedTileColor: FlownetColors.crimsonRed.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),

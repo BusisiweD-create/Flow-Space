@@ -17,6 +17,7 @@
         "google_fonts",
         "http",
         "intl",
+        "mailer",
         "page_transition",
         "path_provider",
         "provider",
@@ -51,6 +52,18 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "mailer",
+      "version": "6.5.0",
+      "dependencies": [
+        "async",
+        "intl",
+        "logging",
+        "meta",
+        "mime",
+        "path"
       ]
     },
     {
@@ -291,6 +304,24 @@
       ]
     },
     {
+      "name": "mime",
+      "version": "2.0.0",
+      "dependencies": []
+    },
+    {
+      "name": "logging",
+      "version": "1.3.0",
+      "dependencies": []
+    },
+    {
+      "name": "async",
+      "version": "2.13.0",
+      "dependencies": [
+        "collection",
+        "meta"
+      ]
+    },
+    {
       "name": "typed_data",
       "version": "1.4.0",
       "dependencies": [
@@ -313,14 +344,6 @@
       ]
     },
     {
-      "name": "async",
-      "version": "2.13.0",
-      "dependencies": [
-        "collection",
-        "meta"
-      ]
-    },
-    {
       "name": "state_notifier",
       "version": "1.0.0",
       "dependencies": [
@@ -338,11 +361,6 @@
         "state_notifier",
         "test"
       ]
-    },
-    {
-      "name": "logging",
-      "version": "1.3.0",
-      "dependencies": []
     },
     {
       "name": "flutter_web_plugins",
@@ -888,11 +906,6 @@
     {
       "name": "args",
       "version": "2.7.0",
-      "dependencies": []
-    },
-    {
-      "name": "mime",
-      "version": "2.0.0",
       "dependencies": []
     },
     {

@@ -8,7 +8,7 @@ class ApiService {
   
   // Initialize the service
   static Future<void> initialize() async {
-    debugPrint('API Service initialized');
+    debugPrint('API Service initialized (mock mode - no backend required)');
   }
   
   // Authentication methods
@@ -101,30 +101,23 @@ class ApiService {
     required String assignedTo,
     required String createdBy,
   }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/deliverables'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'title': title,
-          'description': description,
-          'definitionOfDone': definitionOfDone,
-          'status': status,
-          'assignedTo': assignedTo,
-          'createdBy': createdBy,
-        }),
-      );
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        debugPrint('Failed to create deliverable: ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('Error creating deliverable: $e');
-      return null;
-    }
+    // Mock implementation - no real API call
+    debugPrint('Creating deliverable: $title (mock mode)');
+    
+    // Simulate network delay
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Return mock success response
+    return {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'title': title,
+      'description': description,
+      'definitionOfDone': definitionOfDone,
+      'status': status,
+      'assignedTo': assignedTo,
+      'createdBy': createdBy,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
   }
   
   static Future<void> updateDeliverableStatus({
@@ -144,23 +137,36 @@ class ApiService {
   
   // Database methods for sprints
   static Future<List<Map<String, dynamic>>> getSprints() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sprints'),
-        headers: {'Content-Type': 'application/json'},
-      );
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data);
-      } else {
-        debugPrint('Failed to fetch sprints: ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      debugPrint('Error fetching sprints: $e');
-      return [];
-    }
+    // Mock implementation - no real API call
+    debugPrint('Fetching sprints (mock mode)');
+    
+    // Simulate network delay
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    // Return mock sprint data
+    return [
+      {
+        'id': 'sprint-1',
+        'name': 'Sprint 1 - Foundation',
+        'start_date': '2024-01-01',
+        'end_date': '2024-01-14',
+        'status': 'completed',
+      },
+      {
+        'id': 'sprint-2', 
+        'name': 'Sprint 2 - Core Features',
+        'start_date': '2024-01-15',
+        'end_date': '2024-01-28',
+        'status': 'active',
+      },
+      {
+        'id': 'sprint-3',
+        'name': 'Sprint 3 - Integration',
+        'start_date': '2024-01-29',
+        'end_date': '2024-02-11',
+        'status': 'planned',
+      },
+    ];
   }
   
   static Future<Map<String, dynamic>?> createSprint({

@@ -75,32 +75,32 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/dashboard',
       builder: (context, state) =>
-          SidebarScaffold(child: const DashboardScreen()),
+          const SidebarScaffold(child: DashboardScreen()),
     ),
     GoRoute(
       path: '/deliverable-setup',
       builder: (context, state) =>
-          SidebarScaffold(child: const DeliverableSetupScreen()),
+          const SidebarScaffold(child: DeliverableSetupScreen()),
     ),
     GoRoute(
       path: '/sprint-console',
       builder: (context, state) =>
-          SidebarScaffold(child: const SprintConsoleScreen()),
+          const SidebarScaffold(child: SprintConsoleScreen()),
     ),
     GoRoute(
       path: '/approvals',
       builder: (context, state) =>
-          SidebarScaffold(child: const ApprovalsScreen()),
+          const SidebarScaffold(child: ApprovalsScreen()),
     ),
     GoRoute(
       path: '/repository',
       builder: (context, state) =>
-          SidebarScaffold(child: const RepositoryScreen()),
+          const SidebarScaffold(child: RepositoryScreen()),
     ),
     GoRoute(
       path: '/notifications',
       builder: (context, state) =>
-          SidebarScaffold(child: const NotificationsScreen()),
+          const SidebarScaffold(child: NotificationsScreen()),
     ),
     // Optional routes (settings/account) to avoid 404
     GoRoute(
