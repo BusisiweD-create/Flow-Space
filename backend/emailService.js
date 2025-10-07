@@ -2,14 +2,14 @@ const nodemailer = require('nodemailer');
 
 class EmailService {
   constructor() {
-    // Gmail SMTP configuration
+    // Gmail SMTP configuration - using environment variables for security
     this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // true for 465, false for other ports
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true' || false,
       auth: {
-        user: 'dhlaminibusisiwe30@gmail.com',
-        pass: 'bplcqegzkspgotfk' // Your app password
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
       }
     });
   }

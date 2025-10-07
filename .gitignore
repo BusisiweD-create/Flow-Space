@@ -48,6 +48,9 @@ app.*.map.json
 .env.local
 .env.production
 .env.staging
+backend/.env
+backend/.env.local
+backend/.env.production
 
 # Firebase
 firebase_options.dart

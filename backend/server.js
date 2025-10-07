@@ -3,14 +3,14 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const EmailService = require('./emailService');
+const ProfessionalEmailService = require('./emailServiceProfessional');
 const dbConfig = require('./database-config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize email service
-const emailService = new EmailService();
+// Initialize professional email service
+const emailService = new ProfessionalEmailService();
 
 // Middleware
 app.use(cors());
@@ -19,14 +19,42 @@ app.use(express.json());
 // PostgreSQL connection using shared database config
 const pool = new Pool(dbConfig);
 
-// Test database connection
-pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
-});
+// Test database connection with retry logic
+let dbConnected = false;
+const maxRetries = 5;
+let retryCount = 0;
+
+async function connectToDatabase() {
+  try {
+    const client = await pool.connect();
+    console.log('✅ Connected to PostgreSQL database');
+    client.release();
+    dbConnected = true;
+  } catch (error) {
+    retryCount++;
+    console.log(`❌ Database connection attempt ${retryCount}/${maxRetries} failed:`, error.message);
+    
+    if (retryCount < maxRetries) {
+      console.log(`🔄 Retrying in 2 seconds...`);
+      setTimeout(connectToDatabase, 2000);
+    } else {
+      console.error('❌ Failed to connect to database after', maxRetries, 'attempts');
+      process.exit(1);
+    }
+  }
+}
+
+// Start database connection
+connectToDatabase();
 
 // Auth routes
 app.post('/api/auth/signup', async (req, res) => {
   try {
+    // Check if database is connected
+    if (!dbConnected) {
+      return res.status(503).json({ error: 'Database not connected. Please try again in a moment.' });
+    }
+    
     const { email, password, firstName, lastName, company, role } = req.body;
     
     // Hash password
@@ -338,7 +366,117 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Flow-Space API is running' });
 });
 
-app.listen(PORT, () => {
+// Email testing endpoints
+app.post('/api/test-email', async (req, res) => {
+  try {
+    const { email, userName, type } = req.body;
+    console.log(`🧪 Testing email delivery to: ${email}`);
+    
+    const result = await emailService.sendVerificationEmail(email, userName);
+    
+    if (result.success) {
+      console.log('✅ Test email sent successfully');
+      res.json({ success: true, message: 'Test email sent', method: result.service });
+    } else {
+      console.log('❌ Test email failed');
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('❌ Test email error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/test-smtp', async (req, res) => {
+  try {
+    const { email, userName } = req.body;
+    console.log(`🧪 Testing direct SMTP to: ${email}`);
+    
+    const result = await emailService.sendVerificationEmail(email, userName);
+    
+    if (result.success) {
+      console.log('✅ SMTP test successful');
+      res.json({ success: true, message: 'SMTP test successful', method: result.service });
+    } else {
+      console.log('❌ SMTP test failed');
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('❌ SMTP test error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/test-professional-email', async (req, res) => {
+  try {
+    const { email, userName } = req.body;
+    console.log(`🧪 Testing professional email to: ${email}`);
+    
+    const result = await emailService.sendVerificationEmail(email, userName);
+    
+    if (result.success) {
+      console.log('✅ Professional email test successful');
+      res.json({ success: true, message: 'Professional email test successful', method: result.service });
+    } else {
+      console.log('❌ Professional email test failed');
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('❌ Professional email test error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/auth/send-verification', async (req, res) => {
+  try {
+    const { email, userName } = req.body;
+    console.log(`📧 Sending verification email to: ${email}`);
+    
+    const result = await emailService.sendVerificationEmail(email, userName);
+    
+    if (result.success) {
+      console.log('✅ Verification email sent');
+      res.json({ success: true, message: 'Verification email sent', method: result.service });
+    } else {
+      console.log('❌ Verification email failed');
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('❌ Verification email error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/send-email', async (req, res) => {
+  try {
+    const { to, subject, html } = req.body;
+    console.log(`📧 Sending direct email to: ${to}`);
+    
+    const result = await emailService.sendEmail(to, subject, html);
+    
+    if (result.success) {
+      console.log('✅ Direct email sent');
+      res.json({ success: true, message: 'Email sent', method: result.service });
+    } else {
+      console.log('❌ Direct email failed');
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('❌ Direct email error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Add error handling
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+const server = app.listen(PORT, () => {
   console.log(`Flow-Space API server running on port ${PORT}`);
   
   // Test SMTP connection on startup
@@ -349,4 +487,9 @@ app.listen(PORT, () => {
       console.log('❌ Email service not available');
     }
   });
+});
+
+// Keep the server running
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
 });
