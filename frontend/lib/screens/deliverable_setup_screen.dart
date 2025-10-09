@@ -17,6 +17,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   final _descriptionController = TextEditingController();
   final _dodController = TextEditingController();
   final _evidenceLinksController = TextEditingController();
+  final _assignedToController = TextEditingController();
+  final _demoLinkController = TextEditingController();
+  final _repoLinkController = TextEditingController();
+  final _testSummaryLinkController = TextEditingController();
+  final _userGuideLinkController = TextEditingController();
+  final _testPassRateController = TextEditingController();
+  final _codeCoverageController = TextEditingController();
+  final _escapedDefectsController = TextEditingController();
   
   String _priority = 'medium';
   String _status = 'draft';
@@ -59,13 +67,31 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
     if (!_formKey.currentState!.validate()) return;
 
     try {
+      // Parse evidence links from comma-separated text
+      final evidenceLinks = _evidenceLinksController.text
+          .split(',')
+          .map((link) => link.trim())
+          .where((link) => link.isNotEmpty)
+          .toList();
+
       await ApiService.createDeliverable(
         title: _titleController.text,
         description: _descriptionController.text,
         definitionOfDone: _dodController.text,
+        priority: _priority,
+        dueDate: _dueDate,
         status: _status,
-        assignedTo: '00000000-0000-0000-0000-000000000002', // Default to Jane Smith
-        createdBy: '00000000-0000-0000-0000-000000000001', priority: '', evidenceLinks: [], contributingSprints: [], // Default to John Doe
+        assignedTo: _assignedToController.text.isNotEmpty ? _assignedToController.text : null,
+        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
+        evidenceLinks: evidenceLinks,
+        demoLink: _demoLinkController.text.isNotEmpty ? _demoLinkController.text : null,
+        repoLink: _repoLinkController.text.isNotEmpty ? _repoLinkController.text : null,
+        testSummaryLink: _testSummaryLinkController.text.isNotEmpty ? _testSummaryLinkController.text : null,
+        userGuideLink: _userGuideLinkController.text.isNotEmpty ? _userGuideLinkController.text : null,
+        testPassRate: _testPassRateController.text.isNotEmpty ? int.tryParse(_testPassRateController.text) : null,
+        codeCoverage: _codeCoverageController.text.isNotEmpty ? int.tryParse(_codeCoverageController.text) : null,
+        escapedDefects: _escapedDefectsController.text.isNotEmpty ? int.tryParse(_escapedDefectsController.text) : null,
+        contributingSprints: _selectedSprints,
       );
 
       if (mounted) {
@@ -227,9 +253,119 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                   labelText: 'Evidence Links',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.link),
-                  hintText: 'Demo link, repo, test summary, user guide...',
+                  hintText: 'Comma-separated URLs: demo, repo, test summary, user guide...',
                 ),
                 maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+
+              // Assigned To
+              TextFormField(
+                controller: _assignedToController,
+                decoration: const InputDecoration(
+                  labelText: 'Assigned To (User ID)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                  hintText: 'Enter user ID (e.g., 00000000-0000-0000-0000-000000000002)',
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Demo Link
+              TextFormField(
+                controller: _demoLinkController,
+                decoration: const InputDecoration(
+                  labelText: 'Demo Link',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.video_library),
+                  hintText: 'URL to demo video or recording',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 16),
+
+              // Repository Link
+              TextFormField(
+                controller: _repoLinkController,
+                decoration: const InputDecoration(
+                  labelText: 'Repository Link',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.code),
+                  hintText: 'URL to source code repository',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 16),
+
+              // Test Summary Link
+              TextFormField(
+                controller: _testSummaryLinkController,
+                decoration: const InputDecoration(
+                  labelText: 'Test Summary Link',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.assessment),
+                  hintText: 'URL to test results or coverage report',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 16),
+
+              // User Guide Link
+              TextFormField(
+                controller: _userGuideLinkController,
+                decoration: const InputDecoration(
+                  labelText: 'User Guide Link',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.menu_book),
+                  hintText: 'URL to documentation or user guide',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 16),
+
+              // Quality Metrics Section
+              const Text(
+                'Quality Metrics',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
+              ),
+              const SizedBox(height: 8),
+
+              // Test Pass Rate
+              TextFormField(
+                controller: _testPassRateController,
+                decoration: const InputDecoration(
+                  labelText: 'Test Pass Rate (%)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.check_circle),
+                  hintText: '0-100',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
+              // Code Coverage
+              TextFormField(
+                controller: _codeCoverageController,
+                decoration: const InputDecoration(
+                  labelText: 'Code Coverage (%)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.bar_chart),
+                  hintText: '0-100',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+
+              // Escaped Defects
+              TextFormField(
+                controller: _escapedDefectsController,
+                decoration: const InputDecoration(
+                  labelText: 'Escaped Defects',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.bug_report),
+                  hintText: 'Number of defects found after release',
+                ),
+                keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 16),
 
@@ -295,6 +431,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
     _descriptionController.dispose();
     _dodController.dispose();
     _evidenceLinksController.dispose();
+    _assignedToController.dispose();
+    _demoLinkController.dispose();
+    _repoLinkController.dispose();
+    _testSummaryLinkController.dispose();
+    _userGuideLinkController.dispose();
+    _testPassRateController.dispose();
+    _codeCoverageController.dispose();
+    _escapedDefectsController.dispose();
     super.dispose();
   }
 }

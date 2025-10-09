@@ -106,6 +106,28 @@ async def get_analytics_health():
     }
 
 
+@router.get("/health/public")
+async def get_public_analytics_health():
+    """
+    Get public analytics service health status (no authentication required)
+    """
+    try:
+        # Test that we can get metrics without authentication
+        metrics = await analytics_service.get_metrics()
+        return {
+            "status": "running",
+            "has_metrics": bool(metrics),
+            "total_sprints": metrics.get("total_sprints", 0),
+            "total_deliverables": metrics.get("total_deliverables", 0),
+            "total_users": metrics.get("total_users", 0)
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @router.get("/trends/daily-activity")
 async def get_daily_activity_trend(
     days: int = Query(30, ge=1, le=365),

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/environment.dart';
 import '../utils/error_handler.dart';
 import '../utils/retry_interceptor.dart';
+import '../utils/type_converters.dart';
 import '../models/user.dart';
 
 class ApiService {
@@ -217,14 +218,20 @@ class ApiService {
   static Future<TokenResponse> signIn(String email, String password) async {
     final response = await _makeRequest(() => http.post(
       Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'username=${Uri.encodeComponent(email)}&password=${Uri.encodeComponent(password)}',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+      }),
     ));
     
     final responseData = await _parseResponse(response);
     
     // Extract user ID from the access token (JWT)
-    final accessToken = responseData['access_token'] as String;
+    final accessToken = responseData?['token']?.toString();
+    if (accessToken == null || accessToken.isEmpty) {
+      throw Exception('Access token not found in response');
+    }
     final tokenParts = accessToken.split('.');
     if (tokenParts.length != 3) {
       throw Exception('Invalid access token format');
@@ -232,22 +239,36 @@ class ApiService {
     
     final payload = utf8.decode(base64Url.decode(base64Url.normalize(tokenParts[1])));
     final Map<String, dynamic> claims = jsonDecode(payload);
-    final userId = claims['sub'] as String;
-    final userRole = claims['role'] as String;
     
-    final tokenResponse = TokenResponse.fromJson({
-      ...responseData,
-      'user': {
-        'id': int.parse(userId),
+    // Safe extraction of claims with null checks
+    final userId = claims['id']?.toString() ?? claims['sub']?.toString() ?? '';
+    final userRole = claims['role']?.toString() ?? 'user';
+    
+    // Parse user ID with proper error handling
+    int parsedUserId;
+    try {
+      parsedUserId = int.parse(userId);
+    } catch (e) {
+      throw Exception('Invalid user ID format in token: $userId');
+    }
+    
+    // Create a token response that matches the backend structure
+    final tokenResponse = TokenResponse(
+      accessToken: accessToken,
+      tokenType: 'bearer',
+      refreshToken: responseData?['refresh_token']?.toString() ?? '',
+      expiresIn: 3600, // Default expiration
+      user: User.fromJson({
+        'id': parsedUserId,
         'email': email,
-        'first_name': '', // Will be populated from user profile
-        'last_name': '',
+        'first_name': responseData?['user']?['first_name']?.toString() ?? 'Unknown',
+        'last_name': responseData?['user']?['last_name']?.toString() ?? 'User',
         'role': userRole,
         'is_active': true,
         'is_verified': true,
         'created_at': DateTime.now().toIso8601String(),
-      },
-    });
+      }),
+    );
     
     // Save tokens after successful signin
     await _saveTokens(
@@ -275,13 +296,19 @@ class ApiService {
     String? description,
     String? definitionOfDone,
     String status = 'pending',
-    int? sprintId,
     String? assignedTo,
     String? createdBy, 
     required String priority, 
-    String? dueDate, 
-    required List evidenceLinks, 
+    DateTime? dueDate, 
+    required List<String> evidenceLinks, 
     required List<String> contributingSprints,
+    String? demoLink,
+    String? repoLink,
+    String? testSummaryLink,
+    String? userGuideLink,
+    int? testPassRate,
+    int? codeCoverage,
+    int? escapedDefects,
   }) async {
     final response = await _makeRequest(() => http.post(
       Uri.parse('$baseUrl/deliverables'),
@@ -291,13 +318,19 @@ class ApiService {
         'description': description,
         'definition_of_done': definitionOfDone,
         'status': status,
-        'sprint_id': sprintId,
         'assigned_to': assignedTo,
         'created_by': createdBy,
         'priority': priority,
-        'due_date': dueDate,
+        'due_date': dueDate?.toIso8601String(),
         'evidence_links': evidenceLinks,
         'contributing_sprints': contributingSprints,
+        'demo_link': demoLink,
+        'repo_link': repoLink,
+        'test_summary_link': testSummaryLink,
+        'user_guide_link': userGuideLink,
+        'test_pass_rate': testPassRate,
+        'code_coverage': codeCoverage,
+        'escaped_defects': escapedDefects,
       }),
     ));
     
@@ -343,6 +376,45 @@ class ApiService {
     final data = _parseResponse(response);
     return List<Map<String, dynamic>>.from(data ?? []);
   }
+
+  // Deliverable-Sprint Association Methods
+  static Future<List<Map<String, dynamic>>> getSprintsForDeliverable(int deliverableId) async {
+    final response = await _makeRequest(() => http.get(
+      Uri.parse('$baseUrl/deliverables/$deliverableId/sprints'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    final data = _parseResponse(response);
+    return List<Map<String, dynamic>>.from(data ?? []);
+  }
+
+  static Future<bool> addDeliverableToSprint(int deliverableId, int sprintId) async {
+    final response = await _makeRequest(() => http.post(
+      Uri.parse('$baseUrl/deliverables/$deliverableId/sprints/$sprintId'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    return response.statusCode == 200;
+  }
+
+  static Future<bool> removeDeliverableFromSprint(int deliverableId, int sprintId) async {
+    final response = await _makeRequest(() => http.delete(
+      Uri.parse('$baseUrl/deliverables/$deliverableId/sprints/$sprintId'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    return response.statusCode == 200;
+  }
+
+  static Future<List<Map<String, dynamic>>> getAvailableSprintsForDeliverable(int deliverableId) async {
+    final response = await _makeRequest(() => http.get(
+      Uri.parse('$baseUrl/deliverables/$deliverableId/available-sprints'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    final data = _parseResponse(response);
+    return List<Map<String, dynamic>>.from(data ?? []);
+  }
   
   // Sprints
   static Future<List<Map<String, dynamic>>> getSprints({int skip = 0, int limit = 100}) async {
@@ -362,7 +434,25 @@ class ApiService {
     DateTime? endDate,
     String status = 'planning',
     int? plannedPoints,
+    int? committedPoints,
     int? completedPoints,
+    int? carriedOverPoints,
+    int? addedDuringSprint,
+    int? removedDuringSprint,
+    int? testPassRate,
+    int? codeCoverage,
+    int? escapedDefects,
+    int? defectsOpened,
+    int? defectsClosed,
+    String? defectSeverityMix,
+    int? codeReviewCompletion,
+    String? documentationStatus,
+    String? uatNotes,
+    int? uatPassRate,
+    int? risksIdentified,
+    int? risksMitigated,
+    String? blockers,
+    String? decisions,
     String? createdBy,
   }) async {
     final response = await _makeRequest(() => http.post(
@@ -371,11 +461,29 @@ class ApiService {
       body: jsonEncode({
         'name': name,
         'description': description,
-        'planned_points': plannedPoints,
-        'completed_points': completedPoints,
         'start_date': startDate?.toIso8601String(),
         'end_date': endDate?.toIso8601String(),
         'status': status,
+        'planned_points': plannedPoints,
+        'committed_points': committedPoints,
+        'completed_points': completedPoints,
+        'carried_over_points': carriedOverPoints,
+        'added_during_sprint': addedDuringSprint,
+        'removed_during_sprint': removedDuringSprint,
+        'test_pass_rate': testPassRate,
+        'code_coverage': codeCoverage,
+        'escaped_defects': escapedDefects,
+        'defects_opened': defectsOpened,
+        'defects_closed': defectsClosed,
+        'defect_severity_mix': defectSeverityMix,
+        'code_review_completion': codeReviewCompletion,
+        'documentation_status': documentationStatus,
+        'uat_notes': uatNotes,
+        'uat_pass_rate': uatPassRate,
+        'risks_identified': risksIdentified,
+        'risks_mitigated': risksMitigated,
+        'blockers': blockers,
+        'decisions': decisions,
         'created_by': createdBy,
       }),
     ));
@@ -390,6 +498,26 @@ class ApiService {
     DateTime? startDate,
     DateTime? endDate,
     String? status,
+    int? plannedPoints,
+    int? committedPoints,
+    int? completedPoints,
+    int? carriedOverPoints,
+    int? addedDuringSprint,
+    int? removedDuringSprint,
+    int? testPassRate,
+    int? codeCoverage,
+    int? escapedDefects,
+    int? defectsOpened,
+    int? defectsClosed,
+    String? defectSeverityMix,
+    int? codeReviewCompletion,
+    String? documentationStatus,
+    String? uatNotes,
+    int? uatPassRate,
+    int? risksIdentified,
+    int? risksMitigated,
+    String? blockers,
+    String? decisions,
   }) async {
     final response = await _makeRequest(() => http.put(
       Uri.parse('$baseUrl/sprints/$id'),
@@ -400,6 +528,26 @@ class ApiService {
         'start_date': startDate?.toIso8601String(),
         'end_date': endDate?.toIso8601String(),
         'status': status,
+        'planned_points': plannedPoints,
+        'committed_points': committedPoints,
+        'completed_points': completedPoints,
+        'carried_over_points': carriedOverPoints,
+        'added_during_sprint': addedDuringSprint,
+        'removed_during_sprint': removedDuringSprint,
+        'test_pass_rate': testPassRate,
+        'code_coverage': codeCoverage,
+        'escaped_defects': escapedDefects,
+        'defects_opened': defectsOpened,
+        'defects_closed': defectsClosed,
+        'defect_severity_mix': defectSeverityMix,
+        'code_review_completion': codeReviewCompletion,
+        'documentation_status': documentationStatus,
+        'uat_notes': uatNotes,
+        'uat_pass_rate': uatPassRate,
+        'risks_identified': risksIdentified,
+        'risks_mitigated': risksMitigated,
+        'blockers': blockers,
+        'decisions': decisions,
       }),
     ));
 
@@ -474,6 +622,36 @@ class ApiService {
     return _parseResponse(response);
   }
 
+  // Release Readiness Gate - AI Analysis
+  static Future<Map<String, dynamic>> analyzeReleaseReadiness(int sprintId) async {
+    final response = await _makeRequest(() => http.get(
+      Uri.parse('$baseUrl/sprints/$sprintId/release-readiness'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    final data = _parseResponse(response);
+    return Map<String, dynamic>.from(data ?? {});
+  }
+
+  static Future<Map<String, dynamic>> getReleaseReadinessReport(int sprintId) async {
+    final response = await _makeRequest(() => http.get(
+      Uri.parse('$baseUrl/sprints/$sprintId/release-readiness/report'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    final data = _parseResponse(response);
+    return Map<String, dynamic>.from(data ?? {});
+  }
+
+  static Future<bool> generateReleaseReadinessPDF(int sprintId) async {
+    final response = await _makeRequest(() => http.post(
+      Uri.parse('$baseUrl/sprints/$sprintId/release-readiness/pdf'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    return response.statusCode == 200;
+  }
+
   // Audit Logs
   static Future<List<Map<String, dynamic>>> getAuditLogs({int skip = 0, int limit = 100}) async {
     final response = await _makeRequest(() => http.get(
@@ -536,8 +714,20 @@ class ApiService {
     required String entityType,
     required int entityId,
     required String action,
-    String? user,
-    String? details,
+    String? userEmail,
+    String? userRole,
+    String? sessionId,
+    String? ipAddress,
+    String? userAgent,
+    String? actionCategory,
+    String? entityName,
+    Map<String, dynamic>? oldValues,
+    Map<String, dynamic>? newValues,
+    Map<String, dynamic>? changedFields,
+    String? requestId,
+    String? endpoint,
+    String? httpMethod,
+    int? statusCode, required String details,
   }) async {
     final response = await _makeRequest(() => http.post(
       Uri.parse('$baseUrl/audit'),
@@ -546,8 +736,20 @@ class ApiService {
         'entity_type': entityType,
         'entity_id': entityId,
         'action': action,
-        'user': user,
-        'details': details,
+        'user_email': userEmail,
+        'user_role': userRole,
+        'session_id': sessionId,
+        'ip_address': ipAddress,
+        'user_agent': userAgent,
+        'action_category': actionCategory,
+        'entity_name': entityName,
+        'old_values': oldValues,
+        'new_values': newValues,
+        'changed_fields': changedFields,
+        'request_id': requestId,
+        'endpoint': endpoint,
+        'http_method': httpMethod,
+        'status_code': statusCode,
       }),
     ));
 
@@ -567,6 +769,74 @@ class ApiService {
   }
 
   static Future fetchUserProfile() async {}
+
+  // Dashboard methods
+  static Future<Map<String, dynamic>> getDashboardData() async {
+    final response = await _makeRequest(() => http.get(
+      Uri.parse('$baseUrl/analytics/dashboard'),
+      headers: _getHeaders(),
+    ));
+    
+    final data = _parseResponse(response);
+    
+    // Use type-safe conversion for dashboard data
+    if (data is Map<String, dynamic>) {
+      return _convertDashboardData(data);
+    }
+    
+    return {};
+  }
+
+  // Helper method to convert dashboard data with type safety
+  static Map<String, dynamic> _convertDashboardData(Map<String, dynamic> data) {
+    final converted = Map<String, dynamic>.from(data);
+    
+    // Convert common fields that might have type mismatches
+    converted['total_sprints'] = toInt(data['total_sprints'] ?? 0);
+    converted['active_sprints'] = toInt(data['active_sprints'] ?? 0);
+    converted['completed_sprints'] = toInt(data['completed_sprints'] ?? 0);
+    converted['total_deliverables'] = toInt(data['total_deliverables'] ?? 0);
+    converted['pending_deliverables'] = toInt(data['pending_deliverables'] ?? 0);
+    converted['completed_deliverables'] = toInt(data['completed_deliverables'] ?? 0);
+    converted['overdue_deliverables'] = toInt(data['overdue_deliverables'] ?? 0);
+    
+    // Convert user-related fields
+    if (data.containsKey('recent_users') && data['recent_users'] is List) {
+      converted['recent_users'] = (data['recent_users'] as List).map((user) {
+        if (user is Map<String, dynamic>) {
+          final userMap = Map<String, dynamic>.from(user);
+          userMap['id'] = toInt(user['id']);
+          userMap['user_id'] = toInt(user['user_id']);  // user_id should be integer
+          userMap['email'] = toStr(user['email'] ?? '');
+          userMap['first_name'] = toStr(user['first_name'] ?? '');
+          userMap['last_name'] = toStr(user['last_name'] ?? '');
+          return userMap;
+        }
+        return user;
+      }).toList();
+    }
+    
+    // Convert sprint statistics
+    if (data.containsKey('sprint_stats') && data['sprint_stats'] is List) {
+      converted['sprint_stats'] = (data['sprint_stats'] as List).map((stat) {
+        if (stat is Map<String, dynamic>) {
+          final statMap = Map<String, dynamic>.from(stat);
+          statMap['sprint_id'] = toInt(stat['sprint_id']);
+          statMap['planned_points'] = toInt(stat['planned_points']);
+          statMap['completed_points'] = toInt(stat['completed_points']);
+          statMap['completion_percentage'] = toInt(stat['completion_percentage'] ?? 0);
+          return statMap;
+        }
+        return stat;
+      }).toList();
+    }
+    
+    return converted;
+  }
+
+  static String? getCurrentUserEmail() {}
+
+  static String? getCurrentUserRole() {}
 
 
 }

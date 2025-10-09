@@ -37,7 +37,7 @@ class AppError implements Exception {
   });
 
   @override
-  String toString() => 'AppError(type: \$type, message: "\$message", code: \$code, statusCode: \$statusCode)';
+  String toString() => 'AppError(type: ${type.name}, message: "$message", code: $code, statusCode: $statusCode)';
 
   // Factory methods for common error types
   factory AppError.network(String message, {dynamic originalError, StackTrace? stackTrace}) {

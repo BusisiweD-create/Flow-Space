@@ -13,6 +13,7 @@ from schemas import (
     UserProfileCreate, UserProfileUpdate,
     NotificationCreate
 )
+from datetime import datetime, timezone
 
 # Deliverable CRUD operations
 def get_deliverable(db: Session, deliverable_id: int) -> Optional[Deliverable]:
@@ -86,10 +87,21 @@ def get_signoff(db: Session, signoff_id: int) -> Optional[Signoff]:
     return db.query(Signoff).filter(Signoff.id == signoff_id).first()
 
 def get_signoffs_by_sprint(db: Session, sprint_id: int) -> List[Signoff]:
-    return db.query(Signoff).filter(Signoff.sprint_id == sprint_id).all()
+    return db.query(Signoff).filter(
+        Signoff.entity_type == "sprint",
+        Signoff.entity_id == sprint_id
+    ).all()
+
+
+def get_signoffs_by_deliverable(db: Session, deliverable_id: int) -> List[Signoff]:
+    return db.query(Signoff).filter(
+        Signoff.entity_type == "deliverable",
+        Signoff.entity_id == deliverable_id
+    ).all()
 
 def create_signoff(db: Session, signoff: SignoffCreate) -> Signoff:
     db_signoff = Signoff(**signoff.dict())
+    db_signoff.submitted_at = datetime.now(timezone.utc)
     db.add(db_signoff)
     db.commit()
     db.refresh(db_signoff)
@@ -115,7 +127,25 @@ def delete_signoff(db: Session, signoff_id: int) -> bool:
 
 # Audit log CRUD operations
 def create_audit_log(db: Session, audit_log: AuditLogCreate) -> AuditLog:
-    db_audit_log = AuditLog(**audit_log.dict())
+    db_audit_log = AuditLog(
+        entity_type=audit_log.entity_type,
+        entity_id=audit_log.entity_id,
+        action=audit_log.action,
+        user_email=audit_log.user_email,
+        user_role=audit_log.user_role,
+        session_id=audit_log.session_id,
+        ip_address=audit_log.ip_address,
+        user_agent=audit_log.user_agent,
+        action_category=audit_log.action_category,
+        entity_name=audit_log.entity_name,
+        old_values=audit_log.old_values,
+        new_values=audit_log.new_values,
+        changed_fields=audit_log.changed_fields,
+        request_id=audit_log.request_id,
+        endpoint=audit_log.endpoint,
+        http_method=audit_log.http_method,
+        status_code=audit_log.status_code
+    )
     db.add(db_audit_log)
     db.commit()
     db.refresh(db_audit_log)

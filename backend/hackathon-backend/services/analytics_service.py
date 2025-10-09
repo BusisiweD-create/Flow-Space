@@ -54,7 +54,8 @@ class AnalyticsService:
     
     async def _update_all_metrics(self):
         """Update all cached metrics"""
-        db = next(get_db())
+        from database import SessionLocal
+        db = SessionLocal()
         try:
             self.metrics_cache = {
                 "user_activity": await self._get_user_activity_metrics(db),
@@ -70,7 +71,39 @@ class AnalyticsService:
         """Get cached metrics"""
         if not self.metrics_cache:
             await self._update_all_metrics()
-        return self.metrics_cache.get(metric_type, {}) if metric_type else self.metrics_cache
+        
+        if metric_type:
+            return self.metrics_cache.get(metric_type, {})
+        
+        # Return flat structure for frontend compatibility
+        metrics = self.metrics_cache
+        user_activity = metrics.get("user_activity", {})
+        project_metrics = metrics.get("project_metrics", {})
+        
+        # Convert to frontend-expected format
+        flat_metrics = {
+            # User metrics
+            "total_users": user_activity.get("total_users", 0),
+            "active_users_24h": user_activity.get("active_users_24h", 0),
+            
+            # Sprint metrics
+            "total_sprints": project_metrics.get("total_sprints", 0),
+            "active_sprints": project_metrics.get("sprint_status", {}).get("active", 0),
+            "completed_sprints": project_metrics.get("sprint_status", {}).get("completed", 0),
+            
+            # Deliverable metrics
+            "total_deliverables": project_metrics.get("total_deliverables", 0),
+            "pending_deliverables": project_metrics.get("deliverable_status", {}).get("pending", 0),
+            "completed_deliverables": project_metrics.get("deliverable_status", {}).get("completed", 0),
+            "overdue_deliverables": project_metrics.get("deliverable_status", {}).get("overdue", 0),
+            
+            # System metrics
+            "system_usage": metrics.get("system_usage", {}),
+            "performance": metrics.get("performance", {}),
+            "timestamp": metrics.get("timestamp", "")
+        }
+        
+        return flat_metrics
     
     async def _get_user_activity_metrics(self, db: Session) -> Dict[str, Any]:
         """Get user activity metrics"""
@@ -95,7 +128,7 @@ class AnalyticsService:
             "total_actions": db.query(func.count(AuditLog.id)).scalar() or 0,
             "common_actions": [{"action": action, "count": count} for action, count in common_actions],
             "actions_last_24h": db.query(func.count(AuditLog.id)).filter(
-                AuditLog.timestamp >= datetime.now() - timedelta(hours=24)
+                AuditLog.created_at >= datetime.now() - timedelta(hours=24)
             ).scalar() or 0
         }
     
@@ -118,16 +151,17 @@ class AnalyticsService:
     
     async def get_user_analytics(self, user_id: int) -> Dict[str, Any]:
         """Get user-specific analytics"""
-        db = next(get_db())
+        from database import SessionLocal
+        db = SessionLocal()
         try:
             user_actions = db.query(func.count(AuditLog.id)).filter(
-                AuditLog.user == str(user_id)
+                AuditLog.user_id == user_id
             ).scalar() or 0
             
             user_actions_24h = db.query(func.count(AuditLog.id)).filter(
                 and_(
-                    AuditLog.user == str(user_id),
-                    AuditLog.timestamp >= datetime.now() - timedelta(hours=24)
+                    AuditLog.user_id == user_id,
+                    AuditLog.created_at >= datetime.now() - timedelta(hours=24)
                 )
             ).scalar() or 0
             

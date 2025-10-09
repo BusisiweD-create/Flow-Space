@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/type_converters.dart';
 
 enum DeliverableStatus {
   draft,
@@ -96,22 +97,22 @@ class Deliverable {
 
   factory Deliverable.fromJson(Map<String, dynamic> json) {
     return Deliverable(
-      id: json['id'],
-      title: json['title'],
-      description: json['description'],
+      id: toStr(json['id']),
+      title: toStr(json['title']),
+      description: toStr(json['description']),
       status: DeliverableStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => DeliverableStatus.draft,
       ),
       createdAt: DateTime.parse(json['createdAt']),
       dueDate: DateTime.parse(json['dueDate']),
-      sprintIds: List<String>.from(json['sprintIds']),
-      definitionOfDone: List<String>.from(json['definitionOfDone']),
-      evidenceLinks: List<String>.from(json['evidenceLinks'] ?? []),
-      clientComment: json['clientComment'],
+      sprintIds: toStrList(json['sprintIds']),
+      definitionOfDone: toStrList(json['definitionOfDone']),
+      evidenceLinks: toStrList(json['evidenceLinks']),
+      clientComment: toStr(json['clientComment']),
       approvedAt: json['approvedAt'] != null ? DateTime.parse(json['approvedAt']) : null,
-      approvedBy: json['approvedBy'],
-      submittedBy: json['submittedBy'],
+      approvedBy: toStr(json['approvedBy']),
+      submittedBy: toStr(json['submittedBy']),
       submittedAt: json['submittedAt'] != null ? DateTime.parse(json['submittedAt']) : null,
     );
   }

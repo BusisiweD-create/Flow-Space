@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/type_converters.dart';
 
 class Sprint {
   final String id;
@@ -83,8 +84,8 @@ class Sprint {
 
   factory Sprint.fromJson(Map<String, dynamic> json) {
     return Sprint(
-      id: json['id'],
-      name: json['name'],
+      id: toStr(json['id']),
+      name: toStr(json['name']),
       startDate: DateTime.parse(json['startDate']),
       endDate: DateTime.parse(json['endDate']),
       committedPoints: json['committedPoints'],
@@ -94,7 +95,7 @@ class Sprint {
       defectCount: json['defectCount'],
       carriedOverPoints: json['carriedOverPoints'] ?? 0,
       scopeChanges: List<String>.from(json['scopeChanges'] ?? []),
-      notes: json['notes'],
+      notes: toStr(json['notes']),
       isActive: json['isActive'] ?? false,
     );
   }

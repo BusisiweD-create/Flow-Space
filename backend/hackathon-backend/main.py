@@ -114,14 +114,25 @@ For support, please contact the development team or create an issue in the repos
 )
 
 # Add CORS middleware with dynamic origin handling for development
+# This must be the first middleware to ensure CORS headers are properly set
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:3000", "http://localhost:3000", "http://localhost:65530", "http://localhost:63651", "http://localhost:62240", "http://localhost:60383", "http://localhost:63973"],  # Frontend development URLs including Flutter web dev server ports
-    allow_origin_regex=r"http://localhost:\d+",  # Allow any localhost port for development
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Explicitly expose all headers
 )
+
+# Add custom middleware to ensure CORS headers are properly set
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    return response
 
 # Add logging and performance middleware
 app.add_middleware(LoggingMiddleware)

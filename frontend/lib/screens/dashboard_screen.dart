@@ -1,12 +1,14 @@
-// ignore_for_file: unused_element, no_leading_underscores_for_local_identifiers, duplicate_ignore, prefer_const_constructors, deprecated_member_use
+// ignore_for_file: unused_element, no_leading_underscores_for_local_identifiers, duplicate_ignore, prefer_const_constructors, deprecated_member_use, unused_field
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../utils/git_utils.dart';
 import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
+import '../components/performance_visualizations.dart';
 import '../services/backend_settings_service.dart';
 import '../services/notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +24,8 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  String? _branchName;
+  
   @override
   void initState() {
     super.initState();
@@ -29,72 +33,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(dashboardProvider.notifier).loadDashboardData();
     });
+    
+    // Load Git branch name
+    _loadBranchName();
+  }
+  
+  Future<void> _loadBranchName() async {
+    final branchName = await GitUtils.getCurrentBranchName();
+    if (mounted) {
+      setState(() {
+        _branchName = branchName;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Flow-Space Dashboard'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_task),
-            onPressed: () => context.go('/deliverable-setup'),
-            tooltip: 'Create Deliverable',
-          ),
-          IconButton(
-            icon: const Icon(Icons.timeline),
-            onPressed: () => context.go('/sprint-console'),
-            tooltip: 'Sprint Console',
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              _showNotificationsDialog();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              _showSettingsDialog();
-            },
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'profile') {
-                _navigateToProfile();
-              } else if (value == 'logout') {
-                _handleLogout();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'profile',
-                child: Row(
-                  children: [
-                    Icon(Icons.person),
-                    SizedBox(width: 8),
-                    Text('Profile'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout),
-                    SizedBox(width: 8),
-                    Text('Logout'),
-                  ],
-                ),
-              ),
-            ],
-            child: const Icon(Icons.account_circle_outlined),
-          ),
-        ],
-      ),
       body: Consumer(
         builder: (context, ref, child) {
           final dashboardState = ref.watch(dashboardProvider);
@@ -130,31 +85,61 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             );
           }
           
-          return RefreshIndicator(
-            onRefresh: () async {
-              await ref.read(dashboardProvider.notifier).refreshData();
-            },
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Welcome Section
-                  _buildWelcomeSection(),
-                  const SizedBox(height: 24),
+          return DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                TabBar(
+                  tabs: const [
+                    Tab(text: 'Overview'),
+                    Tab(text: 'Performance'),
+                  ],
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: Colors.grey,
+                  indicatorColor: Theme.of(context).colorScheme.primary,
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Overview Tab
+                      RefreshIndicator(
+                        onRefresh: () async {
+                          await ref.read(dashboardProvider.notifier).refreshData();
+                        },
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Welcome Section
+                              _buildWelcomeSection(),
+                              const SizedBox(height: 24),
 
-                  // Key Metrics Row
-                  _buildMetricsRow(),
-                  const SizedBox(height: 24),
+                              // Key Metrics Row
+                              _buildMetricsRow(),
+                              const SizedBox(height: 24),
 
-                  // Sprint Performance Chart
-                  _buildSprintPerformanceSection(),
-                  const SizedBox(height: 24),
+                              // Reminders Section
+                              _buildRemindersSection(),
+                              const SizedBox(height: 24),
 
-                  // Deliverables Section
-                  _buildDeliverablesSection(),
-                ],
-              ),
+                              // Sprint Performance Chart
+                              _buildSprintPerformanceSection(),
+                              const SizedBox(height: 24),
+
+                              // Deliverables Section
+                              _buildDeliverablesSection(),
+                            ],
+                          ),
+                        ),
+                      ),
+                      
+                      // Performance Tab
+                      PerformanceVisualizations(dashboardData: dashboardState.analyticsData),
+                    ],
+                  ),
+                ),
+              ],
             ),
           );
         },
@@ -314,6 +299,91 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       'completed_points': sprint.completedPoints,
                       'status': sprint.endDate.isBefore(DateTime.now()) ? 'completed' : 'active',
                     },).toList(),),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRemindersSection() {
+    final dashboardState = ref.watch(dashboardProvider);
+    final deliverables = dashboardState.deliverables;
+    
+    // Get pending approvals (deliverables that are submitted but not approved)
+    final pendingApprovals = deliverables.where((d) => 
+        d.status == DeliverableStatus.submitted,).toList();
+    
+    if (pendingApprovals.isEmpty) {
+      return const SizedBox.shrink(); // Hide section if no reminders
+    }
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Reminders & Escalations',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
+                ),
+                const Icon(
+                  Icons.notifications_active,
+                  color: Colors.orange,
+                  size: 24,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            Text(
+              'Pending Approval:',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            ...pendingApprovals.map((deliverable) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.pending, size: 16, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      deliverable.title,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),),
+            
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Simulate sending reminders
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Reminders sent for ${pendingApprovals.length} pending approvals'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.notifications, size: 16),
+              label: const Text('Send Reminder to All'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ),

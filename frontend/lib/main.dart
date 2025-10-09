@@ -11,7 +11,12 @@ import 'screens/email_verification_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/deliverable_setup_screen.dart';
 import 'screens/sprint_console_screen.dart';
+import 'screens/signoff_report_builder_screen.dart';
+import 'screens/client_review_screen.dart';
+import 'screens/audit_trail_screen.dart';
+import 'screens/repository_screen.dart';
 import 'screens/profile_screen.dart';
+import 'components/main_layout.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,19 +68,35 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/dashboard',
-      builder: (context, state) => const DashboardScreen(),
+      builder: (context, state) => wrapWithLayout(const DashboardScreen(), '/dashboard'),
     ),
     GoRoute(
       path: '/deliverable-setup',
-      builder: (context, state) => const DeliverableSetupScreen(),
+      builder: (context, state) => wrapWithLayout(const DeliverableSetupScreen(), '/deliverable-setup'),
     ),
     GoRoute(
       path: '/sprint-console',
-      builder: (context, state) => const SprintConsoleScreen(),
+      builder: (context, state) => wrapWithLayout(const SprintConsoleScreen(), '/sprint-console'),
+    ),
+    GoRoute(
+      path: '/signoff-builder',
+      builder: (context, state) => wrapWithLayout(const SignoffReportBuilderScreen(), '/signoff-builder'),
+    ),
+    GoRoute(
+      path: '/client-review',
+      builder: (context, state) => wrapWithLayout(const ClientReviewScreen(), '/client-review'),
+    ),
+    GoRoute(
+      path: '/audit-trail',
+      builder: (context, state) => wrapWithLayout(const AuditTrailScreen(), '/audit-trail'),
+    ),
+    GoRoute(
+      path: '/repository',
+      builder: (context, state) => wrapWithLayout(const RepositoryScreen(), '/repository'),
     ),
     GoRoute(
       path: '/profile',
-      builder: (context, state) => const ProfileScreen(),
+      builder: (context, state) => wrapWithLayout(const ProfileScreen(), '/profile'),
     ),
   ],
 );

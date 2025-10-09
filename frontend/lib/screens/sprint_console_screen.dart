@@ -149,31 +149,34 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(Icons.trending_up, size: 16, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${sprint['completed_points']}/${sprint['planned_points']} points',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                                const SizedBox(width: 16),
-                                Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  sprint['created_by_name'] ?? 'Unknown',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                              ],
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  Icon(Icons.trending_up, size: 16, color: Colors.grey[600]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${sprint['completed_points']}/${sprint['planned_points']} points',
+                                    style: TextStyle(color: Colors.grey[600]),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Icon(Icons.person, size: 16, color: Colors.grey[600]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    sprint['created_by_name'] ?? 'Unknown',
+                                    style: TextStyle(color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 12),
                             LinearProgressIndicator(
-                              value: sprint['planned_points'] > 0
-                                  ? sprint['completed_points'] / sprint['planned_points']
+                              value: (sprint['planned_points'] ?? 0) > 0
+                                  ? (sprint['completed_points'] ?? 0) / (sprint['planned_points'] ?? 1)
                                   : 0,
                               backgroundColor: Colors.grey[300],
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                _getProgressColor(sprint['completed_points'], sprint['planned_points']),
+                                _getProgressColor(sprint['completed_points'] ?? 0, sprint['planned_points'] ?? 0),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -181,7 +184,7 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  '${((sprint['completed_points'] / sprint['planned_points']) * 100).toStringAsFixed(1)}% Complete',
+                                  '${(((sprint['completed_points'] ?? 0) / (sprint['planned_points'] ?? 1)) * 100).toStringAsFixed(1)}% Complete',
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 TextButton(
@@ -250,8 +253,25 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _plannedPointsController = TextEditingController();
+  final _committedPointsController = TextEditingController();
   final _completedPointsController = TextEditingController();
-  
+  final _carriedOverPointsController = TextEditingController();
+  final _addedDuringSprintController = TextEditingController();
+  final _removedDuringSprintController = TextEditingController();
+  final _testPassRateController = TextEditingController();
+  final _codeCoverageController = TextEditingController();
+  final _escapedDefectsController = TextEditingController();
+  final _defectsOpenedController = TextEditingController();
+  final _defectsClosedController = TextEditingController();
+  final _defectSeverityMixController = TextEditingController();
+  final _codeReviewCompletionController = TextEditingController();
+  final _documentationStatusController = TextEditingController();
+  final _uatNotesController = TextEditingController();
+  final _uatPassRateController = TextEditingController();
+  final _risksIdentifiedController = TextEditingController();
+  final _risksMitigatedController = TextEditingController();
+  final _blockersController = TextEditingController();
+  final _decisionsController = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
 
@@ -298,8 +318,26 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
         description: _descriptionController.text,
         startDate: _startDate,
         endDate: _endDate,
-        plannedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
-        completedPoints: int.tryParse(_completedPointsController.text) ?? 0,
+        plannedPoints: int.tryParse(_plannedPointsController.text),
+        committedPoints: int.tryParse(_committedPointsController.text),
+        completedPoints: int.tryParse(_completedPointsController.text),
+        carriedOverPoints: int.tryParse(_carriedOverPointsController.text),
+        addedDuringSprint: int.tryParse(_addedDuringSprintController.text),
+        removedDuringSprint: int.tryParse(_removedDuringSprintController.text),
+        testPassRate: int.tryParse(_testPassRateController.text),
+        codeCoverage: int.tryParse(_codeCoverageController.text),
+        escapedDefects: int.tryParse(_escapedDefectsController.text),
+        defectsOpened: int.tryParse(_defectsOpenedController.text),
+        defectsClosed: int.tryParse(_defectsClosedController.text),
+        defectSeverityMix: _defectSeverityMixController.text,
+        codeReviewCompletion: int.tryParse(_codeReviewCompletionController.text),
+        documentationStatus: _documentationStatusController.text,
+        uatNotes: _uatNotesController.text,
+        uatPassRate: int.tryParse(_uatPassRateController.text),
+        risksIdentified: int.tryParse(_risksIdentifiedController.text),
+        risksMitigated: int.tryParse(_risksMitigatedController.text),
+        blockers: _blockersController.text,
+        decisions: _decisionsController.text,
         createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
       );
 
@@ -443,6 +481,186 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              Text(
+                'Quality Metrics',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _testPassRateController,
+                      decoration: const InputDecoration(
+                        labelText: 'Test Pass Rate (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.verified),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _codeCoverageController,
+                      decoration: const InputDecoration(
+                        labelText: 'Code Coverage (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.code),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _escapedDefectsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Escaped Defects',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.bug_report),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _defectsOpenedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Defects Opened',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.warning),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _defectsClosedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Defects Closed',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.check_circle_outline),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _codeReviewCompletionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Code Review (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.reviews),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _defectSeverityMixController,
+                decoration: const InputDecoration(
+                  labelText: 'Defect Severity Mix',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.priority_high),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _documentationStatusController,
+                decoration: const InputDecoration(
+                  labelText: 'Documentation Status',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _uatNotesController,
+                decoration: const InputDecoration(
+                  labelText: 'UAT Notes',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.note),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _uatPassRateController,
+                decoration: const InputDecoration(
+                  labelText: 'UAT Pass Rate (%)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.verified_user),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Risk & Decision Tracking',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _risksIdentifiedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Risks Identified',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.warning),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _risksMitigatedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Risks Mitigated',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.shield),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _blockersController,
+                decoration: const InputDecoration(
+                  labelText: 'Blockers',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.block),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _decisionsController,
+                decoration: const InputDecoration(
+                  labelText: 'Key Decisions',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.assignment_turned_in),
+                ),
+                maxLines: 2,
+              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -471,7 +689,25 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _plannedPointsController.dispose();
+    _committedPointsController.dispose();
     _completedPointsController.dispose();
+    _carriedOverPointsController.dispose();
+    _addedDuringSprintController.dispose();
+    _removedDuringSprintController.dispose();
+    _testPassRateController.dispose();
+    _codeCoverageController.dispose();
+    _escapedDefectsController.dispose();
+    _defectsOpenedController.dispose();
+    _defectsClosedController.dispose();
+    _defectSeverityMixController.dispose();
+    _codeReviewCompletionController.dispose();
+    _documentationStatusController.dispose();
+    _uatNotesController.dispose();
+    _uatPassRateController.dispose();
+    _risksIdentifiedController.dispose();
+    _risksMitigatedController.dispose();
+    _blockersController.dispose();
+    _decisionsController.dispose();
     super.dispose();
   }
 }
