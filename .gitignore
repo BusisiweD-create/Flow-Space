@@ -1,8 +1,70 @@
-﻿backend/node_modules/
+# Node.js dependencies
+backend/node_modules/
 frontend/node_modules/
+
+# VS Code
 *.vsidx
 .vscode/
+*.code-workspace
+
+# OS files
 .DS_Store
+
+# Flutter/Dart/Pub related
 frontend/.dart_tool/
 frontend/build/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+
+# Environment files
 .env
+.env.local
+.env.production
+.env.staging
+backend/.env
+backend/.env.local
+backend/.env.production
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Firebase
+firebase_options.dart
+google-services.json
+GoogleService-Info.plist
+
+# Temporary files
+*.tmp
+*.temp

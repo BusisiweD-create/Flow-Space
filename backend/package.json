@@ -1,0 +1,40 @@
+{
+  "name": "flow-space-backend",
+  "version": "1.0.0",
+  "description": "Flow-Space Backend Server with Role-Based Authentication",
+  "main": "server-fixed.js",
+  "scripts": {
+    "start": "node server-fixed.js",
+    "dev": "nodemon server-fixed.js",
+    "test": "node test-database.js",
+    "setup": "node simple-database-setup.js",
+    "reset": "node reset-database.js",
+    "create-tables": "node create-tables.js"
+  },
+  "keywords": [
+    "flow-space",
+    "backend",
+    "api",
+    "authentication",
+    "role-based",
+    "postgresql"
+  ],
+  "author": "Flow-Space Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "pg": "^8.16.3",
+    "bcryptjs": "^3.0.2",
+    "uuid": "^9.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.10.1",
+    "@sendgrid/mail": "^8.1.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
