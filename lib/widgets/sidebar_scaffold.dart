@@ -64,8 +64,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'view_team_dashboard',
       ),
       const _NavItem(
-        label: 'Role Management', 
-        icon: Icons.admin_panel_settings_outlined, 
+        label: 'Role Management',
+        icon: Icons.admin_panel_settings_outlined,
         route: '/role-management',
         requiredPermission: 'manage_users',
       ),

@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
+import 'services/real_auth_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -13,7 +14,7 @@ import 'screens/firebase_register_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'screens/deliverable_setup_screen.dart';
 import 'screens/enhanced_deliverable_setup_screen.dart';
-import 'screens/sprint_console_screen.dart';
+import 'screens/simple_sprint_console_screen.dart';
 import 'screens/sprint_metrics_screen.dart';
 import 'screens/report_builder_screen.dart';
 import 'screens/client_review_screen.dart';
@@ -42,6 +43,7 @@ void main() async {
     // Initialize API Services
     await BackendApiService().initialize();
     await AuthService().initialize();
+    await RealAuthService().initialize();
     
     // Test SMTP connection on startup (optional)
     // Uncomment the lines below to test SMTP on app startup
@@ -200,7 +202,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RouteGuard(
         route: '/sprint-console',
         child: SidebarScaffold(
-          child: SprintConsoleScreen(),
+          child: SimpleSprintConsoleScreen(),
         ),
       ),
     ),

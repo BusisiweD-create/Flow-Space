@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
+import '../services/real_auth_service.dart';
 import '../services/error_handler.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -35,8 +36,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      final authService = AuthService();
-      final success = await authService.signIn(
+      final realAuthService = RealAuthService();
+      final success = await realAuthService.signIn(
         _emailController.text.trim(),
         _passwordController.text,
       );

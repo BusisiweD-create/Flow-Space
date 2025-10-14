@@ -23,6 +23,9 @@ class ApiClient {
   // Getters
   String? get accessToken => _accessToken;
   bool get isAuthenticated => _accessToken != null && _isTokenValid();
+  
+  // Get auth token for API calls
+  String? getAuthToken() => _accessToken;
 
   // Initialize API client
   Future<void> initialize() async {

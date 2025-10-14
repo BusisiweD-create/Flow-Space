@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
+import '../services/real_auth_service.dart';
 import '../services/error_handler.dart';
 import '../models/user_role.dart';
 
@@ -578,7 +579,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('👤 Name: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
       debugPrint('🎭 Role: $userRole');
       
-      final success = await _authService.signUp(
+      final realAuthService = RealAuthService();
+      final success = await realAuthService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
         '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
@@ -589,9 +591,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (success && mounted) {
         // Navigate to email verification screen
-        context.go('/verify-email', extra: {
+        context.go('/email-verification', extra: {
           'email': _emailController.text.trim(),
-        },);
+        });
       } else if (mounted) {
         _errorHandler.showErrorSnackBar(
           context,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'user_role.dart';
-import 'package:flutter/foundation.dart';
 
 class User {
   final String id;
