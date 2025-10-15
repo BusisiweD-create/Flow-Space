@@ -217,12 +217,12 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: FlownetColors.electricBlue, size: 16),
+                const Icon(Icons.info_outline, color: FlownetColors.electricBlue, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Selected project: ${_projects.firstWhere((p) => p['key'] == _selectedProjectKey)['name']}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: FlownetColors.electricBlue,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -569,7 +569,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       _selectedSprintId = null; // Reset sprint selection
       _tickets.clear(); // Clear tickets
     });
-    print('🎯 Project selected: ${project['name']} (${project['key']})');
+    debugPrint('🎯 Project selected: ${project['name']} (${project['key']})');
   }
 
   void _selectSprint(Map<String, dynamic> sprint) {
