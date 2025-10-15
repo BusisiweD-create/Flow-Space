@@ -25,6 +25,7 @@ import 'screens/role_dashboard_screen.dart';
 import 'screens/performance_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/sprint_board_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
@@ -36,6 +37,7 @@ void main() async {
     // Initialize API Services
     await BackendApiService().initialize();
     await AuthService().initialize();
+    // RealAuthService removed - using AuthService instead
     
     // Test SMTP connection on startup (optional)
     // Uncomment the lines below to test SMTP on app startup
@@ -192,12 +194,28 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/sprint-console',
-      builder: (context, state) => const RouteGuard(
-        route: '/sprint-console',
-        child: SidebarScaffold(
-          child: SprintConsoleScreen(),
-        ),
-      ),
+            builder: (context, state) => const RouteGuard(
+              route: '/sprint-console',
+              child: SidebarScaffold(
+                child: SprintConsoleScreen(),
+              ),
+            ),
+    ),
+    GoRoute(
+      path: '/sprint-board/:sprintId',
+      builder: (context, state) {
+        final sprintId = state.pathParameters['sprintId']!;
+        final sprintName = state.uri.queryParameters['name'] ?? 'Sprint Board';
+        return RouteGuard(
+          route: '/sprint-board',
+          child: SidebarScaffold(
+            child: SprintBoardScreen(
+              sprintId: sprintId,
+              sprintName: sprintName,
+            ),
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/approvals',

@@ -76,36 +76,25 @@ class _FlownetLogoState extends State<FlownetLogo> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // 3x3 Grid Logo
-        _buildGridLogo(size: 20),
-        const SizedBox(height: 2),
-        // Text - wrapped in Flexible to prevent overflow
-        const Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'FLOWNET',
-                style: TextStyle(
-                  color: FlownetColors.crimsonRed,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.6,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                'WORKSPACES',
-                style: TextStyle(
-                  color: FlownetColors.pureWhite,
-                  fontSize: 6,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+        _buildGridLogo(size: 16),
+        const SizedBox(height: 1),
+        // Text
+        const Text(
+          'FLOWNET',
+          style: TextStyle(
+            color: FlownetColors.crimsonRed,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const Text(
+          'WORKSPACES',
+          style: TextStyle(
+            color: FlownetColors.pureWhite,
+            fontSize: 5,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
           ),
         ),
       ],

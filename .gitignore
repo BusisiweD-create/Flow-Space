@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Node.js dependencies
 backend/node_modules/
 frontend/node_modules/
@@ -42,13 +43,26 @@ backend/.env.production
 .history
 .svn/
 migrate_working_dir/
+=======
+# Dependencies
+node_modules/
+backend/node_modules/
+*/node_modules/
+>>>>>>> origin/Busisiwe
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
+# Build outputs
+build/
+dist/
+*.vsidx
+
+# IDE files
+.vscode/
 .idea/
+*.swp
+*.swo
+*~
 
+<<<<<<< HEAD
 # Symbolication related
 app.*.symbols
 
@@ -61,7 +75,86 @@ app.*.map.json
 /android/app/release
 
 
+=======
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database files
+*.sqlite
+*.db
+>>>>>>> origin/Busisiwe
 
 # Temporary files
-*.tmp
-*.temp
+temp_extract/
+temp_*.dart
+tr*
+
+# Flutter/Dart
+.dart_tool/
+.packages
+pubspec.lock
+
+# Backend specific
+backend/daemon/
+backend/*.bat
+backend/*.ps1
+backend/start-*.bat
+backend/start-*.ps1
+backend/manage-*.bat
+backend/install-*.bat
+backend/setup-*.bat
+backend/run-*.bat
+backend/startup-*.bat
+backend/*-server.js
+backend/clean-*.js
+backend/check-*.js
+backend/create-*.js
+backend/debug-*.js
+backend/decode-*.js
+backend/final-*.js
+backend/fix-*.js
+backend/populate-*.js
+backend/permanent-*.js
+backend/setup-*.js
+backend/simple-*.js
+backend/test-*.js
+backend/verify-*.js
+backend/working-*.js
+backend/complete-*.js
+backend/connect-*.js
+backend/jira-*.js
+backend/assign-*.js
+backend/cleanup-*.js
+backend/uninstall-*.js
+
+# Root level scripts
+*.bat
+*.ps1
+*.sh
+test-*.js
+check-*.js
+cleanup-*.js
+!start-backend.bat
+!start-backend.ps1
+
+# Documentation that's not essential
+*.md
+!README.md
+!STARTUP_GUIDE.md
+!ENV_SETUP_GUIDE.md
+!AUTHENTICATION_TEST_GUIDE.md
+
+# Khono files
+khono/

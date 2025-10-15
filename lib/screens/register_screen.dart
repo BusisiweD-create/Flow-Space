@@ -402,7 +402,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  final AuthService _authService = AuthService();
   final ErrorHandler _errorHandler = ErrorHandler();
   bool _isLoading = false;
 
@@ -578,7 +577,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('👤 Name: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
       debugPrint('🎭 Role: $userRole');
       
-      final result = await _authService.signUp(
+      final authService = AuthService();
+      final result = await authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
         '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
@@ -588,10 +588,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('📊 Registration result: $result');
 
       if (result['success'] == true && mounted) {
+        _errorHandler.showSuccessSnackBar(context, 'Registration successful!');
+        // Small delay to show success message
+        await Future.delayed(const Duration(milliseconds: 500));
         // Navigate to email verification screen
-        context.go('/verify-email', extra: {
-          'email': _emailController.text.trim(),
-        },);
+        if (mounted) {
+          context.go('/email-verification', extra: {
+            'email': _emailController.text.trim(),
+          },);
+        }
       } else if (mounted) {
         final errorMessage = result['error'] ?? 'Registration failed. Please try again.';
         _errorHandler.showErrorSnackBar(
@@ -601,7 +606,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _errorHandler.showErrorSnackBar(context, 'Error: $e');
+        String errorMessage = 'Registration failed. Please try again.';
+        
+        // Provide more specific error messages
+        if (e.toString().contains('network') || e.toString().contains('connection')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (e.toString().contains('server')) {
+          errorMessage = 'Server error. Please try again later.';
+        } else if (e.toString().contains('email')) {
+          errorMessage = 'Email already exists. Please use a different email address.';
+        }
+        
+        _errorHandler.showErrorSnackBar(context, errorMessage);
       }
     } finally {
       if (mounted) {

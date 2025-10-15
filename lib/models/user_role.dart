@@ -100,6 +100,11 @@ class PermissionManager {
       description: 'View team performance dashboard',
       allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin],
     ),
+    'manage_sprints': Permission(
+      name: 'Manage Sprints',
+      description: 'Create and manage sprints, projects, and tickets',
+      allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin, UserRole.teamMember],
+    ),
     'view_client_review': Permission(
       name: 'View Client Review',
       description: 'Access client review interface',

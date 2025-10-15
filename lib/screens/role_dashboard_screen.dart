@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
+import '../services/auth_service.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -12,6 +13,7 @@ class RoleDashboardScreen extends StatefulWidget {
 
 class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   User? _currentUser;
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -20,18 +22,27 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Future<void> _loadCurrentUser() async {
-    // Mock user for now - in a real app, this would come from AuthService
-    final user = User(
-      id: '1',
-      email: 'user@example.com',
-      name: 'John Doe',
-      role: UserRole.teamMember,
-      createdAt: DateTime.now(),
-      isActive: true,
-    );
-    setState(() {
-      _currentUser = user;
-    });
+    try {
+      // Get the current user from AuthService
+      final user = _authService.currentUser;
+      if (user != null) {
+        setState(() {
+          _currentUser = user;
+        });
+        debugPrint('✅ Loaded user: ${user.name} (${user.email})');
+      } else {
+        debugPrint('❌ No user found, redirecting to login');
+        if (mounted) {
+          context.go('/');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading current user: $e');
+      // If there's an error, redirect to login
+      if (mounted) {
+        context.go('/');
+      }
+    }
   }
 
   @override
@@ -675,9 +686,15 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.go('/');
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final router = GoRouter.of(context);
+              navigator.pop();
+              // Sign out the user
+              await _authService.signOut();
+              if (mounted) {
+                router.go('/');
+              }
             },
             child: const Text('Logout'),
           ),

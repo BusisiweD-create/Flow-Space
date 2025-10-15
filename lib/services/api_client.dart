@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
-import 'mock_backend.dart';
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
@@ -17,22 +16,18 @@ class ApiClient {
   String? _accessToken;
   String? _refreshToken;
   DateTime? _tokenExpiry;
-  final MockBackend _mockBackend = MockBackend();
-  final bool _useMockBackend = false; // Set to false for production
 
   // Getters
   String? get accessToken => _accessToken;
   bool get isAuthenticated => _accessToken != null && _isTokenValid();
+  
+  // Get auth token for API calls
+  String? getAuthToken() => _accessToken;
 
   // Initialize API client
   Future<void> initialize() async {
     await _loadStoredTokens();
-    if (_useMockBackend) {
-      _mockBackend.initialize();
-      debugPrint('API Client initialized with Mock Backend');
-    } else {
-      debugPrint('API Client initialized with base URL: $_baseUrl');
-    }
+    debugPrint('API Client initialized with base URL: $_baseUrl');
   }
 
   // Token management
@@ -223,25 +218,6 @@ class ApiClient {
 
   // Authentication methods
   Future<ApiResponse> login(String email, String password) async {
-    if (_useMockBackend) {
-      try {
-        final response = _mockBackend.login(email, password);
-        
-        if (response.isSuccess && response.data != null) {
-          final data = response.data!;
-          final accessToken = data['access_token'];
-          final refreshToken = data['refresh_token'];
-          final expiresIn = data['expires_in'] ?? 3600;
-          final expiry = DateTime.now().add(Duration(seconds: expiresIn));
-          
-          await _saveTokens(accessToken, refreshToken, expiry);
-        }
-        
-        return response;
-      } catch (e) {
-        return ApiResponse.error('Login failed: $e');
-      }
-    }
 
     final response = await post('/auth/login', body: {
       'email': email,
@@ -262,13 +238,6 @@ class ApiClient {
   }
 
   Future<ApiResponse> register(String email, String password, String name, String role) async {
-    if (_useMockBackend) {
-      try {
-        return _mockBackend.register(email, password, name, role);
-      } catch (e) {
-        return ApiResponse.error('Registration failed: $e');
-      }
-    }
 
     // Parse the full name into firstName and lastName for the backend
     final nameParts = name.trim().split(' ');
@@ -285,10 +254,6 @@ class ApiClient {
   }
 
   Future<ApiResponse> logout() async {
-    if (_useMockBackend) {
-      await clearTokens();
-      return _mockBackend.logout();
-    }
 
     final response = await post('/auth/logout');
     await clearTokens();
@@ -296,12 +261,6 @@ class ApiClient {
   }
 
   Future<ApiResponse> getCurrentUser() async {
-    if (_useMockBackend) {
-      if (_accessToken == null) {
-        return ApiResponse.error('Not authenticated', 401);
-      }
-      return _mockBackend.getCurrentUser(_accessToken!);
-    }
 
     return await get('/auth/me');
   }

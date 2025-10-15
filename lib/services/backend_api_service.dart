@@ -13,6 +13,9 @@ class BackendApiService {
 
   final ApiClient _apiClient = ApiClient();
 
+  // Getters
+  String? get accessToken => _apiClient.accessToken;
+
   // Initialize the service
   Future<void> initialize() async {
     await _apiClient.initialize();
