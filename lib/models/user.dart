@@ -127,6 +127,7 @@ class User {
   bool canViewAuditLogs() => hasPermission('view_audit_logs');
   bool canOverrideReadinessGate() => hasPermission('override_readiness_gate');
   bool canViewAllDeliverables() => hasPermission('view_all_deliverables');
+  bool canManageSprints() => hasPermission('manage_sprints');
 
   // Role checking methods
   bool get isTeamMember => role == UserRole.teamMember;

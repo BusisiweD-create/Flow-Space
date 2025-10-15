@@ -31,7 +31,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Sprints', 
         icon: Icons.timer_outlined, 
         route: '/sprint-console',
-        requiredPermission: 'view_team_dashboard',
+        requiredPermission: 'manage_sprints',
       ),
       const _NavItem(
         label: 'Notifications',

@@ -190,7 +190,7 @@ class AuthService {
       case '/enhanced-deliverable-setup':
         return canCreateDeliverable();
       case '/sprint-console':
-        return isDeliveryLead || isSystemAdmin;
+        return hasPermission('manage_sprints');
       case '/client-review':
       case '/enhanced-client-review':
         return canViewClientReview();
