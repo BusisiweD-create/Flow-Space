@@ -36,13 +36,29 @@ class ApiService {
       
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body);
+      } else if (response.statusCode == 409) {
+        // User already exists - return error details
+        final responseBody = jsonDecode(response.body);
+        debugPrint('Sign up failed: User already exists - ${responseBody['error'] ?? response.body}');
+        return {
+          'error': responseBody['error'] ?? 'User already exists',
+          'message': responseBody['message'] ?? 'A user with this email already exists',
+          'statusCode': response.statusCode,
+        };
       } else {
         debugPrint('Sign up failed: ${response.statusCode} - ${response.body}');
-        return null;
+        return {
+          'error': 'Registration failed',
+          'message': 'Failed to create account. Please try again.',
+          'statusCode': response.statusCode,
+        };
       }
     } catch (e) {
       debugPrint('Error during sign up: $e');
-      return null;
+      return {
+        'error': 'Network error',
+        'message': 'Failed to connect to server. Please check your connection.',
+      };
     }
   }
   

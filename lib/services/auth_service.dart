@@ -69,7 +69,7 @@ class AuthService {
     }
   }
 
-  Future<bool> signUp(String email, String password, String name, UserRole role) async {
+  Future<Map<String, dynamic>> signUp(String email, String password, String name, UserRole role) async {
     try {
       final response = await _apiService.signUp(email, password, name, role);
       
@@ -79,15 +79,16 @@ class AuthService {
         
         if (_isAuthenticated) {
           debugPrint('User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
-          return true;
+          return {'success': true};
         }
       } else {
         debugPrint('Sign up failed: ${response.error}');
+        return {'success': false, 'error': response.error ?? 'Registration failed'};
       }
-      return false;
+      return {'success': false, 'error': 'Registration failed'};
     } catch (e) {
       debugPrint('Sign up error: $e');
-      return false;
+      return {'success': false, 'error': 'Registration failed: $e'};
     }
   }
 

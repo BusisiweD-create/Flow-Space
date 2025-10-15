@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const ProfessionalEmailService = require('./emailServiceProfessional');
 const dbConfig = require('./database-config');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

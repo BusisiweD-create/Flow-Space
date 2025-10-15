@@ -23,10 +23,10 @@ void main() async {
     const role = UserRole.teamMember;
     
     final signUpResult = await authService.signUp(email, password, name, role);
-    if (signUpResult) {
+    if (signUpResult['success']) {
       debugPrint('✅ User registration successful');
     } else {
-      debugPrint('❌ User registration failed');
+      debugPrint('❌ User registration failed: ${signUpResult['error']}');
     }
     debugPrint('');
     

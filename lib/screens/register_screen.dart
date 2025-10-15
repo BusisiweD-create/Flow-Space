@@ -578,24 +578,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('👤 Name: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
       debugPrint('🎭 Role: $userRole');
       
-      final success = await _authService.signUp(
+      final result = await _authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
         '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
         userRole,
       );
       
-      debugPrint('📊 Registration result: $success');
+      debugPrint('📊 Registration result: $result');
 
-      if (success && mounted) {
+      if (result['success'] == true && mounted) {
         // Navigate to email verification screen
         context.go('/verify-email', extra: {
           'email': _emailController.text.trim(),
         },);
       } else if (mounted) {
+        final errorMessage = result['error'] ?? 'Registration failed. Please try again.';
         _errorHandler.showErrorSnackBar(
           context,
-          'Registration failed. Please try again.',
+          errorMessage,
         );
       }
     } catch (e) {

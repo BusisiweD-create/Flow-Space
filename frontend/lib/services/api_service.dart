@@ -844,9 +844,23 @@ class ApiService {
     return converted;
   }
 
-  static String? getCurrentUserEmail() {}
+  static String? getCurrentUserEmail() {
+    return currentUserEmail;
+  }
 
-  static String? getCurrentUserRole() {}
+  static String? getCurrentUserRole() {
+    // Extract role from JWT token
+    if (_accessToken == null) return null;
+    try {
+      final parts = _accessToken!.split('.');
+      if (parts.length != 3) return null;
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final Map<String, dynamic> claims = jsonDecode(payload);
+      return claims['role'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
 
 
 }
