@@ -25,6 +25,10 @@ class FlownetColors {
   static const Color darkSurfaceVariant = Color(0xFF2E2E2E);
   static const Color darkOnSurface = Color(0xFFFFFFFF);
   static const Color darkOnSurfaceVariant = Color(0xFFB3B3B3);
+
+  static Color? get successGreen => null;
+
+  static Color? get deepNavy => null;
 }
 
 class FlownetTheme {

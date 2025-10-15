@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/firebase_login_screen.dart';
-import 'screens/firebase_register_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'screens/deliverable_setup_screen.dart';
 import 'screens/enhanced_deliverable_setup_screen.dart';
@@ -25,18 +22,15 @@ import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
+import 'screens/performance_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
+import 'screens/settings_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
   try {
     // Initialize API Services
@@ -86,14 +80,6 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RegisterScreen(),
     ),
     GoRoute(
-      path: '/firebase-login',
-      builder: (context, state) => const FirebaseLoginScreen(),
-    ),
-    GoRoute(
-      path: '/firebase-register',
-      builder: (context, state) => const FirebaseRegisterScreen(),
-    ),
-    GoRoute(
       path: '/verify-email',
       builder: (context, state) {
         final email = state.extra as Map<String, dynamic>?;
@@ -108,6 +94,15 @@ final GoRouter _router = GoRouter(
         route: '/dashboard',
         child: SidebarScaffold(
           child: RoleDashboardScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/performance-dashboard',
+      builder: (context, state) => const RouteGuard(
+        route: '/performance-dashboard',
+        child: SidebarScaffold(
+          child: PerformanceDashboardScreen(),
         ),
       ),
     ),
@@ -241,6 +236,15 @@ final GoRouter _router = GoRouter(
         route: '/role-management',
         child: SidebarScaffold(
           child: RoleManagementScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const RouteGuard(
+        route: '/settings',
+        child: SidebarScaffold(
+          child: SettingsScreen(),
         ),
       ),
     ),

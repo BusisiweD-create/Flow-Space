@@ -6,6 +6,8 @@ import 'sprint_console_screen.dart';
 import 'approvals_screen.dart';
 import 'repository_screen.dart';
 import 'notifications_screen.dart';
+import 'settings_screen.dart';
+import '../services/auth_service.dart';
 
 class NavigationItem {
   final IconData icon;
@@ -30,38 +32,56 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   bool _isCollapsed = false;
   
-  final List<NavigationItem> _navigationItems = [
-    NavigationItem(
-      icon: Icons.dashboard,
-      label: 'Dashboard',
-      route: '/dashboard',
-    ),
-    NavigationItem(
-      icon: Icons.assignment,
-      label: 'Deliverables',
-      route: '/deliverable-setup',
-    ),
-    NavigationItem(
-      icon: Icons.timeline,
-      label: 'Sprints',
-      route: '/sprint-console',
-    ),
-    NavigationItem(
-      icon: Icons.approval,
-      label: 'Approvals',
-      route: '/approvals',
-    ),
-    NavigationItem(
-      icon: Icons.folder,
-      label: 'Repository',
-      route: '/repository',
-    ),
-    NavigationItem(
-      icon: Icons.notifications,
-      label: 'Notifications',
-      route: '/notifications',
-    ),
-  ];
+  List<NavigationItem> get _navigationItems {
+    final authService = AuthService();
+    final isAdmin = authService.isSystemAdmin;
+    
+    final items = [
+      NavigationItem(
+        icon: Icons.dashboard,
+        label: 'Dashboard',
+        route: '/dashboard',
+      ),
+      NavigationItem(
+        icon: Icons.assignment,
+        label: 'Deliverables',
+        route: '/deliverable-setup',
+      ),
+      NavigationItem(
+        icon: Icons.timeline,
+        label: 'Sprints',
+        route: '/sprint-console',
+      ),
+      NavigationItem(
+        icon: Icons.approval,
+        label: 'Approvals',
+        route: '/approvals',
+      ),
+      NavigationItem(
+        icon: Icons.folder,
+        label: 'Repository',
+        route: '/repository',
+      ),
+      NavigationItem(
+        icon: Icons.notifications,
+        label: 'Notifications',
+        route: '/notifications',
+      ),
+    ];
+    
+    // Add settings option for admin users
+    if (isAdmin) {
+      items.add(
+        NavigationItem(
+          icon: Icons.settings,
+          label: 'Settings',
+          route: '/settings',
+        ),
+      );
+    }
+    
+    return items;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,21 +179,30 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   Widget _buildCurrentScreen() {
-    switch (_currentIndex) {
-      case 0:
-        return const DashboardScreen();
-      case 1:
-        return const DeliverableSetupScreen();
-      case 2:
-        return const SprintConsoleScreen();
-      case 3:
-        return const ApprovalsScreen();
-      case 4:
-        return const RepositoryScreen();
-      case 5:
-        return const NotificationsScreen();
-      default:
-        return const DashboardScreen();
+    // Get the current navigation item to determine which screen to show
+    if (_currentIndex >= 0 && _currentIndex < _navigationItems.length) {
+      final item = _navigationItems[_currentIndex];
+      
+      switch (item.route) {
+        case '/dashboard':
+          return const DashboardScreen();
+        case '/deliverable-setup':
+          return const DeliverableSetupScreen();
+        case '/sprint-console':
+          return const SprintConsoleScreen();
+        case '/approvals':
+          return const ApprovalsScreen();
+        case '/repository':
+          return const RepositoryScreen();
+        case '/notifications':
+          return const NotificationsScreen();
+        case '/settings':
+          return const SettingsScreen();
+        default:
+          return const DashboardScreen();
+      }
     }
+    
+    return const DashboardScreen();
   }
 }

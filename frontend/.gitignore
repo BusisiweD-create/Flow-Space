@@ -49,10 +49,7 @@ app.*.map.json
 .env.production
 .env.staging
 
-# Firebase
-firebase_options.dart
-google-services.json
-GoogleService-Info.plist
+
 
 # VS Code
 .vscode/

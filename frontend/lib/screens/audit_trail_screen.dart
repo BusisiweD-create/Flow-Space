@@ -317,8 +317,8 @@ class _AuditTrailScreenState extends ConsumerState<AuditTrailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: widget.entityName != null
-            ? const Text('Audit Trail - \${widget.entityName}')
-            : const Text('Audit Trail'),
+             ? const Text('Audit Trail - \${widget.entityName}')
+             : const Text('Audit Trail'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

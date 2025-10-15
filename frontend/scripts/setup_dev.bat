@@ -18,20 +18,18 @@ echo [3/5] Analyzing code...
 flutter analyze
 echo.
 
-echo [4/5] Creating Firebase configuration...
-if not exist "lib\firebase_options.dart" (
-    echo Warning: Firebase configuration not found
-    echo Please run 'flutterfire configure' to set up Firebase
-    echo Or copy lib\firebase_options.dart.template to lib\firebase_options.dart
+echo [4/5] Checking backend configuration...
+if not exist "config\environment.dart" (
+    echo Warning: Environment configuration not found
+    echo Please update config\environment.dart with your backend settings
 ) else (
-    echo Firebase configuration found
+    echo Environment configuration found
 )
 
 echo [5/5] Development environment setup complete!
 echo.
 echo Next steps:
-echo 1. Configure Firebase (if not done already)
-echo 2. Update config/environment.dart with your settings
-echo 3. Run 'flutter run' to start the app
+echo 1. Update config/environment.dart with your backend settings
+echo 2. Run 'flutter run' to start the app
 echo.
 pause

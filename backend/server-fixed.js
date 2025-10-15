@@ -9,9 +9,10 @@ const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const dbConfig = require('./database-config');
 const EmailService = require('./emailService');
+const ErrorHandler = require('./utils/errorHandler');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Initialize email service
@@ -38,7 +39,7 @@ async function testDatabaseConnection() {
     dbConnected = true;
     return true;
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
+    ErrorHandler.logError(error, 'Database connection failed');
     dbConnected = false;
     return false;
   }
@@ -119,7 +120,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
         console.log('❌ Failed to send verification email:', emailResult.error);
       }
     } catch (emailError) {
-      console.error('❌ Email sending error:', emailError.message);
+      ErrorHandler.logError(emailError, 'Email sending failed during registration');
     }
 
     res.status(201).json({
@@ -139,8 +140,8 @@ app.post('/api/v1/auth/register', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const errorResponse = ErrorHandler.handleDatabaseError(error, 'user registration');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -158,7 +159,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     
     // Find user by email
     const result = await pool.query(
-      'SELECT id, email, password_hash, name, role, is_active, last_login_at, created_at FROM users WHERE email = $1',
+      'SELECT id, email, hashed_password, first_name, last_name, role, is_active, last_login, created_at FROM users WHERE email = $1',
       [email]
     );
     
@@ -174,14 +175,14 @@ app.post('/api/v1/auth/login', async (req, res) => {
     }
     
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await bcrypt.compare(password, user.hashed_password);
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
     // Update last login
     await pool.query(
-      'UPDATE users SET last_login_at = $1 WHERE id = $2',
+      'UPDATE users SET last_login = $1 WHERE id = $2',
       [new Date().toISOString(), user.id]
     );
     
@@ -203,10 +204,10 @@ app.post('/api/v1/auth/login', async (req, res) => {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: `${user.first_name} ${user.last_name}`,
           role: user.role,
           createdAt: user.created_at,
-          lastLoginAt: user.last_login_at,
+          lastLoginAt: user.last_login,
           isActive: user.is_active ?? true,
           projectIds: [],
           preferences: {},

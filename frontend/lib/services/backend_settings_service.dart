@@ -10,11 +10,11 @@ class BackendSettingsService {
   static const String _userIdKey = 'current_user_id';
 
   // Get current user ID from shared preferences
-  static Future<String> _getUserId() async {
+  static Future<String?> _getUserId() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString(_userIdKey);
     if (userId == null || userId.isEmpty) {
-      throw Exception('No user ID found. Please log in first.');
+      return null;
     }
     return userId;
   }
@@ -39,6 +39,10 @@ class BackendSettingsService {
       } else {
         // If settings don't exist, return default settings
         final userId = await _getUserId();
+        if (userId == null) {
+          // Return default settings without user ID if not logged in
+          return _getDefaultSettings('anonymous');
+        }
         return _getDefaultSettings(userId);
       }
     } catch (e) {
@@ -90,8 +94,9 @@ class BackendSettingsService {
   // Get settings from local storage
   static Future<Map<String, dynamic>> _getLocalSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final userId = await _getUserId();
     return {
-      'user_id': await _getUserId(),
+      'user_id': userId ?? 'anonymous',
       'dark_mode': prefs.getBool('dark_mode') ?? false,
       'notifications_enabled': prefs.getBool('notifications_enabled') ?? true,
       'language': prefs.getString('language') ?? 'English',

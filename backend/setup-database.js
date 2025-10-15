@@ -25,8 +25,16 @@ async function setupDatabase() {
     
     // Create database if it doesn't exist
     console.log('📦 Creating database...');
-    await client.query('CREATE DATABASE flow_space');
-    console.log('✅ Database "flow_space" created');
+    try {
+      await client.query('CREATE DATABASE flow_space');
+      console.log('✅ Database "flow_space" created');
+    } catch (error) {
+      if (error.code === '42P04') {
+        console.log('✅ Database "flow_space" already exists');
+      } else {
+        throw error;
+      }
+    }
     
     // Close connection to default database
     await client.release();

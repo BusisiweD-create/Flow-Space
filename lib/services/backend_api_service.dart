@@ -324,9 +324,14 @@ class BackendApiService {
     }
     
     try {
-      // The user data is nested under 'user' key in the response
-      final userData = response.data!['user'];
-      if (userData == null) {
+      // Debug: print the entire response structure
+      debugPrint('Full response data: ${response.data}');
+      
+      // The user data might be nested under 'user' key or at the root level
+      // Handle different response structures from different endpoints
+      final userData = response.data!['user'] ?? response.data!;
+      
+      if (userData == null || userData.isEmpty) {
         debugPrint('No user data found in response');
         return null;
       }
@@ -334,10 +339,61 @@ class BackendApiService {
       debugPrint('User data from response: $userData');
       debugPrint('User ID: ${userData['id']}');
       debugPrint('User email: ${userData['email']}');
-      debugPrint('User name: ${userData['name']}');
+      debugPrint('User first name: ${userData['first_name'] ?? userData['firstName']}');
+      debugPrint('User last name: ${userData['last_name'] ?? userData['lastName']}');
       debugPrint('User role: ${userData['role']}');
+      debugPrint('User is_active: ${userData['is_active'] ?? userData['isActive']}');
+      debugPrint('User status: ${userData['status']}');
+      debugPrint('User created_at: ${userData['created_at'] ?? userData['createdAt']}');
+      debugPrint('User last_login: ${userData['last_login'] ?? userData['lastLoginAt']}');
       
-      return User.fromJson(userData);
+      // Create a proper user object for the User.fromJson method
+      // Handle both snake_case and camelCase fields from backend
+      // Handle different field names from different backend endpoints
+      
+      // Convert backend role string to UserRole enum name format
+      final backendRole = userData['role']?.toString() ?? '';
+      String userRoleForParsing;
+      
+      switch (backendRole.toLowerCase()) {
+        case 'clientreviewer':
+        case 'client_reviewer':
+          userRoleForParsing = 'clientReviewer';
+          break;
+        case 'deliverylead':
+        case 'delivery_lead':
+          userRoleForParsing = 'deliveryLead';
+          break;
+        case 'systemadmin':
+        case 'system_admin':
+          userRoleForParsing = 'systemAdmin';
+          break;
+        case 'teammember':
+        case 'team_member':
+        default:
+          userRoleForParsing = 'teamMember';
+          break;
+      }
+      
+      final userJsonForParsing = {
+        'id': userData['id'],
+        'email': userData['email'],
+        'name': userData['username'] ?? 
+               '${userData['first_name'] ?? userData['firstName'] ?? ''} ${userData['last_name'] ?? userData['lastName'] ?? ''}'.trim(),
+        'role': userRoleForParsing, // Use the converted role format
+        'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'],
+        'createdAt': userData['created_at'] ?? userData['createdAt'] ?? DateTime.now().toIso8601String(), // Provide default if missing
+        'lastLoginAt': userData['last_login'] ?? userData['last_login_at'] ?? userData['lastLoginAt'],
+        'isActive': userData['is_active'] ?? (userData['status'] == 'active') ?? userData['isActive'] ?? true,
+        'projectIds': userData['project_ids'] ?? userData['projectIds'] ?? [],
+        'preferences': userData['preferences'] ?? {},
+        'emailVerified': userData['email_verified'] ?? userData['emailVerified'] ?? false,
+        'emailVerifiedAt': userData['email_verified_at'] ?? userData['emailVerifiedAt'],
+      };
+      
+      debugPrint('Final user JSON for parsing: $userJsonForParsing');
+      
+      return User.fromJson(userJsonForParsing);
     } catch (e) {
       debugPrint('Error parsing user: $e');
       return null;

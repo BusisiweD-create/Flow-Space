@@ -48,7 +48,11 @@ class AuthService {
       final response = await _apiService.signIn(email, password);
       
       if (response.isSuccess && response.data != null) {
-        _currentUser = _apiService.parseUserFromResponse(response);
+        // Extract user data from the nested "user" field in login response
+        final userData = response.data!['user'] ?? response.data!;
+        final userResponse = ApiResponse.success(userData, response.statusCode);
+        
+        _currentUser = _apiService.parseUserFromResponse(userResponse);
         _isAuthenticated = _currentUser != null;
         
         if (_isAuthenticated) {

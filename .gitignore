@@ -60,10 +60,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase
-firebase_options.dart
-google-services.json
-GoogleService-Info.plist
+
 
 # Temporary files
 *.tmp

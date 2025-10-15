@@ -22,14 +22,15 @@
   "author": "Flow-Space Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.21.2",
-    "cors": "^2.8.5",
-    "pg": "^8.16.3",
+    "@sendgrid/mail": "^8.1.6",
     "bcryptjs": "^3.0.2",
-    "uuid": "^9.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.10.1",
-    "@sendgrid/mail": "^8.1.6"
+    "pg": "^8.16.3",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

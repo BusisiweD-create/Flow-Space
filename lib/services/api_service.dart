@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   // Base URL for your backend API (you'll need to create this)
-  static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = 'http://localhost:8000/api';
   
   // Initialize the service
   static Future<void> initialize() async {
@@ -355,6 +355,152 @@ class ApiService {
     } catch (e) {
       debugPrint('Error updating readiness check: $e');
       return null;
+    }
+  }
+
+  static Future getDashboardData() async {}
+
+  // Repository file methods
+  static Future<List<Map<String, dynamic>>> getProjectFiles(String projectId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/projects/$projectId/files'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data['files'] ?? []);
+      } else {
+        debugPrint('Failed to fetch project files: \${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error fetching project files: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> uploadFile({
+    required String projectId,
+    required String fileName,
+    required String fileType,
+    required String description,
+    required String filePath,
+    Uint8List? fileBytes,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/projects/$projectId/files'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'fileName': fileName,
+          'filePath': filePath,
+          'fileType': fileType,
+          'description': description,
+        }),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('Failed to upload file: \${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error uploading file: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> deleteFile(String fileId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/files/$fileId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error deleting file: $e');
+      return false;
+    }
+  }
+
+  // Settings methods
+  static Future<Map<String, dynamic>?> getUserSettings() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/settings'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('Failed to fetch user settings: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error fetching user settings: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> updateUserSettings(Map<String, dynamic> settings) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/user/settings'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(settings),
+      );
+      
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error updating user settings: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> resetUserSettings() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/settings/reset'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error resetting user settings: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> exportUserData() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/data/export'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error exporting user data: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> clearUserCache() async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/user/cache'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error clearing user cache: $e');
+      return false;
     }
   }
 }

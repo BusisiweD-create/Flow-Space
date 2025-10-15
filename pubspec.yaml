@@ -35,13 +35,12 @@ dependencies:
   http: ^1.1.0
   crypto: ^3.0.3
   
-  # Firebase
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  google_sign_in: ^6.2.1
+  # File Picker
+  file_picker: ^6.1.1
   
   # Email
   mailer: ^6.0.1
+  firebase_core: ^4.1.1
 
 dev_dependencies:
   flutter_test:
@@ -53,9 +52,7 @@ flutter:
 
   assets:
     - assets/images/
-    # assets/fonts/
     - assets/videos/
     - assets/audios/
-    #assets/rive_animations/
-    # assets/pdfs/
-    #assets/jsons/
+    - assets/logo.png
+    - assets/logo_icon.png

@@ -672,6 +672,11 @@ class ApiService {
         return List<Map<String, dynamic>>.from(items);
       }
       
+      // Handle Node.js backend response format
+      if (data is Map<String, dynamic> && data.containsKey('success') && data['data'] is List) {
+        return List<Map<String, dynamic>>.from(data['data']);
+      }
+      
       debugPrint('Unexpected response format for audit logs: \$data');
       return [];
     } catch (e) {
@@ -700,6 +705,11 @@ class ApiService {
       final List<dynamic>? items = _extractListFromResponse(data, ['audit_logs', 'items', 'data']);
       if (items != null) {
         return List<Map<String, dynamic>>.from(items);
+      }
+      
+      // Handle Node.js backend response format
+      if (data is Map<String, dynamic> && data.containsKey('success') && data['data'] is List) {
+        return List<Map<String, dynamic>>.from(data['data']);
       }
       
       debugPrint('Unexpected response format for audit logs by entity: \$data');

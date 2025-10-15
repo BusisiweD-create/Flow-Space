@@ -10,7 +10,7 @@ class ApiClient {
   factory ApiClient() => _instance;
   ApiClient._internal();
 
-  static const String _baseUrl = 'http://localhost:3000/api'; // Local backend server
+  static const String _baseUrl = 'http://localhost:8000/api'; // Local backend server
   static const String _apiVersion = '/v1';
   static const Duration _timeout = Duration(seconds: 30);
 
@@ -250,7 +250,7 @@ class ApiClient {
 
     if (response.isSuccess && response.data != null) {
       final data = response.data!;
-      final accessToken = data['token']; // Backend returns 'token', not 'access_token'
+      final accessToken = data['token'] ?? data['access_token']; // Handle both 'token' and 'access_token'
       final refreshToken = data['refresh_token'] ?? ''; // Handle null refresh token
       final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
       final expiry = DateTime.now().add(Duration(seconds: expiresIn));
@@ -270,10 +270,16 @@ class ApiClient {
       }
     }
 
+    // Parse the full name into firstName and lastName for the backend
+    final nameParts = name.trim().split(' ');
+    final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
+    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
     return await post('/auth/register', body: {
       'email': email,
       'password': password,
-      'name': name,
+      'firstName': firstName,
+      'lastName': lastName,
       'role': role,
     },);
   }
