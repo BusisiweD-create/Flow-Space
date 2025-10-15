@@ -96,7 +96,9 @@ class User {
           orElse: () => UserRole.teamMember,
         ),
         avatarUrl: json['avatarUrl'],
-        createdAt: DateTime.parse(json['createdAt'] as String),
+        createdAt: json['createdAt'] != null 
+            ? DateTime.parse(json['createdAt'] as String)
+            : DateTime.now(),
         lastLoginAt: json['lastLoginAt'] != null ? DateTime.parse(json['lastLoginAt'] as String) : null,
         isActive: json['isActive'] ?? true,
         projectIds: List<String>.from(json['projectIds'] ?? []),

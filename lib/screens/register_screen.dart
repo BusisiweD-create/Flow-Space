@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
-import '../services/real_auth_service.dart';
 import '../services/error_handler.dart';
 import '../models/user_role.dart';
 
@@ -403,7 +402,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  final AuthService _authService = AuthService();
   final ErrorHandler _errorHandler = ErrorHandler();
   bool _isLoading = false;
 
@@ -579,8 +577,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('👤 Name: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
       debugPrint('🎭 Role: $userRole');
       
-      final realAuthService = RealAuthService();
-      final success = await realAuthService.signUp(
+      final authService = AuthService();
+      final success = await authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
         '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
@@ -590,19 +588,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('📊 Registration result: $success');
 
       if (success && mounted) {
+        _errorHandler.showSuccessSnackBar(context, 'Registration successful!');
+        // Small delay to show success message
+        await Future.delayed(const Duration(milliseconds: 500));
         // Navigate to email verification screen
-        context.go('/email-verification', extra: {
-          'email': _emailController.text.trim(),
-        });
+        if (mounted) {
+          context.go('/email-verification', extra: {
+            'email': _emailController.text.trim(),
+          },);
+        }
       } else if (mounted) {
         _errorHandler.showErrorSnackBar(
           context,
-          'Registration failed. Please try again.',
+          'Registration failed. Please check your information and try again.',
         );
       }
     } catch (e) {
       if (mounted) {
-        _errorHandler.showErrorSnackBar(context, 'Error: $e');
+        String errorMessage = 'Registration failed. Please try again.';
+        
+        // Provide more specific error messages
+        if (e.toString().contains('network') || e.toString().contains('connection')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (e.toString().contains('server')) {
+          errorMessage = 'Server error. Please try again later.';
+        } else if (e.toString().contains('email')) {
+          errorMessage = 'Email already exists. Please use a different email address.';
+        }
+        
+        _errorHandler.showErrorSnackBar(context, errorMessage);
       }
     } finally {
       if (mounted) {

@@ -5,7 +5,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
-import 'services/real_auth_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -14,7 +13,7 @@ import 'screens/firebase_register_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'screens/deliverable_setup_screen.dart';
 import 'screens/enhanced_deliverable_setup_screen.dart';
-import 'screens/simple_sprint_console_screen.dart';
+import 'screens/sprint_console_screen.dart';
 import 'screens/sprint_metrics_screen.dart';
 import 'screens/report_builder_screen.dart';
 import 'screens/client_review_screen.dart';
@@ -27,6 +26,7 @@ import 'screens/notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
+import 'screens/sprint_board_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
@@ -43,7 +43,7 @@ void main() async {
     // Initialize API Services
     await BackendApiService().initialize();
     await AuthService().initialize();
-    await RealAuthService().initialize();
+    // RealAuthService removed - using AuthService instead
     
     // Test SMTP connection on startup (optional)
     // Uncomment the lines below to test SMTP on app startup
@@ -199,12 +199,28 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/sprint-console',
-      builder: (context, state) => const RouteGuard(
-        route: '/sprint-console',
-        child: SidebarScaffold(
-          child: SimpleSprintConsoleScreen(),
-        ),
-      ),
+            builder: (context, state) => const RouteGuard(
+              route: '/sprint-console',
+              child: SidebarScaffold(
+                child: SprintConsoleScreen(),
+              ),
+            ),
+    ),
+    GoRoute(
+      path: '/sprint-board/:sprintId',
+      builder: (context, state) {
+        final sprintId = state.pathParameters['sprintId']!;
+        final sprintName = state.uri.queryParameters['name'] ?? 'Sprint Board';
+        return RouteGuard(
+          route: '/sprint-board',
+          child: SidebarScaffold(
+            child: SprintBoardScreen(
+              sprintId: sprintId,
+              sprintName: sprintName,
+            ),
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/approvals',

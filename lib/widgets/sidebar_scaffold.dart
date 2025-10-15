@@ -193,11 +193,17 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                         child: Material(
                           color: Colors.transparent,
                           child: ListTile(
-                            leading: Icon(
-                              item.icon,
-                              color: active
-                                  ? FlownetColors.crimsonRed
-                                  : FlownetColors.coolGray,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            leading: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Icon(
+                                item.icon,
+                                color: active
+                                    ? FlownetColors.crimsonRed
+                                    : FlownetColors.coolGray,
+                                size: 20,
+                              ),
                             ),
                             title: Text(
                               item.label,
@@ -208,7 +214,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 fontWeight: active
                                     ? FontWeight.w600
                                     : FontWeight.normal,
+                                fontSize: 14,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                             onTap: () {
                               if (!routeLocation.startsWith(item.route)) {
@@ -248,7 +256,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.arrow_back),
-                            onPressed: () => Navigator.of(context).pop(),
+                            onPressed: () {
+                              if (GoRouter.of(context).canPop()) {
+                                GoRouter.of(context).pop();
+                              } else {
+                                GoRouter.of(context).go('/dashboard');
+                              }
+                            },
                             tooltip: 'Back',
                             color: FlownetColors.pureWhite,
                           ),

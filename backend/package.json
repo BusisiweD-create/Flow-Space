@@ -2,10 +2,10 @@
   "name": "flow-space-backend",
   "version": "1.0.0",
   "description": "Flow-Space Backend Server with Role-Based Authentication",
-  "main": "server-fixed.js",
+  "main": "clean-auth-server.js",
   "scripts": {
-    "start": "node server-fixed.js",
-    "dev": "nodemon server-fixed.js",
+    "start": "node clean-auth-server.js",
+    "dev": "nodemon clean-auth-server.js",
     "test": "node test-database.js",
     "setup": "node simple-database-setup.js",
     "reset": "node reset-database.js",

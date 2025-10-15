@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
-import '../services/real_auth_service.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -15,7 +14,6 @@ class RoleDashboardScreen extends StatefulWidget {
 class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   User? _currentUser;
   final AuthService _authService = AuthService();
-  final RealAuthService _realAuthService = RealAuthService();
 
   @override
   void initState() {
@@ -25,13 +23,13 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
 
   Future<void> _loadCurrentUser() async {
     try {
-      // Get the current user from RealAuthService
-      final user = _realAuthService.currentUser;
+      // Get the current user from AuthService
+      final user = _authService.currentUser;
       if (user != null) {
         setState(() {
           _currentUser = user;
         });
-        debugPrint('✅ Loaded real user: ${user.name} (${user.email})');
+        debugPrint('✅ Loaded user: ${user.name} (${user.email})');
       } else {
         debugPrint('❌ No user found, redirecting to login');
         if (mounted) {
