@@ -566,8 +566,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           userRole = UserRole.deliveryLead;
           break;
         case 'client':
-        case 'stakeholder':
           userRole = UserRole.clientReviewer;
+          break;
+        case 'stakeholder':
+          userRole = UserRole.systemAdmin;
           break;
         default:
           userRole = UserRole.teamMember;

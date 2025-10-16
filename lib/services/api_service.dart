@@ -191,7 +191,7 @@ class ApiService {
     required DateTime endDate,
     required int plannedPoints,
     required int completedPoints,
-    required String createdBy,
+    required String createdBy, required String description, int? committedPoints, int? carriedOverPoints, int? addedDuringSprint, int? removedDuringSprint, int? testPassRate, int? codeCoverage, int? escapedDefects, int? defectsOpened, int? defectsClosed, required String defectSeverityMix, int? codeReviewCompletion, required String documentationStatus, required String uatNotes, int? uatPassRate, int? risksIdentified, int? risksMitigated, required String blockers, required String decisions,
   }) async {
     try {
       final response = await http.post(
@@ -517,6 +517,26 @@ class ApiService {
     } catch (e) {
       debugPrint('Error clearing user cache: $e');
       return false;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getSprintTickets(String sprintId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/sprints/$sprintId/tickets'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data['tickets'] ?? []);
+      } else {
+        debugPrint('Failed to load sprint tickets: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error loading sprint tickets: $e');
+      return [];
     }
   }
 }

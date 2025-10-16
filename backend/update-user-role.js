@@ -10,30 +10,35 @@ const pool = new Pool({
 
 async function updateUserRole() {
   try {
-    const userId = '265ad069-38e4-45c0-9a77-138722a8493e';
-    const newRole = 'clientReviewer';
+    // Thabs Nkabinde user IDs
+    const userIds = [
+      'c5b5fe8f-e387-474b-9d5a-18485d835490', // Thabang.Nkabinde@khonology.com
+      '2b9adcb5-e6da-4559-be5d-cf00f262efea'  // nkabindethabang77@gmail.com
+    ];
+    const newRole = 'systemAdmin';
     
-    console.log('Updating user role...');
-    console.log('User ID:', userId);
+    console.log('Updating user roles...');
     console.log('New Role:', newRole);
+    console.log('Updating', userIds.length, 'users');
     
-    // Update the user role
-    const result = await pool.query(
-      'UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, first_name, last_name, role',
-      [newRole, userId]
-    );
+    // Update all Thabs Nkabinde accounts
+    for (const userId of userIds) {
+      const result = await pool.query(
+        'UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, first_name, last_name, role',
+        [newRole, userId]
+      );
     
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-      console.log('✅ User role updated successfully!');
-      console.log('Updated User:');
-      console.log('ID:', user.id);
-      console.log('Email:', user.email);
-      console.log('First Name:', user.first_name);
-      console.log('Last Name:', user.last_name);
-      console.log('New Role:', user.role);
-    } else {
-      console.log('❌ User not found');
+      if (result.rows.length > 0) {
+        const updatedUser = result.rows[0];
+        console.log('✅ User role updated successfully:');
+        console.log('User ID:', updatedUser.id);
+        console.log('Email:', updatedUser.email);
+        console.log('Name:', updatedUser.first_name, updatedUser.last_name);
+        console.log('New Role:', updatedUser.role);
+        console.log('---');
+      } else {
+        console.log('❌ User not found with ID:', userId);
+      }
     }
     
   } catch (error) {
