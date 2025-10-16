@@ -706,9 +706,20 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         _isLoading = true;
       });
 
+      // Find the sprint to get its name and current status
+      final sprint = _sprints.firstWhere(
+        (s) => s['id'] == sprintId,
+        orElse: () => {},
+      );
+      
+      final sprintName = sprint['name'] ?? 'Unknown Sprint';
+      final oldStatus = sprint['status'] ?? 'planning';
+
       final success = await _databaseService.updateSprintStatus(
         sprintId: sprintId,
         status: newStatus,
+        oldStatus: oldStatus,
+        sprintName: sprintName,
       );
 
       if (success) {

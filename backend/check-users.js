@@ -1,24 +1,27 @@
 const { Pool } = require('pg');
-require('dotenv').config();
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_NAME || 'flow_space',
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 5432,
+  user: 'postgres',
+  host: 'localhost',
+  database: 'flowspace',
+  password: 'postgres',
+  port: 5432,
 });
 
 async function checkUsers() {
   try {
-    const result = await pool.query('SELECT id, name, email FROM users LIMIT 5');
-    console.log('Users in database:');
-    result.rows.forEach(user => {
-      console.log(`ID: ${user.id}, Name: ${user.name}, Email: ${user.email}`);
+    const result = await pool.query('SELECT id, email, first_name, last_name, is_active FROM users ORDER BY created_at DESC LIMIT 5');
+    console.log('📋 Users in database:');
+    result.rows.forEach((user, index) => {
+      console.log(`${index + 1}. Email: ${user.email}`);
+      console.log(`   Name: ${user.first_name} ${user.last_name}`);
+      console.log(`   Active: ${user.is_active}`);
+      console.log(`   ID: ${user.id}`);
+      console.log('---');
     });
+    await pool.end();
   } catch (error) {
     console.error('Error:', error.message);
-  } finally {
     await pool.end();
   }
 }

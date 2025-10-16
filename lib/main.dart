@@ -22,7 +22,7 @@ import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
 import 'screens/approvals_screen.dart';
 import 'screens/repository_screen.dart';
-import 'screens/notifications_screen.dart';
+import 'screens/real_notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
@@ -245,7 +245,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RouteGuard(
         route: '/notifications',
         child: SidebarScaffold(
-          child: NotificationsScreen(),
+          child: RealNotificationsScreen(),
         ),
       ),
     ),

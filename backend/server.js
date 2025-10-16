@@ -885,6 +885,120 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) 
   }
 });
 
+// ==================== NOTIFICATION ENDPOINTS ====================
+
+// Get all notifications for the current user
+app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(`
+      SELECT 
+        n.id,
+        n.title,
+        n.message,
+        n.type,
+        n.is_read,
+        n.created_at,
+        n.updated_at,
+        u.name as created_by_name
+      FROM notifications n
+      LEFT JOIN users u ON n.created_by = u.id
+      WHERE n.user_id = $1 OR n.user_id IS NULL
+      ORDER BY n.created_at DESC
+    `, [userId]);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        message: row.message,
+        type: row.type,
+        isRead: row.is_read,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        createdByName: row.created_by_name,
+        timestamp: row.created_at,
+        date: row.created_at,
+        description: row.message
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/v1/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+    const userId = req.user.id;
+
+    await pool.query(`
+      UPDATE notifications 
+      SET is_read = true, updated_at = NOW()
+      WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)
+    `, [notificationId, userId]);
+
+    res.json({ success: true, message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/api/v1/notifications/read-all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await pool.query(`
+      UPDATE notifications 
+      SET is_read = true, updated_at = NOW()
+      WHERE user_id = $1 OR user_id IS NULL
+    `, [userId]);
+
+    res.json({ success: true, message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
+
+// Create notification (internal use)
+app.post('/api/v1/notifications', authenticateToken, async (req, res) => {
+  try {
+    const { title, message, type, user_id } = req.body;
+    const createdBy = req.user.id;
+
+    // If user_id is provided, create for specific user, otherwise create for all users
+    if (user_id) {
+      const notificationId = uuidv4();
+      await pool.query(`
+        INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
+      `, [notificationId, title, message, type, user_id, createdBy]);
+    } else {
+      // Create notification for all users
+      const usersResult = await pool.query('SELECT id FROM users');
+      for (const user of usersResult.rows) {
+        const notificationId = uuidv4();
+        await pool.query(`
+          INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
+        `, [notificationId, title, message, type, user.id, createdBy]);
+      }
+    }
+
+    res.json({ success: true, message: 'Notification created successfully' });
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Flow-Space API server running on port ${PORT}`);
 });
