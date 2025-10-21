@@ -17,7 +17,6 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   List<NotificationItem> _notifications = [];
-  bool _isLoading = true;
 
   int get _unreadCount => _notifications.where((n) => !n.isRead).length;
   int get _totalCount => _notifications.length;
@@ -29,13 +28,9 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
   }
 
   Future<void> _loadNotifications() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
       // Set auth token
-      final token = await _authService.getToken();
+      final token = _authService.accessToken;
       if (token != null) {
         _notificationService.setAuthToken(token);
       }
@@ -43,13 +38,9 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
       final notifications = await _notificationService.getNotifications();
       setState(() {
         _notifications = notifications;
-        _isLoading = false;
       });
     } catch (e) {
-      print('Error loading notifications: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      debugPrint('Error loading notifications: $e');
     }
   }
 
@@ -66,7 +57,7 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
               children: [
                 const FlownetLogo(),
                 const Spacer(),
-                Text(
+                const Text(
                   'Notifications',
                   style: TextStyle(
                     color: FlownetColors.electricBlue,
@@ -211,8 +202,10 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
                     trailing: notification.isRead
                         ? null
                         : IconButton(
-                            icon: const Icon(Icons.mark_email_read,
-                                color: FlownetColors.electricBlue),
+                            icon: const Icon(
+                              Icons.mark_email_read,
+                              color: FlownetColors.electricBlue,
+                            ),
                             onPressed: () => _markAsRead(notification.id),
                             tooltip: 'Mark as read',
                           ),
@@ -300,7 +293,7 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Details',
                     style: TextStyle(
                       color: FlownetColors.electricBlue,

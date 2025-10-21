@@ -126,6 +126,16 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         return _buildClientReviewerDashboard();
       case UserRole.systemAdmin:
         return _buildSystemAdminDashboard();
+      case UserRole.developer:
+        return _buildDeveloperDashboard();
+      case UserRole.projectManager:
+        return _buildProjectManagerDashboard();
+      case UserRole.scrumMaster:
+        return _buildScrumMasterDashboard();
+      case UserRole.qaEngineer:
+        return _buildQAEngineerDashboard();
+      case UserRole.stakeholder:
+        return _buildStakeholderDashboard();
     }
   }
 
@@ -576,6 +586,36 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
           icon: const Icon(Icons.admin_panel_settings),
           label: const Text('Admin Panel'),
         );
+      case UserRole.developer:
+        return FloatingActionButton.extended(
+          onPressed: () => context.go('/deliverable-setup'),
+          icon: const Icon(Icons.code),
+          label: const Text('New Feature'),
+        );
+      case UserRole.projectManager:
+        return FloatingActionButton.extended(
+          onPressed: () => context.go('/sprint-console'),
+          icon: const Icon(Icons.work),
+          label: const Text('Manage Project'),
+        );
+      case UserRole.scrumMaster:
+        return FloatingActionButton.extended(
+          onPressed: () => context.go('/sprint-console'),
+          icon: const Icon(Icons.group_work),
+          label: const Text('Manage Sprint'),
+        );
+      case UserRole.qaEngineer:
+        return FloatingActionButton.extended(
+          onPressed: () => context.go('/deliverable-setup'),
+          icon: const Icon(Icons.bug_report),
+          label: const Text('New Test'),
+        );
+      case UserRole.stakeholder:
+        return FloatingActionButton.extended(
+          onPressed: () => context.go('/repository'),
+          icon: const Icon(Icons.business),
+          label: const Text('View Progress'),
+        );
     }
   }
 
@@ -698,6 +738,97 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             },
             child: const Text('Logout'),
           ),
+        ],
+      ),
+    );
+  }
+
+  // New role-specific dashboard methods
+  Widget _buildDeveloperDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 24),
+          _buildQuickActions(),
+          const SizedBox(height: 24),
+          _buildMyDeliverables(),
+          const SizedBox(height: 24),
+          _buildRecentActivity(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProjectManagerDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 24),
+          _buildQuickActions(),
+          const SizedBox(height: 24),
+          _buildMyDeliverables(),
+          const SizedBox(height: 24),
+          _buildRecentActivity(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScrumMasterDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 24),
+          _buildQuickActions(),
+          const SizedBox(height: 24),
+          _buildMyDeliverables(),
+          const SizedBox(height: 24),
+          _buildRecentActivity(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQAEngineerDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 24),
+          _buildQuickActions(),
+          const SizedBox(height: 24),
+          _buildMyDeliverables(),
+          const SizedBox(height: 24),
+          _buildRecentActivity(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStakeholderDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: 24),
+          _buildQuickActions(),
+          const SizedBox(height: 24),
+          _buildMyDeliverables(),
+          const SizedBox(height: 24),
+          _buildRecentActivity(),
         ],
       ),
     );

@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/approval_request.dart';
 import '../services/approval_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
-class ApprovalsScreen extends ConsumerStatefulWidget {
-  const ApprovalsScreen({super.key});
+class ApprovalRequestsScreen extends StatefulWidget {
+  const ApprovalRequestsScreen({super.key});
 
   @override
-  ConsumerState<ApprovalsScreen> createState() => _ApprovalsScreenState();
+  State<ApprovalRequestsScreen> createState() => _ApprovalRequestsScreenState();
 }
 
-class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
+class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
   final ApprovalService _approvalService = ApprovalService(AuthService());
-  List<ApprovalRequest> _approvalRequests = [];
+  List<ApprovalRequest> _requests = [];
   bool _isLoading = true;
   String _searchQuery = '';
   String _selectedStatus = 'all';
+  String _selectedPriority = 'all';
+  String _selectedCategory = 'all';
 
   @override
   void initState() {
@@ -34,7 +35,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       
       if (response.isSuccess) {
         setState(() {
-          _approvalRequests = response.data!['requests'].cast<ApprovalRequest>();
+          _requests = response.data!['requests'].cast<ApprovalRequest>();
         });
       } else {
         _showErrorSnackBar('Failed to load approval requests: ${response.error}');
@@ -47,14 +48,16 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   }
 
   List<ApprovalRequest> get _filteredRequests {
-    return _approvalRequests.where((request) {
+    return _requests.where((request) {
       final matchesSearch = _searchQuery.isEmpty ||
           request.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           request.description.toLowerCase().contains(_searchQuery.toLowerCase());
       
       final matchesStatus = _selectedStatus == 'all' || request.status == _selectedStatus;
+      final matchesPriority = _selectedPriority == 'all' || request.priority == _selectedPriority;
+      final matchesCategory = _selectedCategory == 'all' || request.category == _selectedCategory;
       
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
     }).toList();
   }
 
@@ -158,6 +161,104 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
     );
   }
 
+  void _showRequestDetails(ApprovalRequest request) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: Text(request.title, style: const TextStyle(color: FlownetColors.pureWhite)),
+        content: SizedBox(
+          width: 600,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Description:', style: TextStyle(color: FlownetColors.electricBlue, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(request.description, style: const TextStyle(color: FlownetColors.pureWhite)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Requested by:', style: TextStyle(color: FlownetColors.coolGray)),
+                        Text(request.requestedByName, style: const TextStyle(color: FlownetColors.pureWhite)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Priority:', style: TextStyle(color: FlownetColors.coolGray)),
+                        Text(request.priorityDisplay, style: const TextStyle(color: FlownetColors.pureWhite)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Category:', style: TextStyle(color: FlownetColors.coolGray)),
+                        Text(request.category, style: const TextStyle(color: FlownetColors.pureWhite)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Status:', style: TextStyle(color: FlownetColors.coolGray)),
+                        Text(request.statusDisplay, style: const TextStyle(color: FlownetColors.pureWhite)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (request.reviewReason != null) ...[
+                const SizedBox(height: 16),
+                const Text('Review Reason:', style: TextStyle(color: FlownetColors.coolGray)),
+                const SizedBox(height: 8),
+                Text(request.reviewReason!, style: const TextStyle(color: FlownetColors.pureWhite)),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          if (request.isPending) ...[
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _rejectRequest(request);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+              child: const Text('Reject', style: TextStyle(color: FlownetColors.pureWhite)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _approveRequest(request);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.electricBlue),
+              child: const Text('Approve', style: TextStyle(color: FlownetColors.pureWhite)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -219,13 +320,44 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButton<String>(
+                        value: _selectedPriority,
+                        onChanged: (value) => setState(() => _selectedPriority = value!),
+                        dropdownColor: FlownetColors.graphiteGray,
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                        items: const [
+                          DropdownMenuItem(value: 'all', child: Text('All Priority')),
+                          DropdownMenuItem(value: 'low', child: Text('Low')),
+                          DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                          DropdownMenuItem(value: 'high', child: Text('High')),
+                          DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButton<String>(
+                        value: _selectedCategory,
+                        onChanged: (value) => setState(() => _selectedCategory = value!),
+                        dropdownColor: FlownetColors.graphiteGray,
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                        items: const [
+                          DropdownMenuItem(value: 'all', child: Text('All Categories')),
+                          DropdownMenuItem(value: 'Security', child: Text('Security')),
+                          DropdownMenuItem(value: 'Database', child: Text('Database')),
+                          DropdownMenuItem(value: 'Documentation', child: Text('Documentation')),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
           
-          // Approval requests list
+          // Requests list
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -316,8 +448,14 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                                       tooltip: 'Reject',
                                     ),
                                   ],
+                                  IconButton(
+                                    icon: const Icon(Icons.info, color: FlownetColors.coolGray),
+                                    onPressed: () => _showRequestDetails(request),
+                                    tooltip: 'View Details',
+                                  ),
                                 ],
                               ),
+                              onTap: () => _showRequestDetails(request),
                             ),
                           );
                         },

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/notification_item.dart';
 
@@ -15,6 +16,27 @@ class NotificationService {
       'Content-Type': 'application/json',
       if (_authToken != null) 'Authorization': 'Bearer $_authToken',
     };
+  }
+
+  // Get unread notification count
+  Future<int> getUnreadCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/notifications/count'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data']['unreadCount'] ?? 0;
+        }
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('Error fetching unread count: $e');
+      return 0;
+    }
   }
 
   // Get all notifications for the current user
@@ -35,7 +57,7 @@ class NotificationService {
       }
       return [];
     } catch (e) {
-      print('Error fetching notifications: $e');
+      debugPrint('Error fetching notifications: $e');
       return [];
     }
   }
@@ -50,7 +72,7 @@ class NotificationService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error marking notification as read: $e');
+      debugPrint('Error marking notification as read: $e');
       return false;
     }
   }
@@ -65,7 +87,7 @@ class NotificationService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error marking all notifications as read: $e');
+      debugPrint('Error marking all notifications as read: $e');
       return false;
     }
   }
@@ -91,7 +113,7 @@ class NotificationService {
 
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
-      print('Error creating notification: $e');
+      debugPrint('Error creating notification: $e');
       return false;
     }
   }
@@ -103,7 +125,7 @@ class NotificationService {
     required String newStatus,
     required String changedBy,
   }) async {
-    final title = 'Sprint Status Changed';
+    const title = 'Sprint Status Changed';
     final message = '$changedBy changed "$sprintName" status from $oldStatus to $newStatus';
     
     return await createNotification(
@@ -119,7 +141,7 @@ class NotificationService {
     required String sprintName,
     required String createdBy,
   }) async {
-    final title = 'New Ticket Created';
+    const title = 'New Ticket Created';
     final message = '$createdBy created ticket "$ticketTitle" in sprint "$sprintName"';
     
     return await createNotification(
@@ -137,7 +159,7 @@ class NotificationService {
     required String newStatus,
     required String movedBy,
   }) async {
-    final title = 'Ticket Moved';
+    const title = 'Ticket Moved';
     final message = '$movedBy moved ticket "$ticketTitle" from $oldStatus to $newStatus in sprint "$sprintName"';
     
     return await createNotification(
@@ -152,7 +174,7 @@ class NotificationService {
     required String projectName,
     required String createdBy,
   }) async {
-    final title = 'New Project Created';
+    const title = 'New Project Created';
     final message = '$createdBy created new project "$projectName"';
     
     return await createNotification(
@@ -168,7 +190,7 @@ class NotificationService {
     required String projectName,
     required String createdBy,
   }) async {
-    final title = 'New Sprint Created';
+    const title = 'New Sprint Created';
     final message = '$createdBy created sprint "$sprintName" in project "$projectName"';
     
     return await createNotification(

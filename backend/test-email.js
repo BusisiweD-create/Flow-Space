@@ -1,34 +1,52 @@
-const EmailService = require('./emailService');
+const nodemailer = require('nodemailer');
 
-async function testEmail() {
-  console.log('🧪 Testing email sending...');
+// Test email configuration
+const testEmail = async () => {
+  console.log('📧 Testing email configuration...');
   
-  const emailService = new EmailService();
-  
-  // Test SMTP connection
-  console.log('🔌 Testing SMTP connection...');
-  const isConnected = await emailService.testConnection();
-  
-  if (isConnected) {
-    console.log('✅ SMTP connection successful!');
-    
-    // Test sending verification email
-    console.log('📧 Sending test verification email...');
-    const result = await emailService.sendVerificationEmail(
-      'dhlaminibusisiwe30@gmail.com',
-      'Busisiwe Dhlamini',
-      '123456'
-    );
-    
-    if (result.success) {
-      console.log('✅ Test email sent successfully!');
-      console.log('📧 Check your Gmail inbox for the verification email');
-    } else {
-      console.log('❌ Failed to send test email:', result.error);
+  // You need to replace 'your-app-password' with your actual Gmail App Password
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: 'dhlaminibusisiwe30@gmail.com',
+      pass: 'bplc qegz kspg otfk ' // Replace with your Gmail App Password
     }
-  } else {
-    console.log('❌ SMTP connection failed');
-  }
-}
+  });
 
-testEmail().catch(console.error);
+  try {
+    // Test the connection
+    await transporter.verify();
+    console.log('✅ Email configuration is valid!');
+    
+    // Send a test email
+    const info = await transporter.sendMail({
+      from: 'bdhlamini883@gmail.com',
+      to: 'kasikash34@gmail.com',
+      subject: 'Flow-Space Test Email',
+      html: `
+        <h2>Test Email from Flow-Space</h2>
+        <p>If you receive this email, the email configuration is working correctly!</p>
+        <p>Verification Code: <strong>123456</strong></p>
+      `
+    });
+    
+    console.log('✅ Test email sent successfully!');
+    console.log('Message ID:', info.messageId);
+    
+  } catch (error) {
+    console.error('❌ Email configuration failed:');
+    console.error(error.message);
+    
+    if (error.code === 'EAUTH') {
+      console.log('\n🔧 To fix this:');
+      console.log('1. Go to your Google Account settings');
+      console.log('2. Enable 2-Factor Authentication');
+      console.log('3. Generate an App Password for "Mail"');
+      console.log('4. Replace "your-app-password" in this file with the generated password');
+    }
+  }
+};
+
+testEmail();

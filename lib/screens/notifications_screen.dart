@@ -12,7 +12,7 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
-  List<NotificationItem> _notifications = [
+  final List<NotificationItem> _notifications = [
     NotificationItem(
       id: '1',
       title: 'New Approval Request',

@@ -46,7 +46,7 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading notifications: $e');
+      debugPrint('Error loading notifications: $e');
       setState(() {
         _isLoading = false;
       });
@@ -66,7 +66,7 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
               children: [
                 const FlownetLogo(),
                 const Spacer(),
-                Text(
+                const Text(
                   'Notifications',
                   style: TextStyle(
                     color: FlownetColors.electricBlue,
@@ -235,8 +235,10 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
                               trailing: notification.isRead
                                   ? null
                                   : IconButton(
-                                      icon: const Icon(Icons.mark_email_read,
-                                          color: FlownetColors.electricBlue),
+                                      icon: const Icon(
+                                        Icons.mark_email_read,
+                                        color: FlownetColors.electricBlue,
+                                      ),
                                       onPressed: () => _markAsRead(notification.id),
                                       tooltip: 'Mark as read',
                                     ),
@@ -264,7 +266,7 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
         });
       }
     } catch (e) {
-      print('Error marking notification as read: $e');
+      debugPrint('Error marking notification as read: $e');
     }
   }
 
@@ -277,15 +279,17 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
             _notifications[i] = _notifications[i].copyWith(isRead: true);
           }
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All notifications marked as read'),
-            backgroundColor: FlownetColors.electricBlue,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('All notifications marked as read'),
+              backgroundColor: FlownetColors.electricBlue,
+            ),
+          );
+        }
       }
     } catch (e) {
-      print('Error marking all notifications as read: $e');
+      debugPrint('Error marking all notifications as read: $e');
     }
   }
 
@@ -338,7 +342,7 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Details',
                     style: TextStyle(
                       color: FlownetColors.electricBlue,

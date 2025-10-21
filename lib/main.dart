@@ -21,6 +21,7 @@ import 'screens/enhanced_client_review_screen.dart';
 import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
 import 'screens/approvals_screen.dart';
+import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/real_notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
@@ -97,6 +98,15 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/verify-email',
+      builder: (context, state) {
+        final email = state.extra as Map<String, dynamic>?;
+        return EmailVerificationScreen(
+          email: email?['email'] ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/email-verification',
       builder: (context, state) {
         final email = state.extra as Map<String, dynamic>?;
         return EmailVerificationScreen(
@@ -228,6 +238,15 @@ final GoRouter _router = GoRouter(
         route: '/approvals',
         child: SidebarScaffold(
           child: ApprovalsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/approval-requests',
+      builder: (context, state) => const RouteGuard(
+        route: '/approval-requests',
+        child: SidebarScaffold(
+          child: ApprovalRequestsScreen(),
         ),
       ),
     ),

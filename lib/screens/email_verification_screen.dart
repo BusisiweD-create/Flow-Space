@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/simple_auth_provider.dart';
 import '../theme/flownet_theme.dart';
 import '../services/error_handler.dart';
+import '../services/auth_service.dart';
 
 class EmailVerificationScreen extends ConsumerStatefulWidget {
   final String email;
@@ -64,9 +65,10 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
     });
 
     try {
-      // Email verification moved to AuthService
-      // TODO: Implement proper email verification with AuthService
-      final success = _verificationCode != null && _verificationCode!.isNotEmpty;
+      // Use AuthService for proper email verification
+      final authService = AuthService();
+      final response = await authService.verifyEmail(widget.email, _verificationCode!);
+      final success = response.isSuccess;
       
       if (success) {
         if (mounted) {
@@ -84,7 +86,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
         if (mounted) {
           _errorHandler.showErrorSnackBar(
             context,
-            'Verification failed. Please check your code and try again.',
+            response.error ?? 'Verification failed. Please check your code and try again.',
           );
         }
       }
@@ -375,16 +377,30 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
   }
 
   Future<void> _resendVerification() async {
-    await ref.read(authStateProvider.notifier).resendEmailVerification();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification email sent! Please check your inbox.'),
-          backgroundColor: FlownetColors.electricBlue,
-        ),
-      );
-      _startResendCountdown();
+    try {
+      final authService = AuthService();
+      final response = await authService.resendVerificationEmail(widget.email);
+      
+      if (mounted) {
+        if (response.isSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Verification email sent! Please check your inbox.'),
+              backgroundColor: FlownetColors.electricBlue,
+            ),
+          );
+          _startResendCountdown();
+        } else {
+          _errorHandler.showErrorSnackBar(
+            context,
+            response.error ?? 'Failed to resend verification email. Please try again.',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _errorHandler.showErrorSnackBar(context, 'Error: $e');
+      }
     }
   }
 }
