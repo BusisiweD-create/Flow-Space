@@ -5,7 +5,7 @@ class Environment {
   static const String appDescription = 'A social learning platform built with Flutter';
 
   // API Configuration
-  static const String apiBaseUrl = 'https://api.khono.com';
+  static const String apiBaseUrl = 'http://localhost:3000';
   static const int apiTimeout = 30000;
 
   // Feature Flags
