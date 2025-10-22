@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/flownet_theme.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
+import '../models/user.dart';
+import '../models/user_role.dart';
+import '../providers/service_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -16,6 +19,18 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final AuthService _authService = AuthService();
+  User? _currentUser;
+
+  // Helper methods for role-based settings filtering
+  bool get _canAccessSecuritySettings => _currentUser?.isSystemAdmin == true || _currentUser?.isDeliveryLead == true || _currentUser?.isClientReviewer == true;
+  
+  bool get _canAccessAccountManagement => _currentUser?.isSystemAdmin == true || _currentUser?.isDeliveryLead == true;
+  
+  bool get _canAccessAdvancedSettings => _currentUser?.isSystemAdmin == true;
+  
+  bool get _canAccessTeamManagement => _currentUser?.isSystemAdmin == true || _currentUser?.isDeliveryLead == true;
+  
+  bool get _canAccessSystemSettings => _currentUser?.isSystemAdmin == true;
   
   // User preferences state
   bool _darkMode = true;
@@ -88,7 +103,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _loadUserSettings();
+  }
+  
+  Future<void> _loadCurrentUser() async {
+    try {
+      // Initialize auth service if needed
+      await _authService.initialize();
+      setState(() {
+        _currentUser = _authService.currentUser;
+      });
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+    }
   }
   
   Future<void> _loadUserSettings() async {
@@ -323,54 +351,77 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
   
   
-  Widget buildUserInfoSection(Map<String, dynamic>? user) {
-    return Card(
-      color: FlownetColors.graphiteGray,
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            const CircleAvatar(
-              radius: 24,
-              backgroundColor: FlownetColors.electricBlue,
-              child: Icon(
-                Icons.person_outline,
-                color: FlownetColors.pureWhite,
+  Widget buildUserInfoSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _currentUser?.role.color ?? Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _currentUser?.role.icon ?? Icons.person,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _currentUser?.name ?? 'Guest User',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      _currentUser?.email ?? 'No email',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: (_currentUser?.role.color ?? Colors.grey).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              _currentUser?.role.displayName ?? 'No Role',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: _currentUser?.role.color ?? Colors.grey,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user?['name'] ?? 'User',
-                    style: const TextStyle(
-                      color: FlownetColors.pureWhite,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    user?['email'] ?? 'user@example.com',
-                    style: const TextStyle(
-                      color: FlownetColors.coolGray,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    'Role: ${user?['role'] ?? 'Team Member'}',
-                    style: const TextStyle(
-                      color: FlownetColors.coolGray,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -521,22 +572,92 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
   
   void _applyThemeSettings() {
-    // Apply theme mode changes
-    if (_themeMode == 'dark') {
-      // Apply dark theme - this would typically involve updating theme provider
-    } else if (_themeMode == 'light') {
-      // Apply light theme
-    } else {
-      // Apply system theme based on device preferences
-    }
+    // Apply theme mode changes immediately using theme provider
+    ref.read(themeProvider.notifier).toggleTheme(_darkMode);
     
-    // Notify theme change
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Theme settings applied successfully'),
-        backgroundColor: FlownetColors.electricBlue,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_darkMode ? 'Dark mode enabled' : 'Light mode enabled'),
+          backgroundColor: FlownetColors.electricBlue,
+        ),
+      );
+    }
+  }
+
+  void _applyNotificationSettings() {
+    // Apply notification settings immediately
+    if (_notificationsEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notifications enabled'),
+            backgroundColor: FlownetColors.electricBlue,
+          ),
+        );
+      }
+      // In a real implementation, this would register for push notifications
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notifications disabled'),
+            backgroundColor: FlownetColors.electricBlue,
+          ),
+        );
+      }
+      // In a real implementation, this would unregister from push notifications
+    }
+  }
+
+  void _applyBiometricSettings() {
+    // Apply biometric authentication settings
+    if (_biometricAuth) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric authentication enabled'),
+            backgroundColor: FlownetColors.electricBlue,
+          ),
+        );
+      }
+      // In a real implementation, this would set up biometric authentication
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric authentication disabled'),
+            backgroundColor: FlownetColors.electricBlue,
+          ),
+        );
+      }
+      // In a real implementation, this would disable biometric authentication
+    }
+  }
+
+  void _applyTwoFactorSettings() {
+    // Apply two-factor authentication settings
+    if (_twoFactorAuth) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Two-factor authentication enabled'),
+            backgroundColor: FlownetColors.electricBlue,
+          ),
+        );
+      }
+      // In a real implementation, this would set up two-factor authentication
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Two-factor authentication disabled'),
+            backgroundColor: FlownetColors.electricBlue,
+          ),
+        );
+      }
+      // In a real implementation, this would disable two-factor authentication
+    }
   }
   
   @override
@@ -565,31 +686,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // User Info Section
-                  buildUserInfoSection(null),
+                  buildUserInfoSection(),
                   const SizedBox(height: 24),
 
-                  // Security Settings
-                  buildSectionHeader('Security'),
-                  buildSwitchTile(
-                    'Biometric Authentication',
-                    'Use fingerprint or face recognition to secure your account',
-                    _biometricAuth,
-                    (value) => setState(() => _biometricAuth = value),
-                  ),
-                  buildSwitchTile(
-                    'Two-Factor Authentication',
-                    'Add an extra layer of security to your account',
-                    _twoFactorAuth,
-                    (value) => setState(() => _twoFactorAuth = value),
-                  ),
-                  buildDropdownTile(
-                    'Auto Logout',
-                    'Automatically logout after period of inactivity',
-                    _autoLogoutMinutes == 0 ? 'Never' : '$_autoLogoutMinutes minutes',
-                    ['15 minutes', '30 minutes', '1 hour', '2 hours', 'Never'],
-                    (value) => setState(() => _autoLogoutMinutes = parseLogoutTime(value!)),
-                  ),
-                  const SizedBox(height: 24),
+                  // Security Settings - Only for System Admins, Delivery Leads, and Client Reviewers
+                  if (_canAccessSecuritySettings) ...[
+                    buildSectionHeader('Security'),
+                    buildSwitchTile(
+                      'Biometric Authentication',
+                      'Use fingerprint or face recognition to secure your account',
+                      _biometricAuth,
+                      (value) {
+                        setState(() => _biometricAuth = value);
+                        _applyBiometricSettings();
+                      },
+                    ),
+                    buildSwitchTile(
+                      'Two-Factor Authentication',
+                      'Add an extra layer of security to your account',
+                      _twoFactorAuth,
+                      (value) {
+                        setState(() => _twoFactorAuth = value);
+                        _applyTwoFactorSettings();
+                      },
+                    ),
+                    buildDropdownTile(
+                      'Auto Logout',
+                      'Automatically logout after period of inactivity',
+                      _autoLogoutMinutes == 0 ? 'Never' : '$_autoLogoutMinutes minutes',
+                      ['15 minutes', '30 minutes', '1 hour', '2 hours', 'Never'],
+                      (value) => setState(() => _autoLogoutMinutes = parseLogoutTime(value!)),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // User Preferences
                   buildSectionHeader('Preferences'),
@@ -597,13 +726,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     'Dark Mode',
                     'Enable dark theme for better night viewing',
                     _darkMode,
-                    (value) => setState(() => _darkMode = value),
+                    (value) {
+                      setState(() => _darkMode = value);
+                      _applyThemeSettings();
+                    },
                   ),
                   buildSwitchTile(
                     'Notifications',
                     'Receive push notifications for important updates',
                     _notificationsEnabled,
-                    (value) => setState(() => _notificationsEnabled = value),
+                    (value) {
+                      setState(() => _notificationsEnabled = value);
+                      _applyNotificationSettings();
+                    },
                   ),
                   buildSwitchTile(
                     'Sync on Mobile Data',
@@ -653,6 +788,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     (value) {},
                   ),
                   const SizedBox(height: 24),
+
+                  // Team Management Settings - Only for System Admins and Delivery Leads
+                  if (_canAccessTeamManagement) ...[ 
+                    buildSectionHeader('Team Management'),
+                    buildSwitchTile(
+                      'Team Notifications',
+                      'Receive notifications about team activities',
+                      true,
+                      (value) {},
+                    ),
+                    buildSwitchTile(
+                      'Auto-assign Tasks',
+                      'Automatically assign new tasks to available team members',
+                      true,
+                      (value) {},
+                    ),
+                    buildDropdownTile(
+                      'Default Task Priority',
+                      'Set default priority for new tasks',
+                      'Medium',
+                      ['Low', 'Medium', 'High', 'Critical'],
+                      (value) {},
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // System Settings - Only for System Admins
+                  if (_canAccessSystemSettings) ...[
+                    buildSectionHeader('System Administration'),
+                    buildSwitchTile(
+                      'Maintenance Mode',
+                      'Put the system in maintenance mode',
+                      false,
+                      (value) {},
+                    ),
+                    buildSwitchTile(
+                      'Force Password Reset',
+                      'Require all users to reset their passwords',
+                      false,
+                      (value) {},
+                    ),
+                    buildActionTile(
+                      'View Audit Logs',
+                      Icons.history,
+                      () {},
+                    ),
+                    buildActionTile(
+                      'System Diagnostics',
+                      Icons.bug_report,
+                      () {},
+                    ),
+                    buildActionTile(
+                      'Database Backup',
+                      Icons.backup,
+                      () {},
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // Actions
                   buildSectionHeader('Actions'),

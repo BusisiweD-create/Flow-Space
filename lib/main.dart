@@ -25,10 +25,12 @@ import 'screens/role_dashboard_screen.dart';
 import 'screens/performance_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
+import 'screens/system_metrics_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
-import 'theme/flownet_theme.dart';
+import 'providers/service_providers.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,14 +54,16 @@ void main() async {
   runApp(const ProviderScope(child: KhonoApp()));
 }
 
-class KhonoApp extends StatelessWidget {
+class KhonoApp extends ConsumerWidget {
   const KhonoApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(themeProvider);
+    
     return MaterialApp.router(
       title: 'Flownet Workspaces - Project Management Hub',
-      theme: FlownetTheme.darkTheme, // Dark mode as default
+      theme: theme,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
@@ -265,6 +269,28 @@ final GoRouter _router = GoRouter(
           child: SettingsScreen(),
         ),
       ),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const RouteGuard(
+        route: '/profile',
+        child: SidebarScaffold(
+          child: ProfileScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/system-metrics',
+      builder: (context, state) => const RouteGuard(
+        route: '/system-metrics',
+        child: SidebarScaffold(
+          child: SystemMetricsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/account',
+      redirect: (context, state) => '/profile',
     ),
   ],
 );

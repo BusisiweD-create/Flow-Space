@@ -73,13 +73,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Settings', 
         icon: Icons.settings_outlined, 
         route: '/settings',
-        requiredPermission: 'manage_users',
+        requiredPermission: null, // All authenticated users can access settings
       ),
       const _NavItem(
-        label: 'Account', 
+        label: 'Profile', 
         icon: Icons.person_outline, 
-        route: '/account',
-        requiredPermission: null, // All users can access account
+        route: '/profile',
+        requiredPermission: null, // All users can access profile
       ),
     ];
 
@@ -456,8 +456,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         return 'Sprint Console';
       case '/settings':
         return 'Settings';
-      case '/account':
-        return 'Account';
+      case '/profile':
+        return 'Profile';
       default:
         return 'Flownet Workspaces';
     }

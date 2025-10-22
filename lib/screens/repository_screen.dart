@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import '../models/repository_file.dart';
 import '../theme/flownet_theme.dart';
@@ -340,6 +341,17 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
   }
 
   Future<void> _uploadFile() async {
+    // Handle web platform where file_picker may not work properly
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('File upload is not supported in web browser. Please use the desktop app for file uploads.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
     try {
       // Open file picker to select files
       final FilePickerResult? result = await FilePicker.platform.pickFiles(

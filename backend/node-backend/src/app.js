@@ -29,6 +29,7 @@ const profileRoutes = require('./routes/profile');
 const settingsRoutes = require('./routes/settings');
 const signoffRoutes = require('./routes/signoff');
 const websocketRoutes = require('./routes/websocket');
+const systemRoutes = require('./routes/system');
 
 // Import services
 const { presenceService } = require('./services/presenceService');
@@ -79,6 +80,7 @@ app.use('/api/v1/notifications', notificationsRoutes);
 app.use('/api/v1/files', fileUploadRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/monitoring', monitoringRoutes);
+app.use('/api/v1/system', systemRoutes);
 
 // Health check endpoints
 app.get('/', (req, res) => {

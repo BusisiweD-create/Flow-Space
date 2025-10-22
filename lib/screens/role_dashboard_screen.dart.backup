@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously, unused_local_variable
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +8,6 @@ import '../models/user_role.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
-import '../widgets/metrics_card.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -44,9 +41,6 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   String _searchQuery = '';
   String _sortField = 'created_at';
   bool _sortAscending = false;
-  
-  // ignore: non_constant_identifier_names, strict_top_level_inference
-  get user_email => null;
 
   @override
   void initState() {
@@ -93,8 +87,8 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         _isLoadingMoreAuditLogs = true;
       } else {
         _isLoadingAuditLogs = true;
+        _auditLogsError = null;
       }
-      _auditLogsError = null;
     });
 
     try {
@@ -170,6 +164,10 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     }
   }
 
+  Future<void> _loadMoreAuditLogs() async {
+    if (_isLoadingMoreAuditLogs || !_hasMoreAuditLogs) return;
+    await _loadAuditLogs(loadMore: true);
+  }
 
   void _applySearchAndSort() {
     // Apply search filter
@@ -404,22 +402,19 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildSystemAdminDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildSystemMetrics(),
-          const SizedBox(height: 24),
-          _buildUserManagement(),
-          const SizedBox(height: 24),
-          _buildSystemHealth(),
-          const SizedBox(height: 24),
-          _buildAuditLogs(),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildWelcomeCard(),
+        const SizedBox(height: 24),
+        _buildSystemMetrics(),
+        const SizedBox(height: 24),
+        _buildUserManagement(),
+        const SizedBox(height: 24),
+        _buildSystemHealth(),
+        const SizedBox(height: 24),
+        Expanded(child: _buildAuditLogs()),
+      ],
     );
   }
 
@@ -1033,7 +1028,6 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildSystemHealth() {
-    VoidCallback? showHealthHistory;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -1049,39 +1043,15 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                 ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.history),
-                      onPressed: showHealthHistory,
-                      tooltip: 'View Health History',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: _refreshSystemHealth,
-                      tooltip: 'Refresh Status',
-                    ),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refreshSystemHealth,
+                  tooltip: 'Refresh Status',
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            
-            // System Status Overview
-            _buildSystemStatusOverview(),
-            const SizedBox(height: 16),
-            
-            // Service Health Indicators
-            Text(
-              'Service Health',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            Row(
               children: [
                 _buildHealthIndicator(
                   title: 'Database',
@@ -1089,46 +1059,31 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                   icon: Icons.storage,
                   color: Colors.green,
                 ),
+                const SizedBox(width: 12),
                 _buildHealthIndicator(
                   title: 'API Server',
                   status: 'Healthy',
                   icon: Icons.cloud,
                   color: Colors.green,
                 ),
+                const SizedBox(width: 12),
                 _buildHealthIndicator(
                   title: 'Cache',
                   status: 'Warning',
                   icon: Icons.memory,
                   color: Colors.orange,
                 ),
+                const SizedBox(width: 12),
                 _buildHealthIndicator(
                   title: 'Storage',
                   status: 'Critical',
                   icon: Icons.sd_storage,
                   color: Colors.red,
                 ),
-                _buildHealthIndicator(
-                  title: 'Email Service',
-                  status: 'Healthy',
-                  icon: Icons.email,
-                  color: Colors.green,
-                ),
-                _buildHealthIndicator(
-                  title: 'Auth Service',
-                  status: 'Healthy',
-                  icon: Icons.security,
-                  color: Colors.green,
-                ),
               ],
             ),
             const SizedBox(height: 16),
-            
-            // Resource Usage
             _buildResourceUsage(),
-            const SizedBox(height: 16),
-            
-            // Performance Metrics
-            _buildPerformanceMetrics(),
           ],
         ),
       ),
@@ -1233,152 +1188,6 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildSystemStatusOverview() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'System Status Overview',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatusItem(
-                  title: 'System Status',
-                  status: 'Operational',
-                  icon: Icons.check_circle,
-                  color: Colors.green,
-                ),
-                _buildStatusItem(
-                  title: 'Uptime',
-                  status: '15d 8h 23m',
-                  icon: Icons.timer,
-                  color: Colors.blue,
-                ),
-                _buildStatusItem(
-                  title: 'Response Time',
-                  status: '42ms',
-                  icon: Icons.speed,
-                  color: Colors.green,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusItem({
-    required String title,
-    required String status,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 4),
-        Text(
-          title,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        Text(
-          status,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPerformanceMetrics() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Performance Metrics',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 12),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: MetricsCard(
-                title: 'Response Time',
-                value: '42ms',
-                icon: Icons.speed,
-                color: Colors.green,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Uptime',
-                value: '99.9%',
-                icon: Icons.timer,
-                color: Colors.blue,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Error Rate',
-                value: '0.1%',
-                icon: Icons.warning,
-                color: Colors.orange,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: MetricsCard(
-                title: 'Requests',
-                value: '1.2K',
-                icon: Icons.request_page,
-                color: Colors.purple,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Users Online',
-                value: '24',
-                icon: Icons.people,
-                color: Colors.teal,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Cache Hit',
-                value: '87%',
-                icon: Icons.cached,
-                color: Colors.indigo,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _buildAuditLogs() {
     return Card(
       child: Padding(
@@ -1466,7 +1275,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             const SizedBox(height: 16),
             
             SizedBox(
-              height: 400, // Fixed height for the audit log list
+              height: 400, // Fixed height to avoid layout constraints
               child: _buildAuditLogList(),
             ),
           ],
@@ -1600,434 +1409,19 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   void _showAdminMenu() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.admin_panel_settings, size: 24),
-                SizedBox(width: 12),
-                Text('System Administration'),
-              ],
-            ),
-            content: SizedBox(
-              width: MediaQuery.of(context).size.width * 0.8,
-              height: MediaQuery.of(context).size.height * 0.7,
-              child: DefaultTabController(
-                length: 4,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      isScrollable: true,
-                      tabs: [
-                        Tab(text: 'System Status', icon: Icon(Icons.monitor_heart)),
-                        Tab(text: 'Backup & Restore', icon: Icon(Icons.backup)),
-                        Tab(text: 'Maintenance', icon: Icon(Icons.settings)),
-                        Tab(text: 'Configuration', icon: Icon(Icons.tune)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          _buildSystemStatusTab(),
-                          _buildBackupRestoreTab(),
-                          _buildMaintenanceTab(),
-                          _buildConfigurationTab(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSystemStatusTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'System Health Status',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildHealthIndicator(
-                title: 'Database',
-                status: 'Online',
-                icon: Icons.storage,
-                color: Colors.green,
-              ),
-              _buildHealthIndicator(
-                title: 'API Server',
-                status: 'Online',
-                icon: Icons.cloud,
-                color: Colors.green,
-              ),
-              _buildHealthIndicator(
-                title: 'Memory',
-                status: 'Normal',
-                icon: Icons.memory,
-                color: Colors.green,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'System Metrics',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          GridView.count(
-            shrinkWrap: true,
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 2.5,
-            children: [
-              _buildMetricCard(
-                title: 'Active Users',
-                value: '12',
-                icon: Icons.people,
-                color: Colors.blue,
-                trend: '+2 today',
-              ),
-              _buildMetricCard(
-                title: 'Database Size',
-                value: '45.2 MB',
-                icon: Icons.data_usage,
-                color: Colors.purple,
-                trend: '+1.2 MB',
-              ),
-              _buildMetricCard(
-                title: 'Uptime',
-                value: '12d 8h',
-                icon: Icons.timer,
-                color: Colors.orange,
-                trend: '99.8%',
-              ),
-              _buildMetricCard(
-                title: 'API Requests',
-                value: '1.2K',
-                icon: Icons.api,
-                color: Colors.green,
-                trend: '+142 today',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackupRestoreTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Database Backup & Restore',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Latest Backup',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('Last backup: 2 hours ago'),
-                  const Text('Size: 42.1 MB'),
-                  const Text('Status: Completed'),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _createBackup(),
-                        icon: const Icon(Icons.backup),
-                        label: const Text('Create Backup'),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed: () => _showRestoreDialog(),
-                        icon: const Icon(Icons.restore),
-                        label: const Text('Restore'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Backup Schedule',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text('Automatic Daily Backup'),
-            value: true,
-            onChanged: (value) {},
-          ),
-          const SizedBox(height: 8),
-          const Text('Next scheduled backup: Today at 02:00 AM'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMaintenanceTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'System Maintenance',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Maintenance Mode',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('When enabled, only administrators can access the system.'),
-                  const SizedBox(height: 16),
-                  SwitchListTile(
-                    title: const Text('Enable Maintenance Mode'),
-                    value: false,
-                    onChanged: (value) => _toggleMaintenanceMode(value),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'System Operations',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _clearCache(),
-                        icon: const Icon(Icons.cleaning_services),
-                        label: const Text('Clear Cache'),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () => _optimizeDatabase(),
-                        icon: const Icon(Icons.build),
-                        label: const Text('Optimize Database'),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () => _runDiagnostics(),
-                        icon: const Icon(Icons.medical_services),
-                        label: const Text('Run Diagnostics'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConfigurationTab() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'System Configuration',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'General Settings',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  SwitchListTile(
-                    title: const Text('Enable User Registration'),
-                    value: true,
-                    onChanged: (value) {},
-                  ),
-                  SwitchListTile(
-                    title: const Text('Require Email Verification'),
-                    value: true,
-                    onChanged: (value) {},
-                  ),
-                  SwitchListTile(
-                    title: const Text('Enable Audit Logging'),
-                    value: true,
-                    onChanged: (value) {},
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Security Settings',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Session Timeout (minutes)',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: '30',
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Password Complexity Requirements',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue: 'Minimum 8 characters',
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // System administration methods
-  Future<void> _createBackup() async {
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Creating system backup...')),
-      );
-      
-      // Call backend API to create backup
-      final response = await _backendApiService.createBackup();
-      
-      if (response.isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backup created successfully!')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup failed: ${response.error}')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating backup: $e')),
-      );
-    }
-  }
-
-  Future<void> _showRestoreDialog() async {
-    showDialog(
-      context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Restore from Backup'),
-        content: const Text('This will restore the system from the latest backup. All current data will be replaced. Continue?'),
+        title: const Text('Admin Panel'),
+        content: const Text('Admin panel features will be implemented in the next phase.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _restoreBackup();
-            },
-            child: const Text('Restore'),
+            child: const Text('OK'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _restoreBackup() async {
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Restoring from backup...')),
-      );
-      
-      // Call backend API to restore backup
-      final response = await _backendApiService.restoreBackup();
-      
-      if (response.isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('System restored successfully!')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Restore failed: ${response.error}')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error restoring backup: $e')),
-      );
-    }
-  }
-
-  Future<void> _toggleMaintenanceMode(bool enabled) async {
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(enabled ? 'Enabling maintenance mode...' : 'Disabling maintenance mode...')),
-      );
-      
-      // Call backend API to toggle maintenance mode
-      final response = await _backendApiService.updateSystemSettings({
-        'maintenance_mode': enabled,
-      });
-      
-      if (response.isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(enabled ? 'Maintenance mode enabled!' : 'Maintenance mode disabled!')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update maintenance mode: ${response.error}')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error updating maintenance mode: \$e')),
-      );
-    }
-  }
-
-  // Missing method implementations
   void _handleLogout() {
     showDialog(
       context: context,
@@ -2057,6 +1451,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
+  // Missing method implementations
   void _showSettingsDialog() {
     showDialog(
       context: context,
@@ -2114,142 +1509,23 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildSystemUsageChart() {
-    return Card(
+    return const Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'System Usage Overview',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              'System Usage Chart',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
-            _buildUsageChartItem(
-              title: 'CPU Usage',
-              usage: 65,
-              max: 100,
-              color: Colors.blue,
-              trend: '+5%',
-            ),
-            const SizedBox(height: 12),
-            _buildUsageChartItem(
-              title: 'Memory Usage',
-              usage: 78,
-              max: 100,
-              color: Colors.purple,
-              trend: '+12%',
-            ),
-            const SizedBox(height: 12),
-            _buildUsageChartItem(
-              title: 'Disk Usage',
-              usage: 45,
-              max: 100,
-              color: Colors.orange,
-              trend: '+3%',
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Last updated: ${DateTime.now().toString().substring(11, 16)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey,
-                      ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 18),
-                  onPressed: _refreshSystemUsage,
-                  tooltip: 'Refresh usage data',
-                ),
-              ],
+            SizedBox(height: 16),
+            Text(
+              'System usage chart will be implemented in the next phase.',
+              style: TextStyle(color: Colors.grey),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildUsageChartItem({
-    required String title,
-    required int usage,
-    required int max,
-    required Color color,
-    required String trend,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            Text(
-              '$usage%',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Stack(
-          children: [
-            Container(
-              height: 8,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            Container(
-              height: 8,
-              width: (usage / max) * MediaQuery.of(context).size.width * 0.6,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '${usage}GB / ${max}GB',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
-                  ),
-            ),
-            Text(
-              trend,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: trend.startsWith('+') ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  void _refreshSystemUsage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('System usage data refreshed'),
-        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -2260,27 +1536,29 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     required IconData icon,
     required Color color,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            Text(
-              status,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
+    return Expanded(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              Text(
+                status,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2291,7 +1569,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edit User'),
-        content: const Text('Edit user functionality for \${user.name} will be implemented in the next phase.'),
+        content: Text('Edit user functionality for ${user.name} will be implemented in the next phase.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -2301,7 +1579,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             onPressed: () {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('\${user.name} updated successfully')),
+                SnackBar(content: Text('${user.name} updated successfully')),
               );
             },
             child: const Text('Save'),
@@ -2316,7 +1594,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Delete'),
-        content: const Text('Are you sure you want to delete user \${user.name}? This action cannot be undone.'),
+        content: Text('Are you sure you want to delete user ${user.name}? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -2326,7 +1604,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             onPressed: () {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('\${user.name} deleted successfully')),
+                SnackBar(content: Text('${user.name} deleted successfully')),
               );
             },
             child: const Text(
@@ -2343,18 +1621,18 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('User Details: \${user.name}'),
-        content: const Column(
+        title: Text('User Details: ${user.name}'),
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Email: \${user.email}'),
-            SizedBox(height: 8),
-            Text('Role: \${user.roleDisplayName}'),
-            SizedBox(height: 8),
-            Text('Status: Active'),
-            SizedBox(height: 8),
-            Text('Last Login: Today'),
+            Text('Email: ${user.email}'),
+            const SizedBox(height: 8),
+            Text('Role: ${user.roleDisplayName}'),
+            const SizedBox(height: 8),
+            const Text('Status: Active'),
+            const SizedBox(height: 8),
+            const Text('Last Login: Today'),
           ],
         ),
         actions: [
@@ -2405,6 +1683,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       'logged_in',
       'logged_out',
     ];
+  
 
     showDialog(
       context: context,
@@ -2486,7 +1765,6 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                             text: _selectedStartDate != null
                                 ? '${_selectedStartDate!.year}-${_selectedStartDate!.month.toString().padLeft(2, '0')}-${_selectedStartDate!.day.toString().padLeft(2, '0')}'
                                 : '',
-                        
                           ),
                         ),
                       ),
@@ -2516,10 +1794,9 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                             ),
                           ),
                           controller: TextEditingController(
-                            text: _selectedEndDate != null ? _selectedEndDate!.toString() : '',
-
-
-
+                            text: _selectedEndDate != null
+                                ? '${_selectedEndDate!.year}-${_selectedEndDate!.month.toString().padLeft(2, '0')}-${_selectedEndDate!.day.toString().padLeft(2, '0')}'
+                                : '',
                           ),
                         ),
                       ),
@@ -2599,6 +1876,172 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _exportToCSV() async {
+    try {
+      final bool hasActiveFilters = _selectedActionFilter != null ||
+          _selectedUserFilter != null ||
+          _selectedStartDate != null ||
+          _selectedEndDate != null ||
+          _searchQuery.isNotEmpty;
+
+      final List<dynamic> logsToExport = hasActiveFilters ? _filteredAuditLogs : _auditLogs;
+
+      if (logsToExport.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No audit logs to export')),
+        );
+        return;
+      }
+
+      // Create CSV data
+      final List<List<dynamic>> csvData = [
+        ['Timestamp', 'Action', 'User Email', 'User Role', 'Entity Type', 'Entity Name', 'Details'],
+      ];
+
+      for (final log in logsToExport) {
+        final createdAt = log['created_at'] as String? ?? '';
+        final action = log['action'] as String? ?? '';
+        final userEmail = log['user_email'] as String? ?? '';
+        final userRole = log['user_role'] as String? ?? '';
+        final entityType = log['entity_type'] as String? ?? '';
+        final entityName = log['entity_name'] as String? ?? '';
+        final details = log['details'] as String? ?? '';
+
+        csvData.add([
+          createdAt,
+          action,
+          userEmail,
+          userRole,
+          entityType,
+          entityName,
+          details,
+        ]);
+      }
+
+      // Convert to CSV string
+      final csvString = const ListToCsvConverter().convert(csvData);
+
+      // Get directory for saving
+      final directory = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final filePath = '${directory.path}/audit_logs_$timestamp.csv';
+
+      // Write to file
+      final file = File(filePath);
+      await file.writeAsString(csvString);
+
+      // Show success message
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('CSV exported successfully to $filePath')),
+      );
+
+      debugPrint('✅ CSV exported to: $filePath');
+
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to export CSV: $e')),
+      );
+      debugPrint('❌ Error exporting CSV: $e');
+    }
+  }
+
+  Future<void> _exportToPDF() async {
+    try {
+      final bool hasActiveFilters = _selectedActionFilter != null ||
+          _selectedUserFilter != null ||
+          _selectedStartDate != null ||
+          _selectedEndDate != null ||
+          _searchQuery.isNotEmpty;
+
+      final List<dynamic> logsToExport = hasActiveFilters ? _filteredAuditLogs : _auditLogs;
+
+      if (logsToExport.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No audit logs to export')),
+        );
+        return;
+      }
+
+      // Create PDF document
+      final pdf = pw.Document();
+
+      // Add title page
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('Audit Logs Report', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 20),
+                pw.Text('Generated on: ${DateTime.now().toString()}'),
+                pw.SizedBox(height: 10),
+                pw.Text('Total logs: ${logsToExport.length}'),
+                if (hasActiveFilters) pw.Text('Filtered results'),
+              ],
+            );
+          },
+        ),
+      );
+
+      // Add logs page
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            // ignore: deprecated_member_use
+            return pw.Table.fromTextArray(
+              headers: ['Timestamp', 'Action', 'User', 'Entity', 'Details'],
+              data: logsToExport.map((log) {
+                final createdAt = log['created_at'] as String? ?? '';
+                final action = log['action'] as String? ?? '';
+                final userEmail = log['user_email'] as String? ?? '';
+                final entityName = log['entity_name'] as String? ?? '';
+                final details = log['details'] as String? ?? '';
+
+                return [createdAt, action, userEmail, entityName, details];
+              }).toList(),
+            );
+          },
+        ),
+      );
+
+      // Save PDF to file
+      final directory = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final filePath = '${directory.path}/audit_logs_$timestamp.pdf';
+
+      final file = File(filePath);
+      await file.writeAsBytes(await pdf.save());
+
+      // Show success message
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDF exported successfully to $filePath')),
+      );
+
+      debugPrint('✅ PDF exported to: $filePath');
+
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to export PDF: $e')),
+      );
+      debugPrint('❌ Error exporting PDF: $e');
+    }
+  }
+
+  void _clearAllFilters() {
+    setState(() {
+      _selectedActionFilter = null;
+      _selectedUserFilter = null;
+      _selectedStartDate = null;
+      _selectedEndDate = null;
+    });
+    _loadAuditLogs();
   }
 
   Widget _buildAuditLogList() {
@@ -2767,7 +2210,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'User: ${log['user_email'] ?? "Unknown User"}',
+              'User: \${log['user_email'] ?? "Unknown User"}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.grey[700],
                   ),
@@ -2793,272 +2236,11 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     if (difference.inMinutes < 1) {
       return 'Just now';
     } else if (difference.inHours < 1) {
-      return '\${difference.inMinutes}m ago';
+      return '${difference.inMinutes}m ago';
     } else if (difference.inDays < 1) {
-      return '\${difference.inHours}h ago';
+      return '${difference.inHours}h ago';
     } else {
-      return '\${difference.inDays}d ago';
-    }
-  }
-
-  Future<void> _clearCache() async {
-    try {
-      final response = await _backendApiService.clearCache();
-      if (response.isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cache cleared successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to clear cache: \${response.error}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error clearing cache: \$e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _optimizeDatabase() async {
-    try {
-      final response = await _backendApiService.optimizeDatabase();
-      if (response.isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Database optimized successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to optimize database: \${response.error}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error optimizing database: \$e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _runDiagnostics() async {
-    try {
-      final response = await _backendApiService.runDiagnostics();
-      if (response.isSuccess) {
-        final data = response.data;
-        final status = data != null && data['status'] != null ? data['status'].toString() : 'Success';
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Diagnostics completed: \$status'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Diagnostics failed: \${response.error}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Error running diagnostics: \$e'),
-            backgroundColor: Colors.red,
-          ),
-      );
-    }
-  }
-
-  Future<void> _loadMoreAuditLogs() async {
-    if (_isLoadingMoreAuditLogs || !_hasMoreAuditLogs) return;
-    await _loadAuditLogs(loadMore: true);
-  }
-
-  void _clearAllFilters() {
-    setState(() {
-      _selectedActionFilter = null;
-      _selectedUserFilter = null;
-      _selectedStartDate = null;
-      _selectedEndDate = null;
-    });
-    _loadAuditLogs();
-  }
-
-  Future<void> _exportToCSV() async {
-    try {
-      final bool hasActiveFilters = _selectedActionFilter != null ||
-          _selectedUserFilter != null ||
-          _selectedStartDate != null ||
-          _selectedEndDate != null ||
-          _searchQuery.isNotEmpty;
-
-      final List<dynamic> logsToExport = hasActiveFilters ? _filteredAuditLogs : _auditLogs;
-
-      if (logsToExport.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No audit logs to export')),
-        );
-        return;
-      }
-
-      // Create CSV data
-      final List<List<dynamic>> csvData = [
-        ['Timestamp', 'Action', 'User Email', 'User Role', 'Entity Type', 'Entity Name', 'Details'],
-      ];
-
-      for (final log in logsToExport) {
-        final createdAt = log['created_at'] as String? ?? '';
-        final action = log['action'] as String? ?? '';
-        final userEmail = log['user_email'] as String? ?? '';
-        final userRole = log['user_role'] as String? ?? '';
-        final entityType = log['entity_type'] as String? ?? '';
-        final entityName = log['entity_name'] as String? ?? '';
-        final details = log['details'] as String? ?? '';
-
-        csvData.add([
-          createdAt,
-          action,
-          userEmail,
-          userRole,
-          entityType,
-          entityName,
-          details,
-        ]);
-      }
-
-      // Convert to CSV string
-      final csvString = const ListToCsvConverter().convert(csvData);
-
-      // Get directory for saving
-      final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      const filePath = '\${directory.path}/audit_logs_\$timestamp.csv';
-
-      // Write to file
-      final file = File(filePath);
-      await file.writeAsString(csvString);
-
-      // Show success message
-      // ignore: duplicate_ignore
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CSV exported successfully to \$filePath')),
-      );
-
-      debugPrint('✅ CSV exported to: \$filePath');
-
-    } catch (e) {
-      // ignore: duplicate_ignore
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to export CSV: \$e')),
-      );
-      debugPrint('❌ Error exporting CSV: \$e');
-    }
-  }
-
-  Future<void> _exportToPDF() async {
-    try {
-      final bool hasActiveFilters = _selectedActionFilter != null ||
-          _selectedUserFilter != null ||
-          _selectedStartDate != null ||
-          _selectedEndDate != null ||
-          _searchQuery.isNotEmpty;
-
-      final List<dynamic> logsToExport = hasActiveFilters ? _filteredAuditLogs : _auditLogs;
-
-      if (logsToExport.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No audit logs to export')),
-        );
-        return;
-      }
-
-      // Create PDF document
-      final pdf = pw.Document();
-
-      // Add title page
-      pdf.addPage(
-        pw.Page(
-          build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text('Audit Logs Report', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 20),
-                pw.Text('Generated on: \${DateTime.now().toString()}'),
-                pw.SizedBox(height: 10),
-                pw.Text('Total logs: \${logsToExport.length}'),
-                if (hasActiveFilters) pw.Text('Filtered results'),
-              ],
-            );
-          },
-        ),
-      );
-
-      // Add logs page
-      pdf.addPage(
-        pw.Page(
-          build: (pw.Context context) {
-            // ignore: deprecated_member_use
-            return pw.Table.fromTextArray(
-              headers: ['Timestamp', 'Action', 'User', 'Entity', 'Details'],
-              data: logsToExport.map((log) {
-                final createdAt = log['created_at'] as String? ?? '';
-                final action = log['action'] as String? ?? '';
-                final userEmail = log['user_email'] as String? ?? '';
-                final entityName = log['entity_name'] as String? ?? '';
-                final details = log['details'] as String? ?? '';
-
-                return [createdAt, action, userEmail, entityName, details];
-              }).toList(),
-            );
-          },
-        ),
-      );
-
-      // Save PDF to file
-      final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      const filePath = '\${directory.path}/audit_logs_\$timestamp.pdf';
-
-      final file = File(filePath);
-      await file.writeAsBytes(await pdf.save());
-
-      // Show success message
-      // ignore: duplicate_ignore
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF exported successfully to \$filePath')),
-      );
-
-      debugPrint('✅ PDF exported to: \$filePath');
-
-    } catch (e) {
-      // ignore: duplicate_ignore
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to export PDF: \$e')),
-      );
-      debugPrint('❌ Error exporting PDF: \$e');
+      return '${difference.inDays}d ago';
     }
   }
 }

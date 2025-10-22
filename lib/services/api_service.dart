@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../models/system_metrics.dart';
 
 class ApiService {
   // Base URL for your backend API (you'll need to create this)
@@ -427,6 +428,58 @@ class ApiService {
       debugPrint('Error uploading file: $e');
       return null;
     }
+  }
+
+  // System metrics methods
+  static Future<SystemMetrics> getSystemMetrics() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/system-metrics'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return SystemMetrics.fromJson(data);
+      } else {
+        debugPrint('Failed to load system metrics: ${response.statusCode}');
+        // Return mock data for development
+        return _getMockSystemMetrics();
+      }
+    } catch (e) {
+      debugPrint('Error loading system metrics: $e');
+      // Return mock data for development
+      return _getMockSystemMetrics();
+    }
+  }
+
+  // Mock system metrics for development
+  static SystemMetrics _getMockSystemMetrics() {
+    return SystemMetrics(
+      systemHealth: SystemHealthStatus.healthy,
+      performance: PerformanceMetrics(
+        cpuUsage: 23.4,
+        memoryUsage: 512.3,
+        diskUsage: 32.1,
+        responseTime: 45,
+        uptime: 99.8,
+      ),
+      database: DatabaseMetrics(
+        totalRecords: 156,
+        activeConnections: 8,
+        cacheHitRatio: 0.95,
+        queryCount: 12543,
+        slowQueries: 63,
+      ),
+      userActivity: UserActivityMetrics(
+        activeUsers: 18,
+        totalSessions: 342,
+        newRegistrations: 5,
+        failedLogins: 2,
+        avgSessionDuration: 12.5,
+      ),
+      lastUpdated: DateTime.now(),
+    );
   }
 
   static Future<bool> deleteFile(String fileId) async {

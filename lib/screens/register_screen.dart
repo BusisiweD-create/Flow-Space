@@ -562,8 +562,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       UserRole userRole;
       switch (_selectedRole.toLowerCase()) {
         case 'project manager':
+          userRole = UserRole.deliveryLead;
+          break;
         case 'scrum master':
           userRole = UserRole.deliveryLead;
+          break;
+        case 'qa engineer':
+          userRole = UserRole.teamMember;
           break;
         case 'client':
           userRole = UserRole.clientReviewer;

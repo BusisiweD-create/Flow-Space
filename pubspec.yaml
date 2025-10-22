@@ -38,6 +38,11 @@ dependencies:
   # File Picker
   file_picker: ^6.1.1
   
+  # Export functionality
+  csv: ^5.0.3
+  printing: ^5.14.2
+  pdf: ^3.10.0
+  
   # Email
   mailer: ^6.0.1
   firebase_core: ^4.1.1
