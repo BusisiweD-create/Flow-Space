@@ -1,112 +1,455 @@
-// ignore_for_file: unused_element, require_trailing_commas, use_build_context_synchronously
-
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/repository_file.dart';
+import '../services/document_service.dart';
+import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
-import '../services/api_service.dart';
 
-class RepositoryScreen extends ConsumerStatefulWidget {
+class RepositoryScreen extends StatefulWidget {
   const RepositoryScreen({super.key});
 
   @override
-  ConsumerState<RepositoryScreen> createState() => _RepositoryScreenState();
+  State<RepositoryScreen> createState() => _RepositoryScreenState();
 }
 
-class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
-  List<RepositoryFile> _files = [];
-  bool _isLoading = true;
-  String _errorMessage = '';
+class _RepositoryScreenState extends State<RepositoryScreen> {
+  final DocumentService _documentService = DocumentService(AuthService());
+  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _tagsController = TextEditingController();
+  
+  List<RepositoryFile> _documents = [];
+  List<RepositoryFile> _filteredDocuments = [];
+  bool _isLoading = false;
+  String _selectedFileType = 'all';
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadFiles();
+    _loadDocuments();
   }
 
-  Future<void> _loadFiles() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-
+  Future<void> _loadDocuments() async {
+    setState(() => _isLoading = true);
+    
     try {
-      // Use actual API call to get project files
-      // For demo purposes, we'll use a default project ID
-      final filesData = await ApiService.getProjectFiles('default-project-id');
+      final response = await _documentService.getDocuments(
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        fileType: _selectedFileType != 'all' ? _selectedFileType : null,
+      );
       
-      if (filesData.isEmpty) {
-        // Fallback to mock data if no files returned
+      if (response.isSuccess) {
         setState(() {
-          _files = [
-            RepositoryFile(
-              id: '1',
-              name: 'Technical Requirements Document',
-              fileType: 'document',
-              uploadDate: DateTime.now().subtract(const Duration(days: 3)),
-              uploadedBy: 'user1',
-              size: '2.5 MB',
-              description: 'Complete technical requirements for the authentication system',
-              uploader: 'Sarah Chen',
-              sizeInMB: 2.5,
-            ),
-            RepositoryFile(
-              id: '2',
-              name: 'API Design Specification',
-              fileType: 'document',
-              uploadDate: DateTime.now().subtract(const Duration(days: 2)),
-              uploadedBy: 'user2',
-              size: '1.8 MB',
-              description: 'Detailed API design and endpoints specification',
-              uploader: 'Michael Rodriguez',
-              sizeInMB: 1.8,
-            ),
-            RepositoryFile(
-              id: '3',
-              name: 'Database Schema Diagram',
-              fileType: 'image',
-              uploadDate: DateTime.now().subtract(const Duration(days: 1)),
-              uploadedBy: 'user3',
-              size: '3.2 MB',
-              description: 'ER diagram showing database relationships',
-              uploader: 'Emily Wang',
-              sizeInMB: 3.2,
-            ),
-          ];
-          _isLoading = false;
+          _documents = (response.data!['documents'] as List).cast<RepositoryFile>();
+          _filteredDocuments = _documents;
         });
       } else {
-        // Convert API response to RepositoryFile objects
-        final files = filesData.map((fileData) {
-          return RepositoryFile(
-            id: fileData['id']?.toString() ?? '',
-            name: fileData['name']?.toString() ?? 'Unknown File',
-            fileType: fileData['fileType']?.toString() ?? 'document',
-            uploadDate: fileData['uploadDate'] != null 
-                ? DateTime.parse(fileData['uploadDate'])
-                : DateTime.now(),
-            uploadedBy: fileData['uploadedBy']?.toString() ?? '',
-            size: fileData['size']?.toString() ?? '0 MB',
-            description: fileData['description']?.toString() ?? '',
-            uploader: fileData['uploader']?.toString() ?? 'Unknown User',
-            sizeInMB: (fileData['sizeInMB'] as num?)?.toDouble() ?? 0.0,
-          );
-        }).toList();
-        
-        setState(() {
-          _files = files;
-          _isLoading = false;
-        });
+        _showErrorSnackBar('Failed to load documents: ${response.error}');
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load files: \$e';
-      });
+      _showErrorSnackBar('Error loading documents: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _uploadDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.first;
+        
+        // For web platform, we need to handle the file differently
+        if (kIsWeb) {
+          // On web, we can't create a File from path, so we'll handle it differently
+          _showWebUploadDialog(pickedFile);
+        } else {
+          final file = File(pickedFile.path!);
+          _showUploadDialog(file);
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error selecting file: $e');
+    }
+  }
+
+  void _showUploadDialog(File file) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Upload Document', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('File: ${file.path.split('/').last}', 
+                   style: const TextStyle(color: FlownetColors.coolGray),),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  labelStyle: TextStyle(color: FlownetColors.coolGray),
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(color: FlownetColors.pureWhite),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _tagsController,
+                decoration: const InputDecoration(
+                  labelText: 'Tags (optional, comma-separated)',
+                  labelStyle: TextStyle(color: FlownetColors.coolGray),
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(color: FlownetColors.pureWhite),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _descriptionController.clear();
+              _tagsController.clear();
+            },
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => _performUpload(file),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Upload', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performUpload(File file) async {
+    Navigator.pop(context);
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      final response = await _documentService.uploadDocument(
+        filePath: file.path,
+        description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
+        tags: _tagsController.text.isNotEmpty ? _tagsController.text : null,
+      );
+      
+      if (response.isSuccess) {
+        _showSuccessSnackBar('Document uploaded successfully!');
+        _descriptionController.clear();
+        _tagsController.clear();
+        _loadDocuments();
+      } else {
+        _showErrorSnackBar('Failed to upload document: ${response.error}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error uploading document: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showWebUploadDialog(PlatformFile pickedFile) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Upload Document', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'File: ${pickedFile.name}',
+                style: const TextStyle(color: FlownetColors.pureWhite),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                style: const TextStyle(color: FlownetColors.pureWhite),
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  labelStyle: TextStyle(color: FlownetColors.coolGray),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.coolGray),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.crimsonRed),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _tagsController,
+                style: const TextStyle(color: FlownetColors.pureWhite),
+                decoration: const InputDecoration(
+                  labelText: 'Tags (optional, comma-separated)',
+                  labelStyle: TextStyle(color: FlownetColors.coolGray),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.coolGray),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.crimsonRed),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => _performWebUpload(pickedFile),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Upload', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performWebUpload(PlatformFile pickedFile) async {
+    Navigator.pop(context);
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      final response = await _documentService.uploadWebDocument(
+        fileBytes: pickedFile.bytes!,
+        fileName: pickedFile.name,
+        description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
+        tags: _tagsController.text.isNotEmpty ? _tagsController.text : null,
+      );
+      
+      if (response.isSuccess) {
+        _showSuccessSnackBar('Document uploaded successfully!');
+        _descriptionController.clear();
+        _tagsController.clear();
+        _loadDocuments();
+      } else {
+        _showErrorSnackBar('Failed to upload document: ${response.error}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error uploading document: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _downloadDocument(RepositoryFile document) async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final response = await _documentService.downloadDocument(document.id);
+      
+      if (response.isSuccess) {
+        if (kIsWeb) {
+          // For web, the download should trigger automatically
+          _showSuccessSnackBar('Document download started!');
+        } else {
+          final filePath = response.data!['filePath'];
+          _showSuccessSnackBar('Document downloaded to: $filePath');
+          
+          // Try to open the file
+          final file = File(filePath);
+          if (await file.exists()) {
+            final uri = Uri.file(file.path);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri);
+            }
+          }
+        }
+      } else {
+        _showErrorSnackBar('Failed to download document: ${response.error}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error downloading document: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteDocument(RepositoryFile document) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Delete Document', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: Text('Are you sure you want to delete "${document.name}"?', 
+                     style: const TextStyle(color: FlownetColors.coolGray),),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Delete', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      
+      try {
+        final response = await _documentService.deleteDocument(document.id);
+        
+        if (response.isSuccess) {
+          _showSuccessSnackBar('Document deleted successfully!');
+          _loadDocuments();
+        } else {
+          _showErrorSnackBar('Failed to delete document: ${response.error}');
+        }
+      } catch (e) {
+        _showErrorSnackBar('Error deleting document: $e');
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _previewDocument(RepositoryFile document) async {
+    try {
+      final response = await _documentService.getDocumentPreview(document.id);
+      
+      if (response.isSuccess) {
+        final previewData = response.data!;
+        _showPreviewDialog(document, previewData);
+      } else {
+        _showErrorSnackBar('Preview not available: ${response.error}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error getting preview: $e');
+    }
+  }
+
+  void _showPreviewDialog(RepositoryFile document, Map<String, dynamic> previewData) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: Text('Preview: ${document.name}', 
+                   style: const TextStyle(color: FlownetColors.pureWhite),),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('File Type: ${document.fileType.toUpperCase()}', 
+                   style: const TextStyle(color: FlownetColors.coolGray),),
+              Text('Size: ${_formatFileSize(document.sizeInMB)}', 
+                   style: const TextStyle(color: FlownetColors.coolGray),),
+              if (document.description.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text('Description: ${document.description}', 
+                             style: const TextStyle(color: FlownetColors.coolGray),),
+                ),
+              const SizedBox(height: 16),
+              if (previewData['previewAvailable'] == true)
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: FlownetColors.charcoalBlack,
+                      border: Border.all(color: FlownetColors.slate),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        'Document content preview would appear here.\n\nFor ${document.fileType.toUpperCase()} files, you can download and open them with the appropriate application.',
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: FlownetColors.amberOrange.withValues(alpha: 0.1),
+                    border: Border.all(color: FlownetColors.amberOrange),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Preview not available for this file type.\nDownload the file to view its contents.',
+                    style: TextStyle(color: FlownetColors.amberOrange),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _downloadDocument(document);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.electricBlue),
+            child: const Text('Download', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _filterDocuments() {
+    setState(() {
+      _filteredDocuments = _documents.where((doc) {
+        final matchesSearch = _searchQuery.isEmpty || 
+            doc.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            doc.description.toLowerCase().contains(_searchQuery.toLowerCase());
+        
+        final matchesFileType = _selectedFileType == 'all' || 
+            doc.fileType.toLowerCase() == _selectedFileType.toLowerCase();
+        
+        return matchesSearch && matchesFileType;
+      }).toList();
+    });
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value;
+    });
+    _filterDocuments();
+  }
+
+  void _onFileTypeChanged(String? value) {
+    setState(() {
+      _selectedFileType = value ?? 'all';
+    });
+    _filterDocuments();
   }
 
   @override
@@ -121,150 +464,174 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadFiles,
+            onPressed: _loadDocuments,
             tooltip: 'Refresh',
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: FlownetColors.electricBlue,
+      body: Column(
+        children: [
+          // Search and filter bar
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: FlownetColors.graphiteGray,
+              border: Border(
+                bottom: BorderSide(color: FlownetColors.slate, width: 1),
               ),
-            )
-          : _errorMessage.isNotEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: FlownetColors.crimsonRed,
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _errorMessage,
-                        style: const TextStyle(
-                          color: FlownetColors.pureWhite,
-                          fontSize: 16,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadFiles,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: FlownetColors.electricBlue,
-                        ),
-                        child: const Text(
-                          'Retry',
-                          style: TextStyle(color: FlownetColors.pureWhite),
-                        ),
-                      ),
-                    ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+            child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    decoration: const InputDecoration(
+                      hintText: 'Search documents...',
+                      hintStyle: TextStyle(color: FlownetColors.coolGray),
+                      prefixIcon: Icon(Icons.search, color: FlownetColors.coolGray),
+                      border: OutlineInputBorder(),
+                      filled: true,
+                      fillColor: FlownetColors.charcoalBlack,
+                    ),
+                    style: const TextStyle(color: FlownetColors.pureWhite),
                   ),
-                )
-              : Column(
-                  children: [
-                    // Search bar
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search files...',
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Files list
-                    Expanded(
-                      child: _files.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No files found',
-                                style: TextStyle(
-                                  color: FlownetColors.pureWhite,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _files.length,
-                              itemBuilder: (context, index) {
-                                final file = _files[index];
-                                return Card(
-                                  margin: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 4),
-                                  child: ListTile(
-                                    leading: CircleAvatar(
-                                      backgroundColor:
-                                          _getFileTypeColor(file.fileType),
-                                      child: Text(
-                                        file.fileType.toUpperCase().substring(0, 1),
-                                        style: const TextStyle(
-                                          color: FlownetColors.pureWhite,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      file.name,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                    subtitle: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('Uploaded by: \${file.uploader}'),
-                                        const Text('Size: \${_formatFileSize(file.sizeInMB)}'),
-                                        Text(_formatDate(file.uploadDate)),
-                                        if (file.description.isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 4),
-                                            child: Text(
-                                              file.description,
-                                              style: const TextStyle(
-                                                color: FlownetColors.coolGray,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.download,
-                                              color: FlownetColors.electricBlue,),
-                                          onPressed: () => _downloadFile(file.id),
-                                          tooltip: 'Download',
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete,
-                                              color: FlownetColors.crimsonRed,),
-                                          onPressed: () => _deleteFile(file.id),
-                                          tooltip: 'Delete',
-                                        ),
-                                      ],
-                                    ),
-                                    isThreeLine: true,
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
+                ),
+                const SizedBox(width: 16),
+                DropdownButton<String>(
+                  value: _selectedFileType,
+                  onChanged: _onFileTypeChanged,
+                  dropdownColor: FlownetColors.graphiteGray,
+                  style: const TextStyle(color: FlownetColors.pureWhite),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All Types')),
+                    DropdownMenuItem(value: 'pdf', child: Text('PDF')),
+                    DropdownMenuItem(value: 'docx', child: Text('Word')),
+                    DropdownMenuItem(value: 'xlsx', child: Text('Excel')),
+                    DropdownMenuItem(value: 'txt', child: Text('Text')),
+                    DropdownMenuItem(value: 'json', child: Text('JSON')),
+                    DropdownMenuItem(value: 'sql', child: Text('SQL')),
                   ],
                 ),
+              ],
+            ),
+          ),
+          
+          // Documents list
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(FlownetColors.crimsonRed),
+                    ),
+                  )
+                : _filteredDocuments.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No documents found',
+                          style: TextStyle(
+                            color: FlownetColors.coolGray,
+                            fontSize: 18,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredDocuments.length,
+              itemBuilder: (context, index) {
+                          final document = _filteredDocuments[index];
+                          return _buildDocumentCard(document);
+                        },
+                      ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _uploadFile,
+        onPressed: _uploadDocument,
         backgroundColor: FlownetColors.crimsonRed,
         child: const Icon(Icons.add, color: FlownetColors.pureWhite),
+      ),
+    );
+  }
+
+  Widget _buildDocumentCard(RepositoryFile document) {
+                return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: FlownetColors.graphiteGray,
+                  child: ListTile(
+                    leading: CircleAvatar(
+          backgroundColor: _getFileTypeColor(document.fileType),
+                      child: Text(
+            document.fileType.toUpperCase().substring(0, 1),
+                        style: const TextStyle(
+                          color: FlownetColors.pureWhite,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+          document.name,
+          style: const TextStyle(
+            color: FlownetColors.pureWhite,
+            fontWeight: FontWeight.bold,
+          ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+            Text(
+              'Uploaded by: ${document.uploaderName ?? document.uploader}',
+              style: const TextStyle(color: FlownetColors.coolGray),
+            ),
+            Text(
+              'Size: ${_formatFileSize(document.sizeInMB)} • ${_formatDate(document.uploadDate)}',
+              style: const TextStyle(color: FlownetColors.coolGray),
+            ),
+            if (document.description.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                  document.description,
+                              style: const TextStyle(
+                                color: FlownetColors.coolGray,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+            if (document.tags != null && document.tags!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Wrap(
+                  spacing: 4,
+                  children: document.tags!.split(',').map((tag) => Chip(
+                    label: Text(tag.trim(), style: const TextStyle(fontSize: 10)),
+                    backgroundColor: FlownetColors.electricBlue.withValues(alpha: 0.2),
+                    labelStyle: const TextStyle(color: FlownetColors.electricBlue),
+                  ),).toList(),
+                            ),
+                          ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+              icon: const Icon(Icons.visibility, color: FlownetColors.electricBlue),
+              onPressed: () => _previewDocument(document),
+              tooltip: 'Preview',
+            ),
+            IconButton(
+              icon: const Icon(Icons.download, color: FlownetColors.electricBlue),
+              onPressed: () => _downloadDocument(document),
+                          tooltip: 'Download',
+                        ),
+                        IconButton(
+              icon: const Icon(Icons.delete, color: FlownetColors.crimsonRed),
+              onPressed: () => _deleteDocument(document),
+                          tooltip: 'Delete',
+                        ),
+                      ],
+                    ),
+                    isThreeLine: true,
       ),
     );
   }
@@ -280,6 +647,11 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
       case 'doc':
       case 'docx':
         return FlownetColors.amberOrange;
+      case 'xlsx':
+      case 'xls':
+        return FlownetColors.emeraldGreen;
+      case 'txt':
+        return FlownetColors.slate;
       default:
         return FlownetColors.slate;
     }
@@ -296,149 +668,21 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  void _downloadFile(String id) {
+  void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Download started'),
-        backgroundColor: FlownetColors.electricBlue,
+      SnackBar(
+        content: Text(message),
+        backgroundColor: FlownetColors.emeraldGreen,
       ),
     );
   }
 
-  Future<void> _deleteFile(String id) async {
-    try {
-      // Use actual API call to delete file
-      final success = await ApiService.deleteFile(id);
-      
-      if (success) {
-        // Remove from local list if API call succeeded
-        setState(() {
-          _files.removeWhere((file) => file.id == id);
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('File deleted successfully'),
-            backgroundColor: FlownetColors.emeraldGreen,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to delete file'),
-            backgroundColor: FlownetColors.crimsonRed,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error deleting file: $e'),
-          backgroundColor: FlownetColors.crimsonRed,
-        ),
-      );
-    }
-  }
-
-  Future<void> _uploadFile() async {
-    // Handle web platform where file_picker may not work properly
-    if (kIsWeb) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('File upload is not supported in web browser. Please use the desktop app for file uploads.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    
-    try {
-      // Open file picker to select files
-      final FilePickerResult? result = await FilePicker.platform.pickFiles(
-        allowMultiple: true,
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'json', 'sql', 'jpg', 'jpeg', 'png', 'gif'],
-      );
-
-      if (result != null && result.files.isNotEmpty) {
-        // Show loading dialog
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            backgroundColor: FlownetColors.graphiteGray,
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: FlownetColors.electricBlue),
-                SizedBox(height: 16),
-                Text('Uploading files...', style: TextStyle(color: FlownetColors.pureWhite)),
-              ],
-            ),
-          ),
-        );
-
-        // Upload each selected file
-        int successfulUploads = 0;
-        for (final file in result.files) {
-          try {
-            final uploadResult = await ApiService.uploadFile(
-              projectId: 'default-project-id',
-              fileName: file.name,
-              fileType: file.extension ?? 'document',
-              description: 'Uploaded via file picker',
-              filePath: file.path ?? '',
-              fileBytes: file.bytes,
-            );
-
-            if (uploadResult != null) {
-              successfulUploads++;
-            }
-          } catch (e) {
-            debugPrint('Failed to upload file \${file.name}: \$e');
-          }
-        }
-
-        // Close loading dialog
-        Navigator.of(context).pop();
-
-        // Show result message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              successfulUploads > 0
-                  ? 'Successfully uploaded \$successfulUploads file(s)'
-                  : 'No files were uploaded',
-            ),
-            backgroundColor: successfulUploads > 0
-                ? FlownetColors.emeraldGreen
-                : FlownetColors.amberOrange,
-          ),
-        );
-
-        // Reload files list if any upload was successful
-        if (successfulUploads > 0) {
-          _loadFiles();
-        }
-      } else {
-        // User canceled file selection
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('File selection canceled'),
-            backgroundColor: FlownetColors.slate,
-          ),
-        );
-      }
-    } catch (e) {
-      // Close any open dialogs
-      Navigator.of(context).pop();
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error selecting files: \$e'),
-          backgroundColor: FlownetColors.crimsonRed,
-        ),
-      );
-    }
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: FlownetColors.crimsonRed,
+      ),
+    );
   }
 }

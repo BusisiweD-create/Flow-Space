@@ -40,15 +40,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null, // All users can access notifications
       ),
       const _NavItem(
-        label: 'Notification Center',
-        icon: Icons.notification_important_outlined,
-        route: '/notification-center',
-        requiredPermission: null, // All users can access notification center
-      ),
-      const _NavItem(
         label: 'Approvals',
         icon: Icons.check_box_outlined,
         route: '/approvals',
+        requiredPermission: 'approve_deliverable',
+      ),
+      const _NavItem(
+        label: 'Approval Requests',
+        icon: Icons.assignment_outlined,
+        route: '/approval-requests',
         requiredPermission: 'approve_deliverable',
       ),
       const _NavItem(

@@ -1,0 +1,20 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Flow-Space API",
+    "version": "1.0.0",
+    "description": "API specifications for Flow-Space project management system"
+  },
+  "paths": {
+    "/api/v1/projects": {
+      "get": {
+        "summary": "Get all projects",
+        "responses": {
+          "200": {
+            "description": "List of projects"
+          }
+        }
+      }
+    }
+  }
+}

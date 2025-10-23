@@ -206,7 +206,7 @@ class AuthService {
       case '/approvals':
         return canApproveDeliverable() || isDeliveryLead;
       case '/repository':
-        return isDeliveryLead || isSystemAdmin;
+        return isDeliveryLead || isSystemAdmin || isTeamMember || isClientReviewer;
       default:
         return true; // Allow access to other routes by default
     }

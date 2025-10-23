@@ -8,6 +8,9 @@ class RepositoryFile {
   final String description;
   final String uploader;
   final double sizeInMB; // in MB
+  final String? filePath;
+  final String? tags;
+  final String? uploaderName;
 
   const RepositoryFile({
     required this.id,
@@ -19,6 +22,9 @@ class RepositoryFile {
     required this.description,
     required this.uploader,
     required this.sizeInMB,
+    this.filePath,
+    this.tags,
+    this.uploaderName,
   });
 
   RepositoryFile copyWith({
@@ -31,6 +37,9 @@ class RepositoryFile {
     String? description,
     String? uploader,
     double? sizeInMB,
+    String? filePath,
+    String? tags,
+    String? uploaderName,
   }) {
     return RepositoryFile(
       id: id ?? this.id,
@@ -42,6 +51,9 @@ class RepositoryFile {
       description: description ?? this.description,
       uploader: uploader ?? this.uploader,
       sizeInMB: sizeInMB ?? this.sizeInMB,
+      filePath: filePath ?? this.filePath,
+      tags: tags ?? this.tags,
+      uploaderName: uploaderName ?? this.uploaderName,
     );
   }
 
@@ -56,6 +68,9 @@ class RepositoryFile {
       'description': description,
       'uploader': uploader,
       'sizeInMB': sizeInMB,
+      'filePath': filePath,
+      'tags': tags,
+      'uploaderName': uploaderName,
     };
   }
 
@@ -63,13 +78,26 @@ class RepositoryFile {
     return RepositoryFile(
       id: json['id'],
       name: json['name'],
-      fileType: json['fileType'],
-      uploadDate: DateTime.parse(json['uploadDate']),
-      uploadedBy: json['uploadedBy'],
-      size: json['size'],
-      description: json['description'],
+      fileType: json['file_type'] ?? json['fileType'],
+      uploadDate: DateTime.parse(json['uploaded_at'] ?? json['uploadDate']),
+      uploadedBy: json['uploaded_by'] ?? json['uploadedBy'],
+      size: json['file_size']?.toString() ?? json['size'],
+      description: json['description'] ?? '',
       uploader: json['uploader'] ?? '',
-      sizeInMB: json['sizeInMB']?.toDouble() ?? 0.0,
+      sizeInMB: _parseDouble(json['size_in_mb']) ?? _parseDouble(json['sizeInMB']) ?? 0.0,
+      filePath: json['file_path'],
+      tags: json['tags'],
+      uploaderName: json['uploader_name'],
     );
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value);
+    }
+    return null;
   }
 }

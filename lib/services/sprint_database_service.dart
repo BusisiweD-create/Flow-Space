@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
 class SprintDatabaseService {
   static const String _baseUrl = 'http://localhost:3001/api/v1';
+  final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   
   // API Client for making HTTP requests
@@ -87,6 +89,25 @@ class SprintDatabaseService {
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
           debugPrint('✅ Sprint "$name" created successfully');
+          
+          // Send notification for sprint creation
+          try {
+            final token = _authService.accessToken;
+            if (token != null) {
+              _notificationService.setAuthToken(token);
+              final user = _authService.currentUser;
+              final userName = user?.name ?? 'Unknown User';
+              
+              await _notificationService.notifySprintCreated(
+                sprintName: name,
+                projectName: 'Current Project', // You might want to pass project name
+                createdBy: userName,
+              );
+            }
+          } catch (e) {
+            debugPrint('❌ Error sending sprint creation notification: $e');
+          }
+          
           return data['data'];
         }
       }
@@ -402,6 +423,8 @@ class SprintDatabaseService {
   Future<bool> updateSprintStatus({
     required String sprintId,
     required String status,
+    String? oldStatus,
+    String? sprintName,
   }) async {
     try {
       final body = {'status': status};
@@ -416,6 +439,28 @@ class SprintDatabaseService {
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
           debugPrint('✅ Sprint $sprintId status updated to $status');
+          
+          // Send notification for sprint status change
+          if (oldStatus != null && sprintName != null) {
+            try {
+              final token = _authService.accessToken;
+              if (token != null) {
+                _notificationService.setAuthToken(token);
+                final user = _authService.currentUser;
+                final userName = user?.name ?? 'Unknown User';
+                
+                await _notificationService.notifySprintStatusChange(
+                  sprintName: sprintName,
+                  oldStatus: oldStatus,
+                  newStatus: status,
+                  changedBy: userName,
+                );
+              }
+            } catch (e) {
+              debugPrint('❌ Error sending sprint status notification: $e');
+            }
+          }
+          
           return true;
         }
       }

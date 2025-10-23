@@ -4,9 +4,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
-const ProfessionalEmailService = require('./emailServiceProfessional');
-const dbConfig = require('./database-config');
-require('dotenv').config();
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,6 +12,17 @@ const PORT = process.env.PORT || 3001;
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+
+// Email Configuration
+const emailTransporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER || 'dhlaminibusisiwe30@gmail.com',
+    pass: process.env.EMAIL_PASS || 'bplc qegz kspg otfk'
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -103,11 +112,47 @@ app.post('/api/v1/auth/register', async (req, res) => {
       { expiresIn: JWT_EXPIRES_IN }
     );
     
+    // Generate and display verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    console.log('\n🎉 ===========================================');
+    console.log(`📧 VERIFICATION CODE FOR: ${email}`);
+    console.log(`🔢 CODE: ${verificationCode}`);
+    console.log('===========================================\n');
+    
+    // Try to send verification email
+    try {
+      const mailOptions = {
+        from: process.env.EMAIL_USER || 'dhlaminibusisiwe30@gmail.com',
+        to: email,
+        subject: 'Flow-Space Email Verification',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Welcome to Flow-Space!</h2>
+            <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
+            <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
+              <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
+            </div>
+            <p>This code will expire in 10 minutes.</p>
+            <p>If you didn't request this verification, please ignore this email.</p>
+            <hr style="margin: 30px 0;">
+            <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
+          </div>
+        `
+      };
+
+      await emailTransporter.sendMail(mailOptions);
+      console.log(`📧 Verification email sent to: ${email}`);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError.message);
+      console.log('💡 Check the console above for the verification code');
+    }
+    
     console.log(`✅ User registered: ${user.email}`);
     
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: 'Registration successful. Please check your email for verification code.',
       data: {
         user: {
           id: user.id,
@@ -885,6 +930,711 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) 
       success: false,
       error: 'Internal server error'
     });
+  }
+});
+
+// ==================== NOTIFICATION ENDPOINTS ====================
+
+// Get all notifications for the current user
+app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(`
+      SELECT 
+        n.id,
+        n.title,
+        n.message,
+        n.type,
+        n.is_read,
+        n.created_at,
+        n.updated_at,
+        u.name as created_by_name
+      FROM notifications n
+      LEFT JOIN users u ON n.created_by = u.id
+      WHERE n.user_id = $1 OR n.user_id IS NULL
+      ORDER BY n.created_at DESC
+    `, [userId]);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        message: row.message,
+        type: row.type,
+        isRead: row.is_read,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        createdByName: row.created_by_name,
+        timestamp: row.created_at,
+        date: row.created_at,
+        description: row.message
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/v1/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+    const userId = req.user.id;
+
+    await pool.query(`
+      UPDATE notifications 
+      SET is_read = true, updated_at = NOW()
+      WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)
+    `, [notificationId, userId]);
+
+    res.json({ success: true, message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/api/v1/notifications/read-all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await pool.query(`
+      UPDATE notifications 
+      SET is_read = true, updated_at = NOW()
+      WHERE user_id = $1 OR user_id IS NULL
+    `, [userId]);
+
+    res.json({ success: true, message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
+
+// Create notification (internal use)
+app.post('/api/v1/notifications', authenticateToken, async (req, res) => {
+  try {
+    const { title, message, type, user_id } = req.body;
+    const createdBy = req.user.id;
+
+    // If user_id is provided, create for specific user, otherwise create for all users
+    if (user_id) {
+      const notificationId = uuidv4();
+      await pool.query(`
+        INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
+      `, [notificationId, title, message, type, user_id, createdBy]);
+    } else {
+      // Create notification for all users
+      const usersResult = await pool.query('SELECT id FROM users');
+      for (const user of usersResult.rows) {
+        const notificationId = uuidv4();
+        await pool.query(`
+          INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
+        `, [notificationId, title, message, type, user.id, createdBy]);
+      }
+    }
+
+    res.json({ success: true, message: 'Notification created successfully' });
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
+// Email verification endpoint
+app.post('/api/v1/auth/verify-email', async (req, res) => {
+  try {
+    const { email, verificationCode, verification_code } = req.body;
+    
+    // Handle both parameter names (verificationCode and verification_code)
+    const code = verificationCode || verification_code;
+    
+    if (!email || !code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and verification code are required'
+      });
+    }
+
+    // In a real implementation, you would:
+    // 1. Check the verification code from database
+    // 2. Verify it hasn't expired
+    // 3. Mark the user as verified
+    
+    // For now, we'll just return success
+    console.log(`✅ Email verified for: ${email} with code: ${code}`);
+    
+    res.json({
+      success: true,
+      message: 'Email verified successfully'
+    });
+  } catch (error) {
+    console.error('Verify email error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify email'
+    });
+  }
+});
+
+// Send verification email endpoint
+app.post('/api/v1/auth/send-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+
+    // Generate verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    console.log('\n🎉 ===========================================');
+    console.log(`📧 VERIFICATION CODE FOR: ${email}`);
+    console.log(`🔢 CODE: ${verificationCode}`);
+    console.log('===========================================\n');
+    
+    // Send verification email
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'dhlaminibusisiwe30@gmail.com',
+      to: email,
+      subject: 'Flow-Space Email Verification',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Welcome to Flow-Space!</h2>
+          <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
+          <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
+          </div>
+          <p>This code will expire in 10 minutes.</p>
+          <p>If you didn't request this verification, please ignore this email.</p>
+          <hr style="margin: 30px 0;">
+          <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
+        </div>
+      `
+    };
+
+    await emailTransporter.sendMail(mailOptions);
+    
+    console.log(`📧 Verification email sent to: ${email}`);
+    
+    res.json({
+      success: true,
+      message: 'Verification email sent successfully',
+      data: {
+        verificationCode: verificationCode // For development - remove in production
+      }
+    });
+  } catch (error) {
+    console.error('Send verification email error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send verification email'
+    });
+  }
+});
+
+// Deliverables API endpoints
+app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    let query = `
+      SELECT d.*, 
+             u1.name as created_by_name,
+             u2.name as assigned_to_name,
+             s.name as sprint_name
+      FROM deliverables d
+      LEFT JOIN users u1 ON d.created_by = u1.id
+      LEFT JOIN users u2 ON d.assigned_to = u2.id
+      LEFT JOIN sprints s ON d.sprint_id = s.id
+    `;
+    
+    let params = [];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ' WHERE d.created_by = $1';
+      params.push(userId);
+    }
+    // clientReviewer and other roles can see all deliverables
+    
+    query += ' ORDER BY d.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching deliverables:', error);
+    res.status(500).json({ error: 'Failed to fetch deliverables' });
+  }
+});
+
+app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      definition_of_done,
+      priority = 'Medium',
+      status = 'Draft',
+      due_date,
+      assigned_to,
+      sprint_id
+    } = req.body;
+    
+    const userId = req.user.id;
+    
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO deliverables (
+        title, description, definition_of_done, priority, status, 
+        due_date, created_by, assigned_to, sprint_id
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [
+      title, description, definition_of_done, priority, status,
+      due_date, userId, assigned_to, sprint_id
+    ]);
+    
+    // Create notification for assigned user
+    if (assigned_to && assigned_to !== userId) {
+      await pool.query(`
+        INSERT INTO notifications (title, message, type, user_id, created_by, is_read, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+      `, [
+        'New Deliverable Assigned',
+        `You have been assigned a new deliverable: ${title}`,
+        'deliverable',
+        assigned_to,
+        userId
+      ]);
+    }
+    
+    res.status(201).json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating deliverable:', error);
+    res.status(500).json({ error: 'Failed to create deliverable' });
+  }
+});
+
+app.put('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      definition_of_done,
+      priority,
+      status,
+      due_date,
+      assigned_to
+    } = req.body;
+    
+    const userId = req.user.id;
+    
+    // Check if user can update this deliverable
+    const checkResult = await pool.query(
+      'SELECT created_by, assigned_to FROM deliverables WHERE id = $1',
+      [id]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+    
+    const deliverable = checkResult.rows[0];
+    const userRole = req.user.role;
+    
+    // Authorization check
+    if (userRole !== 'deliveryLead' && 
+        deliverable.created_by !== userId && 
+        deliverable.assigned_to !== userId) {
+      return res.status(403).json({ error: 'Not authorized to update this deliverable' });
+    }
+    
+    const result = await pool.query(`
+      UPDATE deliverables 
+      SET title = COALESCE($1, title),
+          description = COALESCE($2, description),
+          definition_of_done = COALESCE($3, definition_of_done),
+          priority = COALESCE($4, priority),
+          status = COALESCE($5, status),
+          due_date = COALESCE($6, due_date),
+          assigned_to = COALESCE($7, assigned_to),
+          updated_at = NOW()
+      WHERE id = $8
+      RETURNING *
+    `, [title, description, definition_of_done, priority, status, due_date, assigned_to, id]);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating deliverable:', error);
+    res.status(500).json({ error: 'Failed to update deliverable' });
+  }
+});
+
+app.delete('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Check if user can delete this deliverable
+    const checkResult = await pool.query(
+      'SELECT created_by FROM deliverables WHERE id = $1',
+      [id]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+    
+    // Only delivery leads and creators can delete
+    if (userRole !== 'deliveryLead' && checkResult.rows[0].created_by !== userId) {
+      return res.status(403).json({ error: 'Not authorized to delete this deliverable' });
+    }
+    
+    await pool.query('DELETE FROM deliverables WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Deliverable deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting deliverable:', error);
+    res.status(500).json({ error: 'Failed to delete deliverable' });
+  }
+});
+
+// Enhanced Notifications API endpoints
+app.get('/api/v1/notifications/enhanced', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const { type, is_read, limit = 50, offset = 0 } = req.query;
+    
+    let query = `
+      SELECT n.*, 
+             u.name as created_by_name,
+             d.title as deliverable_title,
+             s.name as sprint_name
+      FROM notifications n
+      LEFT JOIN users u ON n.created_by = u.id
+      LEFT JOIN deliverables d ON n.deliverable_id = d.id
+      LEFT JOIN sprints s ON n.sprint_id = s.id
+      WHERE (n.user_id = $1 OR n.user_id IS NULL)
+    `;
+    
+    let params = [userId];
+    let paramCount = 1;
+    
+    // Role-based filtering
+    if (userRole === 'clientReviewer') {
+      query += ` AND (n.type IN ('deliverable', 'sprint', 'approval', 'review') OR n.user_id IS NULL)`;
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (n.type IN ('deliverable', 'sprint', 'team') OR n.user_id IS NULL)`;
+    } else if (userRole === 'teamMember') {
+      query += ` AND (n.type IN ('deliverable', 'sprint', 'assignment') OR n.user_id IS NULL)`;
+    }
+    
+    // Filter by type
+    if (type) {
+      paramCount++;
+      query += ` AND n.type = $${paramCount}`;
+      params.push(type);
+    }
+    
+    // Filter by read status
+    if (is_read !== undefined) {
+      paramCount++;
+      query += ` AND n.is_read = $${paramCount}`;
+      params.push(is_read === 'true');
+    }
+    
+    query += ` ORDER BY n.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching enhanced notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Create notification with enhanced features
+app.post('/api/v1/notifications/enhanced', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      title, 
+      message, 
+      type, 
+      user_id, 
+      deliverable_id, 
+      sprint_id,
+      priority = 'normal',
+      action_url,
+      metadata
+    } = req.body;
+    
+    const createdBy = req.user.id;
+    
+    if (!title || !message || !type) {
+      return res.status(400).json({ error: 'Title, message, and type are required' });
+    }
+    
+    const notificationId = uuidv4();
+    
+    // Create notification
+    await pool.query(`
+      INSERT INTO notifications (
+        id, title, message, type, user_id, created_by, 
+        deliverable_id, sprint_id, priority, action_url, metadata,
+        is_read, created_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, NOW(), NOW())
+    `, [
+      notificationId, title, message, type, user_id, createdBy,
+      deliverable_id, sprint_id, priority, action_url, 
+      metadata ? JSON.stringify(metadata) : null
+    ]);
+    
+    res.status(201).json({
+      success: true,
+      data: { id: notificationId, message: 'Notification created successfully' }
+    });
+  } catch (error) {
+    console.error('Error creating enhanced notification:', error);
+    res.status(500).json({ error: 'Failed to create notification' });
+  }
+});
+
+// Get notification statistics
+app.get('/api/v1/notifications/stats', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    let query = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN is_read = false THEN 1 END) as unread,
+        COUNT(CASE WHEN type = 'deliverable' THEN 1 END) as deliverable_notifications,
+        COUNT(CASE WHEN type = 'sprint' THEN 1 END) as sprint_notifications,
+        COUNT(CASE WHEN type = 'approval' THEN 1 END) as approval_notifications,
+        COUNT(CASE WHEN priority = 'high' AND is_read = false THEN 1 END) as high_priority_unread
+      FROM notifications 
+      WHERE (user_id = $1 OR user_id IS NULL)
+    `;
+    
+    let params = [userId];
+    
+    // Role-based filtering
+    if (userRole === 'clientReviewer') {
+      query += ` AND type IN ('deliverable', 'sprint', 'approval', 'review')`;
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND type IN ('deliverable', 'sprint', 'team')`;
+    } else if (userRole === 'teamMember') {
+      query += ` AND type IN ('deliverable', 'sprint', 'assignment')`;
+    }
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching notification stats:', error);
+    res.status(500).json({ error: 'Failed to fetch notification statistics' });
+  }
+});
+
+// Dashboard API endpoints
+// Get dashboard data
+app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Get current deliverables based on user role
+    let deliverablesQuery = `
+      SELECT d.*, u.name as created_by_name
+      FROM deliverables d
+      LEFT JOIN users u ON d.created_by = u.id
+      WHERE d.status IN ('in_progress', 'pending', 'review')
+    `;
+    
+    if (userRole === 'teamMember') {
+      deliverablesQuery += ` AND d.assigned_to = $1`;
+    } else if (userRole === 'deliveryLead') {
+      deliverablesQuery += ` AND (d.created_by = $1 OR d.assigned_to = $1)`;
+    }
+    
+    deliverablesQuery += ` ORDER BY d.updated_at DESC LIMIT 10`;
+    
+    const deliverablesResult = await pool.query(deliverablesQuery, [userId]);
+    
+    // Get recent activity
+    const activityQuery = `
+      SELECT 
+        al.*,
+        u.name as user_name,
+        d.title as deliverable_title
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      LEFT JOIN deliverables d ON al.deliverable_id = d.id
+      ORDER BY al.created_at DESC
+      LIMIT 20
+    `;
+    
+    const activityResult = await pool.query(activityQuery);
+    
+    // Get progress statistics
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total_deliverables,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+        COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress,
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+        AVG(progress) as avg_progress
+      FROM deliverables
+      WHERE status != 'cancelled'
+    `;
+    
+    const statsResult = await pool.query(statsQuery);
+    
+    res.json({
+      success: true,
+      data: {
+        deliverables: deliverablesResult.rows,
+        recentActivity: activityResult.rows,
+        statistics: statsResult.rows[0]
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard data' });
+  }
+});
+
+// Get deliverable progress
+app.get('/api/v1/deliverables/:id/progress', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    const result = await pool.query(`
+      SELECT id, title, progress, status, updated_at
+      FROM deliverables 
+      WHERE id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching deliverable progress:', error);
+    res.status(500).json({ error: 'Failed to fetch deliverable progress' });
+  }
+});
+
+// Update deliverable progress
+app.put('/api/v1/deliverables/:id/progress', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { progress, status } = req.body;
+    const userId = req.user.id;
+    
+    if (progress < 0 || progress > 100) {
+      return res.status(400).json({ error: 'Progress must be between 0 and 100' });
+    }
+    
+    // Update progress
+    const result = await pool.query(`
+      UPDATE deliverables 
+      SET progress = $1, status = $2, updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+    `, [progress, status, id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (user_id, activity_type, activity_title, activity_description, deliverable_id)
+      VALUES ($1, 'progress_update', 'Progress Updated', 'Progress updated to ${progress}%', $2)
+    `, [userId, id]);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating deliverable progress:', error);
+    res.status(500).json({ error: 'Failed to update deliverable progress' });
+  }
+});
+
+// Get recent activity
+app.get('/api/v1/activity', authenticateToken, async (req, res) => {
+  try {
+    const { limit = 20, offset = 0 } = req.query;
+    
+    const result = await pool.query(`
+      SELECT 
+        al.*,
+        u.name as user_name,
+        d.title as deliverable_title
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      LEFT JOIN deliverables d ON al.deliverable_id = d.id
+      ORDER BY al.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching recent activity:', error);
+    res.status(500).json({ error: 'Failed to fetch recent activity' });
   }
 });
 

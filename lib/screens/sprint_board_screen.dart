@@ -571,7 +571,13 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
         title: Text('Sprint Board - ${widget.sprintName}'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/sprint-console');
+            }
+          },
         ),
         actions: [
           IconButton(

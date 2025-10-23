@@ -340,7 +340,7 @@ class BackendApiService {
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
     return await _apiClient.post('/auth/verify-email', body: {
       'email': email,
-      'verification_code': verificationCode,
+      'verificationCode': verificationCode,
     },);
   }
 

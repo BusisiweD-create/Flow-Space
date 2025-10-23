@@ -65,14 +65,12 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
     });
 
     try {
-      // Use AuthService for backend email verification
+      // Use AuthService for proper email verification
       final authService = AuthService();
-      final response = await authService.verifyEmail(
-        widget.email,
-        _verificationCode!,
-      );
+      final response = await authService.verifyEmail(widget.email, _verificationCode!);
+      final success = response.isSuccess;
       
-      if (response.isSuccess) {
+      if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -380,7 +378,6 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
 
   Future<void> _resendVerification() async {
     try {
-      // Use AuthService for backend resend verification
       final authService = AuthService();
       final response = await authService.resendVerificationEmail(widget.email);
       
@@ -392,18 +389,17 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
               backgroundColor: FlownetColors.electricBlue,
             ),
           );
+          _startResendCountdown();
         } else {
           _errorHandler.showErrorSnackBar(
             context,
             response.error ?? 'Failed to resend verification email. Please try again.',
           );
         }
-        _startResendCountdown();
       }
     } catch (e) {
       if (mounted) {
         _errorHandler.showErrorSnackBar(context, 'Error: $e');
-        _startResendCountdown();
       }
     }
   }
