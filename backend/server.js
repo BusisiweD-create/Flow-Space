@@ -1,3 +1,6 @@
+// Load environment variables
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -5,6 +8,10 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,14 +26,40 @@ const emailTransporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER || 'dhlaminibusisiwe30@gmail.com',
-    pass: process.env.EMAIL_PASS || 'bplc qegz kspg otfk'
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Allow all file types for now
+    cb(null, true);
+  }
+});
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -123,7 +156,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     // Try to send verification email
     try {
       const mailOptions = {
-        from: process.env.EMAIL_USER || 'dhlaminibusisiwe30@gmail.com',
+        from: process.env.EMAIL_USER,
         to: email,
         subject: 'Flow-Space Email Verification',
         html: `
@@ -1635,6 +1668,542 @@ app.get('/api/v1/activity', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching recent activity:', error);
     res.status(500).json({ error: 'Failed to fetch recent activity' });
+  }
+});
+
+// ==================== DOCUMENT API ENDPOINTS ====================
+
+// Get all documents with search and filtering
+app.get('/api/v1/documents', authenticateToken, async (req, res) => {
+  try {
+    const { search, fileType, uploader, projectId } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    let query = `
+      SELECT d.*, 
+             u.name as uploader_name,
+             p.name as project_name
+      FROM repository_files d
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      LEFT JOIN projects p ON d.project_id = p.id
+      WHERE d.is_active = true
+    `;
+    
+    let params = [];
+    let paramCount = 0;
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      paramCount++;
+      query += ` AND (d.uploaded_by = $${paramCount} OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $${paramCount}
+      ))`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      paramCount++;
+      query += ` AND (d.uploaded_by = $${paramCount} OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $${paramCount} AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    // clientReviewer and other roles can see all documents
+    
+    // Search filter
+    if (search && search.trim()) {
+      paramCount++;
+      query += ` AND (d.file_name ILIKE $${paramCount} OR d.description ILIKE $${paramCount} OR d.tags ILIKE $${paramCount})`;
+      params.push(`%${search.trim()}%`);
+    }
+    
+    // File type filter
+    if (fileType && fileType !== 'all') {
+      paramCount++;
+      query += ` AND d.file_type = $${paramCount}`;
+      params.push(fileType);
+    }
+    
+    // Uploader filter
+    if (uploader && uploader.trim()) {
+      paramCount++;
+      query += ` AND u.name ILIKE $${paramCount}`;
+      params.push(`%${uploader.trim()}%`);
+    }
+    
+    // Project filter
+    if (projectId && projectId.trim()) {
+      paramCount++;
+      query += ` AND d.project_id = $${paramCount}`;
+      params.push(projectId);
+    }
+    
+    query += ` ORDER BY d.uploaded_at DESC`;
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        id: row.id,
+        name: row.file_name,
+        fileType: row.file_type,
+        uploadDate: row.uploaded_at,
+        uploadedBy: row.uploaded_by,
+        uploaderName: row.uploader_name,
+        size: row.file_size,
+        description: row.description || '',
+        uploader: row.uploader_name,
+        sizeInMB: row.file_size ? (row.file_size / (1024 * 1024)).toFixed(2) : '0',
+        filePath: row.file_path,
+        tags: row.tags,
+        projectName: row.project_name,
+        contentHash: row.content_hash
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch documents' 
+    });
+  }
+});
+
+// Get single document details
+app.get('/api/v1/documents/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    let query = `
+      SELECT d.*, 
+             u.name as uploader_name,
+             p.name as project_name
+      FROM repository_files d
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      LEFT JOIN projects p ON d.project_id = p.id
+      WHERE d.id = $1 AND d.is_active = true
+    `;
+    
+    let params = [id];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2
+      ))`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2 AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Document not found' 
+      });
+    }
+    
+    const document = result.rows[0];
+    
+    res.json({
+      success: true,
+      data: {
+        id: document.id,
+        name: document.file_name,
+        fileType: document.file_type,
+        uploadDate: document.uploaded_at,
+        uploadedBy: document.uploaded_by,
+        uploaderName: document.uploader_name,
+        size: document.file_size,
+        description: document.description || '',
+        uploader: document.uploader_name,
+        sizeInMB: document.file_size ? (document.file_size / (1024 * 1024)).toFixed(2) : '0',
+        filePath: document.file_path,
+        tags: document.tags,
+        projectName: document.project_name,
+        contentHash: document.content_hash
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching document:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch document' 
+    });
+  }
+});
+
+// Upload document
+app.post('/api/v1/documents', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    const { description, tags, projectId } = req.body;
+    const userId = req.user.id;
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'No file uploaded' 
+      });
+    }
+    
+    const file = req.file;
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    const fileType = fileExtension.substring(1); // Remove the dot
+    
+    // Calculate file hash
+    const fileBuffer = fs.readFileSync(file.path);
+    const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    
+    // Get file size
+    const stats = fs.statSync(file.path);
+    const fileSize = stats.size;
+    
+    // Insert document record
+    const result = await pool.query(`
+      INSERT INTO repository_files (
+        project_id, file_name, file_path, file_type, file_size, 
+        content_hash, uploaded_by, description, tags, 
+        uploaded_at, last_modified, is_active
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      projectId || null,
+      file.originalname,
+      file.path,
+      fileType,
+      fileSize,
+      hash,
+      userId,
+      description || '',
+      tags || '',
+      new Date().toISOString(),
+      new Date().toISOString(),
+      true
+    ]);
+    
+    const document = result.rows[0];
+    
+    // Create notification for project members
+    if (projectId) {
+      const membersResult = await pool.query(`
+        SELECT user_id FROM project_members WHERE project_id = $1 AND user_id != $2
+      `, [projectId, userId]);
+      
+      for (const member of membersResult.rows) {
+        await pool.query(`
+          INSERT INTO notifications (title, message, type, user_id, created_by, is_read, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+        `, [
+          'New Document Uploaded',
+          `A new document "${file.originalname}" has been uploaded to the project`,
+          'document',
+          member.user_id,
+          userId
+        ]);
+      }
+    }
+    
+    res.status(201).json({
+      success: true,
+      data: {
+        id: document.id,
+        name: document.file_name,
+        fileType: document.file_type,
+        uploadDate: document.uploaded_at,
+        uploadedBy: document.uploaded_by,
+        size: document.file_size,
+        description: document.description,
+        uploader: req.user.name,
+        sizeInMB: (document.file_size / (1024 * 1024)).toFixed(2),
+        filePath: document.file_path,
+        tags: document.tags,
+        contentHash: document.content_hash
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading document:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to upload document' 
+    });
+  }
+});
+
+// Download document
+app.get('/api/v1/documents/:id/download', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Get document details with authorization check
+    let query = `
+      SELECT d.*, u.name as uploader_name
+      FROM repository_files d
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      WHERE d.id = $1 AND d.is_active = true
+    `;
+    
+    let params = [id];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2
+      ))`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2 AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Document not found or access denied' 
+      });
+    }
+    
+    const document = result.rows[0];
+    
+    // Check if file exists
+    if (!fs.existsSync(document.file_path)) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'File not found on server' 
+      });
+    }
+    
+    // Set appropriate headers
+    res.setHeader('Content-Disposition', `attachment; filename="${document.file_name}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Length', document.file_size);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(document.file_path);
+    fileStream.pipe(res);
+    
+    // Log download activity
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'document_download', 'repository_file', $2, $3, NOW())
+    `, [userId, id, JSON.stringify({ fileName: document.file_name, fileSize: document.file_size })]);
+    
+  } catch (error) {
+    console.error('Error downloading document:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to download document' 
+    });
+  }
+});
+
+// Delete document
+app.delete('/api/v1/documents/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Check if user can delete this document
+    let query = `
+      SELECT d.*, u.name as uploader_name
+      FROM repository_files d
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      WHERE d.id = $1 AND d.is_active = true
+    `;
+    
+    let params = [id];
+    
+    // Role-based filtering - only uploader, delivery leads, or project managers can delete
+    if (userRole === 'teamMember') {
+      query += ` AND d.uploaded_by = $2`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2 AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Document not found or access denied' 
+      });
+    }
+    
+    const document = result.rows[0];
+    
+    // Soft delete - mark as inactive
+    await pool.query(`
+      UPDATE repository_files 
+      SET is_active = false, last_modified = NOW()
+      WHERE id = $1
+    `, [id]);
+    
+    // Log deletion activity
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'document_delete', 'repository_file', $2, $3, NOW())
+    `, [userId, id, JSON.stringify({ fileName: document.file_name, fileSize: document.file_size })]);
+    
+    res.json({
+      success: true,
+      message: 'Document deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting document:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to delete document' 
+    });
+  }
+});
+
+// Update document metadata
+app.put('/api/v1/documents/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description, tags } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Check if user can update this document
+    let query = `
+      SELECT d.* FROM repository_files d
+      WHERE d.id = $1 AND d.is_active = true
+    `;
+    
+    let params = [id];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND d.uploaded_by = $2`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2 AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Document not found or access denied' 
+      });
+    }
+    
+    // Update document metadata
+    await pool.query(`
+      UPDATE repository_files 
+      SET description = $1, tags = $2, last_modified = NOW()
+      WHERE id = $3
+    `, [description || '', tags || '', id]);
+    
+    res.json({
+      success: true,
+      message: 'Document updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating document:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update document' 
+    });
+  }
+});
+
+// Get document preview (for supported file types)
+app.get('/api/v1/documents/:id/preview', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Get document details with authorization check
+    let query = `
+      SELECT d.*, u.name as uploader_name
+      FROM repository_files d
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      WHERE d.id = $1 AND d.is_active = true
+    `;
+    
+    let params = [id];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2
+      ))`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2 AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Document not found or access denied' 
+      });
+    }
+    
+    const document = result.rows[0];
+    
+    // Check if file exists
+    if (!fs.existsSync(document.file_path)) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'File not found on server' 
+      });
+    }
+    
+    // For now, return file info for preview
+    // In a real implementation, you would generate thumbnails or extract text content
+    res.json({
+      success: true,
+      data: {
+        id: document.id,
+        name: document.file_name,
+        fileType: document.file_type,
+        size: document.file_size,
+        sizeInMB: (document.file_size / (1024 * 1024)).toFixed(2),
+        uploadDate: document.uploaded_at,
+        uploaderName: document.uploader_name,
+        description: document.description,
+        tags: document.tags,
+        previewAvailable: ['pdf', 'txt', 'md', 'json', 'xml'].includes(document.file_type.toLowerCase()),
+        downloadUrl: `/api/v1/documents/${id}/download`
+      }
+    });
+  } catch (error) {
+    console.error('Error getting document preview:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to get document preview' 
+    });
   }
 });
 
