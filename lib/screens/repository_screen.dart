@@ -8,6 +8,7 @@ import '../services/document_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/document_preview_widget.dart';
 
 class RepositoryScreen extends StatefulWidget {
   const RepositoryScreen({super.key});
@@ -231,6 +232,11 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   Future<void> _performWebUpload(PlatformFile pickedFile) async {
     Navigator.pop(context);
     
+    if (pickedFile.bytes == null) {
+      _showErrorSnackBar('Failed to read file. Please try again.');
+      return;
+    }
+    
     setState(() => _isLoading = true);
     
     try {
@@ -318,7 +324,13 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         final response = await _documentService.deleteDocument(document.id);
         
         if (response.isSuccess) {
+          // Remove from local list immediately
+          setState(() {
+            _documents.removeWhere((doc) => doc.id == document.id);
+            _filteredDocuments.removeWhere((doc) => doc.id == document.id);
+          });
           _showSuccessSnackBar('Document deleted successfully!');
+          // Reload to sync with server
           _loadDocuments();
         } else {
           _showErrorSnackBar('Failed to delete document: ${response.error}');
@@ -332,93 +344,14 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   Future<void> _previewDocument(RepositoryFile document) async {
-    try {
-      final response = await _documentService.getDocumentPreview(document.id);
-      
-      if (response.isSuccess) {
-        final previewData = response.data!;
-        _showPreviewDialog(document, previewData);
-      } else {
-        _showErrorSnackBar('Preview not available: ${response.error}');
-      }
-    } catch (e) {
-      _showErrorSnackBar('Error getting preview: $e');
-    }
-  }
-
-  void _showPreviewDialog(RepositoryFile document, Map<String, dynamic> previewData) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.graphiteGray,
-        title: Text('Preview: ${document.name}', 
-                   style: const TextStyle(color: FlownetColors.pureWhite),),
-        content: SizedBox(
-          width: 600,
-          height: 400,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('File Type: ${document.fileType.toUpperCase()}', 
-                   style: const TextStyle(color: FlownetColors.coolGray),),
-              Text('Size: ${_formatFileSize(document.sizeInMB)}', 
-                   style: const TextStyle(color: FlownetColors.coolGray),),
-              if (document.description.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text('Description: ${document.description}', 
-                             style: const TextStyle(color: FlownetColors.coolGray),),
-                ),
-              const SizedBox(height: 16),
-              if (previewData['previewAvailable'] == true)
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: FlownetColors.charcoalBlack,
-                      border: Border.all(color: FlownetColors.slate),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        'Document content preview would appear here.\n\nFor ${document.fileType.toUpperCase()} files, you can download and open them with the appropriate application.',
-                        style: const TextStyle(color: FlownetColors.pureWhite),
-                      ),
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: FlownetColors.amberOrange.withValues(alpha: 0.1),
-                    border: Border.all(color: FlownetColors.amberOrange),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Preview not available for this file type.\nDownload the file to view its contents.',
-                    style: TextStyle(color: FlownetColors.amberOrange),
-                  ),
-                ),
-            ],
-          ),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: DocumentPreviewWidget(
+          document: document,
+          documentService: _documentService,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: FlownetColors.coolGray)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _downloadDocument(document);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.electricBlue),
-            child: const Text('Download', style: TextStyle(color: FlownetColors.pureWhite)),
-          ),
-        ],
       ),
     );
   }
@@ -428,7 +361,10 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
       _filteredDocuments = _documents.where((doc) {
         final matchesSearch = _searchQuery.isEmpty || 
             doc.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            doc.description.toLowerCase().contains(_searchQuery.toLowerCase());
+            doc.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            (doc.tags != null && doc.tags!.toLowerCase().contains(_searchQuery.toLowerCase())) ||
+            doc.uploaderName?.toLowerCase().contains(_searchQuery.toLowerCase()) == true ||
+            doc.uploader.toLowerCase().contains(_searchQuery.toLowerCase());
         
         final matchesFileType = _selectedFileType == 'all' || 
             doc.fileType.toLowerCase() == _selectedFileType.toLowerCase();

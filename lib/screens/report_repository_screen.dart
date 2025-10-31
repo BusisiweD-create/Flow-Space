@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import '../models/sign_off_report.dart';
+import '../models/repository_file.dart';
+import '../services/document_service.dart';
+import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/document_preview_widget.dart';
 
 class ReportRepositoryScreen extends ConsumerStatefulWidget {
   const ReportRepositoryScreen({super.key});
@@ -13,14 +19,35 @@ class ReportRepositoryScreen extends ConsumerStatefulWidget {
 
 class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen> {
   List<SignOffReport> _reports = [];
+  List<RepositoryFile> _reportDocuments = [];
   String _selectedFilter = 'all';
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  final DocumentService _documentService = DocumentService(AuthService());
 
   @override
   void initState() {
     super.initState();
     _loadReports();
+    _loadReportDocuments();
+  }
+
+  Future<void> _loadReportDocuments() async {
+    try {
+      final response = await _documentService.getDocuments(
+        fileType: 'pdf', // Focus on PDF reports
+        search: 'report', // Search for report-related documents
+      );
+      
+      if (response.isSuccess) {
+        setState(() {
+          _reportDocuments = (response.data!['documents'] as List).cast<RepositoryFile>();
+        });
+      }
+    } catch (e) {
+      // Handle error silently for now
+      // Error loading report documents: $e
+    }
   }
 
   void _loadReports() {
@@ -187,6 +214,135 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     );
   }
 
+  Future<void> _uploadReportDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx'],
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.first;
+        
+        if (kIsWeb) {
+          _showWebUploadDialog(pickedFile);
+        } else {
+          // Handle mobile/desktop upload
+          _showUploadDialog(pickedFile);
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error selecting file: $e');
+    }
+  }
+
+  void _showWebUploadDialog(PlatformFile pickedFile) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Upload Report Document', 
+                         style: TextStyle(color: FlownetColors.pureWhite),),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('File: ${pickedFile.name}',
+                 style: const TextStyle(color: FlownetColors.coolGray),),
+            const SizedBox(height: 16),
+            const TextField(
+              style: TextStyle(color: FlownetColors.pureWhite),
+              decoration: InputDecoration(
+                labelText: 'Description (optional)',
+                labelStyle: TextStyle(color: FlownetColors.coolGray),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: FlownetColors.coolGray),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: FlownetColors.crimsonRed),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => _performWebUpload(pickedFile),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Upload', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUploadDialog(PlatformFile pickedFile) {
+    // Similar implementation for mobile/desktop
+    _performWebUpload(pickedFile);
+  }
+
+  Future<void> _performWebUpload(PlatformFile pickedFile) async {
+    Navigator.pop(context);
+    
+    if (pickedFile.bytes == null) {
+      _showErrorSnackBar('Failed to read file. Please try again.');
+      return;
+    }
+    
+    try {
+      final response = await _documentService.uploadWebDocument(
+        fileBytes: pickedFile.bytes!,
+        fileName: pickedFile.name,
+        description: 'Report document: ${pickedFile.name}',
+        tags: 'report, document',
+      );
+      
+      if (response.isSuccess) {
+        _showSuccessSnackBar('Report document uploaded successfully!');
+        _loadReportDocuments();
+      } else {
+        _showErrorSnackBar('Upload failed: ${response.error}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Upload error: $e');
+    }
+  }
+
+  Future<void> _previewDocument(RepositoryFile document) async {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: DocumentPreviewWidget(
+          document: document,
+          documentService: _documentService,
+        ),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: FlownetColors.emeraldGreen,
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: FlownetColors.crimsonRed,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -254,27 +410,191 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             ),
           ),
 
-          // Reports List
+          // Reports and Documents Tabs
           Expanded(
-            child: _filteredReports.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No reports found',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _filteredReports.length,
-                    itemBuilder: (context, index) {
-                      final report = _filteredReports[index];
-                      return _buildReportCard(report);
-                    },
+            child: DefaultTabController(
+              length: 2,
+              child: Column(
+                children: [
+                  const TabBar(
+                    labelColor: FlownetColors.electricBlue,
+                    unselectedLabelColor: FlownetColors.coolGray,
+                    indicatorColor: FlownetColors.electricBlue,
+                    tabs: [
+                      Tab(text: 'Reports', icon: Icon(Icons.assignment)),
+                      Tab(text: 'Documents', icon: Icon(Icons.folder)),
+                    ],
                   ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        // Reports Tab
+                        _filteredReports.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No reports found',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: _filteredReports.length,
+                                itemBuilder: (context, index) {
+                                  final report = _filteredReports[index];
+                                  return _buildReportCard(report);
+                                },
+                              ),
+                        // Documents Tab
+                        _reportDocuments.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No report documents found',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: _reportDocuments.length,
+                                itemBuilder: (context, index) {
+                                  final document = _reportDocuments[index];
+                                  return _buildDocumentCard(document);
+                                },
+                              ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _uploadReportDocument,
+        backgroundColor: FlownetColors.crimsonRed,
+        child: const Icon(Icons.upload, color: FlownetColors.pureWhite),
+      ),
     );
+  }
+
+  Widget _buildDocumentCard(RepositoryFile document) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: FlownetColors.graphiteGray,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: _getFileTypeColor(document.fileType),
+          child: Text(
+            document.fileType.toUpperCase().substring(0, 1),
+            style: const TextStyle(
+              color: FlownetColors.pureWhite,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(
+          document.name,
+          style: const TextStyle(
+            color: FlownetColors.pureWhite,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Uploaded by: ${document.uploaderName ?? document.uploader}',
+              style: const TextStyle(color: FlownetColors.coolGray),
+            ),
+            Text(
+              'Size: ${_formatFileSize(document.sizeInMB.toString())} • ${_formatDate(document.uploadDate)}',
+              style: const TextStyle(color: FlownetColors.coolGray),
+            ),
+            if (document.description.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  document.description,
+                  style: const TextStyle(
+                    color: FlownetColors.coolGray,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            if (document.tags != null && document.tags!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Wrap(
+                  spacing: 4,
+                  children: document.tags!.split(',').map((tag) => Chip(
+                    label: Text(tag.trim(), style: const TextStyle(fontSize: 10)),
+                    backgroundColor: FlownetColors.electricBlue.withValues(alpha: 0.2),
+                    labelStyle: const TextStyle(color: FlownetColors.electricBlue),
+                  ),).toList(),
+                ),
+              ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.visibility, color: FlownetColors.electricBlue),
+              onPressed: () => _previewDocument(document),
+              tooltip: 'Preview',
+            ),
+            IconButton(
+              icon: const Icon(Icons.download, color: FlownetColors.electricBlue),
+              onPressed: () => _downloadDocument(document),
+              tooltip: 'Download',
+            ),
+          ],
+        ),
+        isThreeLine: true,
+      ),
+    );
+  }
+
+  Color _getFileTypeColor(String fileType) {
+    switch (fileType.toLowerCase()) {
+      case 'pdf':
+        return FlownetColors.crimsonRed;
+      case 'doc':
+      case 'docx':
+        return FlownetColors.amberOrange;
+      case 'xls':
+      case 'xlsx':
+        return FlownetColors.emeraldGreen;
+      case 'txt':
+        return FlownetColors.slate;
+      default:
+        return FlownetColors.electricBlue;
+    }
+  }
+
+  String _formatFileSize(String sizeInMB) {
+    final size = double.tryParse(sizeInMB) ?? 0;
+    if (size < 1) {
+      return '${(size * 1024).toStringAsFixed(0)} KB';
+    }
+    return '${size.toStringAsFixed(1)} MB';
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _downloadDocument(RepositoryFile document) async {
+    try {
+      final response = await _documentService.downloadDocument(document.id);
+      if (response.isSuccess) {
+        _showSuccessSnackBar('Document downloaded successfully!');
+      } else {
+        _showErrorSnackBar('Download failed: ${response.error}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Download error: $e');
+    }
   }
 
   Widget _buildFilterChip(String value, String label) {
@@ -412,10 +732,6 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         ),
       ],
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 
   @override

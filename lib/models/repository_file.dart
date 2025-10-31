@@ -76,12 +76,12 @@ class RepositoryFile {
 
   factory RepositoryFile.fromJson(Map<String, dynamic> json) {
     return RepositoryFile(
-      id: json['id'],
-      name: json['name'],
-      fileType: json['file_type'] ?? json['fileType'],
+      id: json['id']?.toString() ?? '',
+      name: json['name'] ?? '',
+      fileType: json['file_type'] ?? json['fileType'] ?? '',
       uploadDate: DateTime.parse(json['uploaded_at'] ?? json['uploadDate']),
-      uploadedBy: json['uploaded_by'] ?? json['uploadedBy'],
-      size: json['file_size']?.toString() ?? json['size'],
+      uploadedBy: json['uploaded_by']?.toString() ?? json['uploadedBy']?.toString() ?? '',
+      size: _parseSize(json['file_size'] ?? json['size']),
       description: json['description'] ?? '',
       uploader: json['uploader'] ?? '',
       sizeInMB: _parseDouble(json['size_in_mb']) ?? _parseDouble(json['sizeInMB']) ?? 0.0,
@@ -89,6 +89,14 @@ class RepositoryFile {
       tags: json['tags'],
       uploaderName: json['uploader_name'],
     );
+  }
+
+  static String _parseSize(dynamic value) {
+    if (value == null) return '0';
+    if (value is String) return value;
+    if (value is int) return value.toString();
+    if (value is double) return value.toStringAsFixed(0);
+    return value.toString();
   }
 
   static double? _parseDouble(dynamic value) {

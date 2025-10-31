@@ -21,15 +21,32 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-i
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 // Email Configuration
-const emailTransporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+let emailTransporter = null;
+
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  emailTransporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+  
+  // Test email configuration
+  emailTransporter.verify((error, success) => {
+    if (error) {
+      console.log('⚠️  Email configuration error:', error.message);
+      console.log('💡 Email functionality will be disabled until credentials are configured');
+    } else {
+      console.log('✅ Email server is ready to send messages');
+    }
+  });
+} else {
+  console.log('⚠️  Email credentials not configured - email functionality disabled');
+  console.log('💡 Set EMAIL_USER and EMAIL_PASS in .env file to enable email features');
+}
 
 // Middleware
 app.use(cors());
@@ -155,27 +172,32 @@ app.post('/api/v1/auth/register', async (req, res) => {
     
     // Try to send verification email
     try {
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Flow-Space Email Verification',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Welcome to Flow-Space!</h2>
-            <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
-            <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
-              <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
+      if (emailTransporter) {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: email,
+          subject: 'Flow-Space Email Verification',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #333;">Welcome to Flow-Space!</h2>
+              <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
+              <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
+                <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
+              </div>
+              <p>This code will expire in 10 minutes.</p>
+              <p>If you didn't request this verification, please ignore this email.</p>
+              <hr style="margin: 30px 0;">
+              <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
             </div>
-            <p>This code will expire in 10 minutes.</p>
-            <p>If you didn't request this verification, please ignore this email.</p>
-            <hr style="margin: 30px 0;">
-            <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
-          </div>
-        `
-      };
+          `
+        };
 
-      await emailTransporter.sendMail(mailOptions);
-      console.log(`📧 Verification email sent to: ${email}`);
+        await emailTransporter.sendMail(mailOptions);
+        console.log(`📧 Verification email sent to: ${email}`);
+      } else {
+        console.log('⚠️  Email service not configured - verification email not sent');
+        console.log('💡 User can still login using the verification code shown above');
+      }
     } catch (emailError) {
       console.error('Failed to send verification email:', emailError.message);
       console.log('💡 Check the console above for the verification code');
@@ -290,6 +312,8 @@ app.post('/api/v1/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
+    console.log(`🔐 Login attempt for email: ${email}`);
+    
     if (!email || !password) {
       return res.status(400).json({ 
         success: false,
@@ -304,6 +328,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     );
     
     if (result.rows.length === 0) {
+      console.log(`❌ User not found: ${email}`);
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials' 
@@ -314,15 +339,26 @@ app.post('/api/v1/auth/login', async (req, res) => {
     
     // Check if user is active
     if (!user.is_active) {
+      console.log(`❌ Account deactivated: ${email}`);
       return res.status(401).json({ 
         success: false,
         error: 'Account is deactivated' 
       });
     }
     
+    // Check if password_hash exists
+    if (!user.password_hash) {
+      console.log(`❌ No password hash for user: ${email}`);
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid credentials' 
+      });
+    }
+    
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
+      console.log(`❌ Invalid password for user: ${email}`);
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials' 
@@ -517,7 +553,7 @@ app.post('/api/v1/deliverables', async (req, res) => {
 app.put('/api/v1/deliverables/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    let { status } = req.body;
     
     await pool.query(
       'UPDATE deliverables SET status = $1, updated_at = $2 WHERE id = $3',
@@ -535,10 +571,10 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
 app.get('/api/v1/sprints', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT s.*, p.first_name, p.last_name
+      SELECT s.*, u.name as created_by_name
       FROM sprints s
-      LEFT JOIN profiles p ON s.created_by = p.id
-      ORDER BY s.start_date DESC
+      LEFT JOIN users u ON s.created_by = u.id
+      ORDER BY s.created_at DESC
     `);
     
     const sprints = result.rows.map(row => ({
@@ -547,13 +583,11 @@ app.get('/api/v1/sprints', async (req, res) => {
       description: row.description,
       start_date: row.start_date,
       end_date: row.end_date,
-      planned_points: row.planned_points,
-      completed_points: row.completed_points,
       status: row.status,
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      created_by_name: row.first_name ? `${row.first_name} ${row.last_name}` : null,
+      created_by_name: row.created_by_name,
     }));
     
     res.json({
@@ -579,10 +613,10 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     }
     
     const result = await pool.query(
-      `INSERT INTO sprints (name, description, start_date, end_date, planned_points, completed_points, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO sprints (name, description, start_date, end_date, created_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [name, description || '', start_date, end_date, plannedPoints || 0, completedPoints || 0, userId, new Date().toISOString(), new Date().toISOString()]
+      [name, description || '', start_date, end_date, userId, new Date().toISOString(), new Date().toISOString()]
     );
     
     res.json({
@@ -600,10 +634,10 @@ app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(`
-      SELECT s.*, p.first_name, p.last_name
+      SELECT s.*, u.name as created_by_name
       FROM sprints s
-      LEFT JOIN profiles p ON s.created_by = p.id
-      WHERE s.id = $1
+      LEFT JOIN users u ON s.created_by = u.id
+      WHERE s.id = $1::uuid
     `, [id]);
     
     if (result.rows.length === 0) {
@@ -675,6 +709,51 @@ app.post('/api/v1/sprints/:id/tickets', authenticateToken, async (req, res) => {
   }
 });
 
+// Fallback: create ticket without sprint path (expects sprint_id in body)
+app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
+  try {
+    const {
+      sprint_id: sprintIdSnake,
+      sprintId: sprintIdCamel,
+      title,
+      description,
+      assignee,
+      priority,
+      type
+    } = req.body;
+    const sprint_id = sprintIdSnake || sprintIdCamel;
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    if (!sprint_id || !title) {
+      return res.status(400).json({ success: false, error: 'sprint_id and title are required' });
+    }
+    const result = await pool.query(`
+      INSERT INTO tickets (ticket_id, ticket_key, summary, description, status, issue_type, priority, assignee, reporter, sprint_id, project_id, created_at, user_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::uuid, $11, $12, $13)
+      RETURNING *
+    `, [
+      `TICK-${Date.now()}`,
+      `FLOW-${Date.now()}`,
+      title,
+      description || '',
+      'To Do',
+      type || 'Task',
+      priority || 'Medium',
+      assignee,
+      'system',
+      sprint_id,
+      null,
+      new Date().toISOString(),
+      req.user.id
+    ]);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Create ticket (fallback) error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.put('/api/v1/tickets/:id/status', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -729,24 +808,23 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     const { name, key, description, projectType, start_date, end_date } = req.body;
     const userId = req.user.id;
     
-    if (!name || !key) {
+    if (!name) {
       return res.status(400).json({ 
         success: false,
-        error: 'Name and key are required' 
+        error: 'Name is required' 
       });
     }
     
     const projectId = uuidv4();
     const result = await pool.query(`
-      INSERT INTO projects (id, name, key, description, project_type, created_by, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO projects (id, name, description, status, created_by, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `, [
       projectId, 
       name, 
-      key,
       description || '', 
-      projectType || 'software',
+      'active',
       userId, 
       new Date().toISOString(), 
       new Date().toISOString()
@@ -830,52 +908,7 @@ app.get('/api/v1/sprints/:sprintId/tickets', async (req, res) => {
   }
 });
 
-app.post('/api/v1/tickets', async (req, res) => {
-  try {
-    const { sprintId, title, description, assignee, priority, type } = req.body;
-    const userId = req.user?.id || '80ebe775-1837-4ff5-a0a5-faabd46e0b96'; // Default user for now
-    
-    if (!sprintId || !title || !description) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Sprint ID, title, and description are required' 
-      });
-    }
-    
-    const ticketId = `TICK-${Date.now()}`;
-    const ticketKey = `FLOW-${Date.now()}`;
-    const result = await pool.query(`
-      INSERT INTO tickets (ticket_id, ticket_key, summary, description, status, assignee, reporter, sprint_id, priority, issue_type, user_id, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING *
-    `, [
-      ticketId, 
-      ticketKey,
-      title, 
-      description, 
-      'To Do', 
-      assignee, 
-      userId, 
-      sprintId, 
-      priority || 'medium', 
-      type || 'task',
-      userId, // Add user_id field
-      new Date().toISOString(), 
-      new Date().toISOString()
-    ]);
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Create ticket error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal server error' 
-    });
-  }
-});
+// Removed duplicate unauthenticated POST /api/v1/tickets route
 
 // Update ticket status endpoint
 app.put('/api/v1/tickets/:ticketId/status', async (req, res) => {
@@ -921,7 +954,7 @@ app.put('/api/v1/tickets/:ticketId/status', async (req, res) => {
 app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) => {
   try {
     const { sprintId } = req.params;
-    const { status } = req.body;
+    let { status } = req.body;
 
     if (!status) {
       return res.status(400).json({
@@ -930,9 +963,13 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) 
       });
     }
 
-    // Validate status values
+    // Normalize and validate status values
+    let normalizedStatus = status;
+    if (status === 'planned') {
+      normalizedStatus = 'planning';
+    }
     const validStatuses = ['planning', 'in_progress', 'completed', 'cancelled'];
-    if (!validStatuses.includes(status)) {
+    if (!validStatuses.includes(normalizedStatus)) {
       return res.status(400).json({
         success: false,
         error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
@@ -941,10 +978,10 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) 
 
     const result = await pool.query(`
       UPDATE sprints
-      SET status = $1, updated_at = $2
-      WHERE id = $3
+      SET status = $1::text, updated_at = NOW()
+      WHERE id = $2::uuid
       RETURNING *
-    `, [status, new Date().toISOString(), sprintId]);
+    `, [normalizedStatus, sprintId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -959,9 +996,10 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) 
     });
   } catch (error) {
     console.error('Update sprint status error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: error.message || 'Internal server error'
     });
   }
 });
@@ -981,10 +1019,8 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         n.type,
         n.is_read,
         n.created_at,
-        n.updated_at,
-        u.name as created_by_name
+        n.created_at as updated_at
       FROM notifications n
-      LEFT JOIN users u ON n.created_by = u.id
       WHERE n.user_id = $1 OR n.user_id IS NULL
       ORDER BY n.created_at DESC
     `, [userId]);
@@ -999,7 +1035,7 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         isRead: row.is_read,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        createdByName: row.created_by_name,
+        createdByName: null,
         timestamp: row.created_at,
         date: row.created_at,
         description: row.message
@@ -1007,7 +1043,11 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Failed to fetch notifications' 
+    });
   }
 });
 
@@ -1037,7 +1077,7 @@ app.put('/api/v1/notifications/read-all', authenticateToken, async (req, res) =>
 
     await pool.query(`
       UPDATE notifications 
-      SET is_read = true, updated_at = NOW()
+      SET is_read = true
       WHERE user_id = $1 OR user_id IS NULL
     `, [userId]);
 
@@ -1057,19 +1097,19 @@ app.post('/api/v1/notifications', authenticateToken, async (req, res) => {
     // If user_id is provided, create for specific user, otherwise create for all users
     if (user_id) {
       const notificationId = uuidv4();
-      await pool.query(`
-        INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-      `, [notificationId, title, message, type, user_id, createdBy]);
+        await pool.query(`
+          INSERT INTO notifications (id, title, message, type, user_id, is_read, created_at)
+          VALUES ($1, $2, $3, $4, $5, false, NOW())
+        `, [notificationId, title, message, type, user_id]);
     } else {
       // Create notification for all users
       const usersResult = await pool.query('SELECT id FROM users');
       for (const user of usersResult.rows) {
         const notificationId = uuidv4();
         await pool.query(`
-          INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-        `, [notificationId, title, message, type, user.id, createdBy]);
+          INSERT INTO notifications (id, title, message, type, user_id, is_read, created_at)
+          VALUES ($1, $2, $3, $4, $5, false, NOW())
+        `, [notificationId, title, message, type, user.id]);
       }
     }
 
@@ -1095,17 +1135,55 @@ app.post('/api/v1/auth/verify-email', async (req, res) => {
       });
     }
 
+    // Find user by email
+    const result = await pool.query(
+      'SELECT id, email, name, role, created_at, is_active FROM users WHERE email = $1',
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    const user = result.rows[0];
+    
     // In a real implementation, you would:
     // 1. Check the verification code from database
     // 2. Verify it hasn't expired
     // 3. Mark the user as verified
     
-    // For now, we'll just return success
+    // For now, we'll just return success with JWT token
     console.log(`✅ Email verified for: ${email} with code: ${code}`);
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        role: user.role 
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
     
     res.json({
       success: true,
-      message: 'Email verified successfully'
+      message: 'Email verified successfully',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          createdAt: user.created_at,
+          isActive: user.is_active
+        },
+        token: token,
+        expires_in: 86400 // 24 hours
+      }
     });
   } catch (error) {
     console.error('Verify email error:', error);
@@ -1137,28 +1215,32 @@ app.post('/api/v1/auth/send-verification', async (req, res) => {
     console.log('===========================================\n');
     
     // Send verification email
-    const mailOptions = {
-      from: process.env.EMAIL_USER || 'dhlaminibusisiwe30@gmail.com',
-      to: email,
-      subject: 'Flow-Space Email Verification',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Welcome to Flow-Space!</h2>
-          <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
-          <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
-            <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
+    if (emailTransporter) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Flow-Space Email Verification',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Welcome to Flow-Space!</h2>
+            <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
+            <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
+              <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
+            </div>
+            <p>This code will expire in 10 minutes.</p>
+            <p>If you didn't request this verification, please ignore this email.</p>
+            <hr style="margin: 30px 0;">
+            <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
           </div>
-          <p>This code will expire in 10 minutes.</p>
-          <p>If you didn't request this verification, please ignore this email.</p>
-          <hr style="margin: 30px 0;">
-          <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
-        </div>
-      `
-    };
+        `
+      };
 
-    await emailTransporter.sendMail(mailOptions);
-    
-    console.log(`📧 Verification email sent to: ${email}`);
+      await emailTransporter.sendMail(mailOptions);
+      console.log(`📧 Verification email sent to: ${email}`);
+    } else {
+      console.log('⚠️  Email service not configured - verification email not sent');
+      console.log('💡 User can still login using the verification code shown above');
+    }
     
     res.json({
       success: true,
@@ -1253,14 +1335,13 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
     // Create notification for assigned user
     if (assigned_to && assigned_to !== userId) {
       await pool.query(`
-        INSERT INTO notifications (title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+        INSERT INTO notifications (title, message, type, user_id, is_read, created_at)
+        VALUES ($1, $2, $3, $4, false, NOW())
       `, [
         'New Deliverable Assigned',
         `You have been assigned a new deliverable: ${title}`,
         'deliverable',
-        assigned_to,
-        userId
+        assigned_to
       ]);
     }
     
@@ -1371,14 +1452,17 @@ app.get('/api/v1/notifications/enhanced', authenticateToken, async (req, res) =>
     const { type, is_read, limit = 50, offset = 0 } = req.query;
     
     let query = `
-      SELECT n.*, 
-             u.name as created_by_name,
-             d.title as deliverable_title,
-             s.name as sprint_name
+      SELECT 
+        n.id,
+        n.title,
+        n.message,
+        n.type,
+        n.user_id,
+        n.is_read,
+        n.action_url,
+        n.created_at,
+        COALESCE(n.updated_at, n.created_at) as updated_at
       FROM notifications n
-      LEFT JOIN users u ON n.created_by = u.id
-      LEFT JOIN deliverables d ON n.deliverable_id = d.id
-      LEFT JOIN sprints s ON n.sprint_id = s.id
       WHERE (n.user_id = $1 OR n.user_id IS NULL)
     `;
     
@@ -1446,18 +1530,16 @@ app.post('/api/v1/notifications/enhanced', authenticateToken, async (req, res) =
     
     const notificationId = uuidv4();
     
-    // Create notification
+    // Create notification - only use columns that exist in basic schema
     await pool.query(`
       INSERT INTO notifications (
-        id, title, message, type, user_id, created_by, 
-        deliverable_id, sprint_id, priority, action_url, metadata,
-        is_read, created_at, updated_at
+        id, title, message, type, user_id, action_url,
+        is_read, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
     `, [
-      notificationId, title, message, type, user_id, createdBy,
-      deliverable_id, sprint_id, priority, action_url, 
-      metadata ? JSON.stringify(metadata) : null
+      notificationId, title, message, type, user_id,
+      action_url || null
     ]);
     
     res.status(201).json({
@@ -1687,7 +1769,7 @@ app.get('/api/v1/documents', authenticateToken, async (req, res) => {
       FROM repository_files d
       LEFT JOIN users u ON d.uploaded_by = u.id
       LEFT JOIN projects p ON d.project_id = p.id
-      WHERE d.is_active = true
+      WHERE 1=1
     `;
     
     let params = [];
@@ -1783,7 +1865,7 @@ app.get('/api/v1/documents/:id', authenticateToken, async (req, res) => {
       FROM repository_files d
       LEFT JOIN users u ON d.uploaded_by = u.id
       LEFT JOIN projects p ON d.project_id = p.id
-      WHERE d.id = $1 AND d.is_active = true
+  WHERE d.id = $1
     `;
     
     let params = [id];
@@ -1843,6 +1925,9 @@ app.get('/api/v1/documents/:id', authenticateToken, async (req, res) => {
 // Upload document
 app.post('/api/v1/documents', authenticateToken, upload.single('file'), async (req, res) => {
   try {
+    console.log('[UPLOAD] File:', req.file);
+    console.log('[UPLOAD] Body:', req.body);
+    console.log('[UPLOAD] User:', req.user);
     const { description, tags, projectId } = req.body;
     const userId = req.user.id;
     
@@ -1866,17 +1951,19 @@ app.post('/api/v1/documents', authenticateToken, upload.single('file'), async (r
     const fileSize = stats.size;
     
     // Insert document record
+    // Note: table has old schema columns (filename VARCHAR, original_filename VARCHAR) and new schema (file_name TEXT)
+    // We need to populate all of them for compatibility
     const result = await pool.query(`
       INSERT INTO repository_files (
-        project_id, file_name, file_path, file_type, file_size, 
+        project_id, filename, original_filename, file_name, file_path, file_type, file_size, 
         content_hash, uploaded_by, description, tags, 
         uploaded_at, last_modified, is_active
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2::text, $2::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `, [
       projectId || null,
-      file.originalname,
+      file.originalname, // Populates filename, original_filename, and file_name (cast to text)
       file.path,
       fileType,
       fileSize,
@@ -1899,14 +1986,13 @@ app.post('/api/v1/documents', authenticateToken, upload.single('file'), async (r
       
       for (const member of membersResult.rows) {
         await pool.query(`
-          INSERT INTO notifications (title, message, type, user_id, created_by, is_read, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+          INSERT INTO notifications (title, message, type, user_id, is_read, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, false, NOW(), NOW())
         `, [
           'New Document Uploaded',
           `A new document "${file.originalname}" has been uploaded to the project`,
           'document',
-          member.user_id,
-          userId
+          member.user_id
         ]);
       }
     }
@@ -1930,9 +2016,11 @@ app.post('/api/v1/documents', authenticateToken, upload.single('file'), async (r
     });
   } catch (error) {
     console.error('Error uploading document:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to upload document' 
+      error: error.message || 'Failed to upload document',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -1949,7 +2037,7 @@ app.get('/api/v1/documents/:id/download', authenticateToken, async (req, res) =>
       SELECT d.*, u.name as uploader_name
       FROM repository_files d
       LEFT JOIN users u ON d.uploaded_by = u.id
-      WHERE d.id = $1 AND d.is_active = true
+      WHERE d.id = $1
     `;
     
     let params = [id];
@@ -2010,6 +2098,51 @@ app.get('/api/v1/documents/:id/download', authenticateToken, async (req, res) =>
   }
 });
 
+// Document audit history
+app.get('/api/v1/documents/:id/audit', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT a.*, u.name as actor_name
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.resource_type = 'repository_file' AND a.resource_id = $1
+      ORDER BY a.created_at DESC
+    `, [id]);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching document audit:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch audit history' });
+  }
+});
+
+// Repository audit with filters (project, sprint, deliverable, timeframe)
+app.get('/api/v1/repository/audit', authenticateToken, async (req, res) => {
+  try {
+    const { projectId, sprintId, deliverableId, from, to } = req.query;
+    let query = `
+      SELECT a.*, u.name as actor_name, d.file_name, d.project_id
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN repository_files d ON a.resource_type = 'repository_file' AND a.resource_id = d.id
+      WHERE a.resource_type IN ('repository_file','document_download','document_delete')
+    `;
+    const params = [];
+    let p = 0;
+    if (projectId) { p++; query += ` AND d.project_id = $${p}`; params.push(projectId); }
+    if (sprintId) { p++; query += ` AND (a.details->>'sprintId')::text = $${p}`; params.push(String(sprintId)); }
+    if (deliverableId) { p++; query += ` AND (a.details->>'deliverableId')::text = $${p}`; params.push(String(deliverableId)); }
+    if (from) { p++; query += ` AND a.created_at >= $${p}`; params.push(new Date(from)); }
+    if (to) { p++; query += ` AND a.created_at <= $${p}`; params.push(new Date(to)); }
+    query += ' ORDER BY a.created_at DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching repository audit:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch repository audit' });
+  }
+});
+
 // Delete document
 app.delete('/api/v1/documents/:id', authenticateToken, async (req, res) => {
   try {
@@ -2022,7 +2155,7 @@ app.delete('/api/v1/documents/:id', authenticateToken, async (req, res) => {
       SELECT d.*, u.name as uploader_name
       FROM repository_files d
       LEFT JOIN users u ON d.uploaded_by = u.id
-      WHERE d.id = $1 AND d.is_active = true
+      WHERE d.id = $1
     `;
     
     let params = [id];
@@ -2086,7 +2219,7 @@ app.put('/api/v1/documents/:id', authenticateToken, async (req, res) => {
     // Check if user can update this document
     let query = `
       SELECT d.* FROM repository_files d
-      WHERE d.id = $1 AND d.is_active = true
+      WHERE d.id = $1
     `;
     
     let params = [id];
@@ -2143,7 +2276,7 @@ app.get('/api/v1/documents/:id/preview', authenticateToken, async (req, res) => 
       SELECT d.*, u.name as uploader_name
       FROM repository_files d
       LEFT JOIN users u ON d.uploaded_by = u.id
-      WHERE d.id = $1 AND d.is_active = true
+      WHERE d.id = $1
     `;
     
     let params = [id];
@@ -2204,6 +2337,214 @@ app.get('/api/v1/documents/:id/preview', authenticateToken, async (req, res) => 
       success: false,
       error: 'Failed to get document preview' 
     });
+  }
+});
+
+// ===== APPROVAL REQUESTS ENDPOINTS =====
+
+// Get all approval requests
+app.get('/api/v1/approval-requests', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    let query = `
+      SELECT ar.*, u1.name as requested_by_name, u2.name as reviewed_by_name
+      FROM approval_requests ar
+      LEFT JOIN users u1 ON ar.requested_by = u1.id
+      LEFT JOIN users u2 ON ar.reviewed_by = u2.id
+      WHERE 1=1
+    `;
+    
+    let params = [];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND ar.requested_by = $1`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (ar.requested_by = $1 OR ar.reviewed_by = $1)`;
+      params.push(userId);
+    }
+    
+    query += ` ORDER BY ar.created_at DESC`;
+    
+    const result = await pool.query(query, params);
+    
+    const approvalRequests = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      status: row.status,
+      priority: row.priority,
+      category: row.category,
+      requested_by: row.requested_by,
+      requested_by_name: row.requested_by_name,
+      requested_at: row.requested_at,
+      reviewed_by: row.reviewed_by,
+      reviewed_by_name: row.reviewed_by_name,
+      reviewed_at: row.reviewed_at,
+      review_reason: row.review_reason,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    }));
+    
+    res.json({
+      success: true,
+      data: approvalRequests
+    });
+  } catch (error) {
+    console.error('Get approval requests error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create a new approval request
+app.post('/api/v1/approval-requests', authenticateToken, async (req, res) => {
+  try {
+    const { title, description, priority, category } = req.body;
+    const userId = req.user.id;
+    
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title is required'
+      });
+    }
+    
+    const result = await pool.query(
+      `INSERT INTO approval_requests (title, description, status, priority, category, requested_by, requested_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        title,
+        description || '',
+        'pending',
+        priority || 'medium',
+        category || 'general',
+        userId,
+        new Date().toISOString(),
+        new Date().toISOString(),
+        new Date().toISOString()
+      ]
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Create approval request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update approval request status
+app.put('/api/v1/approval-requests/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, review_reason } = req.body;
+    const userId = req.user.id;
+    
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        error: 'Status is required'
+      });
+    }
+    
+    const result = await pool.query(
+      `UPDATE approval_requests 
+       SET status = $1, review_reason = $2, reviewed_by = $3, reviewed_at = $4, updated_at = $5
+       WHERE id = $6
+       RETURNING *`,
+      [
+        status,
+        review_reason || null,
+        userId,
+        new Date().toISOString(),
+        new Date().toISOString(),
+        id
+      ]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Approval request not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Update approval request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get single approval request
+app.get('/api/v1/approval-requests/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    let query = `
+      SELECT ar.*, u1.name as requested_by_name, u2.name as reviewed_by_name
+      FROM approval_requests ar
+      LEFT JOIN users u1 ON ar.requested_by = u1.id
+      LEFT JOIN users u2 ON ar.reviewed_by = u2.id
+      WHERE ar.id = $1
+    `;
+    
+    let params = [id];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND ar.requested_by = $2`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (ar.requested_by = $2 OR ar.reviewed_by = $2)`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Approval request not found'
+      });
+    }
+    
+    const approvalRequest = result.rows[0];
+    
+    res.json({
+      success: true,
+      data: {
+        id: approvalRequest.id,
+        title: approvalRequest.title,
+        description: approvalRequest.description,
+        status: approvalRequest.status,
+        priority: approvalRequest.priority,
+        category: approvalRequest.category,
+        requested_by: approvalRequest.requested_by,
+        requested_by_name: approvalRequest.requested_by_name,
+        requested_at: approvalRequest.requested_at,
+        reviewed_by: approvalRequest.reviewed_by,
+        reviewed_by_name: approvalRequest.reviewed_by_name,
+        reviewed_at: approvalRequest.reviewed_at,
+        review_reason: approvalRequest.review_reason,
+        created_at: approvalRequest.created_at,
+        updated_at: approvalRequest.updated_at
+      }
+    });
+  } catch (error) {
+    console.error('Get approval request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
