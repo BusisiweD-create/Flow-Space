@@ -28,6 +28,9 @@ import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
 import 'screens/system_metrics_screen.dart';
+import 'screens/detailed_reports_screen.dart';
+import 'screens/skill_assessment_screen.dart';
+import 'screens/team_chat_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'providers/service_providers.dart';
@@ -285,6 +288,33 @@ final GoRouter _router = GoRouter(
         route: '/system-metrics',
         child: SidebarScaffold(
           child: SystemMetricsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/skill-assessment',
+      builder: (context, state) => const RouteGuard(
+        route: '/skill-assessment',
+        child: SidebarScaffold(
+          child: SkillAssessmentScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/detailed-reports',
+      builder: (context, state) => const RouteGuard(
+        route: '/detailed-reports',
+        child: SidebarScaffold(
+          child: DetailedReportsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/team-chat',
+      builder: (context, state) => const RouteGuard(
+        route: '/team-chat',
+        child: SidebarScaffold(
+          child: TeamChatScreen(),
         ),
       ),
     ),

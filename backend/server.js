@@ -692,6 +692,74 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Flow-Space API is running' });
 });
 
+// Audit logs endpoint
+app.get('/api/audit-logs', async (req, res) => {
+  try {
+    const { skip = 0, limit = 100 } = req.query;
+    const offset = parseInt(skip);
+    const parsedLimit = parseInt(limit);
+    
+    // Get audit logs with pagination
+    const auditLogsResult = await pool.query(
+      `SELECT al.*, u.name as user_name, u.email as user_email
+       FROM audit_logs al
+       LEFT JOIN users u ON al.user_id = u.id
+       ORDER BY al.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [parsedLimit, offset]
+    );
+    
+    // Get total count for pagination
+    const totalCountResult = await pool.query('SELECT COUNT(*) as total FROM audit_logs');
+    const totalCount = parseInt(totalCountResult.rows[0].total);
+    
+    const auditLogs = auditLogsResult.rows.map(log => ({
+      id: log.id,
+      user_id: log.user_id,
+      user_name: log.user_name,
+      user_email: log.user_email,
+      action: log.action,
+      resource_type: log.resource_type,
+      resource_id: log.resource_id,
+      details: log.details,
+      ip_address: log.ip_address,
+      user_agent: log.user_agent,
+      created_at: log.created_at
+    }));
+    
+    res.json({
+      audit_logs: auditLogs,
+      items: auditLogs, // For backward compatibility
+      logs: auditLogs,  // For backward compatibility
+      total: totalCount,
+      total_count: totalCount,
+      skip: offset,
+      limit: parsedLimit,
+      has_more: offset + auditLogs.length < totalCount
+    });
+  } catch (error) {
+    if (error.code === '42P01') { // Table doesn't exist
+       console.log('Audit logs table does not exist yet, returning empty response');
+       res.json({
+         audit_logs: [],
+         items: [],
+         logs: [],
+         total: 0,
+         total_count: 0,
+         skip: 0,
+         limit: 100,
+         has_more: false
+       });
+    } else {
+      console.error('Error fetching audit logs:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Internal server error' 
+      });
+    }
+  }
+});
+
 // Test database connection
 app.get('/api/test-db', async (req, res) => {
   try {
@@ -707,6 +775,143 @@ app.get('/api/test-db', async (req, res) => {
       status: 'ERROR', 
       message: 'Database connection failed',
       error: error.message
+    });
+  }
+});
+
+// User management endpoints
+app.get('/api/v1/users', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const { role } = req.user;
+    if (role !== 'systemAdmin') {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Admin access required' 
+      });
+    }
+    
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.name, u.role, u.is_active, u.created_at, u.last_login_at,
+              ur.display_name, ur.color, ur.icon
+       FROM users u
+       LEFT JOIN user_roles ur ON u.role = ur.name
+       ORDER BY u.created_at DESC`
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+app.put('/api/v1/users/:userId/role', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const { role } = req.user;
+    if (role !== 'systemAdmin') {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Admin access required' 
+      });
+    }
+    
+    const { userId } = req.params;
+    const { role: newRole } = req.body;
+    
+    if (!newRole) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Role is required' 
+      });
+    }
+    
+    // Validate role
+    const validRoles = ['teamMember', 'deliveryLead', 'clientReviewer', 'systemAdmin'];
+    if (!validRoles.includes(newRole)) {
+      return res.status(400).json({ 
+        success: false,
+        error: `Invalid role. Must be one of: ${validRoles.join(', ')}` 
+      });
+    }
+    
+    const result = await pool.query(
+      'UPDATE users SET role = $1, updated_at = $2 WHERE id = $3 RETURNING *',
+      [newRole, new Date().toISOString(), userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Update user role error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+app.put('/api/v1/users/:userId/status', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    const { role } = req.user;
+    if (role !== 'systemAdmin') {
+      return res.status(403).json({ 
+        success: false,
+        error: 'Admin access required' 
+      });
+    }
+    
+    const { userId } = req.params;
+    const { isActive } = req.body;
+    
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'isActive must be a boolean' 
+      });
+    }
+    
+    const result = await pool.query(
+      'UPDATE users SET is_active = $1, updated_at = $2 WHERE id = $3 RETURNING *',
+      [isActive, new Date().toISOString(), userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Update user status error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
     });
   }
 });

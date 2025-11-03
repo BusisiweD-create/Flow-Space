@@ -6,11 +6,11 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:csv/csv.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:fl_chart/fl_chart.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
-import '../widgets/metrics_card.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -44,10 +44,10 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   String _searchQuery = '';
   String _sortField = 'created_at';
   bool _sortAscending = false;
-  
-  // ignore: non_constant_identifier_names, strict_top_level_inference
-  get user_email => null;
 
+  // Data Analytics state
+  bool _isLoadingAnalytics = false;
+  
   @override
   void initState() {
     super.initState();
@@ -170,6 +170,30 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     }
   }
 
+  Future<void> _loadAnalyticsData() async {
+    if (_isLoadingAnalytics) return;
+    
+    setState(() {
+      _isLoadingAnalytics = true;
+    });
+
+    try {
+      // Simulate API call delay
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // Sample analytics data - in real app, this would come from API
+      setState(() {
+        // Analytics data loading completed
+      });
+      
+    } catch (e) {
+      debugPrint('❌ Error loading analytics data: \$e');
+    } finally {
+      setState(() {
+        _isLoadingAnalytics = false;
+      });
+    }
+  }
 
   void _applySearchAndSort() {
     // Apply search filter
@@ -259,6 +283,169 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       _searchQuery = '';
     });
     _applySearchAndSort();
+  }
+
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Filter Analytics Data'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Team Members:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                _buildTeamMemberFilterOptions(),
+                const SizedBox(height: 16),
+                const Text('Metric Types:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                _buildMetricTypeFilterOptions(),
+                const SizedBox(height: 16),
+                const Text('Date Range:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                _buildDateRangeFilterOptions(),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _loadAnalyticsData();
+              },
+              child: const Text('Apply Filters'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTeamMemberFilterOptions() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        FilterChip(
+          label: const Text('All Members'),
+          selected: true,
+          onSelected: (selected) {},
+        ),
+        FilterChip(
+          label: const Text('John Smith'),
+          selected: false,
+          onSelected: (selected) {},
+        ),
+        FilterChip(
+          label: const Text('Sarah Johnson'),
+          selected: false,
+          onSelected: (selected) {},
+        ),
+        FilterChip(
+          label: const Text('Mike Chen'),
+          selected: false,
+          onSelected: (selected) {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricTypeFilterOptions() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        FilterChip(
+          label: const Text('Velocity'),
+          selected: true,
+          onSelected: (selected) {},
+        ),
+        FilterChip(
+          label: const Text('Completion'),
+          selected: true,
+          onSelected: (selected) {},
+        ),
+        FilterChip(
+          label: const Text('Progress'),
+          selected: true,
+          onSelected: (selected) {},
+        ),
+        FilterChip(
+          label: const Text('Blocked Items'),
+          selected: true,
+          onSelected: (selected) {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateRangeFilterOptions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                decoration: const InputDecoration(
+                  labelText: 'Start Date',
+                  suffixIcon: Icon(Icons.calendar_today),
+                ),
+                readOnly: true,
+                onTap: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now().subtract(const Duration(days: 30)),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    // Handle date selection
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                decoration: const InputDecoration(
+                  labelText: 'End Date',
+                  suffixIcon: Icon(Icons.calendar_today),
+                ),
+                readOnly: true,
+                onTap: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    // Handle date selection
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () {
+            // Reset to default date range
+          },
+          child: const Text('Reset to Default'),
+        ),
+      ],
+    );
   }
 
   @override
@@ -355,7 +542,17 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
           const SizedBox(height: 24),
           _buildQuickActions(),
           const SizedBox(height: 24),
+          _buildTaskProgressOverview(),
+          const SizedBox(height: 24),
           _buildMyDeliverables(),
+          const SizedBox(height: 24),
+          _buildUpcomingDeadlines(),
+          const SizedBox(height: 24),
+          _buildTeamCollaboration(),
+          const SizedBox(height: 24),
+          _buildPerformanceMetrics(),
+          const SizedBox(height: 24),
+          _buildSkillDevelopment(),
           const SizedBox(height: 24),
           _buildRecentActivity(),
         ],
@@ -504,6 +701,250 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
+  Widget _buildTaskProgressOverview() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Task Progress Overview',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refreshTaskProgress,
+                  tooltip: 'Refresh Progress',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildProgressBar('In Progress Tasks', 0.65, Colors.blue),
+            const SizedBox(height: 12),
+            _buildProgressBar('Completed Tasks', 0.85, Colors.green),
+            const SizedBox(height: 12),
+            _buildProgressBar('Pending Review', 0.25, Colors.orange),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildProgressMetric('Total Tasks', '24', Icons.list_alt),
+                _buildProgressMetric('Overdue', '3', Icons.warning, Colors.red),
+                _buildProgressMetric('Due Today', '2', Icons.today, Colors.amber),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressBar(String label, double progress, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            Text(
+              '${(progress * 100).toInt()}%',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: progress,
+          backgroundColor: Colors.grey[300],
+          color: color,
+          minHeight: 6,
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressMetric(String title, String value, IconData icon, [Color? color]) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: color ?? _currentUser!.roleColor),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+        ),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+        ),
+      ],
+    );
+  }
+
+  void _refreshTaskProgress() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refreshing task progress...')),
+    );
+  }
+
+  Widget _buildUpcomingDeadlines() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Upcoming Deadlines',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Badge(
+                  label: const Text('3'),
+                  backgroundColor: Colors.red,
+                  child: IconButton(
+                    icon: const Icon(Icons.calendar_today),
+                    onPressed: () => context.go('/calendar'),
+                    tooltip: 'View Calendar',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildDeadlineItem(
+              title: 'User Authentication API',
+              dueDate: 'Today',
+              priority: 'High',
+              project: 'Mobile App Development',
+            ),
+            const SizedBox(height: 12),
+            _buildDeadlineItem(
+              title: 'Payment Integration Testing',
+              dueDate: 'Tomorrow',
+              priority: 'Medium',
+              project: 'E-commerce Platform',
+            ),
+            const SizedBox(height: 12),
+            _buildDeadlineItem(
+              title: 'UI Design Review',
+              dueDate: 'Dec 15',
+              priority: 'Low',
+              project: 'Dashboard Redesign',
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go('/my-deliverables'),
+              child: const Text('View All Deadlines'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeadlineItem({
+    required String title,
+    required String dueDate,
+    required String priority,
+    required String project,
+  }) {
+    Color priorityColor;
+    switch (priority.toLowerCase()) {
+      case 'high':
+        priorityColor = Colors.red;
+        break;
+      case 'medium':
+        priorityColor = Colors.orange;
+        break;
+      case 'low':
+        priorityColor = Colors.green;
+        break;
+      default:
+        priorityColor = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 40,
+            decoration: BoxDecoration(
+              color: priorityColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                Text(
+                  project,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                dueDate,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: priorityColor,
+                    ),
+              ),
+              Text(
+                priority,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: priorityColor,
+                    ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButton({
     required IconData icon,
     required String label,
@@ -533,6 +974,518 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildTeamCollaboration() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Team Collaboration',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.group),
+                  onPressed: () => context.go('/team-directory'),
+                  tooltip: 'Team Directory',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildCollaborationMetric(
+                  title: 'Team Members',
+                  value: '8',
+                  icon: Icons.people,
+                  color: Colors.blue,
+                ),
+                _buildCollaborationMetric(
+                  title: 'Active Projects',
+                  value: '3',
+                  icon: Icons.work,
+                  color: Colors.green,
+                ),
+                _buildCollaborationMetric(
+                  title: 'Open Tasks',
+                  value: '12',
+                  icon: Icons.task,
+                  color: Colors.orange,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildTeamAvailability(),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go('/team-chat'),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.chat, size: 16),
+                  SizedBox(width: 4),
+                  Text('Open Team Chat'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCollaborationMetric({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+              color: color.withAlpha(25),
+              shape: BoxShape.circle,
+            ),
+          child: Icon(icon, size: 24, color: color),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+        ),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeamAvailability() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Team Availability',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildAvailabilityIndicator('Available', Colors.green, 5),
+            const SizedBox(width: 8),
+            _buildAvailabilityIndicator('Busy', Colors.orange, 2),
+            const SizedBox(width: 8),
+            _buildAvailabilityIndicator('Offline', Colors.grey, 1),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAvailabilityIndicator(String status, Color color, int count) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$count',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          status,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPerformanceMetrics() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Performance Analytics',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.analytics),
+                  onPressed: () => context.go('/performance-dashboard'),
+                  tooltip: 'Detailed Analytics',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildPerformanceMetric(
+                  title: 'Velocity',
+                  value: '24 pts',
+                  trend: '+12%',
+                  icon: Icons.trending_up,
+                  color: Colors.green,
+                ),
+                _buildPerformanceMetric(
+                  title: 'Quality',
+                  value: '98%',
+                  trend: '+3%',
+                  icon: Icons.verified,
+                  color: Colors.blue,
+                ),
+                _buildPerformanceMetric(
+                  title: 'Efficiency',
+                  value: '87%',
+                  trend: '+5%',
+                  icon: Icons.speed,
+                  color: Colors.orange,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildWeeklyPerformanceChart(),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go('/detailed-reports'),
+              child: const Text('View Detailed Reports'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPerformanceMetric({
+    required String title,
+    required String value,
+    required String trend,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              trend,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyPerformanceChart() {
+    return Container(
+      height: 60,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Weekly Performance',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  Text(
+                    'Consistent improvement',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.green,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 7,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildChartBar(40, Colors.blue),
+                  _buildChartBar(55, Colors.blue),
+                  _buildChartBar(65, Colors.blue),
+                  _buildChartBar(75, Colors.green),
+                  _buildChartBar(80, Colors.green),
+                  _buildChartBar(85, Colors.green),
+                  _buildChartBar(87, Colors.green),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChartBar(double height, Color color) {
+    return Container(
+      width: 6,
+      height: height * 0.6,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(3),
+      ),
+    );
+  }
+
+  Widget _buildSkillDevelopment() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Skill Development',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.school),
+                  onPressed: () => context.go('/learning-path'),
+                  tooltip: 'Learning Path',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildSkillProgress(
+              skill: 'Flutter Development',
+              progress: 0.75,
+              level: 'Intermediate',
+              nextLevel: 'Advanced',
+            ),
+            const SizedBox(height: 12),
+            _buildSkillProgress(
+              skill: 'Dart Programming',
+              progress: 0.85,
+              level: 'Advanced',
+              nextLevel: 'Expert',
+            ),
+            const SizedBox(height: 12),
+            _buildSkillProgress(
+              skill: 'UI/UX Design',
+              progress: 0.60,
+              level: 'Intermediate',
+              nextLevel: 'Advanced',
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recommended Learning',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                TextButton(
+                  onPressed: () => context.go('/recommended-courses'),
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildLearningItem(
+              title: 'Advanced State Management',
+              type: 'Course',
+              duration: '2h 30m',
+            ),
+            const SizedBox(height: 8),
+            _buildLearningItem(
+              title: 'Flutter Animations Masterclass',
+              type: 'Workshop',
+              duration: '1h 45m',
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => context.go('/skill-assessment'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+              ),
+              child: const Text('Take Skill Assessment'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkillProgress({
+    required String skill,
+    required double progress,
+    required String level,
+    required String nextLevel,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              skill,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            Text(
+              '$level → $nextLevel',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: progress,
+          backgroundColor: Colors.grey[300],
+          color: _getProgressColor(progress),
+          minHeight: 6,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${(progress * 100).toInt()}% complete',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLearningItem({
+    required String title,
+    required String type,
+    required String duration,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            type == 'Course' ? Icons.menu_book : Icons.workspaces,
+            size: 16,
+            color: Colors.blue,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                Text(
+                  '$type • $duration',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.play_arrow, size: 20),
+            onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getProgressColor(double progress) {
+    if (progress >= 0.8) return Colors.green;
+    if (progress >= 0.6) return Colors.blue;
+    if (progress >= 0.4) return Colors.orange;
+    return Colors.red;
   }
 
   Widget _buildMyDeliverables() {
@@ -726,15 +1679,815 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  // Placeholder methods for other role-specific content
-  Widget _buildTeamMetrics() => _buildPlaceholderCard('Team Metrics');
-  Widget _buildSprintOverview() => _buildPlaceholderCard('Sprint Overview');
-  Widget _buildPendingReviews() => _buildPlaceholderCard('Pending Reviews');
-  Widget _buildTeamPerformance() => _buildPlaceholderCard('Team Performance');
-  Widget _buildReviewMetrics() => _buildPlaceholderCard('Review Metrics');
-  Widget _buildPendingApprovals() => _buildPlaceholderCard('Pending Approvals');
-  Widget _buildRecentSubmissions() => _buildPlaceholderCard('Recent Submissions');
-  Widget _buildReviewHistory() => _buildPlaceholderCard('Review History');
+  // Delivery Lead Dashboard Methods
+  Widget _buildTeamMetrics() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Team Performance Metrics',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Row(
+                  children: [
+                    DropdownButton<String>(
+                      value: 'current_sprint',
+                      onChanged: (String? newValue) {
+                        // Time period selection handler
+                      },
+                      items: <String>['last_7_days', 'last_30_days', 'last_90_days', 'current_sprint']
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value.replaceAll('_', ' ').replaceAllMapped(
+                            RegExp(r'\b\w'), 
+                            (match) => match.group(0)!.toUpperCase(),
+                          ),),
+                        );
+                      }).toList(),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      underline: Container(
+                        height: 1,
+                        color: Colors.grey[300],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.filter_list),
+                      onPressed: () {
+                        _showFilterDialog();
+                      },
+                      tooltip: 'Filter Options',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _buildMetricCard(
+                  title: 'Sprint Progress',
+                  value: '75%',
+                  icon: Icons.timeline,
+                  color: Colors.blue,
+                  trend: '+12%',
+                ),
+                const SizedBox(width: 12),
+                _buildMetricCard(
+                  title: 'Team Velocity',
+                  value: '32 pts',
+                  icon: Icons.speed,
+                  color: Colors.green,
+                  trend: '+8%',
+                ),
+                const SizedBox(width: 12),
+                _buildMetricCard(
+                  title: 'Work Completed',
+                  value: '24/32',
+                  icon: Icons.check_circle,
+                  color: Colors.orange,
+                  trend: '+15%',
+                ),
+                const SizedBox(width: 12),
+                _buildMetricCard(
+                  title: 'Blocked Items',
+                  value: '2',
+                  icon: Icons.block,
+                  color: Colors.red,
+                  trend: '-1',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSprintOverview() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Current Sprint Overview',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                TextButton(
+                  onPressed: () => context.go('/sprint-console'),
+                  child: const Text('View Details'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildSprintProgressBar(),
+            const SizedBox(height: 16),
+            
+            // Burn-down Chart Section
+            Text(
+              'Sprint Burn-down Chart',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            _buildBurnDownChart(),
+            const SizedBox(height: 16),
+            
+            Row(
+              children: [
+                _buildSprintMetricCard(
+                  title: 'Days Remaining',
+                  value: '5',
+                  icon: Icons.calendar_today,
+                  color: Colors.blue,
+                ),
+                const SizedBox(width: 12),
+                _buildSprintMetricCard(
+                  title: 'Points Burned',
+                  value: '24',
+                  icon: Icons.trending_up,
+                  color: Colors.green,
+                ),
+                const SizedBox(width: 12),
+                _buildSprintMetricCard(
+                  title: 'Avg. Daily',
+                  value: '4.8',
+                  icon: Icons.analytics,
+                  color: Colors.orange,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingReviews() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Pending Reviews',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Badge(
+                  label: const Text('3'),
+                  backgroundColor: Colors.red,
+                  child: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loadPendingReviews,
+                    tooltip: 'Refresh Reviews',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildReviewItem(
+              title: 'User Authentication System',
+              requester: 'John Smith',
+              daysPending: 2,
+              priority: 'High',
+            ),
+            const SizedBox(height: 12),
+            _buildReviewItem(
+              title: 'Payment Integration API',
+              requester: 'Sarah Johnson',
+              daysPending: 1,
+              priority: 'Medium',
+            ),
+            const SizedBox(height: 12),
+            _buildReviewItem(
+              title: 'Mobile App UI Design',
+              requester: 'Mike Chen',
+              daysPending: 3,
+              priority: 'Low',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+
+  // Helper methods for Delivery Lead Dashboard
+  Widget _buildSprintProgressBar() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Sprint Progress: 60%',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: 0.6,
+          backgroundColor: Colors.grey[300],
+          valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+          minHeight: 8,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Start',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Text(
+              'End',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSprintMetricCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Card(
+        color: color.withAlpha(25),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _loadPendingReviews() {
+    // Simulate loading pending reviews
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Refreshing pending reviews...'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  Widget _buildReviewItem({
+    required String title,
+    required String requester,
+    required int daysPending,
+    required String priority,
+  }) {
+    Color priorityColor;
+    switch (priority.toLowerCase()) {
+      case 'high':
+        priorityColor = Colors.red;
+        break;
+      case 'medium':
+        priorityColor = Colors.orange;
+        break;
+      case 'low':
+        priorityColor = Colors.green;
+        break;
+      default:
+        priorityColor = Colors.grey;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 40,
+              color: priorityColor,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Requested by: $requester',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Chip(
+                  label: Text(
+                    priority,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                  backgroundColor: priorityColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$daysPending days',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  Widget _buildReviewMetrics() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Review Performance Metrics',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadReviewMetrics,
+                  tooltip: 'Refresh Metrics',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Review metrics summary
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildReviewMetricCard(
+                  title: 'Total Reviews',
+                  value: '42',
+                  icon: Icons.rate_review,
+                  color: Colors.blue,
+                  trend: '+15%',
+                ),
+                _buildReviewMetricCard(
+                  title: 'Avg. Turnaround',
+                  value: '1.8 days',
+                  icon: Icons.timer,
+                  color: Colors.green,
+                  trend: '-0.5 days',
+                ),
+                _buildReviewMetricCard(
+                  title: 'Approval Rate',
+                  value: '87%',
+                  icon: Icons.check_circle,
+                  color: Colors.orange,
+                  trend: '+3%',
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            // Review trends chart
+            _buildReviewTrendsChart(),
+          ],
+        ),
+      ),
+    );
+  }
+  Widget _buildPendingApprovals() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Pending Approvals',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Badge(
+                  label: const Text('5'),
+                  backgroundColor: Colors.red,
+                  child: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loadPendingApprovals,
+                    tooltip: 'Refresh Approvals',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Pending approval items
+            _buildPendingApprovalItem(
+              title: 'Mobile App Release v2.0',
+              submittedBy: 'John Smith',
+              daysPending: 2,
+              priority: 'High',
+              type: 'App Release',
+            ),
+            const SizedBox(height: 12),
+            _buildPendingApprovalItem(
+              title: 'Payment Gateway Integration',
+              submittedBy: 'Sarah Johnson',
+              daysPending: 1,
+              priority: 'Medium',
+              type: 'API Integration',
+            ),
+            const SizedBox(height: 12),
+            _buildPendingApprovalItem(
+              title: 'User Authentication System',
+              submittedBy: 'Mike Chen',
+              daysPending: 3,
+              priority: 'High',
+              type: 'Security Feature',
+            ),
+            const SizedBox(height: 12),
+            _buildPendingApprovalItem(
+              title: 'Dashboard UI Redesign',
+              submittedBy: 'Emily Davis',
+              daysPending: 1,
+              priority: 'Medium',
+              type: 'UI/UX Design',
+            ),
+            const SizedBox(height: 12),
+            _buildPendingApprovalItem(
+              title: 'Database Migration Script',
+              submittedBy: 'Alex Wilson',
+              daysPending: 4,
+              priority: 'Low',
+              type: 'Infrastructure',
+            ),
+            
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: _showAllPendingApprovalsDialog,
+                child: const Text('View All Pending Approvals'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  Widget _buildRecentSubmissions() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Submissions',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: _showRecentSubmissionsFilter,
+                  tooltip: 'Filter Submissions',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Recent submission items
+            _buildRecentSubmissionItem(
+              title: 'Mobile App Analytics Dashboard',
+              submittedBy: 'John Smith',
+              submittedDate: DateTime.now().subtract(const Duration(hours: 2)),
+              status: 'Under Review',
+              type: 'Dashboard',
+            ),
+            const SizedBox(height: 12),
+            _buildRecentSubmissionItem(
+              title: 'Payment Processing API',
+              submittedBy: 'Sarah Johnson',
+              submittedDate: DateTime.now().subtract(const Duration(hours: 5)),
+              status: 'Approved',
+              type: 'API',
+            ),
+            const SizedBox(height: 12),
+            _buildRecentSubmissionItem(
+              title: 'User Profile Management',
+              submittedBy: 'Mike Chen',
+              submittedDate: DateTime.now().subtract(const Duration(days: 1)),
+              status: 'Revisions Requested',
+              type: 'Feature',
+            ),
+            const SizedBox(height: 12),
+            _buildRecentSubmissionItem(
+              title: 'Email Notification System',
+              submittedBy: 'Emily Davis',
+              submittedDate: DateTime.now().subtract(const Duration(days: 2)),
+              status: 'Approved',
+              type: 'Infrastructure',
+            ),
+            
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: _showAllSubmissionsDialog,
+                child: const Text('View All Submissions'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  Widget _buildReviewHistory() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Review History',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.filter_list),
+                      onPressed: _showReviewHistoryFilter,
+                      tooltip: 'Filter History',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.download),
+                      onPressed: _exportReviewHistory,
+                      tooltip: 'Export History',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Review history items
+            _buildReviewHistoryItem(
+              title: 'Mobile App Analytics Dashboard',
+              reviewedBy: 'You',
+              reviewDate: DateTime.now().subtract(const Duration(hours: 1)),
+              status: 'Approved',
+              reviewTime: '45 min',
+              score: 92,
+            ),
+            const SizedBox(height: 12),
+            _buildReviewHistoryItem(
+              title: 'Payment Processing API',
+              reviewedBy: 'You',
+              reviewDate: DateTime.now().subtract(const Duration(hours: 4)),
+              status: 'Approved',
+              reviewTime: '30 min',
+              score: 88,
+            ),
+            const SizedBox(height: 12),
+            _buildReviewHistoryItem(
+              title: 'User Profile Management',
+              reviewedBy: 'You',
+              reviewDate: DateTime.now().subtract(const Duration(days: 1)),
+              status: 'Revisions Requested',
+              reviewTime: '1h 15min',
+              score: 75,
+            ),
+            const SizedBox(height: 12),
+            _buildReviewHistoryItem(
+              title: 'Email Notification System',
+              reviewedBy: 'You',
+              reviewDate: DateTime.now().subtract(const Duration(days: 2)),
+              status: 'Approved',
+              reviewTime: '25 min',
+              score: 95,
+            ),
+            const SizedBox(height: 12),
+            _buildReviewHistoryItem(
+              title: 'Database Migration Script',
+              reviewedBy: 'You',
+              reviewDate: DateTime.now().subtract(const Duration(days: 3)),
+              status: 'Rejected',
+              reviewTime: '50 min',
+              score: 65,
+            ),
+            
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: _showAllReviewHistoryDialog,
+                child: const Text('View Complete History'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  Widget _buildTeamPerformance() {
+    // Sample team performance data
+    final teamPerformanceData = [
+      {
+        'name': 'John Smith',
+        'role': 'Senior Developer',
+        'completedPoints': 42,
+        'qualityScore': 92,
+        'velocity': 25,
+        'blockedItems': 2,
+        'avgCycleTime': '3.2 days',
+        'trend': 'up',
+        'avatarUrl': null,
+      },
+      {
+        'name': 'Sarah Johnson',
+        'role': 'Frontend Developer',
+        'completedPoints': 38,
+        'qualityScore': 88,
+        'velocity': 22,
+        'blockedItems': 1,
+        'avgCycleTime': '2.8 days',
+        'trend': 'up',
+        'avatarUrl': null,
+      },
+      {
+        'name': 'Mike Chen',
+        'role': 'Backend Developer',
+        'completedPoints': 35,
+        'qualityScore': 95,
+        'velocity': 20,
+        'blockedItems': 0,
+        'avgCycleTime': '3.5 days',
+        'trend': 'stable',
+        'avatarUrl': null,
+      },
+      {
+        'name': 'Emily Davis',
+        'role': 'QA Engineer',
+        'completedPoints': 28,
+        'qualityScore': 91,
+        'velocity': 18,
+        'blockedItems': 3,
+        'avgCycleTime': '4.1 days',
+        'trend': 'down',
+        'avatarUrl': null,
+      },
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Team Performance Analytics',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: () => _showTeamPerformanceFilterDialog(),
+                  tooltip: 'Filter Team Performance',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Summary metrics row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTeamMetricCard(
+                  title: 'Total Points',
+                  value: '143',
+                  icon: Icons.assessment,
+                  color: Colors.blue,
+                ),
+                _buildTeamMetricCard(
+                  title: 'Avg Quality',
+                  value: '91.5%',
+                  icon: Icons.star,
+                  color: Colors.green,
+                ),
+                _buildTeamMetricCard(
+                  title: 'Avg Velocity',
+                  value: '21.3',
+                  icon: Icons.speed,
+                  color: Colors.orange,
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            // Performance table header
+            const Row(
+              children: [
+                Expanded(flex: 2, child: Text('Team Member', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Points', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Quality', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Velocity', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Cycle Time', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(child: Text('Blocked', style: TextStyle(fontWeight: FontWeight.bold))),
+                SizedBox(width: 40), // Space for action icons
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            
+            // Team member performance list
+            ...teamPerformanceData.map((member) => _buildTeamPerformanceRow(member)),
+            
+            const SizedBox(height: 16),
+            
+            // Performance trends chart
+            _buildTeamPerformanceTrendsChart(),
+          ],
+        ),
+      ),
+    );
+  }
   Widget _buildSystemMetrics() {
     return Card(
       child: Padding(
@@ -965,7 +2718,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           // ignore: deprecated_member_use
-                          color: user.isActive ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                          color: user.isActive ? Colors.green.withAlpha(25) : Colors.grey.withAlpha(25),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -1301,84 +3054,6 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildPerformanceMetrics() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Performance Metrics',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 12),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: MetricsCard(
-                title: 'Response Time',
-                value: '42ms',
-                icon: Icons.speed,
-                color: Colors.green,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Uptime',
-                value: '99.9%',
-                icon: Icons.timer,
-                color: Colors.blue,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Error Rate',
-                value: '0.1%',
-                icon: Icons.warning,
-                color: Colors.orange,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: MetricsCard(
-                title: 'Requests',
-                value: '1.2K',
-                icon: Icons.request_page,
-                color: Colors.purple,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Users Online',
-                value: '24',
-                icon: Icons.people,
-                color: Colors.teal,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: MetricsCard(
-                title: 'Cache Hit',
-                value: '87%',
-                icon: Icons.cached,
-                color: Colors.indigo,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _buildAuditLogs() {
     return Card(
       child: Padding(
@@ -1475,25 +3150,519 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildPlaceholderCard(String title) {
+  Widget _buildPendingApprovalItem({
+    required String title,
+    required String submittedBy,
+    required int daysPending,
+    required String priority,
+    required String type,
+  }) {
+    Color priorityColor;
+    switch (priority.toLowerCase()) {
+      case 'high':
+        priorityColor = Colors.red;
+        break;
+      case 'medium':
+        priorityColor = Colors.orange;
+        break;
+      case 'low':
+        priorityColor = Colors.green;
+        break;
+      default:
+        priorityColor = Colors.grey;
+    }
+
     return Card(
+      color: Colors.grey[50],
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.all(12),
+        child: Row(
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            Container(
+              width: 8,
+              height: 40,
+              decoration: BoxDecoration(
+                color: priorityColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Submitted by: $submittedBy • $type',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              children: [
+                Text(
+                  '$daysPending day${daysPending > 1 ? 's' : ''}',
+                  style: TextStyle(
+                    color: daysPending > 3 ? Colors.red : Colors.orange,
                     fontWeight: FontWeight.bold,
                   ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$title content will be implemented here.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
+                ),
+                const SizedBox(height: 4),
+                ElevatedButton(
+                  onPressed: () => _reviewApproval(title),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                   ),
+                  child: const Text('Review'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentSubmissionItem({
+    required String title,
+    required String submittedBy,
+    required DateTime submittedDate,
+    required String status,
+    required String type,
+  }) {
+    Color statusColor;
+    switch (status.toLowerCase()) {
+      case 'approved':
+        statusColor = Colors.green;
+        break;
+      case 'under review':
+        statusColor = Colors.blue;
+        break;
+      case 'revisions requested':
+        statusColor = Colors.orange;
+        break;
+      case 'rejected':
+        statusColor = Colors.red;
+        break;
+      default:
+        statusColor = Colors.grey;
+    }
+
+    final timeAgo = _formatTimeAgo(submittedDate);
+
+    return Card(
+      color: Colors.grey[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 40,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'By: $submittedBy • $type • $timeAgo',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withAlpha(25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                IconButton(
+                  icon: const Icon(Icons.visibility, size: 18),
+                  onPressed: () => _viewSubmission(title),
+                  tooltip: 'View Details',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inSeconds < 60) {
+      return 'just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} min ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+    } else {
+      return '${difference.inDays ~/ 7} week${difference.inDays ~/ 7 > 1 ? 's' : ''} ago';
+    }
+  }
+
+  Color _getScoreColor(int score) {
+    if (score >= 90) return Colors.green;
+    if (score >= 80) return Colors.greenAccent;
+    if (score >= 70) return Colors.orange;
+    if (score >= 60) return Colors.orangeAccent;
+    return Colors.red;
+  }
+
+  void _loadPendingApprovals() {
+    // TODO: Implement actual pending approvals loading
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refreshing pending approvals...')),
+    );
+  }
+
+  void _showRecentSubmissionsFilter() {
+    // TODO: Implement recent submissions filter dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Showing submissions filter...')),
+    );
+  }
+
+  void _showReviewHistoryFilter() {
+    // TODO: Implement review history filter dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Showing review history filter...')),
+    );
+  }
+
+  void _exportReviewHistory() {
+    // TODO: Implement review history export
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Exporting review history...')),
+    );
+  }
+
+  void _reviewApproval(String title) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Review Approval'),
+        content: const Text('Review details for: \$title'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Approval reviewed: \$title')),
+              );
+            },
+            child: const Text('Complete Review'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllPendingApprovalsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('All Pending Approvals'),
+        content: const Text('You have 12 pending approvals across 5 different projects. Use the filter options to view by priority, project, or submission date.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllSubmissionsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('All Submissions'),
+        content: const Text('There are 28 submissions in the last 30 days. 18 approved, 7 pending review, and 3 requiring revisions. Filter by status, date range, or project to see specific submissions.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllReviewHistoryDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Complete Review History'),
+        content: const Text('Your review history shows 45 completed reviews with an average score of 87%. Export options include CSV, PDF, and detailed performance reports by date range or project.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+
+
+
+
+  void _loadReviewMetrics() {
+    // TODO: Implement review metrics loading functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refreshing review metrics...')),
+    );
+  }
+
+  Widget _buildReviewMetricCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required String trend,
+  }) {
+    final isPositiveTrend = trend.contains('+') || trend.contains('-') && !trend.contains('days');
+    final trendColor = isPositiveTrend ? Colors.green : Colors.red;
+    
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              trend,
+              style: TextStyle(
+                color: trendColor,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewTrendsChart() {
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Review Trends (Last 30 Days)',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 16),
+          const Center(
+            child: Text(
+              'Review trends chart will be implemented here',
+              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _viewSubmission(String title) {
+    // TODO: Implement submission view
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Viewing submission: $title')),
+    );
+  }
+
+  Widget _buildReviewHistoryItem({
+    required String title,
+    required String reviewedBy,
+    required DateTime reviewDate,
+    required String status,
+    required String reviewTime,
+    required int score,
+  }) {
+    Color statusColor;
+    IconData statusIcon;
+    switch (status.toLowerCase()) {
+      case 'approved':
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle;
+        break;
+      case 'revisions requested':
+        statusColor = Colors.orange;
+        statusIcon = Icons.info;
+        break;
+      case 'rejected':
+        statusColor = Colors.red;
+        statusIcon = Icons.cancel;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusIcon = Icons.help;
+    }
+
+    final timeAgo = _formatTimeAgo(reviewDate);
+
+    return Card(
+      color: Colors.grey[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 40,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Reviewed by: $reviewedBy • $timeAgo • $reviewTime',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(statusIcon, color: statusColor, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getScoreColor(score).withAlpha(25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _getScoreColor(score)),
+                  ),
+                  child: Text(
+                    '$score%',
+                    style: TextStyle(
+                      color: _getScoreColor(score),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -3060,6 +5229,462 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       );
       debugPrint('❌ Error exporting PDF: \$e');
     }
+  }
+
+  Widget _buildBurnDownChart() {
+    // Sample burn-down data - in real app, this would come from analytics data
+    final burnDownData = [
+      {'day': 'Day 1', 'remaining': 40, 'ideal': 40},
+      {'day': 'Day 2', 'remaining': 36, 'ideal': 34},
+      {'day': 'Day 3', 'remaining': 32, 'ideal': 28},
+      {'day': 'Day 4', 'remaining': 28, 'ideal': 22},
+      {'day': 'Day 5', 'remaining': 24, 'ideal': 16},
+      {'day': 'Day 6', 'remaining': 20, 'ideal': 10},
+      {'day': 'Day 7', 'remaining': 16, 'ideal': 4},
+      {'day': 'Day 8', 'remaining': 12, 'ideal': 0},
+    ];
+
+    return Container(
+      height: 250,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sprint Burn-down Progress',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[800],
+                ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: true),
+                titlesData: FlTitlesData(
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index >= 0 && index < burnDownData.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              burnDownData[index]['day'].toString(),
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        }
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          value.toInt().toString(),
+                          style: const TextStyle(fontSize: 10),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: true),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: burnDownData.asMap().entries.map((entry) {
+                      return FlSpot(entry.key.toDouble(), (entry.value['remaining'] as num).toDouble());
+                    }).toList(),
+                    isCurved: true,
+                    color: Colors.blue,
+                    barWidth: 3,
+                    belowBarData: BarAreaData(show: false),
+                    dotData: const FlDotData(show: true),
+                  ),
+                  LineChartBarData(
+                    spots: burnDownData.asMap().entries.map((entry) {
+                      return FlSpot(entry.key.toDouble(), (entry.value['ideal'] as num).toDouble());
+                    }).toList(),
+                    isCurved: false,
+                    color: Colors.grey,
+                    barWidth: 2,
+                    belowBarData: BarAreaData(show: false),
+                    dotData: const FlDotData(show: false),
+                    dashArray: [5, 5],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                color: Colors.blue,
+              ),
+              const SizedBox(width: 4),
+              const Text('Actual', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 16),
+              Container(
+                width: 12,
+                height: 2,
+                color: Colors.grey,
+              ),
+              const SizedBox(width: 4),
+              const Text('Ideal', style: TextStyle(fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamMetricCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamPerformanceRow(Map<String, dynamic> member) {
+    final Color qualityColor = member['qualityScore'] >= 90
+        ? Colors.green
+        : member['qualityScore'] >= 80
+            ? Colors.orange
+            : Colors.red;
+
+    final IconData trendIcon = member['trend'] == 'up'
+        ? Icons.trending_up
+        : member['trend'] == 'down'
+            ? Icons.trending_down
+            : Icons.trending_flat;
+
+    final Color trendColor = member['trend'] == 'up'
+        ? Colors.green
+        : member['trend'] == 'down'
+            ? Colors.red
+            : Colors.grey;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            // Team member info
+            Expanded(
+              flex: 2,
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.blue[100],
+                    child: member['avatarUrl'] != null
+                        ? ClipOval(child: Image.network(member['avatarUrl']))
+                        : Text(
+                            member['name'].toString().split(' ').map((n) => n[0]).join(),
+                            style: const TextStyle(color: Colors.blue),
+                          ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        member['name'],
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      Text(
+                        member['role'],
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Points
+            Expanded(
+              child: Text(
+                member['completedPoints'].toString(),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+            // Quality score
+            Expanded(
+              child: Text(
+                '${member['qualityScore']}%',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: qualityColor,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+            // Velocity
+            Expanded(
+              child: Text(
+                member['velocity'].toString(),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+            // Cycle time
+            Expanded(
+              child: Text(
+                member['avgCycleTime'],
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+            // Blocked items
+            Expanded(
+              child: Text(
+                member['blockedItems'].toString(),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: member['blockedItems'] > 0 ? Colors.red : Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+            // Trend indicator
+            SizedBox(
+              width: 40,
+              child: Icon(
+                trendIcon,
+                color: trendColor,
+                size: 20,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _buildTeamPerformanceTrendsChart() {
+    // Sample trend data
+    final trendData = [
+      {'week': 'Week 1', 'points': 35, 'quality': 89},
+      {'week': 'Week 2', 'points': 38, 'quality': 91},
+      {'week': 'Week 3', 'points': 42, 'quality': 92},
+      {'week': 'Week 4', 'points': 45, 'quality': 94},
+      {'week': 'Week 5', 'points': 40, 'quality': 91},
+    ];
+
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Performance Trends (Last 5 Weeks)',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: true),
+                titlesData: FlTitlesData(
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index >= 0 && index < trendData.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              trendData[index]['week'].toString(),
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        }
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          value.toInt().toString(),
+                          style: const TextStyle(fontSize: 10),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: true),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: trendData.asMap().entries.map((entry) {
+                      return FlSpot(entry.key.toDouble(), (entry.value['points'] as num).toDouble());
+                    }).toList(),
+                    isCurved: true,
+                    color: Colors.blue,
+                    barWidth: 3,
+                    belowBarData: BarAreaData(show: false),
+                    dotData: const FlDotData(show: true),
+                  ),
+                  LineChartBarData(
+                    spots: trendData.asMap().entries.map((entry) {
+                      return FlSpot(entry.key.toDouble(), (entry.value['quality'] as num).toDouble());
+                    }).toList(),
+                    isCurved: true,
+                    color: Colors.green,
+                    barWidth: 3,
+                    belowBarData: BarAreaData(show: false),
+                    dotData: const FlDotData(show: true),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(width: 12, height: 12, color: Colors.blue),
+              const SizedBox(width: 4),
+              const Text('Points Completed', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 16),
+              Container(width: 12, height: 12, color: Colors.green),
+              const SizedBox(width: 4),
+              const Text('Quality Score', style: TextStyle(fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTeamPerformanceFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Filter Team Performance'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Time Period:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: 'last_30_days',
+                items: const [
+                  DropdownMenuItem(value: 'last_7_days', child: Text('Last 7 Days')),
+                  DropdownMenuItem(value: 'last_30_days', child: Text('Last 30 Days')),
+                  DropdownMenuItem(value: 'last_90_days', child: Text('Last 90 Days')),
+                  DropdownMenuItem(value: 'current_sprint', child: Text('Current Sprint')),
+                ],
+                onChanged: (value) {},
+              ),
+              const SizedBox(height: 16),
+              const Text('Metrics:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                title: const Text('Points Completed'),
+                value: true,
+                onChanged: (value) {},
+              ),
+              CheckboxListTile(
+                title: const Text('Quality Score'),
+                value: true,
+                onChanged: (value) {},
+              ),
+              CheckboxListTile(
+                title: const Text('Velocity'),
+                value: true,
+                onChanged: (value) {},
+              ),
+              CheckboxListTile(
+                title: const Text('Cycle Time'),
+                value: true,
+                onChanged: (value) {},
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Apply Filters'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

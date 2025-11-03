@@ -14,7 +14,7 @@ async function listAllUsers() {
     
     // Get all users ordered by registration date
     const result = await pool.query(`
-      SELECT id, email, first_name, last_name, role, created_at 
+      SELECT id, email, name, role, created_at 
       FROM users 
       ORDER BY created_at DESC
     `);
@@ -37,7 +37,7 @@ async function listAllUsers() {
       console.log('='.repeat(80));
       
       result.rows.forEach((user, index) => {
-        console.log(`\n${index + 1}. ${user.first_name} ${user.last_name}`);
+        console.log(`\n${index + 1}. ${user.name}`);
         console.log('   Email:', user.email);
         console.log('   Role:', user.role);
         console.log('   User ID:', user.id);

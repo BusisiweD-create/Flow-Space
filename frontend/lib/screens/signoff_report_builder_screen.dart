@@ -47,11 +47,12 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
           final reportData = json.decode(response.body);
           
           // Create audit log for report generation using ApiService
+          final userEmail = await ApiService.getCurrentUserEmail();
           await ApiService.createAuditLog(
             entityType: 'report',
             entityId: int.parse(_entityId),
             action: 'generate_report',
-            userEmail: ApiService.getCurrentUserEmail(),
+            userEmail: userEmail,
             userRole: ApiService.getCurrentUserRole(),
             entityName: '${_selectedEntityType.capitalize()} Report',
             newValues: {
@@ -94,11 +95,12 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
         await file.writeAsString(content);
         
         // Create audit log for report download
+        final userEmail = await ApiService.getCurrentUserEmail();
         await ApiService.createAuditLog(
           entityType: 'report',
           entityId: int.parse(_entityId),
           action: 'download_report',
-          userEmail: ApiService.getCurrentUserEmail(),
+          userEmail: userEmail,
           userRole: ApiService.getCurrentUserRole(),
           entityName: '${_selectedEntityType.capitalize()} Report',
           newValues: {
@@ -144,11 +146,12 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
       
       if (shareResult.status == ShareResultStatus.success) {
         // Create audit log for report sharing
+        final userEmail = await ApiService.getCurrentUserEmail();
         await ApiService.createAuditLog(
           entityType: 'report',
           entityId: int.parse(_entityId),
           action: 'share_report',
-          userEmail: ApiService.getCurrentUserEmail(),
+          userEmail: userEmail,
           userRole: ApiService.getCurrentUserRole(),
           entityName: '${_selectedEntityType.capitalize()} Report',
           newValues: {

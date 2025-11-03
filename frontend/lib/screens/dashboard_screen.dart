@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../models/deliverable.dart';
+import '../services/api_service.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -171,28 +172,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome to Khonology',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Deliverable & Sprint Sign-Off Hub',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Track deliverables, monitor sprint performance, and manage client approvals',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
+              child: FutureBuilder<String?>(
+                future: ApiService.currentUserFullName,
+                builder: (context, snapshot) {
+                  final userName = snapshot.data;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userName != null ? 'Welcome back, $userName!' : 'Welcome to Khonology',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Deliverable & Sprint Sign-Off Hub',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Track deliverables, monitor sprint performance, and manage client approvals',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],

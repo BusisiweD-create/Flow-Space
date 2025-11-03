@@ -74,11 +74,12 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
       await ApiService.approveSignoff(signoffId);
       
       // Create audit log for sign-off approval
+      final userEmail = await ApiService.getCurrentUserEmail();
       await ApiService.createAuditLog(
         entityType: 'signoff',
         entityId: signoffId,
         action: 'approve',
-        userEmail: ApiService.getCurrentUserEmail(),
+        userEmail: userEmail,
         userRole: ApiService.getCurrentUserRole(),
         entityName: 'Sign-off #$signoffId',
         newValues: {'status': 'approved'}, details: '',
@@ -115,11 +116,12 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
     
     try {
       // Create audit log for the change request
+      final userEmail = await ApiService.getCurrentUserEmail();
       await ApiService.createAuditLog(
         entityType: 'signoff',
         entityId: signoffId,
         action: 'change_request',
-        userEmail: ApiService.getCurrentUserEmail(),
+        userEmail: userEmail,
         userRole: 'client',
         entityName: 'Sign-off #$signoffId',
         newValues: {'change_request': changeRequest}, details: '',

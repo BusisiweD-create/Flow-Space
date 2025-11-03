@@ -410,7 +410,7 @@ class BackendApiService {
       }
       
       final userJsonForParsing = {
-        'id': userData['id'],
+        'id': userData['id']?.toString(),
         'email': userData['email'],
         'name': userData['username'] ?? 
                '${userData['first_name'] ?? userData['firstName'] ?? ''} ${userData['last_name'] ?? userData['lastName'] ?? ''}'.trim(),

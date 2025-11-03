@@ -125,9 +125,10 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
     try {
       final user = await ApiService.fetchUserProfile();
       // For now, create a minimal user object from token claims
+      final userEmail = await ApiService.currentUserEmail;
       final userFromProfile = User(
         id: int.parse(ApiService.currentUserId ?? '0'),
-        email: ApiService.currentUserEmail ?? 'authenticated@user.com',
+        email: userEmail ?? 'authenticated@user.com',
         firstName: 'User',
         lastName: 'Authenticated',
         company: 'Unknown',
@@ -138,7 +139,7 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
       );
       state = state.copyWith(user: user);
     } catch (e) {
-      state = state.copyWith(error: 'Failed to fetch user profile: $e');
+      state = state.copyWith(error: 'Failed to fetch user profile: ${e.toString()}');
     }
   }
 
