@@ -17,6 +17,7 @@ class AuthService {
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
   UserRole? get currentUserRole => _currentUser?.role;
+  String? get accessToken => _apiService.accessToken;
 
   // Initialize the service
   Future<void> initialize() async {
@@ -189,7 +190,7 @@ class AuthService {
       case '/enhanced-deliverable-setup':
         return canCreateDeliverable();
       case '/sprint-console':
-        return isDeliveryLead || isSystemAdmin;
+        return hasPermission('manage_sprints');
       case '/client-review':
       case '/enhanced-client-review':
         return canViewClientReview();
@@ -200,7 +201,7 @@ class AuthService {
       case '/approvals':
         return canApproveDeliverable() || isDeliveryLead;
       case '/repository':
-        return isDeliveryLead || isSystemAdmin;
+        return isDeliveryLead || isSystemAdmin || isTeamMember || isClientReviewer;
       default:
         return true; // Allow access to other routes by default
     }

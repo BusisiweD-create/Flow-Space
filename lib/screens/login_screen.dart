@@ -43,13 +43,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (success && mounted) {
         ErrorHandler().showSuccessSnackBar(context, 'Login successful!');
-        context.go('/dashboard');
+        // Small delay to show success message
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          context.go('/dashboard');
+        }
       } else if (mounted) {
-        ErrorHandler().showErrorSnackBar(context, 'Invalid email or password');
+        ErrorHandler().showErrorSnackBar(context, 'Invalid email or password. Please check your credentials and try again.');
       }
     } catch (e) {
       if (mounted) {
-        ErrorHandler().showErrorSnackBar(context, 'Login failed: $e');
+        String errorMessage = 'Login failed. Please try again.';
+        
+        // Provide more specific error messages
+        if (e.toString().contains('network') || e.toString().contains('connection')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (e.toString().contains('server')) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+        
+        ErrorHandler().showErrorSnackBar(context, errorMessage);
       }
     } finally {
       if (mounted) {

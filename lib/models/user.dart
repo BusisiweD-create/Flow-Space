@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'user_role.dart';
-import 'package:flutter/foundation.dart';
 
 class User {
   final String id;
@@ -97,7 +96,9 @@ class User {
           orElse: () => UserRole.teamMember,
         ),
         avatarUrl: json['avatarUrl'],
-        createdAt: DateTime.parse(json['createdAt'] as String),
+        createdAt: json['createdAt'] != null 
+            ? DateTime.parse(json['createdAt'] as String)
+            : DateTime.now(),
         lastLoginAt: json['lastLoginAt'] != null ? DateTime.parse(json['lastLoginAt'] as String) : null,
         isActive: json['isActive'] ?? true,
         projectIds: List<String>.from(json['projectIds'] ?? []),
@@ -126,6 +127,7 @@ class User {
   bool canViewAuditLogs() => hasPermission('view_audit_logs');
   bool canOverrideReadinessGate() => hasPermission('override_readiness_gate');
   bool canViewAllDeliverables() => hasPermission('view_all_deliverables');
+  bool canManageSprints() => hasPermission('manage_sprints');
 
   // Role checking methods
   bool get isTeamMember => role == UserRole.teamMember;

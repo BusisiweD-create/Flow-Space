@@ -1,35 +1,27 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  host: 'localhost',
   user: 'postgres',
+  host: 'localhost',
+  database: 'flowspace',
   password: 'postgres',
-  database: 'flow_space',
   port: 5432,
 });
 
 async function checkUsers() {
   try {
-    console.log('📊 Checking users in database...');
-    
-    const result = await pool.query('SELECT email, name, role, created_at FROM users ORDER BY created_at DESC LIMIT 10');
-    
-    if (result.rows.length > 0) {
-      console.log('👥 Current users in database:');
-      result.rows.forEach((user, index) => {
-        console.log(`${index + 1}. Email: ${user.email}`);
-        console.log(`   Name: ${user.name}`);
-        console.log(`   Role: ${user.role}`);
-        console.log(`   Created: ${user.created_at}`);
-        console.log('');
-      });
-    } else {
-      console.log('ℹ️  No users found in database');
-    }
-    
+    const result = await pool.query('SELECT id, email, first_name, last_name, is_active FROM users ORDER BY created_at DESC LIMIT 5');
+    console.log('📋 Users in database:');
+    result.rows.forEach((user, index) => {
+      console.log(`${index + 1}. Email: ${user.email}`);
+      console.log(`   Name: ${user.first_name} ${user.last_name}`);
+      console.log(`   Active: ${user.is_active}`);
+      console.log(`   ID: ${user.id}`);
+      console.log('---');
+    });
+    await pool.end();
   } catch (error) {
-    console.error('❌ Error checking users:', error.message);
-  } finally {
+    console.error('Error:', error.message);
     await pool.end();
   }
 }

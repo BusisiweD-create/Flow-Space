@@ -31,7 +31,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Sprints', 
         icon: Icons.timer_outlined, 
         route: '/sprint-console',
-        requiredPermission: 'view_team_dashboard',
+        requiredPermission: 'manage_sprints',
       ),
       const _NavItem(
         label: 'Notifications',
@@ -40,15 +40,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null, // All users can access notifications
       ),
       const _NavItem(
-        label: 'Notification Center',
-        icon: Icons.notification_important_outlined,
-        route: '/notification-center',
-        requiredPermission: null, // All users can access notification center
-      ),
-      const _NavItem(
         label: 'Approvals',
         icon: Icons.check_box_outlined,
         route: '/approvals',
+        requiredPermission: 'approve_deliverable',
+      ),
+      const _NavItem(
+        label: 'Approval Requests',
+        icon: Icons.assignment_outlined,
+        route: '/approval-requests',
         requiredPermission: 'approve_deliverable',
       ),
       const _NavItem(
@@ -64,8 +64,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'view_team_dashboard',
       ),
       const _NavItem(
-        label: 'Role Management', 
-        icon: Icons.admin_panel_settings_outlined, 
+        label: 'Role Management',
+        icon: Icons.admin_panel_settings_outlined,
         route: '/role-management',
         requiredPermission: 'manage_users',
       ),
@@ -139,6 +139,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                   padding: const EdgeInsets.only(
                       left: 12, right: 12, top: 24, bottom: 16,),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const FlownetLogo(
                         showText: false,
@@ -153,13 +154,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             child: FlownetLogo(showText: true),
                           ),
                         ),
-                      IconButton(
-                        onPressed: _toggleSidebar,
-                        icon: Icon(
-                          _collapsed
-                              ? Icons.chevron_right
-                              : Icons.chevron_left,
-                          color: FlownetColors.coolGray,
+                      Flexible(
+                        child: IconButton(
+                          onPressed: _toggleSidebar,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Icon(
+                            _collapsed
+                                ? Icons.chevron_right
+                                : Icons.chevron_left,
+                            color: FlownetColors.coolGray,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ],
@@ -193,11 +199,17 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                         child: Material(
                           color: Colors.transparent,
                           child: ListTile(
-                            leading: Icon(
-                              item.icon,
-                              color: active
-                                  ? FlownetColors.crimsonRed
-                                  : FlownetColors.coolGray,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            leading: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Icon(
+                                item.icon,
+                                color: active
+                                    ? FlownetColors.crimsonRed
+                                    : FlownetColors.coolGray,
+                                size: 20,
+                              ),
                             ),
                             title: Text(
                               item.label,
@@ -208,7 +220,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 fontWeight: active
                                     ? FontWeight.w600
                                     : FontWeight.normal,
+                                fontSize: 14,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                             onTap: () {
                               if (!routeLocation.startsWith(item.route)) {
@@ -248,7 +262,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.arrow_back),
-                            onPressed: () => Navigator.of(context).pop(),
+                            onPressed: () {
+                              if (GoRouter.of(context).canPop()) {
+                                GoRouter.of(context).pop();
+                              } else {
+                                GoRouter.of(context).go('/dashboard');
+                              }
+                            },
                             tooltip: 'Back',
                             color: FlownetColors.pureWhite,
                           ),

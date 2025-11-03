@@ -21,11 +21,13 @@ import 'screens/enhanced_client_review_screen.dart';
 import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
 import 'screens/approvals_screen.dart';
+import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
-import 'screens/notifications_screen.dart';
+import 'screens/real_notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
+import 'screens/sprint_board_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
@@ -42,6 +44,7 @@ void main() async {
     // Initialize API Services
     await BackendApiService().initialize();
     await AuthService().initialize();
+    // RealAuthService removed - using AuthService instead
     
     // Test SMTP connection on startup (optional)
     // Uncomment the lines below to test SMTP on app startup
@@ -95,6 +98,15 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/verify-email',
+      builder: (context, state) {
+        final email = state.extra as Map<String, dynamic>?;
+        return EmailVerificationScreen(
+          email: email?['email'] ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/email-verification',
       builder: (context, state) {
         final email = state.extra as Map<String, dynamic>?;
         return EmailVerificationScreen(
@@ -197,12 +209,28 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/sprint-console',
-      builder: (context, state) => const RouteGuard(
-        route: '/sprint-console',
-        child: SidebarScaffold(
-          child: SprintConsoleScreen(),
-        ),
-      ),
+            builder: (context, state) => const RouteGuard(
+              route: '/sprint-console',
+              child: SidebarScaffold(
+                child: SprintConsoleScreen(),
+              ),
+            ),
+    ),
+    GoRoute(
+      path: '/sprint-board/:sprintId',
+      builder: (context, state) {
+        final sprintId = state.pathParameters['sprintId']!;
+        final sprintName = state.uri.queryParameters['name'] ?? 'Sprint Board';
+        return RouteGuard(
+          route: '/sprint-board',
+          child: SidebarScaffold(
+            child: SprintBoardScreen(
+              sprintId: sprintId,
+              sprintName: sprintName,
+            ),
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/approvals',
@@ -210,6 +238,15 @@ final GoRouter _router = GoRouter(
         route: '/approvals',
         child: SidebarScaffold(
           child: ApprovalsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/approval-requests',
+      builder: (context, state) => const RouteGuard(
+        route: '/approval-requests',
+        child: SidebarScaffold(
+          child: ApprovalRequestsScreen(),
         ),
       ),
     ),
@@ -227,7 +264,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RouteGuard(
         route: '/notifications',
         child: SidebarScaffold(
-          child: NotificationsScreen(),
+          child: RealNotificationsScreen(),
         ),
       ),
     ),

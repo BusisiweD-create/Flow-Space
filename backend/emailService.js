@@ -278,6 +278,62 @@ class EmailService {
 </html>
     `;
   }
+
+  // Send collaborator invitation email
+  async sendCollaboratorInvitation({ to, role, projectName, inviterName }) {
+    try {
+      const subject = `You've been invited to collaborate on ${projectName}`;
+      
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">🎉 You're Invited to Collaborate!</h2>
+          <p>Hello!</p>
+          <p><strong>${inviterName}</strong> has invited you to collaborate on the project <strong>"${projectName}"</strong> as a <strong>${role}</strong>.</p>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #495057; margin-top: 0;">Project Details:</h3>
+            <p><strong>Project:</strong> ${projectName}</p>
+            <p><strong>Your Role:</strong> ${role}</p>
+            <p><strong>Invited by:</strong> ${inviterName}</p>
+          </div>
+          
+          <p>Click the button below to accept the invitation and start collaborating:</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:3000/accept-invitation?email=${encodeURIComponent(to)}&project=${encodeURIComponent(projectName)}" 
+               style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Accept Invitation
+            </a>
+          </div>
+          
+          <p style="color: #6c757d; font-size: 14px;">
+            If you can't click the button, copy and paste this link into your browser:<br>
+            <a href="http://localhost:3000/accept-invitation?email=${encodeURIComponent(to)}&project=${encodeURIComponent(projectName)}">
+              http://localhost:3000/accept-invitation?email=${encodeURIComponent(to)}&project=${encodeURIComponent(projectName)}
+            </a>
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+          <p style="color: #6c757d; font-size: 12px;">
+            This invitation was sent from Flow-Space Workspace. If you didn't expect this invitation, you can safely ignore this email.
+          </p>
+        </div>
+      `;
+
+      const info = await this.transporter.sendMail({
+        from: `"Flow-Space Workspace" <${process.env.SMTP_USER}>`,
+        to: to,
+        subject: subject,
+        html: html,
+      });
+
+      console.log('✅ Collaborator invitation sent:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('❌ Error sending collaborator invitation:', error);
+      return false;
+    }
+  }
 }
 
 module.exports = EmailService;

@@ -74,25 +74,25 @@ class _FlownetLogoState extends State<FlownetLogo> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // 3x3 Grid Logo
-        _buildGridLogo(size: 20),
-        const SizedBox(height: 2),
+        _buildGridLogo(size: 16),
+        const SizedBox(height: 1),
         // Text
         const Text(
           'FLOWNET',
           style: TextStyle(
             color: FlownetColors.crimsonRed,
-            fontSize: 10,
+            fontSize: 8,
             fontWeight: FontWeight.bold,
-            letterSpacing: 0.6,
+            letterSpacing: 0.3,
           ),
         ),
         const Text(
           'WORKSPACES',
           style: TextStyle(
             color: FlownetColors.pureWhite,
-            fontSize: 6,
+            fontSize: 5,
             fontWeight: FontWeight.w500,
-            letterSpacing: 0.2,
+            letterSpacing: 0.1,
           ),
         ),
       ],

@@ -44,6 +44,24 @@ async function testDatabaseConnection() {
   }
 }
 
+// JWT Authentication middleware
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -427,6 +445,292 @@ process.on('SIGTERM', () => {
   console.log('\n🛑 Shutting down server...');
   pool.end();
   process.exit(0);
+});
+
+// ===== SPRINT MANAGEMENT ENDPOINTS =====
+
+// Get all sprints for a user
+app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const result = await pool.query(`
+      SELECT id, name, description, start_date, end_date, status, created_by, created_at, updated_at
+      FROM sprints 
+      WHERE created_by = $1 
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching sprints:', error);
+    res.status(500).json({ error: 'Failed to fetch sprints' });
+  }
+});
+
+// Create a new sprint
+app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { name, goal, boardId, startDate, endDate } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO sprints (name, description, start_date, end_date, status, created_by, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      RETURNING id, name, description, start_date, end_date, status, created_by, created_at, updated_at
+    `, [name, goal, startDate, endDate, 'in_progress', userId]);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating sprint:', error);
+    res.status(500).json({ error: 'Failed to create sprint' });
+  }
+});
+
+// Update sprint
+app.put('/api/v1/sprints/:sprintId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const sprintId = req.params.sprintId;
+    const { name, goal, state, startDate, endDate } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE sprints 
+      SET name = $1, description = $2, status = $3, start_date = $4, end_date = $5, updated_at = NOW()
+      WHERE created_by = $6 AND id = $7
+      RETURNING id, name, description, start_date, end_date, status, created_by, created_at, updated_at
+    `, [name, goal, state, startDate, endDate, userId, sprintId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sprint not found' });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating sprint:', error);
+    res.status(500).json({ error: 'Failed to update sprint' });
+  }
+});
+
+// ===== TICKET MANAGEMENT ENDPOINTS =====
+
+// Get all tickets for a sprint
+app.get('/api/v1/sprints/:sprintId/tickets', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const sprintId = req.params.sprintId;
+    
+    const result = await pool.query(`
+      SELECT * FROM tickets 
+      WHERE user_id = $1 AND sprint_id = $2
+      ORDER BY created_at ASC
+    `, [userId, sprintId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching tickets:', error);
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+// Create a new ticket
+app.post('/api/v1/sprints/:sprintId/tickets', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sprintId = req.params.sprintId;
+    const { ticketKey, summary, description, issueType, priority, assignee, reporter, labels } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO tickets (user_id, ticket_id, ticket_key, summary, description, issue_type, priority, assignee, reporter, sprint_id, labels)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [userId, ticketKey, summary, description, issueType, priority, assignee, reporter, sprintId, labels]);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    res.status(500).json({ error: 'Failed to create ticket' });
+  }
+});
+
+// Update ticket status (for drag and drop)
+app.put('/api/v1/tickets/:ticketId/status', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const ticketId = req.params.ticketId;
+    const { status } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE tickets 
+      SET status = $1, updated_at = NOW()
+      WHERE user_id = $2 AND ticket_id = $3
+      RETURNING *
+    `, [status, userId, ticketId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating ticket status:', error);
+    res.status(500).json({ error: 'Failed to update ticket status' });
+  }
+});
+
+// Update ticket details
+app.put('/api/v1/tickets/:ticketId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const ticketId = req.params.ticketId;
+    const { summary, description, assignee, priority, labels } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE tickets 
+      SET summary = $1, description = $2, assignee = $3, priority = $4, labels = $5, updated_at = NOW()
+      WHERE user_id = $6 AND ticket_id = $7
+      RETURNING *
+    `, [summary, description, assignee, priority, labels, userId, ticketId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating ticket:', error);
+    res.status(500).json({ error: 'Failed to update ticket' });
+  }
+});
+
+// Create project
+app.post('/api/v1/projects', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { name, key, description, projectType } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO jira_projects (user_id, project_id, project_key, project_name, project_type, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      RETURNING id, project_id, project_key, project_name, project_type, created_at
+    `, [userId, Date.now().toString(), key, name, projectType || 'software']);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating project:', error);
+    res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+// Get projects
+app.get('/api/v1/projects', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const result = await pool.query(`
+      SELECT id, project_id, project_key, project_name, project_type, created_at
+      FROM jira_projects 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+// Send collaborator invitation email
+app.post('/api/v1/collaborators/invite', authenticateToken, async (req, res) => {
+  try {
+    const { email, role, projectName } = req.body;
+    
+    if (!email || !role || !projectName) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Send invitation email
+    const emailSent = await emailService.sendCollaboratorInvitation({
+      to: email,
+      role: role,
+      projectName: projectName,
+      inviterName: req.user.email, // Use the current user's email as inviter
+    });
+
+    if (emailSent) {
+      console.log(`✅ Invitation sent to ${email} for project ${projectName}`);
+      res.json({
+        success: true,
+        message: 'Invitation sent successfully'
+      });
+    } else {
+      console.log(`❌ Failed to send invitation to ${email}`);
+      res.status(500).json({ error: 'Failed to send invitation email' });
+    }
+  } catch (error) {
+    console.error('Error sending invitation:', error);
+    res.status(500).json({ error: 'Failed to send invitation' });
+  }
+});
+
+// Create a new ticket
+app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
+  try {
+    const { sprintId, title, description, assignee, priority, type, status } = req.body;
+    const userId = req.user.userId;
+    
+    if (!sprintId || !title) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Generate ticket ID and key
+    const ticketId = Date.now().toString();
+    const ticketKey = `TICKET-${ticketId}`;
+    
+    // Create ticket in database
+    const result = await pool.query(`
+      INSERT INTO tickets (sprint_id, ticket_id, ticket_key, summary, description, assignee, priority, issue_type, status, user_id, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+      RETURNING id, ticket_id, ticket_key, summary, description, assignee, priority, issue_type, status, created_at
+    `, [sprintId, ticketId, ticketKey, title, description, assignee, priority, type, status || 'To Do', userId]);
+    
+    console.log(`✅ Ticket created: ${title} for sprint ${sprintId}`);
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    res.status(500).json({ error: 'Failed to create ticket' });
+  }
 });
 
 // Start the server

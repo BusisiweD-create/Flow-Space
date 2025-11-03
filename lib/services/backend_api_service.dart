@@ -13,6 +13,9 @@ class BackendApiService {
 
   final ApiClient _apiClient = ApiClient();
 
+  // Getters
+  String? get accessToken => _apiClient.accessToken;
+
   // Initialize the service
   Future<void> initialize() async {
     await _apiClient.initialize();
@@ -306,7 +309,7 @@ class BackendApiService {
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
     return await _apiClient.post('/auth/verify-email', body: {
       'email': email,
-      'verification_code': verificationCode,
+      'verificationCode': verificationCode,
     },);
   }
 
