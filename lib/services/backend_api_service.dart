@@ -55,6 +55,11 @@ class BackendApiService {
     return await _apiClient.resetPassword(token, newPassword);
   }
 
+  // Token management
+  Future<void> saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
+    await _apiClient.saveTokens(accessToken, refreshToken, expiry);
+  }
+
   // User management endpoints
   Future<ApiResponse> getUsers({int page = 1, int limit = 20, String? search}) async {
     final queryParams = <String, String>{

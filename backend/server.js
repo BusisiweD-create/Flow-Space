@@ -403,6 +403,15 @@ app.post('/api/v1/auth/login', async (req, res) => {
   }
 });
 
+// Logout endpoint
+app.post('/api/v1/auth/logout', authenticateToken, (req, res) => {
+  // In a real app, you might want to blacklist the token
+  res.json({
+    success: true,
+    message: 'Logout successful'
+  });
+});
+
 // Keep the old signin endpoint for backward compatibility
 app.post('/api/v1/auth/signin', async (req, res) => {
   try {
@@ -499,56 +508,12 @@ app.get('/api/v1/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
-// Deliverables routes
-app.get('/api/v1/deliverables', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT d.*, p.first_name, p.last_name
-      FROM deliverables d
-      LEFT JOIN profiles p ON d.assigned_to = p.id
-      ORDER BY d.created_at DESC
-    `);
-    
-    const deliverables = result.rows.map(row => ({
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      definition_of_done: row.definition_of_done,
-      status: row.status,
-      assigned_to: row.assigned_to,
-      created_by: row.created_by,
-      sprint_id: row.sprint_id,
-      priority: row.priority,
-      due_date: row.due_date,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      assigned_user_name: row.first_name ? `${row.first_name} ${row.last_name}` : null,
-    }));
-    
-    res.json(deliverables);
-  } catch (error) {
-    console.error('Get deliverables error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// Deliverables routes - REMOVED: This endpoint is duplicated below with authentication
+// The authenticated version at line 1262 should be used instead
 
-app.post('/api/v1/deliverables', async (req, res) => {
-  try {
-    const { title, description, definitionOfDone, status, assignedTo, createdBy } = req.body;
-    
-    const result = await pool.query(
-      `INSERT INTO deliverables (title, description, definition_of_done, status, assigned_to, created_by, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [title, description, definitionOfDone, status, assignedTo, createdBy, new Date().toISOString()]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Create deliverable error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// REMOVED: Unauthenticated POST /api/v1/deliverables endpoint
+// This endpoint is duplicated below with authentication at line 1274
+// The authenticated version should be used instead
 
 app.put('/api/v1/deliverables/:id', async (req, res) => {
   try {
@@ -556,7 +521,7 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
     let { status } = req.body;
     
     await pool.query(
-      'UPDATE deliverables SET status = $1, updated_at = $2 WHERE id = $3',
+      'UPDATE deliverables SET status = $1, updated_at = $2 WHERE id = $3::uuid',
       [status, new Date().toISOString(), id]
     );
     
@@ -2545,6 +2510,453 @@ app.get('/api/v1/approval-requests/:id', authenticateToken, async (req, res) => 
   } catch (error) {
     console.error('Get approval request error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ==================== SIGN-OFF REPORTS ENDPOINTS ====================
+
+// Get all sign-off reports with filters
+app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
+  try {
+    const { status, search, deliverableId, projectId, sprintId, from, to } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    let query = `
+      SELECT 
+        r.id,
+        r.deliverable_id,
+        r.created_by,
+        r.status,
+        r.content,
+        r.evidence,
+        r.created_at,
+        r.updated_at,
+        u.name as created_by_name,
+        d.title as deliverable_title,
+        d.project_id,
+        p.name as project_name,
+        cr.reviewer_id,
+        cr.status as review_status,
+        cr.feedback,
+        cr.approved_at,
+        u2.name as reviewer_name
+      FROM sign_off_reports r
+      LEFT JOIN users u ON r.created_by = u.id
+      LEFT JOIN deliverables d ON r.deliverable_id = d.id
+      LEFT JOIN projects p ON d.project_id = p.id
+      LEFT JOIN client_reviews cr ON r.id = cr.report_id
+      LEFT JOIN users u2 ON cr.reviewer_id = u2.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND (r.created_by = $${++paramCount} OR d.assigned_to = $${paramCount})`;
+      params.push(userId);
+    } else if (userRole === 'clientReviewer') {
+      // Client reviewers can see all reports
+    }
+
+    if (status) {
+      query += ` AND r.status = $${++paramCount}`;
+      params.push(status);
+    }
+    if (deliverableId) {
+      query += ` AND r.deliverable_id = $${++paramCount}::uuid`;
+      params.push(deliverableId);
+    }
+    if (projectId) {
+      query += ` AND d.project_id = $${++paramCount}::uuid`;
+      params.push(projectId);
+    }
+    if (sprintId) {
+      query += ` AND EXISTS (
+        SELECT 1 FROM sprint_deliverables sd 
+        WHERE sd.deliverable_id = r.deliverable_id AND sd.sprint_id = $${++paramCount}::uuid
+      )`;
+      params.push(sprintId);
+    }
+    if (from) {
+      query += ` AND r.created_at >= $${++paramCount}`;
+      params.push(new Date(from));
+    }
+    if (to) {
+      query += ` AND r.created_at <= $${++paramCount}`;
+      params.push(new Date(to));
+    }
+    if (search) {
+      query += ` AND (
+        (r.content->>'reportTitle')::text ILIKE $${++paramCount} OR
+        (r.content->>'reportContent')::text ILIKE $${paramCount} OR
+        d.title ILIKE $${paramCount}
+      )`;
+      params.push(`%${search}%`);
+    }
+
+    query += ' ORDER BY r.created_at DESC';
+
+    const result = await pool.query(query, params);
+    
+    // Transform results to include review info
+    const reportsMap = new Map();
+    result.rows.forEach(row => {
+      if (!reportsMap.has(row.id)) {
+        reportsMap.set(row.id, {
+          id: row.id,
+          deliverableId: row.deliverable_id,
+          deliverableTitle: row.deliverable_title,
+          projectId: row.project_id,
+          projectName: row.project_name,
+          createdBy: row.created_by,
+          createdByName: row.created_by_name,
+          status: row.status,
+          content: row.content || {},
+          evidence: row.evidence || [],
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          reviews: []
+        });
+      }
+      if (row.reviewer_id) {
+        reportsMap.get(row.id).reviews.push({
+          reviewerId: row.reviewer_id,
+          reviewerName: row.reviewer_name,
+          reviewStatus: row.review_status,
+          feedback: row.feedback,
+          approvedAt: row.approved_at
+        });
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      data: Array.from(reportsMap.values())
+    });
+  } catch (error) {
+    console.error('Error fetching sign-off reports:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch sign-off reports' });
+  }
+});
+
+// Get single sign-off report
+app.get('/api/v1/sign-off-reports/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Log view action in audit
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'view_report', 'sign_off_report', $2, '{}', NOW())
+    `, [userId, id]);
+
+    const result = await pool.query(`
+      SELECT 
+        r.*,
+        u.name as created_by_name,
+        d.title as deliverable_title,
+        d.project_id,
+        p.name as project_name
+      FROM sign_off_reports r
+      LEFT JOIN users u ON r.created_by = u.id
+      LEFT JOIN deliverables d ON r.deliverable_id = d.id
+      LEFT JOIN projects p ON d.project_id = p.id
+      WHERE r.id = $1::uuid
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // Get reviews
+    const reviewsResult = await pool.query(`
+      SELECT cr.*, u.name as reviewer_name
+      FROM client_reviews cr
+      LEFT JOIN users u ON cr.reviewer_id = u.id
+      WHERE cr.report_id = $1::uuid
+      ORDER BY cr.created_at DESC
+    `, [id]);
+
+    const report = result.rows[0];
+    report.reviews = reviewsResult.rows;
+
+    res.json({ success: true, data: report });
+  } catch (error) {
+    console.error('Error fetching sign-off report:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch sign-off report' });
+  }
+});
+
+// Create sign-off report
+app.post('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
+  try {
+    const { deliverableId, reportTitle, reportContent, sprintIds, sprintPerformanceData, knownLimitations, nextSteps } = req.body;
+    const userId = req.user.id;
+
+    if (!deliverableId || !reportTitle || !reportContent) {
+      return res.status(400).json({ success: false, error: 'Deliverable ID, report title, and content are required' });
+    }
+
+    const content = {
+      reportTitle,
+      reportContent,
+      sprintPerformanceData: sprintPerformanceData || null,
+      knownLimitations: knownLimitations || null,
+      nextSteps: nextSteps || null,
+      sprintIds: sprintIds || []
+    };
+
+    const result = await pool.query(`
+      INSERT INTO sign_off_reports (deliverable_id, created_by, status, content, created_at, updated_at)
+      VALUES ($1::uuid, $2::uuid, 'draft', $3::jsonb, NOW(), NOW())
+      RETURNING *
+    `, [deliverableId, userId, JSON.stringify(content)]);
+
+    const reportId = result.rows[0].id;
+
+    // Log creation in audit
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'create_report', 'sign_off_report', $2, $3::jsonb, NOW())
+    `, [userId, reportId, JSON.stringify({ deliverableId, reportTitle })]);
+
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating sign-off report:', error);
+    res.status(500).json({ success: false, error: 'Failed to create sign-off report' });
+  }
+});
+
+// Update sign-off report
+app.put('/api/v1/sign-off-reports/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reportTitle, reportContent, sprintPerformanceData, knownLimitations, nextSteps, sprintIds } = req.body;
+    const userId = req.user.id;
+
+    // Get existing report
+    const existingResult = await pool.query(`
+      SELECT * FROM sign_off_reports WHERE id = $1::uuid
+    `, [id]);
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    const existing = existingResult.rows[0];
+    const existingContent = existing.content || {};
+    
+    const updatedContent = {
+      ...existingContent,
+      ...(reportTitle && { reportTitle }),
+      ...(reportContent && { reportContent }),
+      ...(sprintPerformanceData !== undefined && { sprintPerformanceData }),
+      ...(knownLimitations !== undefined && { knownLimitations }),
+      ...(nextSteps !== undefined && { nextSteps }),
+      ...(sprintIds && { sprintIds })
+    };
+
+    const result = await pool.query(`
+      UPDATE sign_off_reports 
+      SET content = $1::jsonb, updated_at = NOW()
+      WHERE id = $2::uuid
+      RETURNING *
+    `, [JSON.stringify(updatedContent), id]);
+
+    // Log update in audit
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'update_report', 'sign_off_report', $2, '{}', NOW())
+    `, [userId, id]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating sign-off report:', error);
+    res.status(500).json({ success: false, error: 'Failed to update sign-off report' });
+  }
+});
+
+// Submit sign-off report
+app.post('/api/v1/sign-off-reports/:id/submit', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await pool.query(`
+      UPDATE sign_off_reports 
+      SET status = 'submitted', updated_at = NOW()
+      WHERE id = $1::uuid AND created_by = $2::uuid
+      RETURNING *
+    `, [id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found or unauthorized' });
+    }
+
+    // Log submission in audit
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'submit_report', 'sign_off_report', $2, '{}', NOW())
+    `, [userId, id]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error submitting sign-off report:', error);
+    res.status(500).json({ success: false, error: 'Failed to submit sign-off report' });
+  }
+});
+
+// Approve sign-off report
+app.post('/api/v1/sign-off-reports/:id/approve', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment, digitalSignature } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Only client reviewers can approve
+    if (userRole !== 'clientReviewer') {
+      return res.status(403).json({ success: false, error: 'Only client reviewers can approve reports' });
+    }
+
+    // Update report status
+    const result = await pool.query(`
+      UPDATE sign_off_reports 
+      SET status = 'approved', updated_at = NOW()
+      WHERE id = $1::uuid
+      RETURNING *
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // Create client review record with digital signature
+    await pool.query(`
+      INSERT INTO client_reviews (report_id, reviewer_id, status, feedback, approved_at, created_at)
+      VALUES ($1::uuid, $2::uuid, 'approved', $3, NOW(), NOW())
+    `, [id, userId, comment || null]);
+    
+    // Store digital signature in the report's content if provided
+    if (digitalSignature) {
+      const currentContent = result.rows[0].content || {};
+      const updatedContent = {
+        ...(typeof currentContent === 'object' && currentContent !== null ? currentContent : {}),
+        digitalSignature: digitalSignature,
+        signatureDate: new Date().toISOString(),
+        signerId: userId,
+      };
+      
+      await pool.query(`
+        UPDATE sign_off_reports 
+        SET content = $1::jsonb 
+        WHERE id = $2::uuid
+      `, [JSON.stringify(updatedContent), id]);
+    }
+
+    // Log approval in audit
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'approve_report', 'sign_off_report', $2, $3::jsonb, NOW())
+    `, [userId, id, JSON.stringify({ comment, hasDigitalSignature: !!digitalSignature })]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error approving sign-off report:', error);
+    res.status(500).json({ success: false, error: 'Failed to approve sign-off report' });
+  }
+});
+
+// Request changes (decline with feedback)
+app.post('/api/v1/sign-off-reports/:id/request-changes', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { changeRequestDetails } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Only client reviewers can request changes
+    if (userRole !== 'clientReviewer') {
+      return res.status(403).json({ success: false, error: 'Only client reviewers can request changes' });
+    }
+
+    if (!changeRequestDetails) {
+      return res.status(400).json({ success: false, error: 'Change request details are required' });
+    }
+
+    // Update report status
+    const result = await pool.query(`
+      UPDATE sign_off_reports 
+      SET status = 'change_requested', updated_at = NOW()
+      WHERE id = $1::uuid
+      RETURNING *
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // Create client review record
+    await pool.query(`
+      INSERT INTO client_reviews (report_id, reviewer_id, status, feedback, created_at)
+      VALUES ($1::uuid, $2::uuid, 'change_requested', $3, NOW())
+    `, [id, userId, changeRequestDetails]);
+
+    // Log change request in audit
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'request_changes', 'sign_off_report', $2, $3::jsonb, NOW())
+    `, [userId, id, JSON.stringify({ changeRequestDetails })]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error requesting changes:', error);
+    res.status(500).json({ success: false, error: 'Failed to request changes' });
+  }
+});
+
+// Get audit history for sign-off report
+app.get('/api/v1/sign-off-reports/:id/audit', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        a.*,
+        u.name as actor_name,
+        u.email as actor_email
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.resource_type = 'sign_off_report' AND a.resource_id = $1::uuid
+      ORDER BY a.created_at DESC
+    `, [id]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching report audit:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch audit history' });
+  }
+});
+
+// Track document view for audit
+app.post('/api/v1/documents/:id/view', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Log view in audit
+    await pool.query(`
+      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+      VALUES ($1, 'view_document', 'repository_file', $2, '{}', NOW())
+    `, [userId, id]);
+
+    res.json({ success: true, message: 'View tracked' });
+  } catch (error) {
+    console.error('Error tracking document view:', error);
+    res.status(500).json({ success: false, error: 'Failed to track view' });
   }
 });
 

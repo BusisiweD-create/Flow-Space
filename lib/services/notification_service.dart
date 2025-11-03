@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/notification_item.dart';
 
 class NotificationService {
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  static const String _baseUrl = 'http://localhost:3007/api/v1';
   String? _authToken;
 
   void setAuthToken(String token) {

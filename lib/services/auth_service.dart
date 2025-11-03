@@ -224,10 +224,28 @@ class AuthService {
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
     try {
       final response = await _apiService.verifyEmail(email, verificationCode);
-      if (response.isSuccess) {
+      if (response.isSuccess && response.data != null) {
         debugPrint('Email verified successfully');
-        // Update current user if they're logged in
-        await _loadCurrentUser();
+        
+        // Extract JWT token from verification response
+        final data = response.data!;
+        final token = data['token'];
+        final userData = data['user'];
+        final expiresIn = data['expires_in'] ?? 86400;
+        
+        if (token != null) {
+          // Save the JWT token
+          final expiry = DateTime.now().add(Duration(seconds: expiresIn));
+          await _apiService.saveTokens(token, '', expiry);
+          debugPrint('JWT token saved after email verification');
+        }
+        
+        // Set current user
+        if (userData != null) {
+          _currentUser = User.fromJson(userData);
+          _isAuthenticated = true;
+          debugPrint('✅ Loaded user: ${_currentUser!.name} (${_currentUser!.email})');
+        }
       }
       return response;
     } catch (e) {

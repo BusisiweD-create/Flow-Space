@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   // Base URL for your backend API (you'll need to create this)
-  static const String baseUrl = 'http://localhost:3001/api';
+  static const String baseUrl = 'http://localhost:3007/api';
   
   // Initialize the service
   static Future<void> initialize() async {

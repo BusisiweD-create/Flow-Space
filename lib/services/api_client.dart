@@ -9,7 +9,7 @@ class ApiClient {
   factory ApiClient() => _instance;
   ApiClient._internal();
 
-  static const String _baseUrl = 'http://localhost:3001/api'; // Local backend server
+  static const String _baseUrl = 'http://localhost:3007/api'; // Local backend server
   static const String _apiVersion = '/v1';
   static const Duration _timeout = Duration(seconds: 30);
 
@@ -45,7 +45,7 @@ class ApiClient {
     }
   }
 
-  Future<void> _saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
+  Future<void> saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', accessToken);
@@ -101,7 +101,7 @@ class ApiClient {
         final newRefreshToken = data['refresh_token'] ?? _refreshToken;
         final expiry = DateTime.now().add(Duration(seconds: data['expires_in'] ?? 3600));
         
-        await _saveTokens(newAccessToken, newRefreshToken, expiry);
+        await saveTokens(newAccessToken, newRefreshToken, expiry);
         return true;
       }
     } catch (e) {
@@ -231,7 +231,7 @@ class ApiClient {
       final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
       final expiry = DateTime.now().add(Duration(seconds: expiresIn));
       
-      await _saveTokens(accessToken, refreshToken, expiry);
+      await saveTokens(accessToken, refreshToken, expiry);
     }
 
     return response;

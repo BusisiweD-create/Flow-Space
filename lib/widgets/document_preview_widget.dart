@@ -72,6 +72,9 @@ class _DocumentPreviewWidgetState extends State<DocumentPreviewWidget> {
   Future<void> _loadPreview() async {
     if (!_canPreview()) return;
 
+    // Track document view
+    await widget.documentService.trackDocumentView(widget.document.id);
+
     setState(() {
       _isLoading = true;
       _error = null;

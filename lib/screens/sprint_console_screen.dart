@@ -24,7 +24,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   
   // UI State
   bool _isLoading = false;
-  String? _selectedProjectKey;
+  String? _selectedProjectId;
   String? _selectedSprintId;
   
   @override
@@ -122,7 +122,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           const SizedBox(height: 24),
           
           // Sprints Section
-          if (_selectedProjectKey != null) _buildSprintsSection(),
+          if (_selectedProjectId != null) _buildSprintsSection(),
           
           // Tickets Section
           if (_selectedSprintId != null) _buildTicketsSection(),
@@ -184,7 +184,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (_selectedProjectKey == null)
+                if (_selectedProjectId == null)
                   Text(
                     'Select a project to create sprints',
                     style: TextStyle(
@@ -206,7 +206,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        if (_selectedProjectKey != null)
+        if (_selectedProjectId != null)
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 16),
@@ -221,7 +221,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Selected project: ${_projects.firstWhere((p) => p['key'] == _selectedProjectKey)['name']}',
+                    'Selected project: ${_projects.firstWhere((p) => p['id'] == _selectedProjectId)['name']}',
                     style: const TextStyle(
                       color: FlownetColors.electricBlue,
                       fontSize: 14,
@@ -253,7 +253,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       itemCount: _projects.length,
       itemBuilder: (context, index) {
         final project = _projects[index];
-        final isSelected = _selectedProjectKey == project['key'];
+        final isSelected = _selectedProjectId == project['id'];
         
         return GestureDetector(
           onTap: () => _selectProject(project),
@@ -269,7 +269,8 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 width: isSelected ? 2 : 1,
               ),
             ),
-            child: Column(
+            child: SingleChildScrollView(
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -302,11 +303,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  project['key'] ?? '',
+                  project['description'] ?? '',
                   style: TextStyle(
                     color: FlownetColors.pureWhite.withValues(alpha: 0.7),
                     fontSize: 12,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -318,6 +321,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         );
@@ -421,7 +425,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                     ),
                   ),
                   child: DropdownButton<String>(
-                    value: sprint['status'] ?? 'in_progress',
+                    value: ((sprint['status'] ?? 'in_progress').toString() == 'planned')
+                        ? 'planning'
+                        : (sprint['status'] ?? 'in_progress'),
                     underline: const SizedBox.shrink(),
                     dropdownColor: FlownetColors.charcoalBlack,
                     style: TextStyle(
@@ -430,6 +436,10 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                     items: const [
+                      DropdownMenuItem(
+                        value: 'planned',
+                        child: Text('Planned'),
+                      ),
                       DropdownMenuItem(
                         value: 'planning',
                         child: Text('Planning'),
@@ -448,8 +458,11 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                       ),
                     ],
                     onChanged: (String? newStatus) {
-                      if (newStatus != null && newStatus != sprint['status']) {
-                        _updateSprintStatus(sprint['id'], newStatus);
+                      if (newStatus != null) {
+                        final normalizedToBackend = newStatus == 'planning' ? 'planned' : newStatus;
+                        if (normalizedToBackend != sprint['status']) {
+                          _updateSprintStatus(sprint['id'], normalizedToBackend);
+                        }
                       }
                     },
                   ),
@@ -565,11 +578,11 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   // Helper methods
   void _selectProject(Map<String, dynamic> project) {
     setState(() {
-      _selectedProjectKey = project['key'];
+      _selectedProjectId = project['id'];
       _selectedSprintId = null; // Reset sprint selection
       _tickets.clear(); // Clear tickets
     });
-    debugPrint('🎯 Project selected: ${project['name']} (${project['key']})');
+    debugPrint('🎯 Project selected: ${project['name']} (${project['id']})');
   }
 
   void _selectSprint(Map<String, dynamic> sprint) {
@@ -582,7 +595,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         builder: (context) => SprintBoardScreen(
           sprintId: sprint['id'],
           sprintName: sprint['name'] ?? 'Unknown Sprint',
-          projectKey: _selectedProjectKey,
+          projectKey: _selectedProjectId,
         ),
       ),
     );
@@ -595,6 +608,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       case 'in_progress':
         return FlownetColors.crimsonRed;
       case 'planning':
+      case 'planned':
         return Colors.orange;
       default:
         return FlownetColors.pureWhite;
@@ -604,7 +618,6 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   // Dialog methods
   void _showCreateProjectDialog() {
     final nameController = TextEditingController();
-    final keyController = TextEditingController();
     final descriptionController = TextEditingController();
 
     showDialog(
@@ -623,21 +636,6 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
               style: const TextStyle(color: FlownetColors.pureWhite),
               decoration: const InputDecoration(
                 labelText: 'Project Name',
-                labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: keyController,
-              style: const TextStyle(color: FlownetColors.pureWhite),
-              decoration: const InputDecoration(
-                labelText: 'Project Key (e.g., FLOW)',
                 labelStyle: TextStyle(color: FlownetColors.electricBlue),
                 border: OutlineInputBorder(
                   borderSide: BorderSide(color: FlownetColors.electricBlue),
@@ -675,15 +673,15 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (nameController.text.trim().isEmpty || keyController.text.trim().isEmpty) {
-                _showSnackBar('Please fill in project name and key', isError: true);
+              if (nameController.text.trim().isEmpty) {
+                _showSnackBar('Please fill in project name', isError: true);
                 return;
               }
 
               Navigator.of(context).pop();
               await _createProject(
                 nameController.text.trim(),
-                keyController.text.trim().toUpperCase(),
+                null, // No key field anymore
                 descriptionController.text.trim(),
               );
             },
@@ -926,7 +924,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     _showSnackBar('Create Ticket dialog - Coming soon!');
   }
 
-  Future<void> _createProject(String name, String key, String description) async {
+  Future<void> _createProject(String name, String? key, String description) async {
     try {
       setState(() {
         _isLoading = true;

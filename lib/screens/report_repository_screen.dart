@@ -6,9 +6,13 @@ import '../models/sign_off_report.dart';
 import '../models/repository_file.dart';
 import '../services/document_service.dart';
 import '../services/auth_service.dart';
+import '../services/sign_off_report_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/document_preview_widget.dart';
+import '../widgets/audit_history_widget.dart';
+import 'report_editor_screen.dart';
+import 'client_review_workflow_screen.dart';
 
 class ReportRepositoryScreen extends ConsumerStatefulWidget {
   const ReportRepositoryScreen({super.key});
@@ -24,6 +28,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   String _searchQuery = '';
   final _searchController = TextEditingController();
   final DocumentService _documentService = DocumentService(AuthService());
+  final SignOffReportService _reportService = SignOffReportService(AuthService());
 
   @override
   void initState() {
@@ -50,66 +55,96 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     }
   }
 
-  void _loadReports() {
-    // Mock data - in real app this would come from API
-    setState(() {
-      _reports = [
-        SignOffReport(
-          id: '1',
-          deliverableId: 'deliverable-1',
-          reportTitle: 'Sign-Off Report: User Authentication System',
-          reportContent: 'Comprehensive report for authentication system...',
-          sprintIds: ['sprint-1', 'sprint-2'],
-          status: ReportStatus.approved,
-          createdAt: DateTime.now().subtract(const Duration(days: 5)),
-          createdBy: 'John Doe',
-          submittedAt: DateTime.now().subtract(const Duration(days: 4)),
-          submittedBy: 'Project Manager',
-          reviewedAt: DateTime.now().subtract(const Duration(days: 2)),
-          reviewedBy: 'Client User',
-          approvedAt: DateTime.now().subtract(const Duration(days: 2)),
-          approvedBy: 'Client User',
-          digitalSignature: 'sig_123456789',
-        ),
-        SignOffReport(
-          id: '2',
-          deliverableId: 'deliverable-2',
-          reportTitle: 'Sign-Off Report: Payment Integration',
-          reportContent: 'Payment gateway integration report...',
-          sprintIds: ['sprint-3'],
-          status: ReportStatus.submitted,
-          createdAt: DateTime.now().subtract(const Duration(days: 2)),
-          createdBy: 'Jane Smith',
-          submittedAt: DateTime.now().subtract(const Duration(days: 1)),
-          submittedBy: 'Project Manager',
-        ),
-        SignOffReport(
-          id: '3',
-          deliverableId: 'deliverable-3',
-          reportTitle: 'Sign-Off Report: Dashboard Analytics',
-          reportContent: 'Analytics dashboard implementation report...',
-          sprintIds: ['sprint-4', 'sprint-5'],
-          status: ReportStatus.changeRequested,
-          createdAt: DateTime.now().subtract(const Duration(days: 3)),
-          createdBy: 'Mike Johnson',
-          submittedAt: DateTime.now().subtract(const Duration(days: 2)),
-          submittedBy: 'Project Manager',
-          reviewedAt: DateTime.now().subtract(const Duration(days: 1)),
-          reviewedBy: 'Client User',
-          changeRequestDetails: 'Please add more detailed performance metrics and user engagement data.',
-        ),
-        SignOffReport(
-          id: '4',
-          deliverableId: 'deliverable-4',
-          reportTitle: 'Sign-Off Report: Mobile App Features',
-          reportContent: 'Mobile application feature implementation...',
-          sprintIds: ['sprint-6'],
-          status: ReportStatus.draft,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          createdBy: 'Sarah Wilson',
-        ),
-      ];
-    });
+  Future<void> _loadReports() async {
+
+    try {
+      final response = await _reportService.getSignOffReports(
+        status: _selectedFilter != 'all' ? _selectedFilter : null,
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+
+      if (response.isSuccess && response.data != null) {
+        final reportsData = response.data!['data'] as List? ?? [];
+        setState(() {
+          _reports = reportsData.map((json) {
+            // Map backend response to SignOffReport model
+            final content = json['content'] as Map<String, dynamic>? ?? {};
+            final reviews = json['reviews'] as List? ?? [];
+            final latestReview = reviews.isNotEmpty ? reviews[0] : null;
+            
+            return SignOffReport(
+              id: json['id'] as String,
+              deliverableId: json['deliverableId'] as String? ?? json['deliverable_id'] as String? ?? '',
+              reportTitle: content['reportTitle'] as String? ?? 'Untitled Report',
+              reportContent: content['reportContent'] as String? ?? '',
+              sprintIds: (content['sprintIds'] as List?)?.cast<String>() ?? [],
+              sprintPerformanceData: content['sprintPerformanceData'] as String?,
+              knownLimitations: content['knownLimitations'] as String?,
+              nextSteps: content['nextSteps'] as String?,
+              status: _parseStatus(json['status'] as String? ?? 'draft'),
+              createdAt: json['createdAt'] != null 
+                  ? DateTime.parse(json['createdAt']).toLocal()
+                  : json['created_at'] != null
+                      ? DateTime.parse(json['created_at']).toLocal()
+                      : DateTime.now(),
+              createdBy: json['createdByName'] as String? ?? json['created_by_name'] as String? ?? 'Unknown',
+              submittedAt: null, // Will be populated from audit logs if needed
+              submittedBy: null,
+              reviewedAt: latestReview != null && latestReview['approved_at'] != null
+                  ? DateTime.parse(latestReview['approved_at']).toLocal()
+                  : null,
+              reviewedBy: latestReview?['reviewerName'] as String?,
+              approvedAt: latestReview != null && latestReview['approved_at'] != null && latestReview['reviewStatus'] == 'approved'
+                  ? DateTime.parse(latestReview['approved_at']).toLocal()
+                  : null,
+              approvedBy: latestReview != null && latestReview['reviewStatus'] == 'approved'
+                  ? latestReview['reviewerName'] as String?
+                  : null,
+              changeRequestDetails: latestReview != null && latestReview['reviewStatus'] == 'change_requested'
+                  ? latestReview['feedback'] as String?
+                  : null,
+            );
+          }).toList();
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to load reports: ${response.error ?? "Unknown error"}'),
+              backgroundColor: FlownetColors.crimsonRed,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading reports: $e'),
+            backgroundColor: FlownetColors.crimsonRed,
+          ),
+        );
+      }
+    }
+  }
+
+  ReportStatus _parseStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        return ReportStatus.submitted;
+      case 'under_review':
+      case 'underreview':
+        return ReportStatus.underReview;
+      case 'approved':
+        return ReportStatus.approved;
+      case 'change_requested':
+      case 'changerequested':
+        return ReportStatus.changeRequested;
+      case 'rejected':
+        return ReportStatus.rejected;
+      default:
+        return ReportStatus.draft;
+    }
   }
 
   List<SignOffReport> get _filteredReports {
@@ -175,15 +210,45 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: const Text('Close', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _showAuditHistory(report.id);
+            },
+            icon: const Icon(Icons.history, size: 18),
+            label: const Text('Audit History'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: FlownetColors.electricBlue,
+              foregroundColor: FlownetColors.pureWhite,
+            ),
           ),
           if (report.status == ReportStatus.draft)
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                // Navigate to edit report
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReportEditorScreen(reportId: report.id),
+                  ),
+                ).then((_) => _loadReports());
               },
-              child: const Text('Edit'),
+              child: const Text('Edit', style: TextStyle(color: FlownetColors.electricBlue)),
+            ),
+          if (report.status == ReportStatus.submitted)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ClientReviewWorkflowScreen(reportId: report.id),
+                  ),
+                ).then((_) => _loadReports());
+              },
+              child: const Text('Review', style: TextStyle(color: FlownetColors.electricBlue)),
             ),
         ],
       ),
@@ -200,16 +265,58 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: FlownetColors.pureWhite),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(color: valueColor),
+              style: TextStyle(color: valueColor ?? FlownetColors.coolGray),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAuditHistory(String reportId) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        child: Container(
+          width: 600,
+          height: 500,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Audit History',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: FlownetColors.pureWhite,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: FlownetColors.pureWhite),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(color: FlownetColors.slate),
+              Expanded(
+                child: AuditHistoryWidget(
+                  reportId: reportId,
+                  reportService: _reportService,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -469,10 +576,30 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _uploadReportDocument,
-        backgroundColor: FlownetColors.crimsonRed,
-        child: const Icon(Icons.upload, color: FlownetColors.pureWhite),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ReportEditorScreen(),
+                ),
+              ).then((_) => _loadReports());
+            },
+            backgroundColor: FlownetColors.electricBlue,
+            tooltip: 'Create Report',
+            child: const Icon(Icons.add, color: FlownetColors.pureWhite),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            onPressed: _uploadReportDocument,
+            backgroundColor: FlownetColors.crimsonRed,
+            tooltip: 'Upload Document',
+            child: const Icon(Icons.upload, color: FlownetColors.pureWhite),
+          ),
+        ],
       ),
     );
   }
