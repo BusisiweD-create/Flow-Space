@@ -334,6 +334,26 @@ app.post('/api/v1/auth/login', async (req, res) => {
   }
 });
 
+// Logout endpoint
+app.post('/api/v1/auth/logout', authenticateToken, async (req, res) => {
+  try {
+    // Since we're using stateless JWT, logout is mainly client-side
+    // But we can log the logout event or invalidate tokens if needed
+    console.log(`✅ User logged out: ${req.user.email}`);
+    
+    res.json({
+      success: true,
+      message: 'Logout successful'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
 // Keep the old signin endpoint for backward compatibility
 app.post('/api/v1/auth/signin', async (req, res) => {
   try {
@@ -502,9 +522,9 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
 app.get('/api/v1/sprints', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT s.*, p.first_name, p.last_name
+      SELECT s.*, u.name as created_by_name
       FROM sprints s
-      LEFT JOIN profiles p ON s.created_by = p.id
+      LEFT JOIN users u ON s.created_by::text = u.id::text
       ORDER BY s.start_date DESC
     `);
     
@@ -520,7 +540,7 @@ app.get('/api/v1/sprints', async (req, res) => {
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      created_by_name: row.first_name ? `${row.first_name} ${row.last_name}` : null,
+      created_by_name: row.created_by_name || null,
     }));
     
     res.json({
@@ -567,9 +587,9 @@ app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(`
-      SELECT s.*, p.first_name, p.last_name
+      SELECT s.*, u.name as created_by_name
       FROM sprints s
-      LEFT JOIN profiles p ON s.created_by = p.id
+      LEFT JOIN users u ON s.created_by::text = u.id::text
       WHERE s.id = $1
     `, [id]);
     
@@ -948,11 +968,9 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         n.type,
         n.is_read,
         n.created_at,
-        n.updated_at,
-        u.name as created_by_name
+        n.updated_at
       FROM notifications n
-      LEFT JOIN users u ON n.created_by = u.id
-      WHERE n.user_id = $1 OR n.user_id IS NULL
+      WHERE (n.user_id::text = $1::text OR n.user_id IS NULL)
       ORDER BY n.created_at DESC
     `, [userId]);
 
@@ -966,7 +984,6 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         isRead: row.is_read,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        createdByName: row.created_by_name,
         timestamp: row.created_at,
         date: row.created_at,
         description: row.message
@@ -1025,18 +1042,18 @@ app.post('/api/v1/notifications', authenticateToken, async (req, res) => {
     if (user_id) {
       const notificationId = uuidv4();
       await pool.query(`
-        INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-      `, [notificationId, title, message, type, user_id, createdBy]);
+        INSERT INTO notifications (id, title, message, type, user_id, is_read, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+      `, [notificationId, title, message, type, user_id]);
     } else {
       // Create notification for all users
       const usersResult = await pool.query('SELECT id FROM users');
       for (const user of usersResult.rows) {
         const notificationId = uuidv4();
         await pool.query(`
-          INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-        `, [notificationId, title, message, type, user.id, createdBy]);
+          INSERT INTO notifications (id, title, message, type, user_id, is_read, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+        `, [notificationId, title, message, type, user.id]);
       }
     }
 
@@ -1220,14 +1237,13 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
     // Create notification for assigned user
     if (assigned_to && assigned_to !== userId) {
       await pool.query(`
-        INSERT INTO notifications (title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+        INSERT INTO notifications (title, message, type, user_id, is_read, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, false, NOW(), NOW())
       `, [
         'New Deliverable Assigned',
         `You have been assigned a new deliverable: ${title}`,
         'deliverable',
-        assigned_to,
-        userId
+        assigned_to
       ]);
     }
     

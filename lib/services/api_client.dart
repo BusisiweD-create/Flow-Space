@@ -238,14 +238,28 @@ class ApiClient {
   }
 
   Future<ApiResponse> register(String email, String password, String name, String role) async {
-
-    return await post('/auth/register', body: {
+    final response = await post('/auth/register', body: {
       'email': email,
       'password': password,
       'firstName': name.split(' ').first,
       'lastName': name.split(' ').skip(1).join(' '),
       'role': role,
     },);
+
+    // Save tokens if registration is successful
+    if (response.isSuccess && response.data != null) {
+      final data = response.data!;
+      final accessToken = data['token']; // Backend returns 'token' in registration
+      if (accessToken != null) {
+        final refreshToken = data['refresh_token'] ?? '';
+        final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
+        final expiry = DateTime.now().add(Duration(seconds: expiresIn));
+        
+        await _saveTokens(accessToken, refreshToken, expiry);
+      }
+    }
+
+    return response;
   }
 
   Future<ApiResponse> logout() async {

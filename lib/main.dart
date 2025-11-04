@@ -29,6 +29,8 @@ import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
 import 'screens/sprint_board_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
+import 'screens/profile_screen.dart';
+import 'screens/settings_screen.dart';
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
 
@@ -278,6 +280,24 @@ final GoRouter _router = GoRouter(
         route: '/role-management',
         child: SidebarScaffold(
           child: RoleManagementScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const RouteGuard(
+        route: '/profile',
+        child: SidebarScaffold(
+          child: ProfileScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const RouteGuard(
+        route: '/settings',
+        child: SidebarScaffold(
+          child: SettingsScreen(),
         ),
       ),
     ),
