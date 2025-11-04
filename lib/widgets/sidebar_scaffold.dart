@@ -139,6 +139,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                   padding: const EdgeInsets.only(
                       left: 12, right: 12, top: 24, bottom: 16,),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const FlownetLogo(
                         showText: false,
@@ -153,13 +154,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             child: FlownetLogo(showText: true),
                           ),
                         ),
-                      IconButton(
-                        onPressed: _toggleSidebar,
-                        icon: Icon(
-                          _collapsed
-                              ? Icons.chevron_right
-                              : Icons.chevron_left,
-                          color: FlownetColors.coolGray,
+                      Flexible(
+                        child: IconButton(
+                          onPressed: _toggleSidebar,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Icon(
+                            _collapsed
+                                ? Icons.chevron_right
+                                : Icons.chevron_left,
+                            color: FlownetColors.coolGray,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ],
