@@ -967,8 +967,9 @@ app.get('/api/v1/projects', authenticateToken, async (req, res) => {
     console.log('📂 Fetching projects from database...');
     
     const result = await pool.query(`
-      SELECT p.id, p.name, p.description, p.status, 
-             p.owner_id as created_by, p.created_at, p.updated_at,
+      SELECT p.id, p.name, p.key, p.description, p.project_type, p.status, 
+             p.start_date, p.end_date,
+             p.owner_id, p.created_at, p.updated_at,
              u.name as created_by_name
       FROM projects p
       LEFT JOIN users u ON p.owner_id::uuid = u.id::uuid
@@ -1022,7 +1023,7 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     const { name, key, description, projectType, start_date, end_date } = req.body;
     const userId = req.user.id;
     
-    console.log('📝 Creating project:', { name, userId });
+    console.log('📝 Creating project:', { name, key, userId });
     
     if (!name) {
       console.log('❌ Project name is required');
@@ -1032,16 +1033,20 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
       });
     }
     
-    // Simplified INSERT - let database handle defaults
+    // Insert with all available columns
     const result = await pool.query(`
-      INSERT INTO projects (name, description, status, owner_id)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO projects (name, key, description, project_type, status, owner_id, start_date, end_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `, [
       name, 
+      key || null,
       description || '', 
+      projectType || 'agile',
       'active',
-      userId
+      userId,
+      start_date || null,
+      end_date || null
     ]);
     
     console.log('✅ Project created successfully:', result.rows[0].id);
