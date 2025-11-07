@@ -8,8 +8,6 @@ import 'services/backend_api_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/firebase_login_screen.dart';
-import 'screens/firebase_register_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'screens/deliverable_setup_screen.dart';
 import 'screens/enhanced_deliverable_setup_screen.dart';
@@ -29,6 +27,8 @@ import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
 import 'screens/sprint_board_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
+import 'screens/profile_screen.dart';
+import 'screens/settings_screen.dart';
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
 
@@ -87,14 +87,6 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
-    ),
-    GoRoute(
-      path: '/firebase-login',
-      builder: (context, state) => const FirebaseLoginScreen(),
-    ),
-    GoRoute(
-      path: '/firebase-register',
-      builder: (context, state) => const FirebaseRegisterScreen(),
     ),
     GoRoute(
       path: '/verify-email',
@@ -278,6 +270,24 @@ final GoRouter _router = GoRouter(
         route: '/role-management',
         child: SidebarScaffold(
           child: RoleManagementScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const RouteGuard(
+        route: '/profile',
+        child: SidebarScaffold(
+          child: ProfileScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const RouteGuard(
+        route: '/settings',
+        child: SidebarScaffold(
+          child: SettingsScreen(),
         ),
       ),
     ),

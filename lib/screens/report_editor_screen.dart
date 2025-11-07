@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sign_off_report.dart';
-import '../services/sign_off_report_service.dart';
+import '../services/backend_api_service.dart';
 import '../services/deliverable_service.dart';
 import '../services/sprint_database_service.dart';
-import '../services/auth_service.dart';
 import '../services/api_client.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -30,7 +29,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   final _knownLimitationsController = TextEditingController();
   final _nextStepsController = TextEditingController();
   
-  final SignOffReportService _reportService = SignOffReportService(AuthService());
+  final BackendApiService _reportService = BackendApiService();
   final DeliverableService _deliverableService = DeliverableService();
   final SprintDatabaseService _sprintService = SprintDatabaseService();
   
@@ -118,31 +117,29 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
       if (widget.reportId != null) {
         // Update existing report
         response = await _reportService.updateSignOffReport(
-          reportId: widget.reportId!,
-          reportTitle: _titleController.text,
-          reportContent: _contentController.text,
-          sprintIds: _selectedSprintIds.isNotEmpty ? _selectedSprintIds : null,
-          knownLimitations: _knownLimitationsController.text.isNotEmpty 
-              ? _knownLimitationsController.text 
-              : null,
-          nextSteps: _nextStepsController.text.isNotEmpty 
-              ? _nextStepsController.text 
-              : null,
+          widget.reportId!,
+          {
+            'report_title': _titleController.text,
+            'report_content': _contentController.text,
+            if (_selectedSprintIds.isNotEmpty) 'sprint_ids': _selectedSprintIds,
+            if (_knownLimitationsController.text.isNotEmpty) 
+              'known_limitations': _knownLimitationsController.text,
+            if (_nextStepsController.text.isNotEmpty) 
+              'next_steps': _nextStepsController.text,
+          },
         );
       } else {
         // Create new report
-        response = await _reportService.createSignOffReport(
-          deliverableId: _selectedDeliverableId!,
-          reportTitle: _titleController.text,
-          reportContent: _contentController.text,
-          sprintIds: _selectedSprintIds.isNotEmpty ? _selectedSprintIds : null,
-          knownLimitations: _knownLimitationsController.text.isNotEmpty 
-              ? _knownLimitationsController.text 
-              : null,
-          nextSteps: _nextStepsController.text.isNotEmpty 
-              ? _nextStepsController.text 
-              : null,
-        );
+        response = await _reportService.createSignOffReport({
+          'deliverable_id': _selectedDeliverableId!,
+          'report_title': _titleController.text,
+          'report_content': _contentController.text,
+          if (_selectedSprintIds.isNotEmpty) 'sprint_ids': _selectedSprintIds,
+          if (_knownLimitationsController.text.isNotEmpty) 
+            'known_limitations': _knownLimitationsController.text,
+          if (_nextStepsController.text.isNotEmpty) 
+            'next_steps': _nextStepsController.text,
+        });
       }
 
       if (response.isSuccess) {
@@ -150,7 +147,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
         
         // If submitting, submit the report
         if (submit) {
-          final submitResponse = await _reportService.submitReport(reportId);
+          final submitResponse = await _reportService.submitSignOffReport(reportId);
           if (submitResponse.isSuccess) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(

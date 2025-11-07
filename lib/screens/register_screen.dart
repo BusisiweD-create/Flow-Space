@@ -562,12 +562,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       UserRole userRole;
       switch (_selectedRole.toLowerCase()) {
         case 'project manager':
+          userRole = UserRole.deliveryLead;
+          break;
         case 'scrum master':
           userRole = UserRole.deliveryLead;
           break;
+        case 'qa engineer':
+          userRole = UserRole.teamMember;
+          break;
         case 'client':
-        case 'stakeholder':
           userRole = UserRole.clientReviewer;
+          break;
+        case 'stakeholder':
+          userRole = UserRole.systemAdmin;
           break;
         default:
           userRole = UserRole.teamMember;
@@ -578,16 +585,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('🎭 Role: $userRole');
       
       final authService = AuthService();
-      final success = await authService.signUp(
+      final result = await authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
         '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
         userRole,
       );
       
-      debugPrint('📊 Registration result: $success');
+      debugPrint('📊 Registration result: $result');
 
-      if (success && mounted) {
+      if (result['success'] == true && mounted) {
         _errorHandler.showSuccessSnackBar(context, 'Registration successful!');
         // Small delay to show success message
         await Future.delayed(const Duration(milliseconds: 500));
@@ -598,9 +605,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           },);
         }
       } else if (mounted) {
+        final errorMessage = result['error'] ?? 'Registration failed. Please try again.';
         _errorHandler.showErrorSnackBar(
           context,
-          'Registration failed. Please check your information and try again.',
+          errorMessage,
         );
       }
     } catch (e) {
