@@ -1,10 +1,13 @@
+// ignore_for_file: strict_top_level_inference, duplicate_ignore
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../services/sprint_database_service.dart';
+import '../services/api_service.dart';
 import '../services/jira_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/sprint_board_widget.dart';
+import 'create_sprint_screen.dart';
 import 'sprint_board_screen.dart';
 
 class SprintConsoleScreen extends StatefulWidget {
@@ -15,7 +18,6 @@ class SprintConsoleScreen extends StatefulWidget {
 }
 
 class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
-  final SprintDatabaseService _databaseService = SprintDatabaseService();
   
   // Data
   List<Map<String, dynamic>> _projects = [];
@@ -26,6 +28,12 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   bool _isLoading = false;
   String? _selectedProjectKey;
   String? _selectedSprintId;
+  
+  // ignore: strict_top_level_inference
+  get _databaseService => SprintDatabaseService();
+  
+  // ignore: strict_top_level_inference
+  get id => null;
   
   @override
   void initState() {
@@ -39,15 +47,12 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     });
 
     try {
-      // Load projects
-      final projects = await _databaseService.getProjects();
+      // Load projects and sprints using API service
+      final projects = await ApiService.getProjects();
+      final sprints = await ApiService.getSprints();
+      
       setState(() {
         _projects = projects;
-      });
-
-      // Load sprints
-      final sprints = await _databaseService.getSprints();
-      setState(() {
         _sprints = sprints;
       });
 
@@ -68,7 +73,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     if (_selectedSprintId == null) return;
     
     try {
-      final tickets = await _databaseService.getSprintTickets(_selectedSprintId!);
+      final tickets = await ApiService.getSprintTickets(_selectedSprintId!);
       setState(() {
         _tickets = tickets;
       });
@@ -96,6 +101,20 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CreateSprintScreen()),
+              );
+              if (result == true) {
+                // Refresh the sprint list if a new sprint was created
+                _loadData();
+              }
+            },
+            icon: const Icon(Icons.add, color: FlownetColors.pureWhite),
+            tooltip: 'Create New Sprint',
+          ),
+          IconButton(
             onPressed: _loadData,
             icon: const Icon(Icons.refresh, color: FlownetColors.pureWhite),
           ),
@@ -117,12 +136,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           _buildHeader(),
           const SizedBox(height: 24),
           
-          // Projects Section
-          _buildProjectsSection(),
+          // Sprints Section - Show directly without project requirement
+          _buildSprintsSection(),
           const SizedBox(height: 24),
           
-          // Sprints Section
-          if (_selectedProjectKey != null) _buildSprintsSection(),
+          // Projects Section - Always show for creating projects
+          _buildProjectsSection(),
+          const SizedBox(height: 24),
           
           // Tickets Section
           if (_selectedSprintId != null) _buildTicketsSection(),
@@ -221,7 +241,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Selected project: ${_projects.firstWhere((p) => p['key'] == _selectedProjectKey)['name']}',
+                    'Selected project: ${_projects.firstWhere((p) => p['key'] == _selectedProjectKey, orElse: () => {'name': 'Unknown'})['name']}',
                     style: const TextStyle(
                       color: FlownetColors.electricBlue,
                       fontSize: 14,
@@ -421,7 +441,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                     ),
                   ),
                   child: DropdownButton<String>(
-                    value: sprint['status'] ?? 'in_progress',
+                    value: _normalizeStatus(sprint['status']),
                     underline: const SizedBox.shrink(),
                     dropdownColor: FlownetColors.charcoalBlack,
                     style: TextStyle(
@@ -464,6 +484,17 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                     size: 20,
                   ),
                   tooltip: 'View Sprint Board',
+                ),
+                const SizedBox(width: 4),
+                // View details button
+                IconButton(
+                  onPressed: () => _viewSprintDetails(sprint),
+                  icon: const Icon(
+                    Icons.visibility,
+                    color: FlownetColors.electricBlue,
+                    size: 20,
+                  ),
+                  tooltip: 'View Sprint Details',
                 ),
               ],
             ),
@@ -593,11 +624,33 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       case 'completed':
         return FlownetColors.electricBlue;
       case 'in_progress':
+      case 'active':
         return FlownetColors.crimsonRed;
       case 'planning':
+      case 'planned':
         return Colors.orange;
+      case 'cancelled':
+        return Colors.grey;
       default:
         return FlownetColors.pureWhite;
+    }
+  }
+
+  // Normalize status to valid dropdown values
+  String _normalizeStatus(String? status) {
+    final normalized = status?.toLowerCase() ?? 'planning';
+    switch (normalized) {
+      case 'planned':
+        return 'planning';
+      case 'active':
+        return 'in_progress';
+      case 'planning':
+      case 'in_progress':
+      case 'completed':
+      case 'cancelled':
+        return normalized;
+      default:
+        return 'planning';
     }
   }
 
@@ -706,21 +759,8 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         _isLoading = true;
       });
 
-      // Find the sprint to get its name and current status
-      final sprint = _sprints.firstWhere(
-        (s) => s['id'] == sprintId,
-        orElse: () => {},
-      );
-      
-      final sprintName = sprint['name'] ?? 'Unknown Sprint';
-      final oldStatus = sprint['status'] ?? 'planning';
-
-      final success = await _databaseService.updateSprintStatus(
-        sprintId: sprintId,
-        status: newStatus,
-        oldStatus: oldStatus,
-        sprintName: sprintName,
-      );
+      // Call the API to update sprint status
+      final success = await ApiService.updateSprintStatus(sprintId, newStatus);
 
       if (success) {
         _showSnackBar('Sprint status updated to $newStatus');
@@ -739,8 +779,19 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
 
   void _viewSprintBoard(Map<String, dynamic> sprint) {
     // Navigate to sprint board screen with sprint name
-    final sprintName = sprint['name'] ?? 'Sprint Board';
-    GoRouter.of(context).go('/sprint-board/${sprint['id']}?name=${Uri.encodeComponent(sprintName)}');
+    GoRouter.of(context).go('/sprint-board/${sprint['id']}?name=${Uri.encodeComponent(sprint['name'])}');
+  }
+
+  void _viewSprintDetails(Map<String, dynamic> sprint) {
+    // Navigate to sprint detail screen
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SprintDetailScreen(
+          sprintId: sprint['id'].toString(),
+          sprintData: sprint,
+        ),
+      ),
+    );
   }
 
   void _showCreateSprintDialog() {
@@ -933,7 +984,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       });
 
       // Create project via backend API
-      final result = await _databaseService.createProject(
+      final result = await ApiService.createProject(
         name: name,
         key: key,
         description: description,
@@ -977,4 +1028,31 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       labels: [],
     );
   }
+  
+  // ignore: non_constant_identifier_names
+  Widget SprintDetailScreen({required String sprintId, required Map<String, dynamic> sprintData}) {
+    return Scaffold(
+      appBar: AppBar(
+        // ignore: prefer_const_constructors
+        title: Text('Sprint Details: ${sprintData['name'] ?? 'Unknown'}'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Sprint ID: $sprintId', style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 8),
+            Text('Name: ${sprintData['name'] ?? 'Unknown'}', style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 8),
+            Text('Status: ${sprintData['status'] ?? 'Unknown'}', style: const TextStyle(fontSize: 16)),
+            // Add more sprint details as needed
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // ignore: non_constant_identifier_names
+  SprintDatabaseService() {}
 }

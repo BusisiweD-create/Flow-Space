@@ -6,7 +6,7 @@ A modern social learning platform built with Flutter, designed to connect learne
 
 - **Social Learning**: Connect with peers and educators
 - **Interactive Content**: Rich media support for videos, audios, and documents
-- **Real-time Communication**: Firebase-powered real-time features
+- **Real-time Communication**: Backend-powered real-time features
 - **Cross-platform**: Runs on iOS, Android, and Web
 - **Modern UI**: Beautiful, responsive design with smooth animations
 
@@ -14,7 +14,7 @@ A modern social learning platform built with Flutter, designed to connect learne
 
 - **Framework**: Flutter 3.0+
 - **State Management**: Riverpod
-- **Backend**: Firebase (Firestore, Auth, Storage, Analytics)
+- **Backend**: Custom backend API with role-based authentication
 - **Routing**: Go Router
 - **UI Components**: Custom components with animations
 - **Image Handling**: Cached Network Images
@@ -27,7 +27,6 @@ Before you begin, ensure you have the following installed:
 - **Flutter SDK** (3.0.0 or higher)
 - **Dart SDK** (included with Flutter)
 - **Android Studio** or **VS Code** with Flutter extensions
-- **Firebase CLI** (for Firebase setup)
 - **Git** (for version control)
 
 ## 🚀 Getting Started
@@ -45,53 +44,26 @@ cd Flow-Space
 flutter pub get
 ```
 
-### 3. Firebase Setup
+### 3. Backend Setup
 
-1. **Create a Firebase Project**:
-   - Go to [Firebase Console](https://console.firebase.google.com/)
-   - Create a new project named "khono"
+1. **Configure Backend Connection**:
+   - Update API endpoints in `config/environment.dart`
+   - Configure authentication settings
 
-2. **Enable Required Services**:
-   - Authentication (Email/Password, Google Sign-in)
-   - Firestore Database
-   - Cloud Storage
-   - Analytics
-   - Cloud Messaging
-
-3. **Configure Firebase**:
-   ```bash
-   # Install Firebase CLI
-   npm install -g firebase-tools
-
-   # Login to Firebase
-   firebase login
-
-   # Install FlutterFire CLI
-   dart pub global activate flutterfire_cli
-
-   # Configure Firebase for your project
-   flutterfire configure
-   ```
-
-4. **Update Configuration**:
-   - Copy `lib/firebase_options.dart.template` to `lib/firebase_options.dart`
-   - Update the template with your actual Firebase configuration values
-
-### 4. Environment Configuration
-
-1. **Update Environment Settings**:
+2. **Environment Configuration**:
    - Edit `config/environment.dart` with your actual configuration values
-   - Update Firebase project ID, API keys, and other settings
+   - Update API URLs, authentication keys, and other settings
 
-2. **Asset Directories**:
-   - The project includes organized asset directories:
-     - `assets/fonts/` - Custom fonts
-     - `assets/images/` - Images and icons
-     - `assets/videos/` - Video content
-     - `assets/audios/` - Audio files
-     - `assets/rive_animations/` - Rive animations
-     - `assets/pdfs/` - PDF documents
-     - `assets/jsons/` - JSON configuration files
+### 4. Asset Directories
+
+The project includes organized asset directories:
+- `assets/fonts/` - Custom fonts
+- `assets/images/` - Images and icons
+- `assets/videos/` - Video content
+- `assets/audios/` - Audio files
+- `assets/rive_animations/` - Rive animations
+- `assets/pdfs/` - PDF documents
+- `assets/jsons/` - JSON configuration files
 
 ### 5. Run the Application
 
@@ -215,7 +187,6 @@ If you encounter any issues or have questions:
 ## 🙏 Acknowledgments
 
 - Flutter team for the amazing framework
-- Firebase for backend services
 - The open-source community for various packages
 - Contributors and testers
 

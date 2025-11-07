@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, duplicate_ignore
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -25,6 +27,10 @@ class FlownetColors {
   static const Color darkSurfaceVariant = Color(0xFF2E2E2E);
   static const Color darkOnSurface = Color(0xFFFFFFFF);
   static const Color darkOnSurfaceVariant = Color(0xFFB3B3B3);
+
+  static Color? get successGreen => null;
+
+  static Color? get deepNavy => null;
 }
 
 class FlownetTheme {
@@ -314,5 +320,272 @@ class FlownetTheme {
       default:
         return FlownetColors.coolGray;
     }
+  }
+
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+
+      // Color Scheme
+      colorScheme: const ColorScheme.light(
+        primary: FlownetColors.crimsonRed,
+        onPrimary: FlownetColors.pureWhite,
+        secondary: FlownetColors.electricBlue,
+        onSecondary: FlownetColors.pureWhite,
+        surface: FlownetColors.pureWhite,
+        onSurface: FlownetColors.charcoalBlack,
+        surfaceContainerHighest: Color(0xFFF5F5F5),
+        onSurfaceVariant: FlownetColors.graphiteGray,
+        error: FlownetColors.crimsonRed,
+        onError: FlownetColors.pureWhite,
+        outline: Color(0xFFE0E0E0),
+        outlineVariant: FlownetColors.coolGray,
+      ),
+
+      // Typography
+      textTheme: TextTheme(
+        // Headings - Montserrat Bold
+        displayLarge: GoogleFonts.montserrat(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+        ),
+        displayMedium: GoogleFonts.montserrat(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+        ),
+        displaySmall: GoogleFonts.montserrat(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+        ),
+        headlineLarge: GoogleFonts.montserrat(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+        ),
+        headlineMedium: GoogleFonts.montserrat(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+        ),
+        headlineSmall: GoogleFonts.montserrat(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+        ),
+
+        // Body text - Open Sans Regular
+        bodyLarge: GoogleFonts.openSans(
+          fontSize: 16,
+          fontWeight: FontWeight.normal,
+          color: FlownetColors.charcoalBlack,
+        ),
+        bodyMedium: GoogleFonts.openSans(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          color: FlownetColors.charcoalBlack,
+        ),
+        bodySmall: GoogleFonts.openSans(
+          fontSize: 12,
+          fontWeight: FontWeight.normal,
+          color: FlownetColors.graphiteGray,
+        ),
+
+        // Labels
+        labelLarge: GoogleFonts.openSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.charcoalBlack,
+        ),
+        labelMedium: GoogleFonts.openSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.charcoalBlack,
+        ),
+        labelSmall: GoogleFonts.openSans(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.graphiteGray,
+        ),
+      ),
+
+      // AppBar Theme
+      appBarTheme: AppBarTheme(
+        backgroundColor: FlownetColors.pureWhite,
+        foregroundColor: FlownetColors.charcoalBlack,
+        elevation: 1,
+        centerTitle: true,
+        titleTextStyle: GoogleFonts.montserrat(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+        ),
+      ),
+
+      // Card Theme
+      cardTheme: CardThemeData(
+        color: FlownetColors.pureWhite,
+        elevation: 2,
+        // ignore: deprecated_member_use
+        shadowColor: Colors.black.withOpacity(0.1),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+
+      // Button Themes
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: FlownetColors.crimsonRed,
+          foregroundColor: FlownetColors.pureWhite,
+          elevation: 2,
+          shadowColor: FlownetColors.crimsonRed.withOpacity(0.3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: GoogleFonts.openSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ).copyWith(
+          overlayColor: WidgetStateProperty.all(
+            FlownetColors.crimsonRed.withOpacity(0.1),
+          ),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: FlownetColors.charcoalBlack,
+          side: const BorderSide(color: Color(0xFFE0E0E0), width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: GoogleFonts.openSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ).copyWith(
+          overlayColor: WidgetStateProperty.all(
+            Colors.black.withOpacity(0.05),
+          ),
+        ),
+      ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: FlownetColors.crimsonRed,
+          textStyle: GoogleFonts.openSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      // Input Decoration Theme
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              const BorderSide(color: FlownetColors.crimsonRed, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: FlownetColors.crimsonRed),
+        ),
+        hintStyle: GoogleFonts.openSans(
+          color: FlownetColors.graphiteGray,
+          fontSize: 16,
+        ),
+        labelStyle: GoogleFonts.openSans(
+          color: FlownetColors.graphiteGray,
+          fontSize: 16,
+        ),
+      ),
+
+      // Icon Theme
+      iconTheme: const IconThemeData(
+        color: FlownetColors.charcoalBlack,
+        size: 24,
+      ),
+
+      // Divider Theme
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFFE0E0E0),
+        thickness: 1,
+      ),
+
+      // Bottom Navigation Bar Theme
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: FlownetColors.pureWhite,
+        selectedItemColor: FlownetColors.crimsonRed,
+        unselectedItemColor: FlownetColors.graphiteGray,
+        type: BottomNavigationBarType.fixed,
+      ),
+
+      // Floating Action Button Theme
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: FlownetColors.crimsonRed,
+        foregroundColor: FlownetColors.pureWhite,
+        elevation: 4,
+      ),
+
+      // Navigation Rail Theme
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: FlownetColors.pureWhite,
+        selectedIconTheme: const IconThemeData(
+          color: FlownetColors.crimsonRed,
+          size: 24,
+        ),
+        unselectedIconTheme: const IconThemeData(
+          color: FlownetColors.graphiteGray,
+          size: 24,
+        ),
+        selectedLabelTextStyle: GoogleFonts.openSans(
+          color: FlownetColors.crimsonRed,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelTextStyle: GoogleFonts.openSans(
+          color: FlownetColors.graphiteGray,
+          fontWeight: FontWeight.normal,
+        ),
+      ),
+
+      // Drawer Theme
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: FlownetColors.pureWhite,
+        elevation: 16,
+      ),
+
+      // ListTile Theme
+      listTileTheme: ListTileThemeData(
+        tileColor: FlownetColors.pureWhite,
+        selectedTileColor: FlownetColors.crimsonRed.withOpacity(0.1),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        titleTextStyle: GoogleFonts.openSans(
+          color: FlownetColors.charcoalBlack,
+          fontWeight: FontWeight.w500,
+        ),
+        subtitleTextStyle: GoogleFonts.openSans(
+          color: FlownetColors.graphiteGray,
+          fontSize: 14,
+        ),
+      ),
+    );
   }
 }

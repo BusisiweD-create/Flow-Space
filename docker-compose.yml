@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: flow_postgres
+    environment:
+      POSTGRES_DB: flow_space
+      POSTGRES_USER: flowspace_user
+      POSTGRES_PASSWORD: FlowSpace2024!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/hackathon-backend/database_schema_postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
