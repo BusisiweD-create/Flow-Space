@@ -964,34 +964,52 @@ app.put('/api/v1/tickets/:id/status', authenticateToken, async (req, res) => {
 // Projects routes
 app.get('/api/v1/projects', authenticateToken, async (req, res) => {
   try {
+    console.log('📂 Fetching projects from database...');
+    
     const result = await pool.query(`
-      SELECT p.id, p.name, p.key, p.description, p.project_type, 
-             p.start_date, p.end_date, p.created_by, p.created_at, p.updated_at,
+      SELECT p.id, p.name, p.description, p.status, 
+             p.owner_id as created_by, p.created_at, p.updated_at,
              u.name as created_by_name
       FROM projects p
-      LEFT JOIN users u ON p.created_by::uuid = u.id::uuid
+      LEFT JOIN users u ON p.owner_id::uuid = u.id::uuid
       ORDER BY p.created_at DESC
     `);
+    
+    console.log(`✅ Found ${result.rows.length} projects in database`);
+    if (result.rows.length > 0) {
+      console.log('Project names:', result.rows.map(p => p.name).join(', '));
+    }
     
     res.json({
       success: true,
       data: result.rows
     });
   } catch (error) {
-    console.error('Get projects error:', error);
+    console.error('❌ Get projects error:', error);
     console.error('Error code:', error.code);
     console.error('Error detail:', error.detail);
+    console.error('Error message:', error.message);
     
     // If table doesn't exist or column error, return empty array
-    if (error.code === '42P01' || error.code === '42703') {
-      console.log('Projects table or column does not exist, returning empty array');
+    if (error.code === '42P01') {
+      console.log('⚠️ Projects table does not exist, returning empty array');
       return res.json({
         success: true,
         data: []
       });
     }
     
-    // Return empty array for any error instead of 500
+    if (error.code === '42703') {
+      console.log('⚠️ Column does not exist in projects table, returning empty array');
+      console.log('Available columns might not match query. Error:', error.message);
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+    
+    // For other errors, log and return empty array
+    console.log('⚠️ Returning empty array due to unexpected error');
     res.json({
       success: true,
       data: []
@@ -1013,7 +1031,7 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     
     const projectId = uuidv4();
     const result = await pool.query(`
-      INSERT INTO projects (id, name, description, status, created_by, created_at, updated_at)
+      INSERT INTO projects (id, name, description, status, owner_id, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `, [
