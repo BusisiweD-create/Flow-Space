@@ -48,3 +48,6 @@ test_*.dart
 check_*.dart
 fix_*.dart
 fix_*.py
+
+# Daemon/Service files
+backend/daemon/
