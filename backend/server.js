@@ -1022,37 +1022,43 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     const { name, key, description, projectType, start_date, end_date } = req.body;
     const userId = req.user.id;
     
+    console.log('📝 Creating project:', { name, userId });
+    
     if (!name) {
+      console.log('❌ Project name is required');
       return res.status(400).json({ 
         success: false,
         error: 'Name is required' 
       });
     }
     
-    const projectId = uuidv4();
+    // Simplified INSERT - let database handle defaults
     const result = await pool.query(`
-      INSERT INTO projects (id, name, description, status, owner_id, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO projects (name, description, status, owner_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `, [
-      projectId, 
       name, 
       description || '', 
       'active',
-      userId, 
-      new Date().toISOString(), 
-      new Date().toISOString()
+      userId
     ]);
+    
+    console.log('✅ Project created successfully:', result.rows[0].id);
     
     res.json({
       success: true,
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('Create project error:', error);
+    console.error('❌ Create project error:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('Error detail:', error.detail);
+    
     res.status(500).json({ 
       success: false,
-      error: 'Internal server error' 
+      error: error.message || 'Internal server error' 
     });
   }
 });
