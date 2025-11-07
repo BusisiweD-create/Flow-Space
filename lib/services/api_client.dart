@@ -260,7 +260,7 @@ class ApiClient {
         final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
         final expiry = DateTime.now().add(Duration(seconds: expiresIn));
         
-        await _saveTokens(accessToken, refreshToken, expiry);
+        await saveTokens(accessToken, refreshToken, expiry);
       }
     }
 
