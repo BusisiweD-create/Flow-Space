@@ -8,8 +8,6 @@ import 'services/backend_api_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/firebase_login_screen.dart';
-import 'screens/firebase_register_screen.dart';
 import 'screens/email_verification_screen.dart';
 import 'screens/deliverable_setup_screen.dart';
 import 'screens/enhanced_deliverable_setup_screen.dart';
@@ -89,14 +87,6 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
-    ),
-    GoRoute(
-      path: '/firebase-login',
-      builder: (context, state) => const FirebaseLoginScreen(),
-    ),
-    GoRoute(
-      path: '/firebase-register',
-      builder: (context, state) => const FirebaseRegisterScreen(),
     ),
     GoRoute(
       path: '/verify-email',
