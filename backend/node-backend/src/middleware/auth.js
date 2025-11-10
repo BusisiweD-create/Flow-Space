@@ -28,7 +28,7 @@ const authenticateToken = async (req, res, next) => {
     
     // Attach user information to request
     req.user = {
-      id: parseInt(payload.sub),
+      id: payload.sub, // UUID should not be parsed as integer
       email: payload.email,
       role: payload.role
     };
@@ -85,7 +85,13 @@ const requireRole = (allowedRoles) => {
         });
       }
       
-      if (!allowedRoles.includes(req.user.role)) {
+      // Normalize role names for comparison
+      const userRole = req.user.role.toLowerCase().replace('_', '');
+      const normalizedAllowedRoles = allowedRoles.map(role => 
+        role.toLowerCase().replace('_', '')
+      );
+      
+      if (!normalizedAllowedRoles.includes(userRole)) {
         return res.status(403).json({
           error: 'Insufficient permissions',
           message: 'You do not have permission to access this resource'

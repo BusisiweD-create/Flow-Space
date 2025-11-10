@@ -86,11 +86,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  currentUser.when(
-                                    data: (userEmail) => userEmail ?? 'Unknown email',
-                                    loading: () => 'Loading...',
-                                    error: (_, __) => 'Error loading email',
-                                  ) as String,
+                                  currentUser?.email ?? 'Unknown email',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                   ),

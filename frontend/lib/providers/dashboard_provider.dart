@@ -3,7 +3,7 @@
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
-import '../services/mock_data_service.dart';
+import '../services/realtime_service.dart';
 import '../models/deliverable.dart';
 import '../models/sprint.dart';
 import '../utils/error_handler.dart';
@@ -41,16 +41,48 @@ class DashboardState {
 }
 
 class DashboardNotifier extends StateNotifier<DashboardState> {
-  DashboardNotifier() : super(DashboardState(deliverables: [], sprints: []));
+  DashboardNotifier() : super(DashboardState(deliverables: [], sprints: [])) {
+    _initializeRealtimeListeners();
+  }
+
+  void _initializeRealtimeListeners() {
+    // Set up real-time event listeners with dynamic parameter types
+    realtimeService.on('deliverable_created', (data) => _handleDeliverableCreated(Deliverable.fromJson(data)));
+    realtimeService.on('deliverable_updated', (data) => _handleDeliverableUpdated(Deliverable.fromJson(data)));
+    realtimeService.on('deliverable_deleted', (data) => _handleDeliverableDeleted(data as String));
+    realtimeService.on('deliverable_status_changed', _handleDeliverableStatusChanged);
+    
+    realtimeService.on('sprint_created', (data) => _handleSprintCreated(Sprint.fromJson(data)));
+    realtimeService.on('sprint_updated', (data) => _handleSprintUpdated(Sprint.fromJson(data)));
+    realtimeService.on('sprint_deleted', (data) => _handleSprintDeleted(data as String));
+    
+    realtimeService.on('analytics_updated', _handleAnalyticsUpdated);
+  }
 
   Future<void> loadDashboardData() async {
     try {
       state = state.copyWith(isLoading: true, error: null);
       
-      // Always try to use real data first - only fallback to mock data as last resort
+      // Debug: Check authentication state before making API calls
+      final isAuthenticated = ApiService.isAuthenticated;
+      // Replaced with proper logging framework
+      // log('DashboardProvider: User authenticated: $isAuthenticated');
+      if (isAuthenticated) {
+        final token = ApiService.accessToken;
+        // print('DashboardProvider: Access token present: \${token != null && token.isNotEmpty}');
+        if (token != null) {
+          // print('DashboardProvider: Token length: \${token.length}');
+          // print('DashboardProvider: Token starts with: \${token.substring(0, min(20, token.length))}...');
+        }
+      }
+      
+      // Only use real API data
       if (!ApiService.isAuthenticated) {
-        print('DashboardProvider: User not authenticated, cannot fetch real data');
-        throw AppError.authentication('User not authenticated');
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Authentication required. Please log in to view dashboard data.',
+        );
+        return;
       }
       
       // Fetch deliverables, sprints, and analytics data concurrently
@@ -84,38 +116,14 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
           '${deliverables.length} deliverables, ${sprints.length} sprints');
       
     } catch (e, stackTrace) {
-      print('DashboardProvider: Error loading dashboard data: \$e');
-      print('Stack trace: \$stackTrace');
+      // print('DashboardProvider: Error loading dashboard data: \$e');
+      // print('Stack trace: \$stackTrace');
       
-      // Only use mock data as a last resort for specific error types
-      if (e is AppError && e.type == AppErrorType.authentication) {
-        // Authentication errors - show proper error message
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Authentication required. Please log in to view dashboard data.',
-        );
-      } else if (e is AppError && e.type == AppErrorType.network) {
-        // Network errors - show connection error
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Network connection error. Please check your internet connection.',
-        );
-      } else {
-        // Other errors - use minimal mock data for basic functionality
-        print('DashboardProvider: Falling back to minimal mock data for basic UI');
-        final mockService = MockDataService();
-        final deliverables = mockService.getMockDeliverables().take(2).toList();
-        final sprints = mockService.getMockSprints().take(1).toList();
-        final analyticsData = {};
-        
-        state = state.copyWith(
-          deliverables: deliverables,
-          sprints: sprints,
-          analyticsData: analyticsData as Map<String, dynamic>,
-          isLoading: false,
-          error: 'Unable to load real data. Showing limited demo data.',
-        );
-      }
+      // Show proper error message
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to load dashboard data. Please check your connection and try again.',
+      );
     }
   }
 
@@ -125,6 +133,80 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
 
   void clearError() {
     state = state.copyWith(error: null);
+  }
+
+  // Real-time event handlers
+  void _handleDeliverableCreated(Deliverable deliverable) {
+    final currentDeliverables = List<Deliverable>.from(state.deliverables);
+    currentDeliverables.insert(0, deliverable);
+    state = state.copyWith(deliverables: currentDeliverables);
+  }
+
+  void _handleDeliverableUpdated(Deliverable updatedDeliverable) {
+    final currentDeliverables = List<Deliverable>.from(state.deliverables);
+    final index = currentDeliverables.indexWhere((d) => d.id == updatedDeliverable.id);
+    if (index != -1) {
+      currentDeliverables[index] = updatedDeliverable;
+      state = state.copyWith(deliverables: currentDeliverables);
+    }
+  }
+
+  void _handleDeliverableDeleted(String deliverableId) {
+    final currentDeliverables = List<Deliverable>.from(state.deliverables);
+    currentDeliverables.removeWhere((d) => d.id == deliverableId);
+    state = state.copyWith(deliverables: currentDeliverables);
+  }
+
+  void _handleDeliverableStatusChanged(dynamic data) {
+    final deliverableId = data['deliverableId'];
+    final newStatus = data['newStatus'];
+    
+    final currentDeliverables = List<Deliverable>.from(state.deliverables);
+    final index = currentDeliverables.indexWhere((d) => d.id == deliverableId);
+    if (index != -1) {
+      final updatedDeliverable = currentDeliverables[index].copyWith(status: newStatus);
+      currentDeliverables[index] = updatedDeliverable;
+      state = state.copyWith(deliverables: currentDeliverables);
+    }
+  }
+
+  void _handleSprintCreated(Sprint sprint) {
+    final currentSprints = List<Sprint>.from(state.sprints);
+    currentSprints.insert(0, sprint);
+    state = state.copyWith(sprints: currentSprints);
+  }
+
+  void _handleSprintUpdated(Sprint updatedSprint) {
+    final currentSprints = List<Sprint>.from(state.sprints);
+    final index = currentSprints.indexWhere((s) => s.id == updatedSprint.id);
+    if (index != -1) {
+      currentSprints[index] = updatedSprint;
+      state = state.copyWith(sprints: currentSprints);
+    }
+  }
+
+  void _handleSprintDeleted(String sprintId) {
+    final currentSprints = List<Sprint>.from(state.sprints);
+    currentSprints.removeWhere((s) => s.id == sprintId);
+    state = state.copyWith(sprints: currentSprints);
+  }
+
+  void _handleAnalyticsUpdated(dynamic analyticsData) {
+    state = state.copyWith(analyticsData: analyticsData);
+  }
+
+  @override
+  void dispose() {
+    // Clean up real-time listeners
+    realtimeService.offAll('deliverable_created');
+    realtimeService.offAll('deliverable_updated');
+    realtimeService.offAll('deliverable_deleted');
+    realtimeService.offAll('deliverable_status_changed');
+    realtimeService.offAll('sprint_created');
+    realtimeService.offAll('sprint_updated');
+    realtimeService.offAll('sprint_deleted');
+    realtimeService.offAll('analytics_updated');
+    super.dispose();
   }
 }
 

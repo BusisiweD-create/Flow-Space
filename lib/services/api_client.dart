@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+// ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -127,6 +128,63 @@ class ApiClient {
     return await _makeRequest('DELETE', endpoint, queryParams: queryParams);
   }
 
+  // Multipart file upload method
+  Future<ApiResponse> uploadFile(String endpoint, String filePath, String fileName, String fileType, {Map<String, String>? fields}) async {
+    try {
+      // Check if token needs refresh
+      if (isAuthenticated && !_isTokenValid()) {
+        final refreshed = await _refreshAccessToken();
+        if (!refreshed) {
+          await clearTokens();
+          return ApiResponse.error('Authentication expired. Please login again.');
+        }
+      }
+
+      // Build URL
+      final String url = '$_baseUrl$_apiVersion$endpoint';
+
+      // Create multipart request
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+
+      // Add authorization header
+      if (_accessToken != null) {
+        request.headers['Authorization'] = 'Bearer $_accessToken';
+      }
+
+      // Add file
+      request.files.add(await http.MultipartFile.fromPath(
+        'file',
+        filePath,
+        filename: fileName,
+      ),);
+
+      // Add additional fields
+      if (fields != null) {
+        fields.forEach((key, value) {
+          request.fields[key] = value;
+        });
+      }
+
+      // Add file type field
+      request.fields['fileType'] = fileType;
+
+      // Send request
+      final response = await request.send();
+      final responseBody = await response.stream.bytesToString();
+
+      // Convert to regular response
+      final httpResponse = http.Response(responseBody, response.statusCode);
+      return _handleResponse(httpResponse);
+    } on SocketException {
+      return ApiResponse.error('No internet connection. Please check your network.');
+    } on HttpException catch (e) {
+      return ApiResponse.error('HTTP error: ${e.message}');
+    } catch (e) {
+      debugPrint('File upload error: $e');
+      return ApiResponse.error('An unexpected error occurred during file upload: $e');
+    }
+  }
+
   Future<ApiResponse> _makeRequest(
     String method,
     String endpoint, {
@@ -159,6 +217,8 @@ class ApiClient {
       if (_accessToken != null) {
         headers['Authorization'] = 'Bearer $_accessToken';
       }
+      
+      debugPrint('Request Headers: $headers');
 
       // Make request
       http.Response response;
@@ -203,10 +263,25 @@ class ApiClient {
       final responseBody = jsonDecode(response.body);
       
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        // Extract the 'data' field from the backend response
-        // Backend response structure: { success: true, message: '...', data: {...} }
-        final data = responseBody['data'] ?? responseBody;
-        return ApiResponse.success(data, response.statusCode);
+        // Handle different backend response structures:
+        // 1. Standard format: { success: true, message: '...', data: {...} }
+        // 2. Direct format: { token: '...', user: {...}, ... } (for auth endpoints)
+        // 3. Simple format: direct data at root level
+        
+        final bool isStandardFormat = responseBody['success'] == true && responseBody.containsKey('data');
+        final bool isAuthFormat = responseBody.containsKey('token') || responseBody.containsKey('user');
+        
+        if (isStandardFormat) {
+          // Standard format with success, message, and data fields
+          final data = responseBody['data'] ?? responseBody;
+          return ApiResponse.success(data, response.statusCode);
+        } else if (isAuthFormat) {
+          // Auth endpoints return data directly at root level
+          return ApiResponse.success(responseBody, response.statusCode);
+        } else {
+          // Fallback: return the entire response body
+          return ApiResponse.success(responseBody, response.statusCode);
+        }
       } else {
         final errorMessage = responseBody['message'] ?? responseBody['error'] ?? 'Request failed';
         return ApiResponse.error(errorMessage, response.statusCode);
@@ -226,12 +301,14 @@ class ApiClient {
 
     if (response.isSuccess && response.data != null) {
       final data = response.data!;
-      final accessToken = data['token'] ?? data['access_token']; // Handle both 'token' and 'access_token'
-      final refreshToken = data['refresh_token'] ?? ''; // Handle null refresh token
-      final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
+      final accessToken = data['token'] ?? data['access_token'];
+      final refreshToken = data['refresh_token'] ?? '';
+      final expiresIn = data['expires_in'] ?? 86400;
       final expiry = DateTime.now().add(Duration(seconds: expiresIn));
-      
-      await _saveTokens(accessToken, refreshToken, expiry);
+
+      if (accessToken != null) {
+        await _saveTokens(accessToken, refreshToken, expiry);
+      }
     }
 
     return response;
@@ -288,11 +365,12 @@ class ApiClient {
       'password': newPassword,
     },);
   }
+
 }
 
 class ApiResponse {
   final bool isSuccess;
-  final Map<String, dynamic>? data;
+  final dynamic data;
   final String? error;
   final int statusCode;
 
@@ -303,7 +381,7 @@ class ApiResponse {
     required this.statusCode,
   });
 
-  factory ApiResponse.success(Map<String, dynamic> data, int statusCode) {
+  factory ApiResponse.success(dynamic data, int statusCode) {
     return ApiResponse._(
       isSuccess: true,
       data: data,

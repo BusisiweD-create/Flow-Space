@@ -54,9 +54,10 @@ class AuditTrailNotifier extends StateNotifier<AuditTrailState> {
       
       final skip = refresh ? 0 : state.logs.length;
       final logs = await ApiService.getAuditLogs(skip: skip, limit: 50);
+      final logMaps = logs.map((log) => log.toJson()).toList();
       
       state = state.copyWith(
-        logs: refresh ? logs : [...state.logs, ...logs],
+        logs: refresh ? logMaps : [...state.logs, ...logMaps],
         isLoading: false,
         hasMore: logs.length == 50,
         currentPage: refresh ? 0 : state.currentPage + 1,
@@ -64,7 +65,7 @@ class AuditTrailNotifier extends StateNotifier<AuditTrailState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to load audit logs: \$e',
+        error: 'Failed to load audit logs: $e',
       );
     }
   }
@@ -78,12 +79,13 @@ class AuditTrailNotifier extends StateNotifier<AuditTrailState> {
       state = state.copyWith(isLoading: true, error: null);
       
       final logs = await ApiService.getAuditLogsForEntity(
-        entityType: entityType,
-        entityId: entityId,
+        entityType,
+        entityId,
       );
+      final logMaps = logs.map((log) => log.toJson()).toList();
       
       state = state.copyWith(
-        logs: logs,
+        logs: logMaps,
         isLoading: false,
         hasMore: false,
         currentPage: 0,
@@ -91,7 +93,7 @@ class AuditTrailNotifier extends StateNotifier<AuditTrailState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to load entity audit logs: \$e',
+        error: 'Failed to load entity audit logs: $e',
       );
     }
   }
@@ -154,10 +156,10 @@ class _AuditTrailScreenState extends ConsumerState<AuditTrailScreen> {
   Widget _buildAuditLogItem(Map<String, dynamic> log) {
     final timestamp = log['timestamp'] ?? log['created_at'] ?? '';
     final action = log['action']?.toString() ?? 'Unknown Action';
-    final user = log['user'] ?? log['username'] ?? 'Unknown User';
+    final user = log['userEmail'] ?? log['user_email'] ?? 'Unknown User';
     final details = log['details'] ?? log['description'] ?? '';
-    final entityType = log['entity_type'] ?? '';
-    final entityId = log['entity_id']?.toString() ?? '';
+    final entityType = log['entityType'] ?? log['entity_type'] ?? '';
+    final entityId = log['entityId']?.toString() ?? log['entity_id']?.toString() ?? '';
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -270,6 +272,8 @@ class _AuditTrailScreenState extends ConsumerState<AuditTrailScreen> {
       } catch (e) {
         return timestamp;
       }
+    } else if (timestamp is DateTime) {
+      return '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
     }
     return timestamp?.toString() ?? 'Unknown time';
   }

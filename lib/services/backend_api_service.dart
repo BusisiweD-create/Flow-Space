@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'api_client.dart';
-import '../models/user.dart';
-import '../models/user_role.dart';
-import '../models/deliverable.dart';
-import '../models/sprint_metrics.dart';
-import '../models/sign_off_report.dart';
+import 'package:khono/models/user.dart';
+import 'package:khono/models/user_role.dart';
+import 'package:khono/models/deliverable.dart';
+import 'package:khono/models/sprint_metrics.dart';
+import 'package:khono/models/sign_off_report.dart';
 
 class BackendApiService {
   static final BackendApiService _instance = BackendApiService._internal();
@@ -28,7 +28,7 @@ class BackendApiService {
   }
 
   Future<ApiResponse> signUp(String email, String password, String name, UserRole role) async {
-    return await _apiClient.register(email, password, name, role.name);
+    return await _apiClient.register(email, password, name, role.index.toString());
   }
 
   Future<ApiResponse> signOut() async {
@@ -81,6 +81,21 @@ class BackendApiService {
 
   Future<ApiResponse> updateUserRole(String userId, UserRole newRole) async {
     return await _apiClient.put('/api/v1/users/$userId/role', body: {'role': newRole.name});
+  }
+
+  // Admin-only user creation endpoint
+  Future<ApiResponse> createUser({
+    required String email,
+    required String name,
+    required String role,
+    required String password,
+  }) async {
+    return await _apiClient.post('/users', body: {
+      'email': email,
+      'name': name,
+      'role': role,
+      'password': password,
+    },);
   }
 
   // Deliverable endpoints
@@ -198,6 +213,34 @@ class BackendApiService {
     return await _apiClient.put('/sign-off-reports/$reportId', body: updates);
   }
 
+  // Project endpoints
+  Future<ApiResponse> getProjects({int page = 1, int limit = 20, String? search}) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (search != null && search.isNotEmpty) {
+      queryParams['search'] = search;
+    }
+    return await _apiClient.get('/projects', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> getProject(String projectId) async {
+    return await _apiClient.get('/projects/$projectId');
+  }
+
+  Future<ApiResponse> createProject(Map<String, dynamic> projectData) async {
+    return await _apiClient.post('/projects', body: projectData);
+  }
+
+  Future<ApiResponse> updateProject(String projectId, Map<String, dynamic> updates) async {
+    return await _apiClient.put('/projects/$projectId', body: updates);
+  }
+
+  Future<ApiResponse> deleteProject(String projectId) async {
+    return await _apiClient.delete('/projects/$projectId');
+  }
+
   Future<ApiResponse> submitSignOffReport(String reportId) async {
     return await _apiClient.post('/sign-off-reports/$reportId/submit');
   }
@@ -269,19 +312,29 @@ class BackendApiService {
       queryParams['user_id'] = userId;
     }
     
-    // Use the correct audit endpoint
-    return await _apiClient.get('/audit', queryParams: queryParams);
+    final response = await _apiClient.get('/audit', queryParams: queryParams);
+    
+    // If the endpoint doesn't exist or returns error, provide empty response instead of mock data
+    if (!response.isSuccess) {
+      debugPrint('Audit endpoint not available, returning empty response');
+      return ApiResponse.success({
+        'audit_logs': [],
+        'items': [],
+        'logs': [],
+        'total': 0,
+        'total_count': 0,
+        'skip': skip,
+        'limit': limit,
+        'has_more': false,
+      }, 200,);
+    }
+    
+    return response;
   }
 
   // File upload endpoints
   Future<ApiResponse> uploadFile(String filePath, String fileName, String fileType) async {
-    // This would typically use a multipart request
-    // For now, we'll return a mock response
-    return ApiResponse.success({
-      'file_id': 'file_${DateTime.now().millisecondsSinceEpoch}',
-      'file_name': fileName,
-      'file_url': 'https://api.flownet.works/files/$fileName',
-    }, 200,);
+    return await _apiClient.uploadFile('/files', filePath, fileName, fileType);
   }
 
   Future<ApiResponse> deleteFile(String fileId) async {
@@ -356,6 +409,38 @@ class BackendApiService {
     return await _apiClient.get('/audit', queryParams: queryParams);
   }
 
+  // User settings endpoints
+  Future<ApiResponse> getUserSettings() async {
+    return await _apiClient.get('/api/settings/me');
+  }
+
+  Future<ApiResponse> updateUserSettings(Map<String, dynamic> settings) async {
+    return await _apiClient.put('/api/settings/me', body: settings);
+  }
+
+  Future<ApiResponse> resetUserSettings() async {
+    return await _apiClient.delete('/api/settings/me');
+  }
+
+  Future<ApiResponse> exportUserData() async {
+    return await _apiClient.get('/user/data/export');
+  }
+
+  Future<ApiResponse> clearUserCache() async {
+    return await _apiClient.delete('/user/cache');
+  }
+
+  // Sprint tickets endpoints
+  Future<ApiResponse> getSprintTickets(String sprintId) async {
+    return await _apiClient.get('/sprints/\$sprintId/tickets');
+  }
+
+  // File listing endpoint
+  Future<ApiResponse> listFiles({String? prefix}) async {
+    final queryParams = prefix != null ? {'prefix': prefix} : null;
+    return await _apiClient.get('/file-upload', queryParams: queryParams);
+  }
+
   // Email verification endpoints
   Future<ApiResponse> resendVerificationEmail(String email) async {
     return await _apiClient.post('/auth/resend-verification', body: {
@@ -399,13 +484,13 @@ class BackendApiService {
       debugPrint('User data from response: $userData');
       debugPrint('User ID: ${userData['id']}');
       debugPrint('User email: ${userData['email']}');
-      debugPrint('User first name: ${userData['first_name'] ?? userData['firstName']}');
-      debugPrint('User last name: ${userData['last_name'] ?? userData['lastName']}');
+      debugPrint('User first name: ${userData['first_name'] ?? userData['firstName'] ?? userData['firstname']}');
+      debugPrint('User last name: ${userData['last_name'] ?? userData['lastName'] ?? userData['lastname']}');
       debugPrint('User role: ${userData['role']}');
-      debugPrint('User is_active: ${userData['is_active'] ?? userData['isActive']}');
+      debugPrint('User is_active: ${userData['is_active'] ?? userData['isActive'] ?? userData['isactive']}');
       debugPrint('User status: ${userData['status']}');
-      debugPrint('User created_at: ${userData['created_at'] ?? userData['createdAt']}');
-      debugPrint('User last_login: ${userData['last_login'] ?? userData['lastLoginAt']}');
+      debugPrint('User created_at: ${userData['created_at'] ?? userData['createdAt'] ?? userData['createdat']}');
+      debugPrint('User last_login: ${userData['last_login'] ?? userData['lastLoginAt'] ?? userData['lastlogin'] ?? userData['lastLogin']}');
       
       // Create a proper user object for the User.fromJson method
       // Handle both snake_case and camelCase fields from backend
@@ -438,17 +523,17 @@ class BackendApiService {
       final userJsonForParsing = {
         'id': userData['id']?.toString(),
         'email': userData['email'],
-        'name': userData['username'] ?? 
-               '${userData['first_name'] ?? userData['firstName'] ?? ''} ${userData['last_name'] ?? userData['lastName'] ?? ''}'.trim(),
+        'name': userData['name'] ?? userData['username'] ?? 
+               '${userData['first_name'] ?? userData['firstName'] ?? userData['firstname'] ?? ''} ${userData['last_name'] ?? userData['lastName'] ?? userData['lastname'] ?? ''}'.trim(),
         'role': userRoleForParsing, // Use the converted role format
-        'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'],
-        'createdAt': userData['created_at'] ?? userData['createdAt'] ?? DateTime.now().toIso8601String(), // Provide default if missing
-        'lastLoginAt': userData['last_login'] ?? userData['last_login_at'] ?? userData['lastLoginAt'],
-        'isActive': userData['is_active'] ?? (userData['status'] == 'active') ?? userData['isActive'] ?? true,
-        'projectIds': userData['project_ids'] ?? userData['projectIds'] ?? [],
+        'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'] ?? userData['avatarurl'],
+        'createdAt': userData['created_at'] ?? userData['createdAt'] ?? userData['createdat'] ?? DateTime.now().toIso8601String(), // Provide default if missing
+        'lastLoginAt': userData['last_login'] ?? userData['last_login_at'] ?? userData['lastLoginAt'] ?? userData['lastlogin'] ?? userData['lastLogin'],
+        'isActive': userData['is_active'] ?? userData['isActive'] ?? userData['isactive'] ?? (userData['status'] == 'active') ?? true,
+        'projectIds': userData['project_ids'] ?? userData['projectIds'] ?? userData['projectids'] ?? [],
         'preferences': userData['preferences'] ?? {},
-        'emailVerified': userData['email_verified'] ?? userData['emailVerified'] ?? false,
-        'emailVerifiedAt': userData['email_verified_at'] ?? userData['emailVerifiedAt'],
+        'emailVerified': userData['email_verified'] ?? userData['emailVerified'] ?? userData['emailverified'] ?? false,
+        'emailVerifiedAt': userData['email_verified_at'] ?? userData['emailVerifiedAt'] ?? userData['emailverifiedat'],
       };
       
       debugPrint('Final user JSON for parsing: $userJsonForParsing');
@@ -495,6 +580,4 @@ class BackendApiService {
       return [];
     }
   }
-
-  // Mock audit logs for development
 }

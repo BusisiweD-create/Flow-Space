@@ -155,3 +155,67 @@ class Deliverable {
     return dueDate.difference(DateTime.now()).inDays;
   }
 }
+
+class DeliverableCreate {
+  final String title;
+  final String description;
+  final DateTime dueDate;
+  final List<String> sprintIds;
+  final List<String> definitionOfDone;
+  final List<String> evidenceLinks;
+
+  const DeliverableCreate({
+    required this.title,
+    required this.description,
+    required this.dueDate,
+    required this.sprintIds,
+    required this.definitionOfDone,
+    this.evidenceLinks = const [],
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'description': description,
+      'dueDate': dueDate.toIso8601String(),
+      'sprintIds': sprintIds,
+      'definitionOfDone': definitionOfDone,
+      'evidenceLinks': evidenceLinks,
+    };
+  }
+}
+
+class DeliverableUpdate {
+  final String? title;
+  final String? description;
+  final DateTime? dueDate;
+  final List<String>? sprintIds;
+  final List<String>? definitionOfDone;
+  final List<String>? evidenceLinks;
+  final String? clientComment;
+  final DeliverableStatus? status;
+
+  const DeliverableUpdate({
+    this.title,
+    this.description,
+    this.dueDate,
+    this.sprintIds,
+    this.definitionOfDone,
+    this.evidenceLinks,
+    this.clientComment,
+    this.status,
+  });
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    if (title != null) json['title'] = title;
+    if (description != null) json['description'] = description;
+    if (dueDate != null) json['dueDate'] = dueDate!.toIso8601String();
+    if (sprintIds != null) json['sprintIds'] = sprintIds;
+    if (definitionOfDone != null) json['definitionOfDone'] = definitionOfDone;
+    if (evidenceLinks != null) json['evidenceLinks'] = evidenceLinks;
+    if (clientComment != null) json['clientComment'] = clientComment;
+    if (status != null) json['status'] = status!.name;
+    return json;
+  }
+}

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../models/user_role.dart';
 
 import '../providers/api_auth_riverpod_provider.dart';
 import '../models/user.dart';
@@ -51,12 +52,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final authState = ref.watch(apiAuthProvider);
 
     // Listen to auth state changes
-    ref.listen<AsyncValue<User?>>(apiCurrentUserProvider, (previous, next) {
-      next.whenData((user) {
-        if (user != null) {
-          context.go('/dashboard');
-        }
-      });
+    ref.listen<User?>(apiCurrentUserProvider, (previous, next) {
+      if (next != null) {
+        context.go('/dashboard');
+      }
     });
 
     // Show error if any
@@ -457,18 +456,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     });
 
     try {
+      // Convert string role to UserRole enum
+      final userRole = _parseUserRole(_selectedRole);
+      
       await ref.read(apiAuthProvider.notifier).signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         company: _companyController.text.trim(),
-        role: _selectedRole,
+        role: userRole,
       );
     } finally {
       setState(() {
         _isRegistering = false;
       });
+    }
+  }
+
+  // Helper function to convert string role to UserRole enum
+  UserRole _parseUserRole(String roleString) {
+    switch (roleString.toLowerCase()) {
+      case 'admin':
+      case 'systemadmin':
+      case 'system_admin':
+      case 'system admin':
+        return UserRole.systemAdmin;
+      case 'deliverylead':
+      case 'delivery_lead':
+      case 'delivery lead':
+        return UserRole.deliveryLead;
+      case 'clientreviewer':
+      case 'client_reviewer':
+      case 'client reviewer':
+      case 'client':
+        return UserRole.clientReviewer;
+      case 'teammember':
+      case 'team_member':
+      case 'team member':
+      case 'user':
+      default:
+        return UserRole.teamMember;
     }
   }
 }

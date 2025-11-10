@@ -17,7 +17,7 @@ start-backend.bat
 **Option C: Manual Start**
 ```powershell
 cd backend
-node server.js
+cd backend\node-backend && npm start
 ```
 
 ### 2. Start Flutter Frontend
@@ -59,7 +59,7 @@ flutter run -d chrome
 ```
 Flow-Space/
 ├── backend/           # Node.js backend server
-│   ├── server.js      # Main server file
+│   ├── node-backend/  # Main backend server (Express.js + Sequelize)
 │   └── start-server.bat
 ├── lib/               # Flutter frontend
 │   ├── main.dart      # App entry point

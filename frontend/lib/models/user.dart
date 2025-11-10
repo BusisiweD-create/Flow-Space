@@ -1,15 +1,12 @@
-/// User model for the application
-/// Represents user data with role information and authentication details
-
-// ignore_for_file: dangling_library_doc_comments
+import 'user_role.dart';
 
 class User {
-  final int id;
+  final String id;
   final String email;
   final String firstName;
   final String lastName;
   final String? company;
-  final String role;
+  final UserRole role;
   final bool isActive;
   final bool isVerified;
   final DateTime? lastLogin;
@@ -66,21 +63,23 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] as int,
+      id: json['id'].toString(),
       email: json['email'] as String,
       firstName: json['first_name'] as String,
       lastName: json['last_name'] as String,
       company: json['company'] as String?,
-      role: json['role'] as String,
-      isActive: json['is_active'] as bool,
-      isVerified: json['is_verified'] as bool,
+      role: _parseUserRole(json['role']),
+      isActive: json['is_active'] as bool? ?? true,
+      isVerified: json['is_verified'] as bool? ?? false,
       lastLogin: json['last_login'] != null 
           ? DateTime.parse(json['last_login'] as String)
           : null,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'] as String)
-          : null,
+          : DateTime.now(),
       
       // Enhanced profile fields
       headline: json['headline'] as String?,
@@ -103,6 +102,39 @@ class User {
     );
   }
 
+  // Helper function to parse the user role from either an integer or a string.
+  // This function is robust to handle both integer and string roles.
+  static UserRole _parseUserRole(dynamic role) {
+    if (role is int) {
+      switch (role) {
+        case 0:
+          return UserRole.teamMember;
+        case 1:
+          return UserRole.deliveryLead;
+        case 2:
+          return UserRole.clientReviewer;
+        case 3:
+          return UserRole.systemAdmin;
+        default:
+          return UserRole.teamMember;
+      }
+    } else if (role is String) {
+      switch (role.toLowerCase()) {
+        case 'teammember':
+          return UserRole.teamMember;
+        case 'deliverylead':
+          return UserRole.deliveryLead;
+        case 'clientreviewer':
+          return UserRole.clientReviewer;
+        case 'systemadmin':
+          return UserRole.systemAdmin;
+        default:
+          return UserRole.teamMember;
+      }
+    }
+    return UserRole.teamMember;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -110,7 +142,7 @@ class User {
       'first_name': firstName,
       'last_name': lastName,
       'company': company,
-      'role': role,
+      'role': role.toString().split('.').last,
       'is_active': isActive,
       'is_verified': isVerified,
       'last_login': lastLogin?.toIso8601String(),
@@ -137,12 +169,12 @@ class User {
   }
 
   User copyWith({
-    int? id,
+    String? id,
     String? email,
     String? firstName,
     String? lastName,
     String? company,
-    String? role,
+    UserRole? role,
     bool? isActive,
     bool? isVerified,
     DateTime? lastLogin,
@@ -247,7 +279,7 @@ class UserCreate {
   final String firstName;
   final String lastName;
   final String? company;
-  final String role;
+  final UserRole role;
 
   UserCreate({
     required this.email,
@@ -262,10 +294,10 @@ class UserCreate {
     return {
       'email': email,
       'password': password,
-      'first_name': firstName,
-      'last_name': lastName,
+      'firstName': firstName,
+      'lastName': lastName,
       'company': company,
-      'role': role,
+      'role': role.toString().split('.').last.toLowerCase(),
     };
   }
 }
@@ -303,11 +335,14 @@ class TokenResponse {
   });
 
   factory TokenResponse.fromJson(Map<String, dynamic> json) {
+    // Handle both response formats: backend returns 'token' instead of 'access_token'
+    final String accessToken = json['access_token'] as String? ?? json['token'] as String;
+    
     return TokenResponse(
-      accessToken: json['access_token'] as String,
-      tokenType: json['token_type'] as String,
-      refreshToken: json['refresh_token'] as String,
-      expiresIn: json['expires_in'] as int,
+      accessToken: accessToken,
+      tokenType: json['token_type'] as String? ?? 'bearer',
+      refreshToken: json['refresh_token'] as String? ?? '',
+      expiresIn: json['expires_in'] as int? ?? 3600,
       user: User.fromJson(json['user'] as Map<String, dynamic>),
     );
   }

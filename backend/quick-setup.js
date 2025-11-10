@@ -42,7 +42,8 @@ async function quickSetup() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         email VARCHAR(255) UNIQUE NOT NULL,
         hashed_password VARCHAR(255) NOT NULL,
-        name VARCHAR(255) NOT NULL,
+        first_name VARCHAR(255) NOT NULL,
+        last_name VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'teamMember',
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -51,16 +52,19 @@ async function quickSetup() {
     
     // Create admin user
     const bcrypt = require('bcrypt');
+    const { v4: uuidv4 } = require('uuid');
     const hashedPassword = await bcrypt.hash('password', 10);
+    const adminId = uuidv4();
     
     await client.query(`
-      INSERT INTO users (email, hashed_password, name, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO users (id, email, hashed_password, first_name, last_name, role, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (email) DO UPDATE SET
         hashed_password = EXCLUDED.hashed_password,
-        name = EXCLUDED.name,
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
         role = EXCLUDED.role
-    `, ['admin@flowspace.com', hashedPassword, 'Admin User', 'systemAdmin', true]);
+    `, [adminId, 'admin@flowspace.com', hashedPassword, 'Admin', 'User', 'systemAdmin', true]);
     
     console.log('✅ Admin user created');
     console.log('📧 Email: admin@flowspace.com');

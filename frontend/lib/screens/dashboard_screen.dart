@@ -1,9 +1,8 @@
 // ignore_for_file: unused_element, no_leading_underscores_for_local_identifiers, duplicate_ignore, prefer_const_constructors, deprecated_member_use, unused_field
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:khono/models/sprint.dart';
 import '../utils/git_utils.dart';
 import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
@@ -14,8 +13,12 @@ import '../services/notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/notification_provider.dart';
 import '../models/deliverable.dart';
 import '../services/api_service.dart';
+import 'sprint_report_screen.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'user_management_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -51,6 +54,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'settings') {
+                _showSettingsDialog();
+              } else if (value == 'user_management') {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const UserManagementScreen(),
+                ),);
+              } else if (value == 'logout') {
+                _handleLogout();
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'settings',
+                child: Text('Settings'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'user_management',
+                child: Text('User Management'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Text('Logout'),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Consumer(
         builder: (context, ref, child) {
           final dashboardState = ref.watch(dashboardProvider);
@@ -145,12 +181,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          _showCreateDeliverableDialog();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Deliverable'),
+      floatingActionButton: SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        activeBackgroundColor: Colors.grey,
+        activeForegroundColor: Colors.white,
+        buttonSize: const Size(56.0, 56.0),
+        visible: true,
+        curve: Curves.bounceIn,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.assignment),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            label: 'New Deliverable',
+            labelStyle: const TextStyle(fontSize: 18.0),
+            onTap: () => _showCreateDeliverableDialog(),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.timeline),
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            label: 'New Sprint',
+            labelStyle: const TextStyle(fontSize: 18.0),
+            onTap: () => _showCreateSprintDialog(),
+          ),
+        ],
       ),
     );
   }
@@ -447,13 +505,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  void _showCreateDeliverableDialog() {
+  void _showCreateDeliverableDialog() async {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
     final TextEditingController dueDateController = TextEditingController();
     String selectedPriority = 'Medium';
-    
-    showDialog(
+
+    await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
@@ -491,7 +549,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Priority',
                   ),
-                  initialValue: selectedPriority,
+                  value: selectedPriority,
                   items: ['Low', 'Medium', 'High'].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
@@ -515,11 +573,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('New deliverable created')),
-                );
-                Navigator.of(context).pop();
+              onPressed: () async {
+                try {
+                  await ApiService.createDeliverable(
+                    DeliverableCreate(
+                      title: nameController.text,
+                      description: descriptionController.text,
+                      dueDate: DateTime.parse(dueDateController.text),
+                      sprintIds: [],
+                      definitionOfDone: [],
+                      evidenceLinks: [],
+                    ),
+                  );
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('New deliverable created')),
+                  );
+                  // ignore: unused_result
+                  ref.refresh(dashboardProvider);
+                  // ignore: use_build_context_synchronously
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to create deliverable: $e')),
+                  );
+                }
               },
               child: const Text('Create'),
             ),
@@ -529,16 +608,170 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  void _showCreateSprintDialog() {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    final TextEditingController startDateController = TextEditingController();
+    final TextEditingController endDateController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create New Sprint'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Sprint Name',
+                  hintText: 'Enter sprint name',
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  hintText: 'Enter description',
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: startDateController,
+                decoration: const InputDecoration(
+                  labelText: 'Start Date',
+                  hintText: 'YYYY-MM-DD',
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: endDateController,
+                decoration: const InputDecoration(
+                  labelText: 'End Date',
+                  hintText: 'YYYY-MM-DD',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await ApiService.createSprint(
+                  SprintCreate(
+                    name: nameController.text,
+                    startDate: DateTime.parse(startDateController.text),
+                    endDate: DateTime.parse(endDateController.text),
+                    plannedPoints: 0,
+                    committedPoints: 0,
+                    completedPoints: 0,
+                    velocity: 0,
+                    testPassRate: 0.0,
+                    codeCoverage: 0.0,
+                    defectCount: 0,
+                    escapedDefects: 0,
+                    defectsClosed: 0,
+                    carriedOverPoints: 0,
+                    addedDuringSprint: 0,
+                    removedDuringSprint: 0,
+                    scopeChanges: [],
+                    notes: null,
+                    codeReviewCompletion: 0.0,
+                    documentationStatus: '',
+                    uatNotes: '',
+                    uatPassRate: 0.0,
+                    risksIdentified: 0,
+                    risksMitigated: 0,
+                    blockers: '',
+                    decisions: '',
+                    isActive: false,
+                  ),
+                );
+                // ignore: use_build_context_synchronously
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('New sprint created')),
+                );
+                // ignore: unused_result
+                ref.refresh(dashboardProvider);
+                // ignore: use_build_context_synchronously
+                Navigator.of(context).pop();
+              } catch (e) {
+                // ignore: use_build_context_synchronously
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to create sprint: $e')),
+                );
+              }
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showNotificationsDialog() {
+    final notificationState = ref.watch(notificationProvider);
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Notifications'),
-        content: const Text('No new notifications at this time.'),
+        content: notificationState.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : notificationState.notifications.isEmpty
+                ? const Text('No new notifications at this time.')
+                : SizedBox(
+                    width: double.maxFinite,
+                    height: 300,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: notificationState.notifications.length,
+                            itemBuilder: (context, index) {
+                              final notification = notificationState.notifications[index];
+                              return ListTile(
+                                title: Text(notification.type),
+                                subtitle: Text(notification.message),
+                                trailing: !notification.isRead
+                                    ? IconButton(
+                                        icon: const Icon(Icons.mark_email_read),
+                                        onPressed: () {
+                                          ref.read(notificationProvider.notifier).markAsRead(notification.id);
+                                        },
+                                      )
+                                    : null,
+                                onTap: () {
+                                  if (!notification.isRead) {
+                                    ref.read(notificationProvider.notifier).markAsRead(notification.id);
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        if (notificationState.notifications.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              ref.read(notificationProvider.notifier).markAllAsRead();
+                            },
+                            child: const Text('Mark all as read'),
+                          ),
+                      ],
+                    ),
+                  ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -897,75 +1130,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _showSprintManagementDialog() {
-    final List<String> sprints = ['Sprint 1', 'Sprint 2', 'Sprint 3', 'Current Sprint'];
-    String selectedSprint = 'Current Sprint';
+    final dashboardState = ref.read(dashboardProvider);
+    final sprints = dashboardState.sprints;
     
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Sprint Management'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Active Sprint:', style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: selectedSprint,
-                  isExpanded: true,
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        selectedSprint = newValue;
-                      });
-                    }
-                  },
-                  items: sprints.map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                const Text('Sprint Details:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _buildSprintInfoRow('Start Date:', '2023-10-15'),
-                _buildSprintInfoRow('End Date:', '2023-10-29'),
-                _buildSprintInfoRow('Story Points:', '34/45'),
-                _buildSprintInfoRow('Completion:', '75%'),
-                const SizedBox(height: 16),
-                const Text('Team Members:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _buildTeamMemberChip('Alex'),
-                    _buildTeamMemberChip('Maria'),
-                    _buildTeamMemberChip('John'),
-                    _buildTeamMemberChip('Sarah'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sprint details updated')),
-                );
-                Navigator.of(context).pop();
-              },
-              child: const Text('Update Sprint'),
-            ),
-          ],
-        ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SprintReportScreen(sprints: sprints),
       ),
     );
   }
@@ -1093,3 +1263,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
 }
+
+ 
+

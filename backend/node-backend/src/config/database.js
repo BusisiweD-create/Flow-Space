@@ -1,45 +1,29 @@
 const { Sequelize } = require('sequelize');
-const path = require('path');
 require('dotenv').config();
 
-// Determine database type from DATABASE_URL or default to SQLite for development
-const databaseUrl = process.env.DATABASE_URL || '';
-let sequelize;
+// PostgreSQL configuration - only real database, no fallback
+const databaseUrl = process.env.DATABASE_URL;
 
-if (databaseUrl.includes('postgresql://')) {
-  // PostgreSQL configuration
-  sequelize = new Sequelize(databaseUrl, {
-    dialect: 'postgres',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    pool: {
-      max: 10,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    },
-    dialectOptions: process.env.NODE_ENV === 'production' ? {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false
-      }
-    } : {}
-  });
-} else {
-  // SQLite configuration (default for development)
-  const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, '..', '..', '..', 'backend', 'hackathon-backend', 'hackathon.db');
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: sqlitePath,
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    }
-  });
-  console.log(`Using SQLite database at: ${sqlitePath}`);
+if (!databaseUrl || !databaseUrl.includes('postgresql://')) {
+  throw new Error('DATABASE_URL environment variable is required and must be a PostgreSQL connection string');
 }
+
+const sequelize = new Sequelize(databaseUrl, {
+  dialect: 'postgres',
+  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  pool: {
+    max: 10,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  },
+  dialectOptions: process.env.NODE_ENV === 'production' ? {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  } : {}
+});
 
 // Test database connection
 async function testConnection() {

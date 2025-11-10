@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: use_build_context_synchronously, avoid_print
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,12 +31,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(apiAuthProvider);
 
     // Listen to auth state changes
-    ref.listen<AsyncValue<User?>>(apiCurrentUserProvider, (previous, next) {
-      next.whenData((user) {
-        if (user != null) {
-          context.go('/dashboard');
-        }
-      });
+    ref.listen<User?>(apiCurrentUserProvider, (previous, next) {
+      print('Navigation listener triggered:');
+      print('Previous user: $previous');
+      print('Next user: $next');
+      if (next != null) {
+        print('Navigating to dashboard');
+        context.go('/dashboard');
+      }
     });
 
     // Show error if any

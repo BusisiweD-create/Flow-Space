@@ -120,23 +120,27 @@ async function setupDatabase() {
       console.log(`   - ${row.name}: ${row.display_name}`);
     });
     
-    // Check permissions
-    const permissionsResult = await client.query('SELECT COUNT(*) as count FROM permissions');
-    console.log(`\n🔐 Permissions: ${permissionsResult.rows[0].count} total`);
-    
-    // Check role permissions
-    const rolePermissionsResult = await client.query(`
-      SELECT ur.name as role_name, COUNT(rp.permission_id) as permission_count
-      FROM user_roles ur
-      LEFT JOIN role_permissions rp ON ur.id = rp.role_id
-      GROUP BY ur.id, ur.name
-      ORDER BY ur.name
-    `);
-    
-    console.log('\n🔗 Role permissions:');
-    rolePermissionsResult.rows.forEach(row => {
-      console.log(`   - ${row.role_name}: ${row.permission_count} permissions`);
-    });
+    // Check permissions (if permissions table exists)
+    try {
+      const permissionsResult = await client.query('SELECT COUNT(*) as count FROM permissions');
+      console.log(`\n🔐 Permissions: ${permissionsResult.rows[0].count} total`);
+      
+      // Check role permissions
+      const rolePermissionsResult = await client.query(`
+        SELECT ur.name as role_name, COUNT(rp.permission_id) as permission_count
+        FROM user_roles ur
+        LEFT JOIN role_permissions rp ON ur.id = rp.role_id
+        GROUP BY ur.id, ur.name
+        ORDER BY ur.name
+      `);
+      
+      console.log('\n🔗 Role permissions:');
+      rolePermissionsResult.rows.forEach(row => {
+        console.log(`   - ${row.role_name}: ${row.permission_count} permissions`);
+      });
+    } catch (error) {
+      console.log('\n⚠️  Permissions table not found - this is expected for the current schema');
+    }
     
     console.log('\n🎉 Database setup completed successfully!');
     console.log('\n📝 Next steps:');

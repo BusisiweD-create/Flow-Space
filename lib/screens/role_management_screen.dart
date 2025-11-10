@@ -5,6 +5,7 @@ import '../models/user.dart';
 import '../models/user_role.dart';
 import '../services/backend_api_service.dart';
 import '../services/error_handler.dart';
+import '../services/user_data_service.dart';
 
 class RoleManagementScreen extends StatefulWidget {
   const RoleManagementScreen({super.key});
@@ -21,6 +22,7 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   UserRole? _filterRole;
+  final UserDataService _userDataService = UserDataService();
 
   @override
   void initState() {
@@ -34,20 +36,16 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
     });
 
     try {
-      final response = await _apiService.getUsers();
+      // Fetch real users from backend API with search and filter support
+      final users = await _userDataService.getUsers(
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        filterRole: _filterRole,
+      );
       
-      if (response.isSuccess && response.data != null) {
-        final List<dynamic> usersData = response.data!['users'] ?? response.data!;
-        final users = usersData.map((userData) => _parseUserFromApi(userData)).whereType<User>().toList();
-        
-        setState(() {
-          _users = users;
-          _isLoading = false;
-        });
-      } else {
-        _errorHandler.showErrorSnackBar(context, 'Failed to load users: ${response.error}');
-        setState(() => _isLoading = false);
-      }
+      setState(() {
+        _users = users;
+        _isLoading = false;
+      });
     } catch (e) {
       _errorHandler.showErrorSnackBar(context, 'Error loading users: $e');
       setState(() => _isLoading = false);
@@ -597,72 +595,8 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
 
 
 
-  User _parseUserFromApi(Map<String, dynamic> userData) {
-    // Handle different field name variations from backend
-    final username = userData['username']?.toString() ?? '';
-    
-    // Determine the name - prefer username if available, otherwise combine first/last names
-    final firstName = userData['first_name'] ?? userData['firstName'] ?? '';
-    final lastName = userData['last_name'] ?? userData['lastName'] ?? '';
-    final name = username.isNotEmpty 
-        ? username 
-        : '\$firstName \$lastName'.trim();
-    
-    // Use variables to avoid warnings
-    final _ = firstName + lastName;
-    
-    // Convert backend role string to UserRole enum
-    final backendRole = userData['role']?.toString() ?? '';
-    UserRole userRole;
-    
-    switch (backendRole.toLowerCase()) {
-      case 'clientreviewer':
-      case 'client_reviewer':
-        userRole = UserRole.clientReviewer;
-        break;
-      case 'deliverylead':
-      case 'delivery_lead':
-        userRole = UserRole.deliveryLead;
-        break;
-      case 'systemadmin':
-      case 'system_admin':
-        userRole = UserRole.systemAdmin;
-        break;
-      case 'teammember':
-      case 'team_member':
-      default:
-        userRole = UserRole.teamMember;
-        break;
-    }
-    
-    return User(
-      id: userData['id']?.toString() ?? '',
-      email: userData['email']?.toString() ?? '',
-      name: name,
-      role: userRole,
-      avatarUrl: userData['avatar_url'] ?? userData['avatarUrl']?.toString(),
-      createdAt: _parseDateTime(userData['created_at'] ?? userData['createdAt']),
-      lastLoginAt: _parseDateTime(userData['last_login'] ?? userData['lastLoginAt']),
-      isActive: userData['is_active'] ?? userData['isActive'] ?? true,
-      projectIds: List<String>.from(userData['project_ids'] ?? userData['projectIds'] ?? []),
-      preferences: Map<String, dynamic>.from(userData['preferences'] ?? {}),
-      emailVerified: userData['email_verified'] ?? userData['emailVerified'] ?? false,
-      emailVerifiedAt: _parseDateTime(userData['email_verified_at'] ?? userData['emailVerifiedAt']),
-    );
-  }
 
-  DateTime _parseDateTime(dynamic dateTimeValue) {
-    if (dateTimeValue == null) return DateTime.now();
-    if (dateTimeValue is DateTime) return dateTimeValue;
-    if (dateTimeValue is String) {
-      try {
-        return DateTime.parse(dateTimeValue);
-      } catch (e) {
-        return DateTime.now();
-      }
-    }
-    return DateTime.now();
-  }
+
 
   UserRole _convertStringToUserRole(String roleString) {
     switch (roleString.toLowerCase()) {

@@ -83,6 +83,52 @@ class FileUploadService {
             return false;
         }
     }
+
+    async listFiles(prefix = '') {
+        try {
+            const directoryPath = prefix ? path.join(this.storageBasePath, prefix) : this.storageBasePath;
+            
+            // Check if directory exists
+            try {
+                await fs.access(directoryPath);
+            } catch (error) {
+                if (error.code === 'ENOENT') {
+                    return []; // Directory doesn't exist, return empty list
+                }
+                throw error;
+            }
+            
+            const files = await fs.readdir(directoryPath);
+            const fileDetails = [];
+            
+            for (const file of files) {
+                try {
+                    const filePath = path.join(directoryPath, file);
+                    const stats = await fs.stat(filePath);
+                    
+                    if (stats.isFile()) {
+                        fileDetails.push({
+                            filename: file,
+                            originalName: file, // For simplicity, use filename as original name
+                            size: stats.size,
+                            uploadDate: stats.mtime,
+                            url: `${this.baseUrl}/${prefix ? prefix + '/' : ''}${file}`,
+                            storageProvider: 'local'
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error getting details for file ${file}:`, error);
+                    // Continue with other files
+                }
+            }
+            
+            return fileDetails;
+            
+        } catch (error) {
+            console.error('File listing failed:', error);
+            throw new Error(`File listing failed: ${error.message}`);
+        }
+    }
 }
 
 // Create global instance

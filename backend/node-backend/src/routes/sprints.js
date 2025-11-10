@@ -16,10 +16,16 @@ router.get('/', async (req, res) => {
       order: [['created_at', 'DESC']]
     });
     
-    res.json(sprints);
+    res.json({
+      success: true,
+      data: sprints
+    });
   } catch (error) {
     console.error('Error fetching sprints:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
@@ -41,13 +47,22 @@ router.get('/:id', async (req, res) => {
     });
     
     if (!sprint) {
-      return res.status(404).json({ error: 'Sprint not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Sprint not found' 
+      });
     }
     
-    res.json(sprint);
+    res.json({
+      success: true,
+      data: sprint
+    });
   } catch (error) {
     console.error('Error fetching sprint:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
@@ -62,10 +77,16 @@ router.post('/', async (req, res) => {
     
     const sprint = await Sprint.create(sprintData);
     
-    res.status(201).json(sprint);
+    res.status(201).json({
+      success: true,
+      data: sprint
+    });
   } catch (error) {
     console.error('Error creating sprint:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
+import '../models/sprint.dart';
 
 class SprintConsoleScreen extends ConsumerStatefulWidget {
   const SprintConsoleScreen({super.key});
@@ -12,7 +13,7 @@ class SprintConsoleScreen extends ConsumerStatefulWidget {
 }
 
 class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
-  List<Map<String, dynamic>> _sprints = [];
+  List<Sprint> _sprints = [];
   bool _isLoading = true;
 
   @override
@@ -104,7 +105,7 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    sprint['name'],
+                                    sprint.name,
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
@@ -117,11 +118,11 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: _getStatusColor(sprint['status']),
+                                    color: _getStatusColor(sprint.statusText),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    sprint['status'].toUpperCase(),
+                                    sprint.statusText.toUpperCase(),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
@@ -132,9 +133,9 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            if (sprint['description'] != null)
+                            if (sprint.notes != null)
                               Text(
-                                sprint['description'],
+                                sprint.notes!,
                                 style: const TextStyle(color: Colors.grey),
                               ),
                             const SizedBox(height: 12),
@@ -143,7 +144,7 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                                 Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${_formatDate(sprint['start_date'])} - ${_formatDate(sprint['end_date'])}',
+                                  '${_formatDate(sprint.startDate)} - ${_formatDate(sprint.endDate)}',
                                   style: TextStyle(color: Colors.grey[600]),
                                 ),
                               ],
@@ -156,14 +157,14 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                                   Icon(Icons.trending_up, size: 16, color: Colors.grey[600]),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '${sprint['completed_points']}/${sprint['planned_points']} points',
+                                    '${sprint.completedPoints}/${sprint.plannedPoints} points',
                                     style: TextStyle(color: Colors.grey[600]),
                                   ),
                                   const SizedBox(width: 16),
                                   Icon(Icons.person, size: 16, color: Colors.grey[600]),
                                   const SizedBox(width: 4),
                                   Text(
-                                    sprint['created_by_name'] ?? 'Unknown',
+                                    sprint.createdByName ?? 'Unknown',
                                     style: TextStyle(color: Colors.grey[600]),
                                   ),
                                 ],
@@ -171,12 +172,12 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                             ),
                             const SizedBox(height: 12),
                             LinearProgressIndicator(
-                              value: (sprint['planned_points'] ?? 0) > 0
-                                  ? (sprint['completed_points'] ?? 0) / (sprint['planned_points'] ?? 1)
+                              value: sprint.plannedPoints > 0
+                                  ? sprint.completedPoints / sprint.plannedPoints
                                   : 0,
                               backgroundColor: Colors.grey[300],
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                _getProgressColor(sprint['completed_points'] ?? 0, sprint['planned_points'] ?? 0),
+                                _getProgressColor(sprint.completedPoints, sprint.plannedPoints),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -184,7 +185,7 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  '${(((sprint['completed_points'] ?? 0) / (sprint['planned_points'] ?? 1)) * 100).toStringAsFixed(1)}% Complete',
+                                  '${sprint.plannedPoints > 0 ? ((sprint.completedPoints / sprint.plannedPoints) * 100).toStringAsFixed(1) : '0.0'}% Complete',
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 TextButton(
@@ -231,13 +232,8 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
     return Colors.red;
   }
 
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateString;
-    }
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
 
@@ -314,31 +310,34 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
 
     try {
       await ApiService.createSprint(
-        name: _nameController.text,
-        description: _descriptionController.text,
-        startDate: _startDate,
-        endDate: _endDate,
-        plannedPoints: int.tryParse(_plannedPointsController.text),
-        committedPoints: int.tryParse(_committedPointsController.text),
-        completedPoints: int.tryParse(_completedPointsController.text),
-        carriedOverPoints: int.tryParse(_carriedOverPointsController.text),
-        addedDuringSprint: int.tryParse(_addedDuringSprintController.text),
-        removedDuringSprint: int.tryParse(_removedDuringSprintController.text),
-        testPassRate: int.tryParse(_testPassRateController.text),
-        codeCoverage: int.tryParse(_codeCoverageController.text),
-        escapedDefects: int.tryParse(_escapedDefectsController.text),
-        defectsOpened: int.tryParse(_defectsOpenedController.text),
-        defectsClosed: int.tryParse(_defectsClosedController.text),
-        defectSeverityMix: _defectSeverityMixController.text,
-        codeReviewCompletion: int.tryParse(_codeReviewCompletionController.text),
-        documentationStatus: _documentationStatusController.text,
-        uatNotes: _uatNotesController.text,
-        uatPassRate: int.tryParse(_uatPassRateController.text),
-        risksIdentified: int.tryParse(_risksIdentifiedController.text),
-        risksMitigated: int.tryParse(_risksMitigatedController.text),
-        blockers: _blockersController.text,
-        decisions: _decisionsController.text,
-        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
+        SprintCreate(
+          name: _nameController.text,
+          startDate: _startDate!,
+          endDate: _endDate!,
+          plannedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
+          committedPoints: int.tryParse(_committedPointsController.text) ?? 0,
+          completedPoints: int.tryParse(_completedPointsController.text) ?? 0,
+          velocity: 0,
+          testPassRate: int.tryParse(_testPassRateController.text)?.toDouble() ?? 0.0,
+          codeCoverage: int.tryParse(_codeCoverageController.text)?.toDouble() ?? 0.0,
+          defectCount: int.tryParse(_defectsOpenedController.text) ?? 0,
+          escapedDefects: int.tryParse(_escapedDefectsController.text) ?? 0,
+          defectsClosed: int.tryParse(_defectsClosedController.text) ?? 0,
+          carriedOverPoints: int.tryParse(_carriedOverPointsController.text) ?? 0,
+          addedDuringSprint: int.tryParse(_addedDuringSprintController.text) ?? 0,
+          removedDuringSprint: int.tryParse(_removedDuringSprintController.text) ?? 0,
+          scopeChanges: [],
+          notes: _descriptionController.text,
+          codeReviewCompletion: int.tryParse(_codeReviewCompletionController.text)?.toDouble() ?? 0.0,
+          documentationStatus: _documentationStatusController.text,
+          uatNotes: _uatNotesController.text,
+          uatPassRate: int.tryParse(_uatPassRateController.text)?.toDouble() ?? 0.0,
+          risksIdentified: int.tryParse(_risksIdentifiedController.text) ?? 0,
+          risksMitigated: int.tryParse(_risksMitigatedController.text) ?? 0,
+          blockers: _blockersController.text,
+          decisions: _decisionsController.text,
+          isActive: false,
+        ),
       );
 
       if (mounted) {
@@ -713,7 +712,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
 }
 
 class SprintDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> sprint;
+  final Sprint sprint;
 
   const SprintDetailScreen({super.key, required this.sprint});
 
@@ -721,7 +720,7 @@ class SprintDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(sprint['name']),
+        title: Text(sprint.name),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
@@ -741,13 +740,13 @@ class SprintDetailScreen extends StatelessWidget {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 16),
-                    _buildDetailRow('Description', sprint['description'] ?? 'No description'),
-                    _buildDetailRow('Status', sprint['status']),
-                    _buildDetailRow('Start Date', _formatDate(sprint['start_date'])),
-                    _buildDetailRow('End Date', _formatDate(sprint['end_date'])),
-                    _buildDetailRow('Planned Points', sprint['planned_points'].toString()),
-                    _buildDetailRow('Completed Points', sprint['completed_points'].toString()),
-                    _buildDetailRow('Created By', sprint['created_by_name'] ?? 'Unknown'),
+                    _buildDetailRow('Description', sprint.notes ?? 'No description'),
+                    _buildDetailRow('Status', sprint.statusText),
+                    _buildDetailRow('Start Date', _formatDate(sprint.startDate)),
+                    _buildDetailRow('End Date', _formatDate(sprint.endDate)),
+                    _buildDetailRow('Planned Points', sprint.plannedPoints.toString()),
+                    _buildDetailRow('Completed Points', sprint.completedPoints.toString()),
+                    _buildDetailRow('Created By', sprint.createdByName ?? 'Unknown'),
                   ],
                 ),
               ),
@@ -765,14 +764,14 @@ class SprintDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     LinearProgressIndicator(
-                      value: sprint['planned_points'] > 0
-                          ? sprint['completed_points'] / sprint['planned_points']
+                      value: sprint.plannedPoints > 0
+                          ? sprint.completedPoints / sprint.plannedPoints
                           : 0,
                       backgroundColor: Colors.grey[300],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${((sprint['completed_points'] / sprint['planned_points']) * 100).toStringAsFixed(1)}% Complete',
+                      '${((sprint.completedPoints / sprint.plannedPoints) * 100).toStringAsFixed(1)}% Complete',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -804,12 +803,7 @@ class SprintDetailScreen extends StatelessWidget {
     );
   }
 
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateString;
-    }
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
