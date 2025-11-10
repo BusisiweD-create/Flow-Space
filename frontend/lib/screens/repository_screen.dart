@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../models/audit_log.dart';
 
 final repositoryProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   return ApiService.getSignoffsBySprint(0); // Get all signoffs
@@ -340,38 +341,34 @@ class _SignoffCard extends StatelessWidget {
   }
 
   void _approveSignoff(BuildContext context, Map<String, dynamic> signoff) async {
-    final signoffId = signoff['id'];
-    if (signoffId == null) return;
-
-    final currentContext = context;
+    final signoffId = int.tryParse(signoff['id']?.toString() ?? '0') ?? 0;
+    if (signoffId == 0) return;
     
     try {
-      final result = await ApiService.approveSignoff(signoffId);
-      if (result != null && currentContext.mounted) {
-        // Create audit log for sign-off approval
-        var ref;
-        await ApiService.createAuditLog(
-          entityType: 'signoff',
-          entityId: signoffId,
-          action: 'approve',
-          userEmail: ref.read(currentUserProvider).email,
-          userRole: ref.read(currentUserProvider).role,
-          entityName: 'Sign-off #$signoffId',
-          newValues: {'status': 'approved'}, details: '',
-        );
-        
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          const SnackBar(content: Text('Signoff approved successfully')),
-        );
-        // Refresh the list
-        // ref.invalidate(repositoryProvider);
-      }
+      await ApiService.approveSignoff(signoffId, true, null);
+      
+      // Create audit log for sign-off approval
+      var ref;
+      await ApiService.createAuditLog(AuditLogCreate(
+        entityType: 'signoff',
+        entityId: signoffId,
+        action: 'approve',
+        userEmail: ref.read(currentUserProvider).email,
+        userRole: ref.read(currentUserProvider).role,
+        entityName: 'Sign-off #$signoffId',
+        newValues: {'status': 'approved'},
+        details: '',
+      ),);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signoff approved successfully')),
+      );
+      // Refresh the list
+      // ref.invalidate(repositoryProvider);
     } catch (e) {
-      if (currentContext.mounted) {
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(content: Text('Error approving signoff: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error approving signoff: $e')),
+      );
     }
   }
 }

@@ -6,6 +6,14 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+const app = express();
+
+// Add this logging middleware at the very beginning
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
+
 // Import database configuration
 const { testConnection, syncDatabase } = require('./config/database');
 
@@ -20,6 +28,7 @@ const { performanceMiddleware } = require('./middleware/performanceMiddleware');
 const authRoutes = require('./routes/auth');
 const deliverablesRoutes = require('./routes/deliverables');
 const sprintsRoutes = require('./routes/sprints');
+const projectsRoutes = require('./routes/projects');
 const analyticsRoutes = require('./routes/analytics');
 const auditRoutes = require('./routes/audit');
 const fileUploadRoutes = require('./routes/fileUpload');
@@ -30,15 +39,14 @@ const settingsRoutes = require('./routes/settings');
 const signoffRoutes = require('./routes/signoff');
 const websocketRoutes = require('./routes/websocket');
 const systemRoutes = require('./routes/system');
+const usersRoutes = require('./routes/users');
 
 // Import services
 const { presenceService } = require('./services/presenceService');
 const { notificationService } = require('./services/notificationService');
 const analyticsService = require('./services/analyticsService');
 const { loggingService } = require('./services/loggingService');
-
-const app = express();
-// PORT declaration removed to avoid redeclaration
+const socketService = require('./services/socketService');
 
 // Middleware
 app.use(helmet());
@@ -50,27 +58,19 @@ app.use(cors({
   allowedHeaders: ['*'],
   exposedHeaders: ['*']
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(morgan('combined'));
 
 // Custom middleware
 app.use(loggingMiddleware);
 app.use(performanceMiddleware);
-
-// CORS headers middleware
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Expose-Headers', '*');
-  next();
-});
+app.use(morgan('combined'));
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/deliverables', deliverablesRoutes);
 app.use('/api/v1/sprints', sprintsRoutes);
+app.use('/api/v1/projects', projectsRoutes);
 app.use('/api/v1/signoff', signoffRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/settings', settingsRoutes);
@@ -81,6 +81,7 @@ app.use('/api/v1/files', fileUploadRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/system', systemRoutes);
+app.use('/api/v1/users', usersRoutes);
 
 // Health check endpoints
 app.get('/', (req, res) => {
@@ -126,6 +127,10 @@ async function startServer() {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
       
+      // Initialize Socket.io server
+      socketService.initialize(server);
+      console.log('✅ Socket.io server initialized for real-time communication');
+      
       // Start background services after server is listening
       // Analytics service is now started on-demand via API endpoints to prevent server overload
       loggingService.start().catch(error => {
@@ -136,6 +141,7 @@ async function startServer() {
       console.log(`🔗 Access your backend at: http://localhost:${PORT}/`);
       console.log(`🔗 Health check: http://localhost:${PORT}/health`);
       console.log(`🔗 API v1 endpoints: http://localhost:${PORT}/api/v1/`);
+      console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}`);
     });
     
   } catch (error) {

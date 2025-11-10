@@ -85,23 +85,23 @@ class User {
     try {
       
       return User(
-        id: json['id'] as String,
-        email: json['email'] as String,
-        name: json['name'] as String,
+        id: json['id']?.toString() ?? '',
+        email: json['email']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
         role: UserRole.values.firstWhere(
-          (e) => e.name == json['role'],
+          (e) => e.name == json['role']?.toString(),
           orElse: () => UserRole.teamMember,
         ),
-        avatarUrl: json['avatarUrl'],
+        avatarUrl: json['avatarUrl']?.toString(),
         createdAt: json['createdAt'] != null 
-            ? DateTime.parse(json['createdAt'] as String)
+            ? DateTime.parse(json['createdAt']?.toString() ?? DateTime.now().toIso8601String())
             : DateTime.now(),
-        lastLoginAt: json['lastLoginAt'] != null ? DateTime.parse(json['lastLoginAt'] as String) : null,
+        lastLoginAt: json['lastLoginAt'] != null ? DateTime.parse(json['lastLoginAt']?.toString() ?? '') : null,
         isActive: json['isActive'] ?? true,
         projectIds: List<String>.from(json['projectIds'] ?? []),
         preferences: Map<String, dynamic>.from(json['preferences'] ?? {}),
         emailVerified: json['emailVerified'] ?? false,
-        emailVerifiedAt: json['emailVerifiedAt'] != null ? DateTime.parse(json['emailVerifiedAt'] as String) : null,
+        emailVerifiedAt: json['emailVerifiedAt'] != null ? DateTime.parse(json['emailVerifiedAt']?.toString() ?? '') : null,
       );
     } catch (e) {
       // Error logging removed for production

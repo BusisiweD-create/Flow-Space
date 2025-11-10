@@ -198,7 +198,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Response Time',
-                    value: _metrics != null ? '\${_metrics!.performance.responseTime.toString()}ms' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.responseTime.toString()}ms' : 'N/A',
                     icon: Icons.speed,
                     color: Colors.blue,
                   ),
@@ -207,7 +207,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Uptime',
-                    value: _metrics != null ? '\${_metrics!.performance.uptime.toStringAsFixed(1)}%' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.uptime.toStringAsFixed(1)}%' : 'N/A',
                     icon: Icons.timer,
                     color: Colors.green,
                   ),

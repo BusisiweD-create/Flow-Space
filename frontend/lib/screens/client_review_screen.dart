@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../models/audit_log.dart';
+import '../models/sprint.dart';
 
 class ClientReviewScreen extends StatefulWidget {
   const ClientReviewScreen({super.key});
@@ -13,9 +15,9 @@ class ClientReviewScreen extends StatefulWidget {
 class _ClientReviewScreenState extends State<ClientReviewScreen> {
   final _changeRequestController = TextEditingController();
   
-  List<Map<String, dynamic>> _sprints = [];
+  List<Sprint> _sprints = [];
   List<Map<String, dynamic>> _signoffs = [];
-  int? _selectedSprintId;
+  String? _selectedSprintId;
   bool _isLoading = false;
   
   @override
@@ -36,20 +38,22 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          const SnackBar(content: Text('Error loading sprints: \$e')),
+          SnackBar(content: Text('Error loading sprints: ${e.toString()}')),
         );
       }
     }
   }
   
-  Future<void> _loadSignoffsForSprint(int sprintId) async {
+  Future<void> _loadSignoffsForSprint(String sprintId) async {
     final currentContext = context;
     setState(() {
       _isLoading = true;
     });
     
     try {
-      final signoffs = await ApiService.getSignoffsBySprint(sprintId);
+      // Convert String sprintId to int for API call
+      final sprintIdInt = int.tryParse(sprintId) ?? 0;
+      final signoffs = await ApiService.getSignoffsBySprint(sprintIdInt);
       if (mounted) {
         setState(() {
           _signoffs = signoffs;
@@ -62,7 +66,7 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          const SnackBar(content: Text('Error loading sign-offs: \$e')),
+          SnackBar(content: Text('Error loading sign-offs: ${e.toString()}')),
         );
       }
     }
@@ -71,19 +75,21 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
   Future<void> _approveSignoff(int signoffId) async {
     final currentContext = context;
     try {
-      await ApiService.approveSignoff(signoffId);
+      await ApiService.approveSignoff(signoffId, true, null);
       
       // Create audit log for sign-off approval
       final userEmail = await ApiService.getCurrentUserEmail();
-      await ApiService.createAuditLog(
+      final userRole = ApiService.getCurrentUserRole();
+      await ApiService.createAuditLog(AuditLogCreate(
         entityType: 'signoff',
         entityId: signoffId,
         action: 'approve',
-        userEmail: userEmail,
-        userRole: ApiService.getCurrentUserRole(),
-        entityName: 'Sign-off #$signoffId',
-        newValues: {'status': 'approved'}, details: '',
-      );
+        userEmail: userEmail ?? 'unknown@example.com',
+        userRole: userRole ?? 'unknown',
+        entityName: 'Sign-off #\$signoffId',
+        newValues: {'status': 'approved'},
+        details: '',
+      ),);
       
       if (mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
@@ -99,7 +105,7 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          const SnackBar(content: Text('Error approving sign-off: \$e')),
+          SnackBar(content: Text('Error approving sign-off: ${e.toString()}')),
         );
       }
     }
@@ -117,15 +123,17 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
     try {
       // Create audit log for the change request
       final userEmail = await ApiService.getCurrentUserEmail();
-      await ApiService.createAuditLog(
+      final userRole = ApiService.getCurrentUserRole();
+      await ApiService.createAuditLog(AuditLogCreate(
         entityType: 'signoff',
         entityId: signoffId,
         action: 'change_request',
-        userEmail: userEmail,
-        userRole: 'client',
-        entityName: 'Sign-off #$signoffId',
-        newValues: {'change_request': changeRequest}, details: '',
-      );
+        userEmail: userEmail ?? 'unknown@example.com',
+        userRole: userRole ?? 'unknown',
+        entityName: 'Sign-off #\$signoffId',
+        newValues: {'change_request': changeRequest},
+        details: changeRequest,
+      ),);
       
       if (mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
@@ -143,7 +151,7 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          const SnackBar(content: Text('Error submitting change request: \$e')),
+          SnackBar(content: Text('Error submitting change request: ${e.toString()}')),
         );
       }
     }
@@ -209,16 +217,16 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
             
             const SizedBox(height: 12),
             
-            Text('Signer: ${signoff['signer_name']}'),
-            Text('Email: ${signoff['signer_email']}'),
+            Text('Signer: ${signoff['signer_name']?.toString() ?? 'Unknown'}'),
+            Text('Email: ${signoff['signer_email']?.toString() ?? 'No email'}'),
             
-            if (signoff['comments'] != null && signoff['comments'].isNotEmpty)
+            if (signoff['comments'] != null && signoff['comments'].toString().isNotEmpty)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 8),
                   const Text('Comments:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(signoff['comments']),
+                  Text(signoff['comments']?.toString() ?? ''),
                 ],
               ),
             
@@ -229,7 +237,7 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => _approveSignoff(signoff['id']),
+                      onPressed: () => _approveSignoff(int.tryParse(signoff['id']?.toString() ?? '0') ?? 0),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -240,7 +248,7 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => _showChangeRequestDialog(signoff['id']),
+                      onPressed: () => _showChangeRequestDialog(int.tryParse(signoff['id']?.toString() ?? '0') ?? 0),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.orange),
                       ),
@@ -282,7 +290,7 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<int?>(
+                  DropdownButtonFormField<String?>(
                     value: _selectedSprintId,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
@@ -290,9 +298,9 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
                       prefixIcon: Icon(Icons.timeline),
                     ),
                     items: _sprints.map((sprint) {
-                      return DropdownMenuItem<int?>(
-                        value: sprint['id'],
-                        child: Text(sprint['name']),
+                      return DropdownMenuItem<String?>(
+                        value: sprint.id,
+                        child: Text(sprint.name),
                       );
                     }).toList(),
                     onChanged: (value) {
@@ -312,9 +320,9 @@ class _ClientReviewScreenState extends State<ClientReviewScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Sign-offs for Selected Sprint (\${_signoffs.length})',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        Text(
+                          'Sign-offs for Selected Sprint (${_signoffs.length})',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         _signoffs.isEmpty

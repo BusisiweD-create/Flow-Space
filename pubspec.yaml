@@ -32,7 +32,6 @@ dependencies:
   flutter_riverpod: ^3.0.0
   
   # Database
-  http: ^1.1.0
   crypto: ^3.0.3
   
   # File Picker

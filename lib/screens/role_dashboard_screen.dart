@@ -9,8 +9,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:fl_chart/fl_chart.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
+import '../models/system_metrics.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/user_data_service.dart';
+import '../services/api_service.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -23,6 +26,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   User? _currentUser;
   final AuthService _authService = AuthService();
   final BackendApiService _backendApiService = BackendApiService();
+  final UserDataService _userDataService = UserDataService();
   
   // Audit logs state
   List<dynamic> _auditLogs = [];
@@ -47,11 +51,23 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
 
   // Data Analytics state
   bool _isLoadingAnalytics = false;
+
+  // User data state
+  List<User> _users = [];
+  bool _isLoadingUsers = false;
+  String? _usersError;
+
+  // System metrics state
+  SystemMetrics? _systemMetrics;
+  bool _isLoadingSystemMetrics = false;
+  String? _systemMetricsError;
   
   @override
   void initState() {
     super.initState();
     _loadCurrentUser();
+    _loadUsers();
+    _loadSystemMetrics();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -170,6 +186,32 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     }
   }
 
+  Future<void> _loadUsers() async {
+    if (_isLoadingUsers) return;
+    
+    setState(() {
+      _isLoadingUsers = true;
+      _usersError = null;
+    });
+
+    try {
+      final users = await _userDataService.getUsers(forceRefresh: true);
+      setState(() {
+        _users = users;
+      });
+      debugPrint('✅ Loaded ${_users.length} users from API');
+    } catch (e) {
+      setState(() {
+        _usersError = 'Failed to load users: $e';
+      });
+      debugPrint('❌ Error loading users: $e');
+    } finally {
+      setState(() {
+        _isLoadingUsers = false;
+      });
+    }
+  }
+
   Future<void> _loadAnalyticsData() async {
     if (_isLoadingAnalytics) return;
     
@@ -191,6 +233,32 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     } finally {
       setState(() {
         _isLoadingAnalytics = false;
+      });
+    }
+  }
+
+  Future<void> _loadSystemMetrics() async {
+    if (_isLoadingSystemMetrics) return;
+    
+    setState(() {
+      _isLoadingSystemMetrics = true;
+      _systemMetricsError = null;
+    });
+
+    try {
+      final metrics = await ApiService.getSystemMetrics();
+      setState(() {
+        _systemMetrics = metrics;
+      });
+      debugPrint('✅ Loaded system metrics: \${metrics.userActivity.activeUsers} active users');
+    } catch (e) {
+      setState(() {
+        _systemMetricsError = 'Failed to load system metrics: \$e';
+      });
+      debugPrint('❌ Error loading system metrics: \$e');
+    } finally {
+      setState(() {
+        _isLoadingSystemMetrics = false;
       });
     }
   }
@@ -691,6 +759,18 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                     icon: Icons.timeline,
                     label: 'Sprint Console',
                     onTap: () => context.go('/sprint-console'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.folder,
+                    label: 'Create Project',
+                    onTap: _showCreateProjectDialog,
                   ),
                 ),
               ],
@@ -2489,6 +2569,91 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
   Widget _buildSystemMetrics() {
+    if (_isLoadingSystemMetrics) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'System Metrics',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_systemMetricsError != null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'System Metrics',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load system metrics',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _systemMetricsError!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadSystemMetrics,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_systemMetrics == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'System Metrics',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              const Center(child: Text('No system metrics data available')),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -2502,40 +2667,48 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                   ),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                _buildMetricCard(
-                  title: 'Active Users',
-                  value: '42',
-                  icon: Icons.people,
-                  color: Colors.blue,
-                  trend: '+12%',
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minWidth: MediaQuery.of(context).size.width - 40, // Account for padding
                 ),
-                const SizedBox(width: 12),
-                _buildMetricCard(
-                  title: 'API Requests',
-                  value: '1.2K',
-                  icon: Icons.api,
-                  color: Colors.green,
-                  trend: '+8%',
+                child: Row(
+                  children: [
+                    _buildMetricCard(
+                      title: 'Active Users',
+                      value: '\${_systemMetrics!.userActivity.activeUsers}',
+                      icon: Icons.people,
+                      color: Colors.blue,
+                      trend: '0%',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildMetricCard(
+                      title: 'API Requests',
+                      value: '0',
+                      icon: Icons.api,
+                      color: Colors.green,
+                      trend: '0%',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildMetricCard(
+                      title: 'Response Time',
+                      value: '\${_systemMetrics!.performance.responseTime}ms',
+                      icon: Icons.speed,
+                      color: Colors.orange,
+                      trend: '0%',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildMetricCard(
+                      title: 'Uptime',
+                      value: '\${_systemMetrics!.systemHealth.uptimePercentage.toStringAsFixed(2)}%',
+                      icon: Icons.timer,
+                      color: Colors.purple,
+                      trend: '100%',
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                _buildMetricCard(
-                  title: 'Avg. Response',
-                  value: '128ms',
-                  icon: Icons.speed,
-                  color: Colors.orange,
-                  trend: '-5%',
-                ),
-                const SizedBox(width: 12),
-                _buildMetricCard(
-                  title: 'Uptime',
-                  value: '99.98%',
-                  icon: Icons.timer,
-                  color: Colors.purple,
-                  trend: '100%',
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 16),
             _buildSystemUsageChart(),
@@ -2577,88 +2750,47 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildUserList() {
-    // Mock user data for demonstration
-    final mockUsers = [
-      User(
-        id: '1',
-        email: 'admin@example.com',
-        name: 'System Administrator',
-        role: UserRole.systemAdmin,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 365)),
-        lastLoginAt: DateTime.now().subtract(const Duration(hours: 2)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 364)),
-      ),
-      User(
-        id: '2',
-        email: 'lead@example.com',
-        name: 'Delivery Lead',
-        role: UserRole.deliveryLead,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 180)),
-        lastLoginAt: DateTime.now().subtract(const Duration(hours: 5)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 179)),
-      ),
-      User(
-        id: '3',
-        email: 'member@example.com',
-        name: 'Team Member',
-        role: UserRole.teamMember,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 90)),
-        lastLoginAt: DateTime.now().subtract(const Duration(days: 1)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 89)),
-      ),
-      User(
-        id: '4',
-        email: 'client@example.com',
-        name: 'Client Reviewer',
-        role: UserRole.clientReviewer,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 60)),
-        lastLoginAt: DateTime.now().subtract(const Duration(days: 3)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 59)),
-      ),
-      User(
-        id: '5',
-        email: 'inactive@example.com',
-        name: 'Inactive User',
-        role: UserRole.teamMember,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        lastLoginAt: DateTime.now().subtract(const Duration(days: 15)),
-        isActive: false,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 29)),
-      ),
-    ];
+    if (_isLoadingUsers) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_usersError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Failed to load users',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _usersError!,
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadUsers,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       children: [
-        if (mockUsers.isEmpty)
+        if (_users.isEmpty)
           const Center(
             child: Text('No users found'),
           )
         else
-          ...mockUsers.map((user) => _buildUserListItem(user)),
+          ..._users.map((user) => _buildUserListItem(user)),
       ],
     );
   }
@@ -3734,6 +3866,10 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     _createNewUser();
   }
 
+  void _showCreateProjectDialog() {
+    _createNewProject();
+  }
+
   void _showProfileDialog() {
     showDialog(
       context: context,
@@ -4456,54 +4592,218 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   void _editUser(User user) {
+    final formKey = GlobalKey<FormState>();
+    String firstName = user.name.split(' ').first;
+    String lastName = user.name.split(' ').length > 1 ? user.name.split(' ').last : '';
+    String email = user.email;
+    String selectedRole = user.role.name;
+    bool isActive = user.isActive;
+    bool isLoading = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit User'),
-        content: const Text('Edit user functionality for \${user.name} will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('\${user.name} updated successfully')),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Edit User'),
+            content: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      initialValue: firstName,
+                      decoration: const InputDecoration(
+                        labelText: 'First Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter first name';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => firstName = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      initialValue: lastName,
+                      decoration: const InputDecoration(
+                        labelText: 'Last Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter last name';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => lastName = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      initialValue: email,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter email';
+                        }
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+\$').hasMatch(value)) {
+                          return 'Please enter a valid email';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => email = value,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
+                      value: selectedRole,
+                      decoration: const InputDecoration(
+                        labelText: 'Role',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'systemAdmin', child: Text('System Admin')),
+                        DropdownMenuItem(value: 'deliveryLead', child: Text('Delivery Lead')),
+                        DropdownMenuItem(value: 'teamMember', child: Text('Team Member')),
+                        DropdownMenuItem(value: 'clientReviewer', child: Text('Client Reviewer')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedRole = value!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: isActive,
+                          onChanged: (value) {
+                            setState(() {
+                              isActive = value ?? false;
+                            });
+                          },
+                        ),
+                        const Text('Active Account'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isLoading ? null : () async {
+                  if (formKey.currentState!.validate()) {
+                    setState(() => isLoading = true);
+                    
+                    try {
+                      // Update user via API
+                      final updatedUser = await _userDataService.updateUser(
+                        userId: user.id,
+                        firstName: firstName,
+                        lastName: lastName,
+                        email: email,
+                        role: selectedRole,
+                        isActive: isActive,
+                      );
+                      
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('User \${updatedUser.name} updated successfully')),
+                      );
+                      
+                      // Refresh users list
+                      _loadUsers();
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to update user: \${e.toString()}')),
+                      );
+                    } finally {
+                      setState(() => isLoading = false);
+                    }
+                  }
+                },
+                child: isLoading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Save Changes'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   void _confirmDeleteUser(User user) {
+    bool isLoading = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Delete'),
-        content: const Text('Are you sure you want to delete user \${user.name}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('\${user.name} deleted successfully')),
-              );
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Delete User'),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Are you sure you want to delete \${user.name}? This action cannot be undone.'),
+                SizedBox(height: 8),
+                Text('⚠️ Warning: This will permanently remove the user account and all associated data.'),
+              ],
             ),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: isLoading ? null : () async {
+                  setState(() => isLoading = true);
+                  
+                  try {
+                    // Delete user via API
+                    await _userDataService.deleteUser(user.id);
+                    
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('User \${user.name} deleted successfully')),
+                    );
+                    
+                    // Refresh users list
+                    _loadUsers();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Failed to delete user: \${e.toString()}')),
+                    );
+                  } finally {
+                    setState(() => isLoading = false);
+                  }
+                },
+                child: isLoading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Delete User'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -4512,19 +4812,43 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('User Details: \${user.name}'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text('Email: \${user.email}'),
-            SizedBox(height: 8),
-            Text('Role: \${user.roleDisplayName}'),
-            SizedBox(height: 8),
-            Text('Status: Active'),
-            SizedBox(height: 8),
-            Text('Last Login: Today'),
+            Icon(user.roleIcon, color: user.roleColor, size: 24),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'User Details: \${user.name}',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // User Profile Section
+              _buildUserProfileSection(user),
+              const SizedBox(height: 16),
+              
+              // Account Status Section
+              _buildAccountStatusSection(user),
+              const SizedBox(height: 16),
+              
+              // Activity & Statistics Section
+              _buildActivitySection(user),
+              const SizedBox(height: 16),
+              
+              // Permissions Overview
+              _buildPermissionsSection(user),
+              const SizedBox(height: 16),
+              
+              // Project Assignments
+              _buildProjectsSection(user),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -4536,27 +4860,508 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  void _createNewUser() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create New User'),
-        content: const Text('User creation functionality will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+  Widget _buildUserProfileSection(User user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Profile Information',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        _buildDetailRow('Email', user.email),
+        _buildDetailRow('User ID', user.id),
+        _buildDetailRow('Full Name', user.name),
+        _buildDetailRow('Role', user.roleDisplayName),
+        if (user.avatarUrl != null) _buildDetailRow('Avatar', 'Available'),
+      ],
+    );
+  }
+
+  Widget _buildAccountStatusSection(User user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Account Status',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(
+              user.isActive ? Icons.check_circle : Icons.cancel,
+              color: user.isActive ? Colors.green : Colors.red,
+              size: 16,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              user.isActive ? 'Active' : 'Inactive',
+              style: TextStyle(
+                color: user.isActive ? Colors.green : Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(
+              user.emailVerified ? Icons.verified : Icons.email,
+              color: user.emailVerified ? Colors.blue : Colors.grey,
+              size: 16,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              user.emailVerified ? 'Email Verified' : 'Email Not Verified',
+              style: TextStyle(
+                color: user.emailVerified ? Colors.blue : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+        if (user.emailVerifiedAt != null)
+          _buildDetailRow('Verified On', _formatUserDate(user.emailVerifiedAt!)),
+      ],
+    );
+  }
+
+  Widget _buildActivitySection(User user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Activity & Statistics',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        _buildDetailRow('Member Since', _formatUserDate(user.createdAt)),
+        if (user.lastLoginAt != null)
+          _buildDetailRow('Last Login', _formatUserDate(user.lastLoginAt!)),
+        _buildDetailRow('Project Count', user.projectIds.length.toString()),
+        _buildDetailRow('Account Age', _calculateAccountAge(user.createdAt)),
+      ],
+    );
+  }
+
+  Widget _buildPermissionsSection(User user) {
+    final permissions = PermissionManager.getPermissionsForRole(user.role);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Permissions',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          '\${permissions.length} permissions granted',
+          style: TextStyle(fontSize: 14, color: Colors.grey),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: permissions.take(5).map((permission) {
+            return Chip(
+              label: Text(permission.name),
+              // ignore: deprecated_member_use
+              backgroundColor: user.roleColor.withOpacity(0.1),
+              labelStyle: TextStyle(color: user.roleColor, fontSize: 12),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            );
+          }).toList(),
+        ),
+        if (permissions.length > 5)
+          const Text(
+            '+\${permissions.length - 5} more permissions...',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('User created successfully')),
-              );
-            },
-            child: const Text('Create'),
+      ],
+    );
+  }
+
+  Widget _buildProjectsSection(User user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Project Assignments',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        if (user.projectIds.isEmpty)
+          const Text(
+            'No projects assigned',
+            style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Assigned to \${user.projectIds.length} projects',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                user.projectIds.join(', '),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(
+            width: 100,
+            child: Text(
+              '\$label:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 14),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  String _formatUserDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _calculateAccountAge(DateTime createdAt) {
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+    final days = difference.inDays;
+    
+    if (days < 30) {
+      return '$days days';
+    } else if (days < 365) {
+      final months = (days / 30).floor();
+      return '$months months';
+    } else {
+      final years = (days / 365).floor();
+      final remainingMonths = ((days % 365) / 30).floor();
+      return '$years years${remainingMonths > 0 ? ' $remainingMonths months' : ''}';
+    }
+  }
+
+  void _createNewProject() {
+    final formKey = GlobalKey<FormState>();
+    String projectName = '';
+    String projectDescription = '';
+    String projectKey = '';
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Create New Project'),
+            content: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Project Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter project name';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => projectName = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Project Key',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter project key';
+                        }
+                        if (value.length > 10) {
+                          return 'Project key must be 10 characters or less';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => projectKey = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter project description';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => projectDescription = value,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isLoading ? null : () async {
+                  if (formKey.currentState!.validate()) {
+                    setState(() => isLoading = true);
+                    
+                    try {
+                      // Create project via API
+                      final response = await _backendApiService.createProject({
+                        'name': projectName,
+                        'key': projectKey,
+                        'description': projectDescription,
+                      });
+                      
+                      if (response.isSuccess) {
+                        final newProject = response.data;
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Project ${newProject['name']} created successfully')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to create project: ${response.error}')),
+                        );
+                      }
+                      
+                      // Refresh projects list if needed
+                      // _loadProjects();
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to create project: ${e.toString()}')),
+                      );
+                    } finally {
+                      setState(() => isLoading = false);
+                    }
+                  }
+                },
+                child: isLoading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Create Project'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _createNewUser() {
+    final formKey = GlobalKey<FormState>();
+    String firstName = '';
+    String lastName = '';
+    String email = '';
+    String password = '';
+    String confirmPassword = '';
+    String selectedRole = 'client';
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Create New User'),
+            content: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'First Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter first name';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => firstName = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Last Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter last name';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => lastName = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter email';
+                        }
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)) {
+                          return 'Please enter a valid email';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => email = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter password';
+                        }
+                        if (value.length < 6) {
+                          return 'Password must be at least 6 characters';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => password = value,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm Password',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please confirm password';
+                        }
+                        if (value != password) {
+                          return 'Passwords do not match';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) => confirmPassword = value,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
+                      value: selectedRole,
+                      decoration: const InputDecoration(
+                        labelText: 'Role',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'client', child: Text('Client')),
+                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                        DropdownMenuItem(value: 'system_admin', child: Text('System Admin')),
+                        DropdownMenuItem(value: 'auditor', child: Text('Auditor')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedRole = value!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isLoading ? null : () async {
+                  if (formKey.currentState!.validate()) {
+                    setState(() => isLoading = true);
+                    
+                    try {
+                      // Create user via API
+                      final name = '$firstName $lastName'.trim();
+                      final result = await _userDataService.createUser(
+                        email: email,
+                        name: name,
+                        role: selectedRole,
+                        password: password,
+                      );
+                      
+                      if (result['success'] == true) {
+                        final newUser = result['data'] as User;
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('User ${newUser.name} created successfully')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to create user: ${result['error']}')),
+                        );
+                      }
+                      
+                      // Refresh users list
+                      _loadUsers();
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to create user: ${e.toString()}')),
+                      );
+                    } finally {
+                      setState(() => isLoading = false);
+                    }
+                  }
+                },
+                child: isLoading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Create User'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -5685,6 +6490,19 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         ],
       ),
     );
+  }
+}
+
+// Extension for number formatting with suffixes (K, M, etc.)
+extension NumberFormatting on int {
+  String formatWithSuffix() {
+    if (this < 1000) return toString();
+    
+    if (this < 1000000) {
+      return '\\${(this / 1000).toStringAsFixed(1)}K';
+    }
+    
+    return '\\${(this / 1000000).toStringAsFixed(1)}M';
   }
 }
 

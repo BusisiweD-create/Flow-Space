@@ -1,8 +1,11 @@
 // ignore_for_file: unused_local_variable
 
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
+import '../services/realtime_service.dart';
 import '../models/user.dart';
+import '../models/user_role.dart';
 
 // API Authentication State
 class ApiAuthState {
@@ -61,7 +64,7 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
     required String firstName,
     required String lastName,
     required String company,
-    required String role,
+    required UserRole role,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -76,6 +79,9 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
       
       final tokenResponse = await ApiService.signUp(userCreate);
       state = state.copyWith(user: tokenResponse.user, isLoading: false);
+      
+      // Initialize real-time service after successful sign up
+      await realtimeService.initialize();
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -93,6 +99,9 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
     try {
       final tokenResponse = await ApiService.signIn(email, password);
       state = state.copyWith(user: tokenResponse.user, isLoading: false);
+      
+      // Initialize real-time service after successful login
+      await realtimeService.initialize();
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -107,6 +116,9 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
     try {
       await ApiService.clearTokens();
       state = state.copyWith(user: null, isLoading: false);
+      
+      // Dispose real-time service connection on sign out
+      realtimeService.dispose();
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -124,22 +136,9 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
   Future<void> _fetchUserProfile() async {
     try {
       final user = await ApiService.fetchUserProfile();
-      // For now, create a minimal user object from token claims
-      final userEmail = await ApiService.currentUserEmail;
-      final userFromProfile = User(
-        id: int.parse(ApiService.currentUserId ?? '0'),
-        email: userEmail ?? 'authenticated@user.com',
-        firstName: 'User',
-        lastName: 'Authenticated',
-        company: 'Unknown',
-        role: 'user',
-        isActive: true,
-        isVerified: true,
-        createdAt: DateTime.now(),
-      );
       state = state.copyWith(user: user);
     } catch (e) {
-      state = state.copyWith(error: 'Failed to fetch user profile: ${e.toString()}');
+      state = state.copyWith(error: 'Failed to fetch user profile: \${e.toString()}');
     }
   }
 
@@ -156,7 +155,7 @@ final apiAuthProvider = StateNotifierProvider<ApiAuthNotifier, ApiAuthState>((re
 });
 
 // Current user provider
-final apiCurrentUserProvider = StreamProvider<User?>((ref) {
-  final authState = ref.watch(apiAuthProvider);
-  return Stream.value(authState.user);
+final apiCurrentUserProvider = Provider<User?>((ref) {
+  final user = ref.watch(apiAuthProvider.select((state) => state.user));
+  return user;
 });

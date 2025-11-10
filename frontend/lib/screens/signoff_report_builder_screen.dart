@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/api_service.dart';
+import '../models/audit_log.dart';
 
 class SignoffReportBuilderScreen extends ConsumerStatefulWidget {
   const SignoffReportBuilderScreen({super.key});
@@ -48,20 +49,21 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
           
           // Create audit log for report generation using ApiService
           final userEmail = await ApiService.getCurrentUserEmail();
-          await ApiService.createAuditLog(
+          final userRole = ApiService.getCurrentUserRole();
+          await ApiService.createAuditLog(AuditLogCreate(
             entityType: 'report',
-            entityId: int.parse(_entityId),
+            entityId: int.tryParse(_entityId) ?? 0,
             action: 'generate_report',
-            userEmail: userEmail,
-            userRole: ApiService.getCurrentUserRole(),
+            userEmail: userEmail ?? 'unknown@example.com',
+            userRole: userRole ?? 'unknown',
             entityName: '${_selectedEntityType.capitalize()} Report',
             newValues: {
               'format': _selectedFormat,
               'include_audit_logs': _includeAuditLogs,
-              'report_type': 'signoff'
+              'report_type': 'signoff',
             },
             details: 'Generated ${_selectedFormat.toUpperCase()} report for ${_selectedEntityType} #$_entityId',
-          );
+          ));
 
           setState(() {
             _generatedReport = reportData;
@@ -96,20 +98,21 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
         
         // Create audit log for report download
         final userEmail = await ApiService.getCurrentUserEmail();
-        await ApiService.createAuditLog(
+        final userRole = ApiService.getCurrentUserRole();
+        await ApiService.createAuditLog(AuditLogCreate(
           entityType: 'report',
-          entityId: int.parse(_entityId),
+          entityId: int.tryParse(_entityId) ?? 0,
           action: 'download_report',
-          userEmail: userEmail,
-          userRole: ApiService.getCurrentUserRole(),
+          userEmail: userEmail ?? 'unknown@example.com',
+          userRole: userRole ?? 'unknown',
           entityName: '${_selectedEntityType.capitalize()} Report',
           newValues: {
             'format': _selectedFormat,
             'filename': filename,
-            'file_size': content.length
+            'file_size': content.length,
           },
           details: 'Downloaded ${_selectedFormat.toUpperCase()} report for ${_selectedEntityType} #$_entityId',
-        );
+        ));
         
         // Show download success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -147,20 +150,21 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
       if (shareResult.status == ShareResultStatus.success) {
         // Create audit log for report sharing
         final userEmail = await ApiService.getCurrentUserEmail();
-        await ApiService.createAuditLog(
+        final userRole = ApiService.getCurrentUserRole();
+        await ApiService.createAuditLog(AuditLogCreate(
           entityType: 'report',
-          entityId: int.parse(_entityId),
+          entityId: int.tryParse(_entityId) ?? 0,
           action: 'share_report',
-          userEmail: userEmail,
-          userRole: ApiService.getCurrentUserRole(),
+          userEmail: userEmail ?? 'unknown@example.com',
+          userRole: userRole ?? 'unknown',
           entityName: '${_selectedEntityType.capitalize()} Report',
           newValues: {
             'format': _selectedFormat,
             'share_method': 'platform_share',
-            'share_target': 'external'
+            'share_target': 'external',
           },
           details: 'Shared ${_selectedFormat.toUpperCase()} report for ${_selectedEntityType} #$_entityId',
-        );
+        ));
         
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Report shared successfully')),
@@ -168,7 +172,7 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
       }
     } catch (e) {
       // Sharing failed, but this is not critical
-      print('Sharing failed: $e');
+      // print('Sharing failed: $e');
     }
   }
 
@@ -212,7 +216,7 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
         context,
         MaterialPageRoute(
           builder: (context) => ReportPreviewScreen(
-            htmlContent: _generatedReport!['content'],
+            htmlContent: _generatedReport?['content']?.toString() ?? '',
             reportName: '${StringExtension(_selectedEntityType).capitalize()} $_entityId Report',
           ),
         ),
@@ -226,9 +230,9 @@ class _SignoffReportBuilderScreenState extends ConsumerState<SignoffReportBuilde
 
   String _getReportContent() {
     if (_selectedFormat == 'json') {
-      return JsonEncoder.withIndent('  ').convert(_generatedReport);
+      return JsonEncoder.withIndent('  ').convert(_generatedReport ?? {});
     } else {
-      return _generatedReport!['content'] ?? '';
+      return _generatedReport?['content']?.toString() ?? '';
     }
   }
 

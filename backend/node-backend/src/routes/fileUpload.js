@@ -125,6 +125,24 @@ router.get('/presigned-url/:filename', authenticateToken, async (req, res) => {
     }
 });
 
+// List files
+router.get('/', authenticateToken, async (req, res) => {
+    try {
+        const { prefix = '' } = req.query;
+        
+        const files = await fileUploadService.listFiles(prefix);
+        
+        res.status(200).json(files);
+        
+    } catch (error) {
+        console.error('File listing error:', error);
+        res.status(500).json({ 
+            error: 'Failed to list files', 
+            details: error.message 
+        });
+    }
+});
+
 // Delete file
 router.delete('/:filename', authenticateToken, async (req, res) => {
     try {

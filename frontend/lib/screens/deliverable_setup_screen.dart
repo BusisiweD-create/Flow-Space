@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
+import '../models/sprint.dart';
+import '../models/deliverable.dart';
 
 class DeliverableSetupScreen extends ConsumerStatefulWidget {
   const DeliverableSetupScreen({super.key});
@@ -30,7 +32,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   String _status = 'draft';
   DateTime? _dueDate;
   final List<String> _selectedSprints = [];
-  List<Map<String, dynamic>> _availableSprints = [];
+  List<Sprint> _availableSprints = [];
 
   @override
   void initState() {
@@ -75,23 +77,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
           .toList();
 
       await ApiService.createDeliverable(
-        title: _titleController.text,
-        description: _descriptionController.text,
-        definitionOfDone: _dodController.text,
-        priority: _priority,
-        dueDate: _dueDate,
-        status: _status,
-        assignedTo: _assignedToController.text.isNotEmpty ? _assignedToController.text : null,
-        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
-        evidenceLinks: evidenceLinks,
-        demoLink: _demoLinkController.text.isNotEmpty ? _demoLinkController.text : null,
-        repoLink: _repoLinkController.text.isNotEmpty ? _repoLinkController.text : null,
-        testSummaryLink: _testSummaryLinkController.text.isNotEmpty ? _testSummaryLinkController.text : null,
-        userGuideLink: _userGuideLinkController.text.isNotEmpty ? _userGuideLinkController.text : null,
-        testPassRate: _testPassRateController.text.isNotEmpty ? int.tryParse(_testPassRateController.text) : null,
-        codeCoverage: _codeCoverageController.text.isNotEmpty ? int.tryParse(_codeCoverageController.text) : null,
-        escapedDefects: _escapedDefectsController.text.isNotEmpty ? int.tryParse(_escapedDefectsController.text) : null,
-        contributingSprints: _selectedSprints,
+        DeliverableCreate(
+          title: _titleController.text,
+          description: _descriptionController.text,
+          dueDate: _dueDate!,
+          sprintIds: _selectedSprints,
+          definitionOfDone: _dodController.text.split(',').map((item) => item.trim()).where((item) => item.isNotEmpty).toList(),
+          evidenceLinks: evidenceLinks,
+        ),
       );
 
       if (mounted) {
@@ -382,17 +375,17 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 ),
                 child: Column(
                   children: _availableSprints.map((sprint) {
-                    final isSelected = _selectedSprints.contains(sprint['id']);
+                    final isSelected = _selectedSprints.contains(sprint.id);
                     return CheckboxListTile(
-                      title: Text(sprint['name']),
-                      subtitle: Text('${sprint['start_date']} - ${sprint['end_date']}'),
+                      title: Text(sprint.name),
+                      subtitle: Text('${sprint.startDate} - ${sprint.endDate}'),
                       value: isSelected,
                       onChanged: (value) {
                         setState(() {
                           if (value == true) {
-                            _selectedSprints.add(sprint['id']);
+                            _selectedSprints.add(sprint.id);
                           } else {
-                            _selectedSprints.remove(sprint['id']);
+                            _selectedSprints.remove(sprint.id);
                           }
                         });
                       },

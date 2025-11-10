@@ -1,17 +1,29 @@
 import 'package:flutter/foundation.dart';
-import '../models/user.dart';
-import '../models/user_role.dart';
+import 'package:khono/models/user.dart';
+import 'package:khono/models/user_role.dart';
 import 'backend_api_service.dart';
 import 'api_client.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
-  factory AuthService() => _instance;
+  factory AuthService() {
+    // Automatically initialize when first accessed
+    _instance._ensureInitialized();
+    return _instance;
+  }
   AuthService._internal();
 
   final BackendApiService _apiService = BackendApiService();
   User? _currentUser;
   bool _isAuthenticated = false;
+  bool _isInitialized = false;
+
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      await initialize();
+      _isInitialized = true;
+    }
+  }
 
   // Getters
   User? get currentUser => _currentUser;
@@ -70,9 +82,9 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> signUp(String email, String password, String name, UserRole role) async {
+  Future<Map<String, dynamic>> signUp(String email, String password, String fullName, UserRole role) async {
     try {
-      final response = await _apiService.signUp(email, password, name, role);
+      final response = await _apiService.signUp(email, password, fullName, role);
       
       if (response.isSuccess && response.data != null) {
         _currentUser = _apiService.parseUserFromResponse(response);
@@ -127,6 +139,9 @@ class AuthService {
   bool get isDeliveryLead => _currentUser?.isDeliveryLead ?? false;
   bool get isClientReviewer => _currentUser?.isClientReviewer ?? false;
   bool get isSystemAdmin => _currentUser?.isSystemAdmin ?? false;
+
+  // ignore: strict_top_level_inference
+  get token => null;
 
   // Additional authentication methods
   Future<bool> changePassword(String currentPassword, String newPassword) async {
@@ -250,4 +265,6 @@ class AuthService {
       return ApiResponse.error('Failed to check verification status: $e');
     }
   }
+
+  Future login(String s, String t) async {}
 }

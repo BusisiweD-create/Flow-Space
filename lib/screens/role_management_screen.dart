@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
+import '../services/user_data_service.dart';
 
 class RoleManagementScreen extends StatefulWidget {
   const RoleManagementScreen({super.key});
@@ -14,6 +15,7 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   UserRole? _filterRole;
+  final UserDataService _userDataService = UserDataService();
 
   @override
   void initState() {
@@ -27,9 +29,12 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
     });
 
     try {
-      // In a real app, this would fetch from your backend
-      // For now, we'll create some mock data
-      final users = await _getMockUsers();
+      // Fetch real users from backend API
+      final users = await _userDataService.getUsers(
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        filterRole: _filterRole,
+      );
+      
       setState(() {
         _users = users;
         _isLoading = false;
@@ -40,44 +45,6 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
       });
       _showErrorSnackBar('Failed to load users: $e');
     }
-  }
-
-  Future<List<User>> _getMockUsers() async {
-    // Mock data - in a real app, this would come from your backend
-    return [
-      User(
-        id: '1',
-        email: 'john.doe@example.com',
-        name: 'John Doe',
-        role: UserRole.teamMember,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        isActive: true,
-      ),
-      User(
-        id: '2',
-        email: 'jane.smith@example.com',
-        name: 'Jane Smith',
-        role: UserRole.deliveryLead,
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        isActive: true,
-      ),
-      User(
-        id: '3',
-        email: 'client@company.com',
-        name: 'Client User',
-        role: UserRole.clientReviewer,
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        isActive: true,
-      ),
-      User(
-        id: '4',
-        email: 'admin@company.com',
-        name: 'System Admin',
-        role: UserRole.systemAdmin,
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        isActive: true,
-      ),
-    ];
   }
 
   @override

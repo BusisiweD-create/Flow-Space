@@ -3,6 +3,7 @@
 import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
+import '../models/user_role.dart';
 
 class ApiAuthProvider with ChangeNotifier {
   User? _user;
@@ -26,12 +27,12 @@ class ApiAuthProvider with ChangeNotifier {
         // For now, we'll just set a minimal user object
         // In a real implementation, you might fetch user profile
         _user = User(
-          id: int.parse(ApiService.currentUserId ?? '0'),
+          id: ApiService.currentUserId ?? '0',
           email: 'authenticated@user.com', // This would come from token claims
           firstName: 'User',
           lastName: 'Authenticated',
           company: 'Unknown',
-          role: 'user',
+          role: UserRole.teamMember,
           isActive: true,
           isVerified: true,
           createdAt: DateTime.now(),
@@ -52,7 +53,7 @@ class ApiAuthProvider with ChangeNotifier {
     required String firstName,
     required String lastName,
     required String company,
-    required String role,
+    required UserRole role,
   }) async {
     _setLoading(true);
     _clearError();
@@ -138,5 +139,29 @@ class ApiAuthProvider with ChangeNotifier {
   void _clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  // Helper function to convert string role to UserRole enum
+  UserRole _parseUserRole(String roleString) {
+    switch (roleString.toLowerCase()) {
+      case 'systemadmin':
+      case 'system_admin':
+      case 'system admin':
+        return UserRole.systemAdmin;
+      case 'deliverylead':
+      case 'delivery_lead':
+      case 'delivery lead':
+        return UserRole.deliveryLead;
+      case 'clientreviewer':
+      case 'client_reviewer':
+      case 'client reviewer':
+        return UserRole.clientReviewer;
+      case 'teammember':
+      case 'team_member':
+      case 'team member':
+      case 'user':
+      default:
+        return UserRole.teamMember;
+    }
   }
 }
