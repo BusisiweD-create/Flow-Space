@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/realtime_service.dart';
 import '../models/deliverable.dart';
 import '../models/sprint.dart';
+import '../utils/error_handler.dart';
 
 class DashboardState {
   final List<Deliverable> deliverables;
@@ -108,7 +109,12 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         sprints: sprints,
         analyticsData: analyticsData as Map<String, dynamic>,
         isLoading: false,
+        error: null,
       );
+      
+      print('DashboardProvider: Successfully loaded real data - '
+          '${deliverables.length} deliverables, ${sprints.length} sprints');
+      
     } catch (e, stackTrace) {
       // print('DashboardProvider: Error loading dashboard data: \$e');
       // print('Stack trace: \$stackTrace');

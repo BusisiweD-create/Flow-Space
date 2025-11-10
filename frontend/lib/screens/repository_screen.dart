@@ -348,13 +348,15 @@ class _SignoffCard extends StatelessWidget {
       await ApiService.approveSignoff(signoffId, true, null);
       
       // Create audit log for sign-off approval
-      var ref;
+      final userEmail = await ApiService.getCurrentUserEmail();
+      final userRole = ApiService.getCurrentUserRole();
+      
       await ApiService.createAuditLog(AuditLogCreate(
         entityType: 'signoff',
         entityId: signoffId,
         action: 'approve',
-        userEmail: ref.read(currentUserProvider).email,
-        userRole: ref.read(currentUserProvider).role,
+        userEmail: userEmail ?? 'unknown',
+        userRole: userRole ?? 'unknown',
         entityName: 'Sign-off #$signoffId',
         newValues: {'status': 'approved'},
         details: '',
@@ -371,8 +373,4 @@ class _SignoffCard extends StatelessWidget {
       );
     }
   }
-}
-
-extension on _SignoffCard {
-  get currentUserProvider => null;
 }

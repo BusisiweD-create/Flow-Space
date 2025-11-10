@@ -24,6 +24,7 @@ import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
 import 'screens/performance_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
+import 'screens/user_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
@@ -261,6 +262,15 @@ final GoRouter _router = GoRouter(
         route: '/role-management',
         child: SidebarScaffold(
           child: RoleManagementScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/user-management',
+      builder: (context, state) => const RouteGuard(
+        route: '/user-management',
+        child: SidebarScaffold(
+          child: UserManagementScreen(),
         ),
       ),
     ),

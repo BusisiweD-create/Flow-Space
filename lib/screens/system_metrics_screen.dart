@@ -267,7 +267,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                   child: MetricsCard(
                     title: 'Cache Hit Ratio',
                     value: _metrics != null
-                        ? '\${_metrics!.database.cacheHitRatio!.toStringAsFixed(1)}%'
+                        ? '${_metrics!.database.cacheHitRatio.toStringAsFixed(1)}%'
                         : 'N/A',
                     icon: Icons.storage,
                     color: Colors.indigo,
@@ -350,7 +350,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'CPU Usage',
-                    value: _metrics != null ? '\${_metrics!.performance.cpuUsage.toStringAsFixed(1)}%' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.cpuUsage.toStringAsFixed(1)}%' : 'N/A',
                     icon: Icons.memory,
                     color: _getResourceColor(_metrics?.performance.cpuUsage),
                   ),
@@ -359,7 +359,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Memory',
-                    value: _metrics != null ? '\${_metrics!.performance.memoryUsage.toStringAsFixed(1)}MB' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.memoryUsage.toStringAsFixed(1)}MB' : 'N/A',
                     icon: Icons.memory,
                     color: _getResourceColor(_metrics?.performance.memoryUsage),
                   ),
@@ -368,7 +368,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Disk Space',
-                    value: _metrics != null ? '\${_metrics!.performance.diskUsage.toStringAsFixed(1)}%' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.diskUsage.toStringAsFixed(1)}%' : 'N/A',
                     icon: Icons.storage,
                     color: _getResourceColor(_metrics?.performance.diskUsage),
                   ),

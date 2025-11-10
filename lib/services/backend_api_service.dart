@@ -64,23 +64,23 @@ class BackendApiService {
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
-    return await _apiClient.get('/users', queryParams: queryParams);
+    return await _apiClient.get('/api/v1/users', queryParams: queryParams);
   }
 
   Future<ApiResponse> getUser(String userId) async {
-    return await _apiClient.get('/users/$userId');
+    return await _apiClient.get('/api/v1/users/$userId');
   }
 
   Future<ApiResponse> updateUser(String userId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/users/$userId', body: updates);
+    return await _apiClient.put('/api/v1/users/$userId', body: updates);
   }
 
   Future<ApiResponse> deleteUser(String userId) async {
-    return await _apiClient.delete('/users/$userId');
+    return await _apiClient.delete('/api/v1/users/$userId');
   }
 
   Future<ApiResponse> updateUserRole(String userId, UserRole newRole) async {
-    return await _apiClient.put('/users/$userId/role', body: {'role': newRole.name});
+    return await _apiClient.put('/api/v1/users/$userId/role', body: {'role': newRole.name});
   }
 
   // Admin-only user creation endpoint
@@ -110,23 +110,23 @@ class BackendApiService {
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
-    return await _apiClient.get('/deliverables', queryParams: queryParams);
+    return await _apiClient.get('/api/v1/deliverables', queryParams: queryParams);
   }
 
   Future<ApiResponse> getDeliverable(String deliverableId) async {
-    return await _apiClient.get('/deliverables/$deliverableId');
+    return await _apiClient.get('/api/v1/deliverables/$deliverableId');
   }
 
   Future<ApiResponse> createDeliverable(Map<String, dynamic> deliverableData) async {
-    return await _apiClient.post('/deliverables', body: deliverableData);
+    return await _apiClient.post('/api/v1/deliverables', body: deliverableData);
   }
 
   Future<ApiResponse> updateDeliverable(String deliverableId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/deliverables/$deliverableId', body: updates);
+    return await _apiClient.put('/api/v1/deliverables/$deliverableId', body: updates);
   }
 
   Future<ApiResponse> deleteDeliverable(String deliverableId) async {
-    return await _apiClient.delete('/deliverables/$deliverableId');
+    return await _apiClient.delete('/api/v1/deliverables/$deliverableId');
   }
 
   Future<ApiResponse> submitDeliverable(String deliverableId) async {
@@ -154,36 +154,36 @@ class BackendApiService {
     if (status != null && status.isNotEmpty) {
       queryParams['status'] = status;
     }
-    return await _apiClient.get('/sprints', queryParams: queryParams);
+    return await _apiClient.get('/api/v1/sprints', queryParams: queryParams);
   }
 
   Future<ApiResponse> getSprint(String sprintId) async {
-    return await _apiClient.get('/sprints/$sprintId');
+    return await _apiClient.get('/api/v1/sprints/$sprintId');
   }
 
   Future<ApiResponse> createSprint(Map<String, dynamic> sprintData) async {
-    return await _apiClient.post('/sprints', body: sprintData);
+    return await _apiClient.post('/api/v1/sprints', body: sprintData);
   }
 
   Future<ApiResponse> updateSprint(String sprintId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/sprints/$sprintId', body: updates);
+    return await _apiClient.put('/api/v1/sprints/$sprintId', body: updates);
   }
 
   Future<ApiResponse> deleteSprint(String sprintId) async {
-    return await _apiClient.delete('/sprints/$sprintId');
+    return await _apiClient.delete('/api/v1/sprints/$sprintId');
   }
 
   // Sprint metrics endpoints
   Future<ApiResponse> getSprintMetrics(String sprintId) async {
-    return await _apiClient.get('/sprints/$sprintId/metrics');
+    return await _apiClient.get('/api/v1/sprints/$sprintId/metrics');
   }
 
   Future<ApiResponse> createSprintMetrics(String sprintId, Map<String, dynamic> metricsData) async {
-    return await _apiClient.post('/sprints/$sprintId/metrics', body: metricsData);
+    return await _apiClient.post('/api/v1/sprints/$sprintId/metrics', body: metricsData);
   }
 
   Future<ApiResponse> updateSprintMetrics(String sprintId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/sprints/$sprintId/metrics', body: updates);
+    return await _apiClient.put('/api/v1/sprints/$sprintId/metrics', body: updates);
   }
 
   // Sign-off report endpoints
@@ -312,7 +312,6 @@ class BackendApiService {
       queryParams['user_id'] = userId;
     }
     
-    // Use the correct audit endpoint
     final response = await _apiClient.get('/audit', queryParams: queryParams);
     
     // If the endpoint doesn't exist or returns error, provide empty response instead of mock data
@@ -365,7 +364,7 @@ class BackendApiService {
   }
 
   Future<ApiResponse> clearCache() async {
-    return await _apiClient.post('/system/clear-cache');
+    return await _apiClient.post('/system/cache/clear');
   }
 
   Future<ApiResponse> optimizeDatabase() async {
@@ -379,6 +378,35 @@ class BackendApiService {
   // System statistics endpoint
   Future<ApiResponse> getSystemStats() async {
     return await _apiClient.get('/system/stats');
+  }
+
+  // System maintenance endpoints
+  Future<ApiResponse> toggleMaintenanceMode(bool enabled, {String? message}) async {
+    return await _apiClient.post('/system/maintenance', body: {
+      'enabled': enabled,
+      'message': message,
+    },);
+  }
+
+  // System backup management
+  Future<ApiResponse> listBackups() async {
+    return await _apiClient.get('/system/backups');
+  }
+
+  // Audit logs endpoint (real implementation)
+  Future<ApiResponse> getRealAuditLogs({int skip = 0, int limit = 100, String? action, String? userId}) async {
+    final queryParams = <String, String>{
+      'skip': skip.toString(),
+      'limit': limit.toString(),
+    };
+    if (action != null && action.isNotEmpty) {
+      queryParams['action'] = action;
+    }
+    if (userId != null && userId.isNotEmpty) {
+      queryParams['user_id'] = userId;
+    }
+    
+    return await _apiClient.get('/audit', queryParams: queryParams);
   }
 
   // User settings endpoints
@@ -552,6 +580,4 @@ class BackendApiService {
       return [];
     }
   }
-
-
 }

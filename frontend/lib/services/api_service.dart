@@ -490,13 +490,21 @@ class ApiService {
   
   // Dashboard methods
   static Future<Map<String, dynamic>> getDashboardData() async {
-    final response = await http.get(
-      Uri.parse('${Environment.apiBaseUrl}/analytics/dashboard'),
-      headers: _getHeaders(),
-    );
-    
-    final responseData = jsonDecode(response.body);
-    return responseData as Map<String, dynamic>;
+    try {
+      final response = await http.get(
+        Uri.parse('${Environment.apiBaseUrl}/analytics/dashboard'),
+        headers: _getHeaders(),
+      );
+      
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData as Map<String, dynamic>;
+      } else {
+        throw Exception('Failed to load dashboard data: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to load dashboard data: $e');
+    }
   }
 
   static Future<String?> getCurrentUserEmail() async {
