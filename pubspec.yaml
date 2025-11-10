@@ -45,6 +45,7 @@ dependencies:
   # Email
   mailer: ^6.0.1
   firebase_core: ^4.1.1
+  http: ^1.5.0
 
 dev_dependencies:
   flutter_test:
