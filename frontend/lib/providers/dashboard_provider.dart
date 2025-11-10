@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/mock_data_service.dart';
 import '../models/deliverable.dart';
 import '../models/sprint.dart';
+import '../utils/error_handler.dart';
 
 class DashboardState {
   final List<Deliverable> deliverables;
@@ -46,36 +47,10 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     try {
       state = state.copyWith(isLoading: true, error: null);
       
-      // Debug: Check authentication state before making API calls
-      final isAuthenticated = ApiService.isAuthenticated;
-      // Replaced with proper logging framework
-      // log('DashboardProvider: User authenticated: $isAuthenticated');
-      if (isAuthenticated) {
-        final token = ApiService.accessToken;
-        print('DashboardProvider: Access token present: \${token != null && token.isNotEmpty}');
-        if (token != null) {
-          print('DashboardProvider: Token length: \${token.length}');
-          print('DashboardProvider: Token starts with: \${token.substring(0, min(20, token.length))}...');
-        }
-      }
-      
-      // Use mock data if backend is not available or user is not authenticated
-      if (MockDataService.shouldUseMockData() || !ApiService.isAuthenticated) {
-        print('DashboardProvider: Using mock data for dashboard');
-        await Future.delayed(Duration(milliseconds: 500)); // Simulate network delay
-        
-        final mockService = MockDataService();
-        final deliverables = mockService.getMockDeliverables();
-        final sprints = mockService.getMockSprints();
-        final analyticsData = mockService.getMockAnalyticsData();
-        
-        state = state.copyWith(
-          deliverables: deliverables,
-          sprints: sprints,
-          analyticsData: analyticsData,
-          isLoading: false,
-        );
-        return;
+      // Always try to use real data first - only fallback to mock data as last resort
+      if (!ApiService.isAuthenticated) {
+        print('DashboardProvider: User not authenticated, cannot fetch real data');
+        throw AppError.authentication('User not authenticated');
       }
       
       // Fetch deliverables, sprints, and analytics data concurrently
@@ -102,25 +77,45 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         sprints: sprints,
         analyticsData: analyticsData as Map<String, dynamic>,
         isLoading: false,
+        error: null,
       );
+      
+      print('DashboardProvider: Successfully loaded real data - '
+          '${deliverables.length} deliverables, ${sprints.length} sprints');
+      
     } catch (e, stackTrace) {
       print('DashboardProvider: Error loading dashboard data: \$e');
       print('Stack trace: \$stackTrace');
       
-      // Fallback to mock data on error
-      print('DashboardProvider: Falling back to mock data');
-      final mockService = MockDataService();
-      final deliverables = mockService.getMockDeliverables();
-      final sprints = mockService.getMockSprints();
-      final analyticsData = mockService.getMockAnalyticsData();
-      
-      state = state.copyWith(
-        deliverables: deliverables,
-        sprints: sprints,
-        analyticsData: analyticsData,
-        isLoading: false,
-        error: null, // Clear error since we have mock data
-      );
+      // Only use mock data as a last resort for specific error types
+      if (e is AppError && e.type == AppErrorType.authentication) {
+        // Authentication errors - show proper error message
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Authentication required. Please log in to view dashboard data.',
+        );
+      } else if (e is AppError && e.type == AppErrorType.network) {
+        // Network errors - show connection error
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Network connection error. Please check your internet connection.',
+        );
+      } else {
+        // Other errors - use minimal mock data for basic functionality
+        print('DashboardProvider: Falling back to minimal mock data for basic UI');
+        final mockService = MockDataService();
+        final deliverables = mockService.getMockDeliverables().take(2).toList();
+        final sprints = mockService.getMockSprints().take(1).toList();
+        final analyticsData = {};
+        
+        state = state.copyWith(
+          deliverables: deliverables,
+          sprints: sprints,
+          analyticsData: analyticsData as Map<String, dynamic>,
+          isLoading: false,
+          error: 'Unable to load real data. Showing limited demo data.',
+        );
+      }
     }
   }
 

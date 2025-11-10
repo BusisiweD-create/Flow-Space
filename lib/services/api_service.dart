@@ -434,7 +434,7 @@ class ApiService {
   static Future<SystemMetrics> getSystemMetrics() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/system-metrics'),
+        Uri.parse('$baseUrl/api/v1/monitoring/metrics/system'),
         headers: {'Content-Type': 'application/json'},
       );
 

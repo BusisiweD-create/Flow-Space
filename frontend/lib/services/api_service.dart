@@ -676,6 +676,22 @@ class ApiService {
     return Map<String, dynamic>.from(data ?? {});
   }
 
+  // Sign-off report generation
+  static Future<Map<String, dynamic>> generateSignoffReport({
+    required String entityType,
+    required int entityId,
+    required String format,
+    bool includeAuditLogs = true,
+  }) async {
+    final response = await _makeRequest(() => http.get(
+      Uri.parse('$baseUrl/signoff/$entityType/$entityId/report?format=$format&include_audit_logs=$includeAuditLogs'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+    
+    final data = _parseResponse(response);
+    return Map<String, dynamic>.from(data ?? {});
+  }
+
   static Future<bool> generateReleaseReadinessPDF(int sprintId) async {
     final response = await _makeRequest(() => http.post(
       Uri.parse('$baseUrl/sprints/$sprintId/release-readiness/pdf'),

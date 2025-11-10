@@ -1093,6 +1093,40 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) 
   }
 });
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Flow-Space API Server',
+    version: '1.0.0',
+    endpoints: {
+      auth: {
+        register: 'POST /api/v1/auth/register',
+        login: 'POST /api/v1/auth/login',
+        signup: 'POST /api/v1/auth/signup'
+      },
+      users: {
+        getAll: 'GET /api/v1/users',
+        updateRole: 'PUT /api/v1/users/:id/role',
+        updateStatus: 'PUT /api/v1/users/:id/status',
+        delete: 'DELETE /api/v1/users/:id'
+      },
+      health: 'GET /health'
+    },
+    documentation: 'Check README.md for detailed API documentation'
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Flow-Space API server running on port ${PORT}`);
 });

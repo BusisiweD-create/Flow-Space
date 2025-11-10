@@ -2577,213 +2577,30 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildUserList() {
-    // Mock user data for demonstration
-    final mockUsers = [
-      User(
-        id: '1',
-        email: 'admin@example.com',
-        name: 'System Administrator',
-        role: UserRole.systemAdmin,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 365)),
-        lastLoginAt: DateTime.now().subtract(const Duration(hours: 2)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 364)),
-      ),
-      User(
-        id: '2',
-        email: 'lead@example.com',
-        name: 'Delivery Lead',
-        role: UserRole.deliveryLead,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 180)),
-        lastLoginAt: DateTime.now().subtract(const Duration(hours: 5)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 179)),
-      ),
-      User(
-        id: '3',
-        email: 'member@example.com',
-        name: 'Team Member',
-        role: UserRole.teamMember,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 90)),
-        lastLoginAt: DateTime.now().subtract(const Duration(days: 1)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 89)),
-      ),
-      User(
-        id: '4',
-        email: 'client@example.com',
-        name: 'Client Reviewer',
-        role: UserRole.clientReviewer,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 60)),
-        lastLoginAt: DateTime.now().subtract(const Duration(days: 3)),
-        isActive: true,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 59)),
-      ),
-      User(
-        id: '5',
-        email: 'inactive@example.com',
-        name: 'Inactive User',
-        role: UserRole.teamMember,
-        avatarUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        lastLoginAt: DateTime.now().subtract(const Duration(days: 15)),
-        isActive: false,
-        projectIds: [],
-        preferences: {},
-        emailVerified: true,
-        emailVerifiedAt: DateTime.now().subtract(const Duration(days: 29)),
-      ),
-    ];
-
-    return Column(
-      children: [
-        if (mockUsers.isEmpty)
-          const Center(
-            child: Text('No users found'),
-          )
-        else
-          ...mockUsers.map((user) => _buildUserListItem(user)),
-      ],
-    );
-  }
-
-  Widget _buildUserListItem(User user) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: user.roleColor,
-              child: Icon(
-                user.roleIcon,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user.email,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        user.roleIcon,
-                        size: 14,
-                        color: user.roleColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        user.roleDisplayName,
-                        style: TextStyle(
-                          color: user.roleColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          // ignore: deprecated_member_use
-                          color: user.isActive ? Colors.green.withAlpha(25) : Colors.grey.withAlpha(25),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          user.isActive ? 'Active' : 'Inactive',
-                          style: TextStyle(
-                            color: user.isActive ? Colors.green : Colors.grey,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'edit') {
-                  _editUser(user);
-                } else if (value == 'delete') {
-                  _confirmDeleteUser(user);
-                } else if (value == 'view') {
-                  _showUserDetails(user);
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'view',
-                  child: Row(
-                    children: [
-                      Icon(Icons.visibility, size: 16),
-                      SizedBox(width: 8),
-                      Text('View Details'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, size: 16),
-                      SizedBox(width: 8),
-                      Text('Edit User'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, size: 16, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete User', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-              child: const Icon(Icons.more_vert),
-            ),
-          ],
-        ),
+    // User management functionality requires actual user data from API
+    // This is a placeholder for real user data implementation
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.people, size: 48, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'User Management',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Connect to API for user data',
+            style: TextStyle(color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
+
+
 
   Widget _buildSystemHealth() {
     VoidCallback? showHealthHistory;
@@ -4455,112 +4272,6 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  void _editUser(User user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit User'),
-        content: const Text('Edit user functionality for \${user.name} will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('\${user.name} updated successfully')),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteUser(User user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Delete'),
-        content: const Text('Are you sure you want to delete user \${user.name}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('\${user.name} deleted successfully')),
-              );
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showUserDetails(User user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('User Details: \${user.name}'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Email: \${user.email}'),
-            SizedBox(height: 8),
-            Text('Role: \${user.roleDisplayName}'),
-            SizedBox(height: 8),
-            Text('Status: Active'),
-            SizedBox(height: 8),
-            Text('Last Login: Today'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _createNewUser() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create New User'),
-        content: const Text('User creation functionality will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('User created successfully')),
-              );
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showAuditFilterDialog() {
     final List<String> actionTypes = [
       'All Actions',
@@ -5686,6 +5397,8 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       ),
     );
   }
+  
+  void _createNewUser() {}
 }
 
 
