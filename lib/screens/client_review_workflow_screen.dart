@@ -53,8 +53,18 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       // Load report
       final reportResponse = await _reportService.getSignOffReport(widget.reportId);
       if (reportResponse.isSuccess && reportResponse.data != null) {
-        final data = reportResponse.data!['data'];
-        final content = data['content'] as Map<String, dynamic>? ?? {};
+        // ApiClient already extracts the 'data' field, so response.data is the report object directly
+        // But check if it's nested in a 'data' key or is the report directly
+        final data = reportResponse.data is Map && reportResponse.data!['data'] != null
+            ? reportResponse.data!['data'] as Map<String, dynamic>
+            : reportResponse.data as Map<String, dynamic>;
+        
+        final contentRaw = data['content'];
+        final content = contentRaw is Map<String, dynamic>
+            ? contentRaw
+            : contentRaw is Map
+                ? Map<String, dynamic>.from(contentRaw)
+                : <String, dynamic>{};
         final reviews = data['reviews'] as List? ?? [];
         
         setState(() {

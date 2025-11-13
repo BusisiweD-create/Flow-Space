@@ -200,6 +200,19 @@ class ApiClient {
 
   ApiResponse _handleResponse(http.Response response) {
     try {
+      // Check if response is HTML (error pages) instead of JSON
+      final contentType = response.headers['content-type'] ?? '';
+      if (contentType.contains('text/html') || response.body.trim().startsWith('<!DOCTYPE')) {
+        // Server returned HTML (likely a 404 or error page)
+        String errorMsg = 'Server returned HTML instead of JSON';
+        if (response.statusCode == 404) {
+          errorMsg = 'Endpoint not found (404). Check the API endpoint path.';
+        } else if (response.statusCode >= 500) {
+          errorMsg = 'Server error (${response.statusCode})';
+        }
+        return ApiResponse.error(errorMsg, response.statusCode);
+      }
+      
       final responseBody = jsonDecode(response.body);
       
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -212,7 +225,12 @@ class ApiClient {
         return ApiResponse.error(errorMessage, response.statusCode);
       }
     } catch (e) {
-      return ApiResponse.error('Invalid response format: $e', response.statusCode);
+      // If JSON parsing fails, provide a more helpful error message
+      String errorMsg = 'Invalid response format: $e';
+      if (response.body.trim().startsWith('<!DOCTYPE')) {
+        errorMsg = 'Server returned HTML instead of JSON. Check if the endpoint exists.';
+      }
+      return ApiResponse.error(errorMsg, response.statusCode);
     }
   }
 
@@ -306,7 +324,7 @@ class ApiClient {
 
 class ApiResponse {
   final bool isSuccess;
-  final Map<String, dynamic>? data;
+  final dynamic data; // Changed to dynamic to support both Map and List
   final String? error;
   final int statusCode;
 
@@ -317,7 +335,7 @@ class ApiResponse {
     required this.statusCode,
   });
 
-  factory ApiResponse.success(Map<String, dynamic> data, int statusCode) {
+  factory ApiResponse.success(dynamic data, int statusCode) {
     return ApiResponse._(
       isSuccess: true,
       data: data,

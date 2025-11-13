@@ -4,9 +4,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import '../models/sign_off_report.dart';
 import '../models/repository_file.dart';
+import '../models/user_role.dart';
 import '../services/document_service.dart';
 import '../services/auth_service.dart';
 import '../services/sign_off_report_service.dart';
+import '../services/report_export_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/document_preview_widget.dart';
@@ -29,6 +31,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   final _searchController = TextEditingController();
   final DocumentService _documentService = DocumentService(AuthService());
   final SignOffReportService _reportService = SignOffReportService(AuthService());
+  final ReportExportService _exportService = ReportExportService();
 
   @override
   void initState() {
@@ -56,15 +59,22 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   }
 
   Future<void> _loadReports() async {
-
     try {
       final response = await _reportService.getSignOffReports(
         status: _selectedFilter != 'all' ? _selectedFilter : null,
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
 
+      debugPrint('📋 Load reports response: success=${response.isSuccess}, data type=${response.data?.runtimeType}');
+      
       if (response.isSuccess && response.data != null) {
-        final reportsData = response.data!['data'] as List? ?? [];
+        // ApiClient already extracts the 'data' field, so response.data is the list directly
+        // But check if it's a List or a Map with a 'data' key
+        final reportsData = response.data is List 
+            ? response.data as List
+            : (response.data!['data'] as List? ?? []);
+        
+        debugPrint('📋 Parsed ${reportsData.length} reports');
         setState(() {
           _reports = reportsData.map((json) {
             // Map backend response to SignOffReport model
@@ -73,35 +83,31 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             final latestReview = reviews.isNotEmpty ? reviews[0] : null;
             
             return SignOffReport(
-              id: json['id'] as String,
-              deliverableId: json['deliverableId'] as String? ?? json['deliverable_id'] as String? ?? '',
-              reportTitle: content['reportTitle'] as String? ?? 'Untitled Report',
-              reportContent: content['reportContent'] as String? ?? '',
-              sprintIds: (content['sprintIds'] as List?)?.cast<String>() ?? [],
-              sprintPerformanceData: content['sprintPerformanceData'] as String?,
-              knownLimitations: content['knownLimitations'] as String?,
-              nextSteps: content['nextSteps'] as String?,
-              status: _parseStatus(json['status'] as String? ?? 'draft'),
-              createdAt: json['createdAt'] != null 
-                  ? DateTime.parse(json['createdAt']).toLocal()
-                  : json['created_at'] != null
-                      ? DateTime.parse(json['created_at']).toLocal()
-                      : DateTime.now(),
-              createdBy: json['createdByName'] as String? ?? json['created_by_name'] as String? ?? 'Unknown',
+              id: json['id']?.toString() ?? '',
+              deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString() ?? '',
+              reportTitle: content['reportTitle']?.toString() ?? 'Untitled Report',
+              reportContent: content['reportContent']?.toString() ?? '',
+              sprintIds: (content['sprintIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
+              sprintPerformanceData: content['sprintPerformanceData']?.toString(),
+              knownLimitations: content['knownLimitations']?.toString(),
+              nextSteps: content['nextSteps']?.toString(),
+              status: _parseStatus(json['status']?.toString() ?? 'draft'),
+              createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
+              createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? 'Unknown',
               submittedAt: null, // Will be populated from audit logs if needed
               submittedBy: null,
               reviewedAt: latestReview != null && latestReview['approved_at'] != null
-                  ? DateTime.parse(latestReview['approved_at']).toLocal()
+                  ? _parseDateTime(latestReview['approved_at'])
                   : null,
-              reviewedBy: latestReview?['reviewerName'] as String?,
+              reviewedBy: latestReview?['reviewerName']?.toString(),
               approvedAt: latestReview != null && latestReview['approved_at'] != null && latestReview['reviewStatus'] == 'approved'
-                  ? DateTime.parse(latestReview['approved_at']).toLocal()
+                  ? _parseDateTime(latestReview['approved_at'])
                   : null,
               approvedBy: latestReview != null && latestReview['reviewStatus'] == 'approved'
-                  ? latestReview['reviewerName'] as String?
+                  ? latestReview['reviewerName']?.toString()
                   : null,
               changeRequestDetails: latestReview != null && latestReview['reviewStatus'] == 'change_requested'
-                  ? latestReview['feedback'] as String?
+                  ? latestReview['feedback']?.toString()
                   : null,
             );
           }).toList();
@@ -126,6 +132,20 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         );
       }
     }
+  }
+
+  DateTime? _parseDateTime(dynamic dateValue) {
+    if (dateValue == null) return null;
+    try {
+      if (dateValue is String) {
+        return DateTime.parse(dateValue).toLocal();
+      } else if (dateValue is DateTime) {
+        return dateValue.toLocal();
+      }
+    } catch (e) {
+      debugPrint('Error parsing date: $dateValue - $e');
+    }
+    return null;
   }
 
   ReportStatus _parseStatus(String status) {
@@ -224,8 +244,9 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               foregroundColor: FlownetColors.pureWhite,
             ),
           ),
-          if (report.status == ReportStatus.draft)
-            TextButton(
+          // Allow editing for draft and change_requested reports
+          if (report.status == ReportStatus.draft || report.status == ReportStatus.changeRequested)
+            ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -235,10 +256,16 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   ),
                 ).then((_) => _loadReports());
               },
-              child: const Text('Edit', style: TextStyle(color: FlownetColors.electricBlue)),
+              icon: const Icon(Icons.edit, size: 18),
+              label: const Text('Edit Report'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: FlownetColors.electricBlue,
+                foregroundColor: FlownetColors.pureWhite,
+              ),
             ),
-          if (report.status == ReportStatus.submitted)
-            TextButton(
+          // Show review workflow for submitted reports
+          if (report.status == ReportStatus.submitted || report.status == ReportStatus.underReview)
+            ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -248,7 +275,27 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   ),
                 ).then((_) => _loadReports());
               },
-              child: const Text('Review', style: TextStyle(color: FlownetColors.electricBlue)),
+              icon: const Icon(Icons.rate_review, size: 18),
+              label: const Text('Review'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: FlownetColors.amberOrange,
+                foregroundColor: FlownetColors.pureWhite,
+              ),
+            ),
+          // Allow client feedback on any submitted/reviewed report
+          if (report.status == ReportStatus.submitted || 
+              report.status == ReportStatus.underReview ||
+              report.status == ReportStatus.approved)
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _showClientFeedbackDialog(report);
+              },
+              icon: const Icon(Icons.comment, size: 18),
+              label: const Text('Add Feedback'),
+              style: TextButton.styleFrom(
+                foregroundColor: FlownetColors.electricBlue,
+              ),
             ),
         ],
       ),
@@ -319,6 +366,190 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         ),
       ),
     );
+  }
+
+  void _showClientFeedbackDialog(SignOffReport report) {
+    final feedbackController = TextEditingController();
+    bool requestChanges = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: FlownetColors.graphiteGray,
+          title: const Row(
+            children: [
+              Icon(Icons.comment, color: FlownetColors.electricBlue),
+              SizedBox(width: 8),
+              Text(
+                'Add Client Feedback',
+                style: TextStyle(color: FlownetColors.pureWhite),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Report: ${report.reportTitle}',
+                  style: const TextStyle(
+                    color: FlownetColors.coolGray,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text(
+                    'Request changes to this report',
+                    style: TextStyle(color: FlownetColors.pureWhite),
+                  ),
+                  value: requestChanges,
+                  onChanged: (value) {
+                    setState(() => requestChanges = value ?? false);
+                  },
+                  activeColor: FlownetColors.electricBlue,
+                  checkColor: FlownetColors.pureWhite,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: feedbackController,
+                  maxLines: 8,
+                  style: const TextStyle(color: FlownetColors.pureWhite),
+                  decoration: InputDecoration(
+                    labelText: requestChanges ? 'Change Request Details *' : 'Feedback/Comments',
+                    labelStyle: const TextStyle(color: FlownetColors.coolGray),
+                    hintText: requestChanges 
+                        ? 'Describe what changes are needed...'
+                        : 'Share your feedback or suggestions...',
+                    hintStyle: const TextStyle(color: FlownetColors.coolGray),
+                    border: const OutlineInputBorder(
+                      borderSide: BorderSide(color: FlownetColors.slate),
+                    ),
+                    enabledBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: FlownetColors.slate),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: FlownetColors.electricBlue),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (feedbackController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter your feedback'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+                await _submitClientFeedback(
+                  report.id,
+                  feedbackController.text.trim(),
+                  requestChanges,
+                );
+              },
+              icon: Icon(requestChanges ? Icons.change_circle : Icons.send),
+              label: Text(requestChanges ? 'Request Changes' : 'Submit Feedback'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: requestChanges 
+                    ? FlownetColors.amberOrange 
+                    : FlownetColors.electricBlue,
+                foregroundColor: FlownetColors.pureWhite,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitClientFeedback(String reportId, String feedback, bool requestChanges) async {
+    try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+                SizedBox(width: 16),
+                Text('Submitting feedback...'),
+              ],
+            ),
+            duration: Duration(seconds: 30),
+          ),
+        );
+      }
+
+      final response = requestChanges
+          ? await _reportService.requestChanges(reportId, feedback)
+          : await _reportService.approveReport(reportId, comment: feedback);
+
+      // Hide loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      if (response.isSuccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(
+                    requestChanges 
+                        ? 'Changes requested successfully!' 
+                        : 'Feedback submitted successfully!',
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadReports(); // Reload to show updated status
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting feedback: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _uploadReportDocument() async {
@@ -580,6 +811,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           FloatingActionButton(
+            heroTag: 'createReportFAB',
             onPressed: () {
               Navigator.push(
                 context,
@@ -594,6 +826,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           ),
           const SizedBox(height: 8),
           FloatingActionButton(
+            heroTag: 'uploadDocumentFAB',
             onPressed: _uploadReportDocument,
             backgroundColor: FlownetColors.crimsonRed,
             tooltip: 'Upload Document',
@@ -835,11 +1068,149 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   ],
                 ),
               ],
+
+              // Quick Action Buttons
+              const SizedBox(height: 12),
+              const Divider(color: FlownetColors.slate, height: 1),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Edit button for draft and change_requested reports
+                  if (report.status == ReportStatus.draft || 
+                      report.status == ReportStatus.changeRequested) ...[
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ReportEditorScreen(reportId: report.id),
+                          ),
+                        ).then((_) => _loadReports());
+                      },
+                      icon: const Icon(Icons.edit, size: 16),
+                      label: const Text('Edit'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: FlownetColors.electricBlue,
+                      ),
+                    ),
+                  ],
+                  // Review button for submitted reports
+                  if (report.status == ReportStatus.submitted || 
+                      report.status == ReportStatus.underReview) ...[
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ClientReviewWorkflowScreen(reportId: report.id),
+                          ),
+                        ).then((_) => _loadReports());
+                      },
+                      icon: const Icon(Icons.rate_review, size: 16),
+                      label: const Text('Review'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: FlownetColors.amberOrange,
+                      ),
+                    ),
+                  ],
+                  // Feedback button for submitted/reviewed/approved reports
+                  if (report.status == ReportStatus.submitted || 
+                      report.status == ReportStatus.underReview ||
+                      report.status == ReportStatus.approved) ...[
+                    TextButton.icon(
+                      onPressed: () => _showClientFeedbackDialog(report),
+                      icon: const Icon(Icons.comment, size: 16),
+                      label: const Text('Feedback'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: FlownetColors.electricBlue,
+                      ),
+                    ),
+                  ],
+                  // Export button (for client reviewers and delivery leads)
+                  if (AuthService().currentUser?.role == UserRole.clientReviewer || 
+                      AuthService().currentUser?.role == UserRole.deliveryLead) ...[
+                    TextButton.icon(
+                      onPressed: () => _exportReport(report),
+                      icon: const Icon(Icons.download, size: 16),
+                      label: const Text('Export'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: FlownetColors.electricBlue,
+                      ),
+                    ),
+                  ],
+                  // View details button (always available)
+                  TextButton.icon(
+                    onPressed: () => _showReportDetails(report),
+                    icon: const Icon(Icons.visibility, size: 16),
+                    label: const Text('Details'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: FlownetColors.coolGray,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _exportReport(SignOffReport report) async {
+    try {
+      // Show export options
+      final format = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: FlownetColors.graphiteGray,
+          title: const Text(
+            'Export Report',
+            style: TextStyle(color: FlownetColors.pureWhite),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: FlownetColors.electricBlue),
+                title: const Text('PDF', style: TextStyle(color: FlownetColors.pureWhite)),
+                onTap: () => Navigator.pop(context, 'pdf'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.print, color: FlownetColors.electricBlue),
+                title: const Text('Print', style: TextStyle(color: FlownetColors.pureWhite)),
+                onTap: () => Navigator.pop(context, 'print'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (format == null) return;
+
+      if (format == 'pdf') {
+        await _exportService.exportReportAsPDF(report);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Report exported successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else if (format == 'print') {
+        await _exportService.printReport(report);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildInfoItem(IconData icon, String text) {

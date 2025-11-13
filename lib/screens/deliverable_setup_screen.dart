@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/api_service.dart';
+import '../services/deliverable_service.dart';
+import '../services/backend_api_service.dart';
 
 class DeliverableSetupScreen extends ConsumerStatefulWidget {
   const DeliverableSetupScreen({super.key});
@@ -15,12 +16,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   final _descriptionController = TextEditingController();
   final _dodController = TextEditingController();
   final _evidenceLinksController = TextEditingController();
+  final _deliverableService = DeliverableService();
   
   String _priority = 'medium';
   String _status = 'draft';
   DateTime? _dueDate;
   final List<String> _selectedSprints = [];
   List<Map<String, dynamic>> _availableSprints = [];
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -30,12 +33,53 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
 
   Future<void> _loadSprints() async {
     try {
-      final sprints = await ApiService.getSprints();
-      setState(() {
-        _availableSprints = sprints;
-      });
-    } catch (e) {
-      debugPrint('Error loading sprints: $e');
+      debugPrint('📦 Loading sprints...');
+      // Use BackendApiService for sprints
+      final backendApiService = BackendApiService();
+      final response = await backendApiService.getSprints();
+      
+      debugPrint('📦 Sprint response: isSuccess=${response.isSuccess}, data=${response.data}');
+      
+      if (response.isSuccess && response.data != null) {
+        List<dynamic> sprintsList = [];
+        
+        if (response.data is List) {
+          sprintsList = response.data as List;
+        } else if (response.data is Map) {
+          final data = response.data as Map<String, dynamic>;
+          sprintsList = data['data'] as List? ?? 
+                       data['sprints'] as List? ?? 
+                       [];
+        }
+        
+        debugPrint('📦 Parsed sprints list: ${sprintsList.length} items');
+        
+        setState(() {
+          _availableSprints = sprintsList
+              .where((s) => s != null) // Filter out nulls
+              .map((s) {
+                if (s is Map<String, dynamic>) {
+                  return s;
+                } else if (s is Map) {
+                  return Map<String, dynamic>.from(s);
+                } else {
+                  debugPrint('⚠️ Unexpected sprint type: ${s.runtimeType}');
+                  return <String, dynamic>{};
+                }
+              })
+              .where((m) => m.isNotEmpty) // Filter out empty maps
+              .toList();
+        });
+        debugPrint('✅ Loaded ${_availableSprints.length} sprints');
+      } else {
+        setState(() {
+          _availableSprints = [];
+        });
+        debugPrint('⚠️ No sprints found: ${response.error ?? "Unknown error"}');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading sprints: $e');
+      debugPrint('📚 Stack trace: $stackTrace');
       setState(() {
         _availableSprints = [];
       });
@@ -57,35 +101,31 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   }
 
   Future<void> _saveDeliverable() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || _isSaving) return;
+
+    setState(() => _isSaving = true);
 
     try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      // Use the API service (now with mock implementation)
-      final deliverable = await ApiService.createDeliverable(
+      debugPrint('📦 Creating deliverable: ${_titleController.text}');
+      
+      // Use DeliverableService which handles authentication automatically
+      final response = await _deliverableService.createDeliverable(
         title: _titleController.text,
-        description: _descriptionController.text,
-        definitionOfDone: _dodController.text,
+        description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
+        definitionOfDone: _dodController.text.isEmpty ? null : _dodController.text,
+        priority: _priority,
         status: _status,
-        assignedTo: '00000000-0000-0000-0000-000000000002', // Default to Jane Smith
-        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
+        dueDate: _dueDate,
+        sprintId: _selectedSprints.isNotEmpty ? _selectedSprints.first : null,
       );
 
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        setState(() => _isSaving = false);
         
-        if (deliverable != null) {
+        if (response.isSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Deliverable "${_titleController.text}" created successfully!'),
+              content: Text('✅ Deliverable "${_titleController.text}" created successfully!'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
@@ -102,20 +142,25 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
           });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to create deliverable'),
+            SnackBar(
+              content: Text('❌ Failed to create deliverable: ${response.error ?? "Unknown error"}'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
             ),
           );
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error creating deliverable: $e');
+      debugPrint('📚 Stack trace: $stackTrace');
+      
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog if open
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error creating deliverable: $e'),
+            content: Text('❌ Error creating deliverable: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -309,16 +354,25 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _saveDeliverable,
+                  onPressed: _isSaving ? null : _saveDeliverable,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text(
-                    'Create Deliverable',
-                    style: TextStyle(fontSize: 16),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Create Deliverable',
+                          style: TextStyle(fontSize: 16),
+                        ),
                 ),
               ),
             ],

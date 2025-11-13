@@ -196,27 +196,32 @@ class BackendApiService {
   }
 
   Future<ApiResponse> createSignOffReport(Map<String, dynamic> reportData) async {
+    debugPrint('🔵 Creating sign-off report: $reportData');
     return await _apiClient.post('/sign-off-reports', body: reportData);
   }
 
   Future<ApiResponse> updateSignOffReport(String reportId, Map<String, dynamic> updates) async {
+    debugPrint('🔵 Updating sign-off report $reportId: $updates');
     return await _apiClient.put('/sign-off-reports/$reportId', body: updates);
   }
 
   Future<ApiResponse> submitSignOffReport(String reportId) async {
+    debugPrint('🔵 Submitting sign-off report: $reportId');
     return await _apiClient.post('/sign-off-reports/$reportId/submit');
   }
 
   Future<ApiResponse> approveSignOffReport(String reportId, String? comment, String? digitalSignature) async {
+    debugPrint('🔵 Approving/adding feedback to report: $reportId');
     return await _apiClient.post('/sign-off-reports/$reportId/approve', body: {
       'comment': comment,
-      'digital_signature': digitalSignature,
+      'digitalSignature': digitalSignature,
     },);
   }
 
   Future<ApiResponse> requestSignOffChanges(String reportId, String changeRequest) async {
+    debugPrint('🔵 Requesting changes to report: $reportId');
     return await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: {
-      'change_request': changeRequest,
+      'changeRequestDetails': changeRequest,
     },);
   }
 

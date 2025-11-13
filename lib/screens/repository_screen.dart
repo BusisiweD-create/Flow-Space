@@ -542,10 +542,15 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                         hint: 'All Deliverables',
                         items: [
                           const DropdownMenuItem<String?>(value: null, child: Text('All Deliverables')),
-                          ..._deliverables.map((d) => DropdownMenuItem<String?>(
-                            value: d['id'] as String? ?? d.id,
-                            child: Text(d['title'] as String? ?? d.title ?? 'Unknown'),
-                          ),),
+                          ..._deliverables.map((d) {
+                            // Handle both Map and Deliverable object
+                            final id = d is Map ? (d['id'] as String?) : (d.id as String?);
+                            final title = d is Map ? (d['title'] as String?) : (d.title as String?);
+                            return DropdownMenuItem<String?>(
+                              value: id,
+                              child: Text(title ?? 'Unknown'),
+                            );
+                          }),
                         ],
                         onChanged: (value) {
                           setState(() => _selectedDeliverableId = value);
