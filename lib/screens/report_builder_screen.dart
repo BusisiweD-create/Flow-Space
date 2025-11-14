@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/deliverable.dart';
 import '../models/sprint_metrics.dart';
-import '../services/api_service.dart';
+import '../services/backend_api_service.dart';
+import '../providers/service_providers.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/sprint_performance_chart.dart';
@@ -30,68 +31,94 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
   List<SprintMetrics> _sprintMetrics = [];
   bool _isGenerating = false;
   bool _isPreviewMode = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadDeliverableData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDeliverableData();
+    });
   }
 
   Future<void> _loadDeliverableData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      // Fetch deliverable data from API
-      final deliverableData = await ApiService.getDeliverable(widget.deliverableId);
+      final backendService = BackendApiService();
       
-      if (deliverableData != null) {
-        setState(() {
-          _deliverable = Deliverable.fromJson(deliverableData);
-        });
-      }
+      // Load deliverable data
+      final deliverableResponse = await backendService.getDeliverable(widget.deliverableId);
       
-      // Fetch sprint metrics for this deliverable
-      if (_deliverable != null && _deliverable!.sprintIds.isNotEmpty) {
-        final List<SprintMetrics> allMetrics = [];
+      if (deliverableResponse.isSuccess && deliverableResponse.data != null) {
+        final deliverableData = deliverableResponse.data!;
+        final deliverable = Deliverable.fromJson(deliverableData);
         
-        for (final sprintId in _deliverable!.sprintIds) {
-          final metricsData = await ApiService.getSprintMetrics(sprintId);
-          if (metricsData.isNotEmpty) {
-            for (final metric in metricsData) {
-              allMetrics.add(SprintMetrics.fromJson(metric));
-            }
+        // Load sprint metrics for each sprint in the deliverable
+        final List<SprintMetrics> sprintMetrics = [];
+        
+        for (final sprintId in deliverable.sprintIds) {
+          final metricsResponse = await backendService.getSprintMetrics(sprintId);
+          if (metricsResponse.isSuccess && metricsResponse.data != null) {
+            final metrics = backendService.parseSprintMetricsFromResponse(metricsResponse);
+            sprintMetrics.addAll(metrics);
           }
         }
         
         setState(() {
-          _sprintMetrics = allMetrics;
+          _deliverable = deliverable;
+          _sprintMetrics = sprintMetrics;
+          _isLoading = false;
+        });
+        
+        // Auto-generate report content
+        _generateReportContent();
+      } else {
+        // Handle API error gracefully
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to load deliverable data: ${deliverableResponse.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+          _deliverable = null;
+          _sprintMetrics = [];
         });
       }
-      
-      // Auto-generate report content
-      _generateReportContent();
-      
     } catch (e) {
-      debugPrint('Error loading deliverable data: $e');
-      // Show error to user
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to load deliverable data. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      debugPrint('Error loading deliverable data: \$e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to load deliverable data. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      setState(() {
+        _isLoading = false;
+        _deliverable = null;
+        _sprintMetrics = [];
+      });
     }
   }
 
-  void _generateReportContent() {
+  void generateReportContent() {
     if (_deliverable == null) return;
 
     _reportTitleController.text = 'Sign-Off Report: ${_deliverable!.title}';
     
-    final content = _buildReportContent();
+    final content = buildReportContent();
     _reportContentController.text = content;
   }
 
-  String _buildReportContent() {
+  String buildReportContent() {
     if (_deliverable == null) return '';
 
     final buffer = StringBuffer();
@@ -107,7 +134,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     buffer.writeln();
     buffer.writeln('**Title:** ${_deliverable!.title}');
     buffer.writeln('**Description:** ${_deliverable!.description}');
-    buffer.writeln('**Due Date:** ${_formatDate(_deliverable!.dueDate)}');
+    buffer.writeln('**Due Date:** ${formatDate(_deliverable!.dueDate)}');
     buffer.writeln('**Status:** ${_deliverable!.statusDisplayName}');
     buffer.writeln();
     
@@ -171,11 +198,11 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     return buffer.toString();
   }
 
-  String _formatDate(DateTime date) {
+  String formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  Future<void> _generateReport() async {
+  Future<void> generateReport() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -183,16 +210,35 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     });
 
     try {
-      // Simulate report generation
-      await Future.delayed(const Duration(seconds: 2));
+      final backend = ref.read(backendApiServiceProvider);
+      final payload = {
+        'deliverableId': _deliverable!.id,
+        'reportTitle': _reportTitleController.text.trim(),
+        'reportContent': _reportContentController.text.trim(),
+        'sprintIds': _deliverable!.sprintIds,
+        'knownLimitations': _knownLimitationsController.text.trim().isEmpty ? null : _knownLimitationsController.text.trim(),
+        'nextSteps': _nextStepsController.text.trim().isEmpty ? null : _nextStepsController.text.trim(),
+        'status': 'submitted',
+      };
+
+      final response = await backend.createSignOffReport(payload);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report generated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (response.isSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Report generated successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error generating report: ${response.error ?? 'Unknown error'}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -212,7 +258,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     }
   }
 
-  void _togglePreview() {
+  void togglePreview() {
     setState(() {
       _isPreviewMode = !_isPreviewMode;
     });
@@ -220,7 +266,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_deliverable == null) {
+    if (_isLoading || _deliverable == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -236,16 +282,16 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
         actions: [
           IconButton(
             icon: Icon(_isPreviewMode ? Icons.edit : Icons.preview),
-            onPressed: _togglePreview,
+            onPressed: togglePreview,
             tooltip: _isPreviewMode ? 'Edit Mode' : 'Preview Mode',
           ),
         ],
       ),
-      body: _isPreviewMode ? _buildPreviewMode() : _buildEditMode(),
+      body: _isPreviewMode ? buildPreviewMode() : buildEditMode(),
     );
   }
 
-  Widget _buildEditMode() {
+  Widget buildEditMode() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Form(
@@ -322,7 +368,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             const SizedBox(height: 24),
 
             // Sprint Performance Chart
-            _buildSprintPerformanceSection(),
+            buildSprintPerformanceSection(),
             const SizedBox(height: 24),
 
             // Action Buttons
@@ -330,7 +376,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isGenerating ? null : _generateReport,
+                    onPressed: _isGenerating ? null : generateReport,
                     icon: _isGenerating 
                         ? const SizedBox(
                             width: 16,
@@ -348,7 +394,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _togglePreview,
+                    onPressed: togglePreview,
                     icon: const Icon(Icons.preview),
                     label: const Text('Preview'),
                     style: ElevatedButton.styleFrom(
@@ -365,7 +411,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     );
   }
 
-  Widget _buildPreviewMode() {
+  Widget buildPreviewMode() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -375,7 +421,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
           Row(
             children: [
               IconButton(
-                onPressed: _togglePreview,
+                onPressed: togglePreview,
                 icon: const Icon(Icons.edit),
                 tooltip: 'Edit Mode',
               ),
@@ -419,7 +465,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Generated on ${_formatDate(DateTime.now())}',
+                  'Generated on ${formatDate(DateTime.now())}',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
@@ -492,7 +538,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _isGenerating ? null : _generateReport,
+                  onPressed: _isGenerating ? null : generateReport,
                   icon: _isGenerating 
                       ? const SizedBox(
                           width: 16,
@@ -534,7 +580,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     );
   }
 
-  Widget _buildSprintPerformanceSection() {
+  Widget buildSprintPerformanceSection() {
     return Card(
       color: FlownetColors.graphiteGray,
       child: Padding(
@@ -568,7 +614,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildMetricCard(
+                  child: buildMetricCard(
                     'Avg Test Pass Rate',
                     '${_sprintMetrics.fold(0.0, (sum, m) => sum + m.testPassRate) / _sprintMetrics.length}%',
                     Icons.science,
@@ -577,7 +623,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildMetricCard(
+                  child: buildMetricCard(
                     'Total Defects',
                     '${_sprintMetrics.fold(0, (sum, m) => sum + m.totalDefects)}',
                     Icons.bug_report,
@@ -586,7 +632,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildMetricCard(
+                  child: buildMetricCard(
                     'Resolution Rate',
                     '${_sprintMetrics.fold(0.0, (sum, m) => sum + m.defectResolutionRate) / _sprintMetrics.length}%',
                     Icons.check_circle,
@@ -601,7 +647,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     );
   }
 
-  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+  Widget buildMetricCard(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

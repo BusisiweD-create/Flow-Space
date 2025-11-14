@@ -1,66 +1,73 @@
 enum ApprovalStatus {
   pending,
   approved,
-  denied,
+  rejected,
+  // ignore: constant_identifier_names
+  reminder_sent,
 }
 
 class ApprovalRequest {
   final String id;
-  final String itemName;
-  final String requester;
-  final DateTime date;
+  final String deliverableTitle;
+  final String requesterName;
+  final DateTime requestedAt;
   final ApprovalStatus status;
-  final String description;
+  final String comments;
 
   const ApprovalRequest({
     required this.id,
-    required this.itemName,
-    required this.requester,
-    required this.date,
+    required this.deliverableTitle,
+    required this.requesterName,
+    required this.requestedAt,
     required this.status,
-    required this.description,
+    required this.comments,
   });
 
   ApprovalRequest copyWith({
     String? id,
-    String? itemName,
-    String? requester,
-    DateTime? date,
+    String? deliverableTitle,
+    String? requesterName,
+    DateTime? requestedAt,
     ApprovalStatus? status,
-    String? description,
+    String? comments,
   }) {
     return ApprovalRequest(
       id: id ?? this.id,
-      itemName: itemName ?? this.itemName,
-      requester: requester ?? this.requester,
-      date: date ?? this.date,
+      deliverableTitle: deliverableTitle ?? this.deliverableTitle,
+      requesterName: requesterName ?? this.requesterName,
+      requestedAt: requestedAt ?? this.requestedAt,
       status: status ?? this.status,
-      description: description ?? this.description,
+      comments: comments ?? this.comments,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'itemName': itemName,
-      'requester': requester,
-      'date': date.toIso8601String(),
+      'deliverableTitle': deliverableTitle,
+      'requesterName': requesterName,
+      'requestedAt': requestedAt.toIso8601String(),
       'status': status.name,
-      'description': description,
+      'comments': comments,
     };
   }
 
   factory ApprovalRequest.fromJson(Map<String, dynamic> json) {
+    final deliverable = json['deliverable'] as Map<String, dynamic>?;
+    final requester = json['requester'] as Map<String, dynamic>?;
+    final statusString = (json['status'] ?? 'pending').toString();
     return ApprovalRequest(
-      id: json['id'],
-      itemName: json['itemName'],
-      requester: json['requester'],
-      date: DateTime.parse(json['date']),
+      id: json['id'].toString(),
+      deliverableTitle: (deliverable != null ? (deliverable['title'] ?? '') : '') as String,
+      requesterName: (requester != null
+              ? ('${((requester['first_name'] ?? '') as String).trim()} ${((requester['last_name'] ?? '') as String).trim()}').trim()
+              : (json['requested_by']?.toString() ?? '')),
+      requestedAt: DateTime.parse((json['requested_at'] ?? json['requestedAt'] ?? DateTime.now().toIso8601String()).toString()),
       status: ApprovalStatus.values.firstWhere(
-        (e) => e.name == json['status'],
+        (e) => e.name == statusString,
         orElse: () => ApprovalStatus.pending,
       ),
-      description: json['description'],
+      comments: (json['comments'] ?? deliverable?['description'] ?? '')?.toString() ?? '',
     );
   }
 }

@@ -11,20 +11,23 @@ import 'package:fl_chart/fl_chart.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
 import '../models/system_metrics.dart';
+import '../models/approval_request.dart';
+import '../models/sign_off_report.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/user_data_service.dart';
 import '../services/api_service.dart';
-import '../providers/qa_data_provider.dart';
+import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 
-class RoleDashboardScreen extends StatefulWidget {
+class RoleDashboardScreen extends ConsumerStatefulWidget {
   const RoleDashboardScreen({super.key});
 
   @override
-  State<RoleDashboardScreen> createState() => _RoleDashboardScreenState();
+  ConsumerState<RoleDashboardScreen> createState() => _RoleDashboardScreenState();
 }
 
-class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
+class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   User? _currentUser;
   final AuthService _authService = AuthService();
   final BackendApiService _backendApiService = BackendApiService();
@@ -53,6 +56,14 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
 
   // Data Analytics state
   bool _isLoadingAnalytics = false;
+  Map<String, dynamic> _analyticsData = {};
+  List<Map<String, dynamic>> _dashboardSprints = [];
+  bool _isLoadingDashboardSprints = false;
+  List<ApprovalRequest> _dashboardApprovals = [];
+  bool _isLoadingDashboardApprovals = false;
+  List<Map<String, dynamic>> _dashboardDeliverables = [];
+  bool _isLoadingDashboardDeliverables = false;
+  List<SignOffReport> _reviewHistoryReports = [];
 
   // User data state
   List<User> _users = [];
@@ -63,28 +74,34 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   SystemMetrics? _systemMetrics;
   bool _isLoadingSystemMetrics = false;
   String? _systemMetricsError;
-
-  // Recent submissions state
-  final List<RecentSubmissionItem> _recentSubmissions = [];
   
-  // Team performance state
-  List<Map<String, dynamic>> _teamPerformanceData = [];
-  bool _isLoadingTeamPerformance = false;
-  String? _teamPerformanceError;
   
-  // Burn-down data state
-  List<Map<String, dynamic>> _burnDownData = [];
-  bool _isLoadingBurnDownData = false;
-  String? _burnDownDataError;
+  
+  late final RealtimeService realtimeService;
   
   @override
   void initState() {
     super.initState();
+    realtimeService = RealtimeService();
     _loadCurrentUser();
     _loadUsers();
-    _loadSystemMetrics();
-    _loadTeamPerformance();
-    _loadBurnDownData();
+    _loadDashboardSprints();
+    _loadDashboardApprovals();
+    _loadDashboardDeliverables();
+    _loadReviewHistoryReports();
+    _setupRealtimeListeners();
+  }
+
+  @override
+  void dispose() {
+    realtimeService.off('user_role_changed', _handleRoleChanged);
+    realtimeService.offAll('sprint_created');
+    realtimeService.offAll('sprint_updated');
+    realtimeService.offAll('deliverable_created');
+    realtimeService.offAll('deliverable_updated');
+    realtimeService.offAll('approval_created');
+    realtimeService.offAll('approval_updated');
+    super.dispose();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -95,7 +112,17 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         setState(() {
           _currentUser = user;
         });
-        debugPrint('✅ Loaded user: \${user.name} (\${user.email})');
+        debugPrint('✅ Loaded user: ${user.name} (${user.email})');
+        if (_currentUser!.role == UserRole.systemAdmin) {
+          _loadSystemMetrics();
+          _loadAnalyticsData();
+        }
+        try {
+          final token = ApiClient().getAuthToken();
+          if (token != null) {
+            await realtimeService.initialize(authToken: token);
+          }
+        } catch (_) {}
         // Load audit logs after user is loaded
         _loadAuditLogs();
       } else {
@@ -105,7 +132,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         }
       }
     } catch (e) {
-      debugPrint('❌ Error loading current user: \$e');
+      debugPrint('❌ Error loading current user: $e');
       // If there's an error, redirect to login
       if (mounted) {
         context.go('/');
@@ -183,25 +210,44 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         // Apply search and sort after loading data
         _applySearchAndSort();
         
-        debugPrint('✅ Loaded \${filteredLogs.length} audit logs (page \$page, total \${_auditLogs.length}, has more: \$_hasMoreAuditLogs)');
+        debugPrint('✅ Loaded ${filteredLogs.length} audit logs (page $page, total ${_auditLogs.length}, has more: $_hasMoreAuditLogs)');
       } else {
         setState(() {
           _auditLogsError = response.error ?? 'Failed to load audit logs';
         });
-        debugPrint('❌ Error loading audit logs: \${_auditLogsError}');
+        debugPrint('❌ Error loading audit logs: $_auditLogsError');
       }
     } catch (e) {
       setState(() {
-        _auditLogsError = 'Failed to load audit logs: \$e';
+        _auditLogsError = 'Failed to load audit logs: $e';
       });
-      debugPrint('❌ Exception loading audit logs: \$e');
-    } finally {
+      debugPrint('❌ Exception loading audit logs: $e');
+      } finally {
       setState(() {
         _isLoadingAuditLogs = false;
         _isLoadingMoreAuditLogs = false;
       });
     }
   }
+
+  int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    try {
+      return DateTime.parse(value.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Removed unused _parseDouble to satisfy analyzer
 
   Future<void> _loadUsers() async {
     if (_isLoadingUsers) return;
@@ -234,11 +280,42 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     setState(() {
       _isLoadingAnalytics = true;
     });
+
     try {
-      final response = await _backendApiService.getDashboardData();
-      if (response.isSuccess) {
-        setState(() {});
+      final backendService = BackendApiService();
+      final response = await backendService.getAnalytics('performance');
+      
+      if (response.isSuccess && response.data != null) {
+        setState(() {
+          _analyticsData = response.data!;
+          if (_users.isNotEmpty) {
+            _analyticsData['active_users'] = _users.length;
+          }
+        });
+        debugPrint('✅ Loaded analytics data: ${_analyticsData.length} keys');
+      } else {
+        debugPrint('❌ Failed to load analytics data: ${response.statusCode} - ${response.error}');
+        final dashboardResponse = await backendService.getDashboardData();
+        if (dashboardResponse.isSuccess && dashboardResponse.data != null) {
+          setState(() {
+            _analyticsData = dashboardResponse.data!;
+            if (_users.isNotEmpty) {
+              _analyticsData['active_users'] = _users.length;
+            }
+          });
+          debugPrint('✅ Loaded dashboard analytics fallback');
+        } else {
+          setState(() {
+            _analyticsData = {
+              'team_performance': [],
+              'performance_trends': [],
+              'active_users': _users.length,
+            };
+          });
+          debugPrint('⚠️ Using computed analytics fallback');
+        }
       }
+      
     } catch (e) {
       debugPrint('❌ Error loading analytics data: $e');
     } finally {
@@ -261,12 +338,12 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       setState(() {
         _systemMetrics = metrics;
       });
-      debugPrint('✅ Loaded system metrics: \${metrics.userActivity.activeUsers} active users');
+      debugPrint('✅ Loaded system metrics: ${metrics.userActivity.activeUsers} active users');
     } catch (e) {
       setState(() {
-        _systemMetricsError = 'Failed to load system metrics: \$e';
+        _systemMetricsError = 'Failed to load system metrics: $e';
       });
-      debugPrint('❌ Error loading system metrics: \$e');
+      debugPrint('❌ Error loading system metrics: $e');
     } finally {
       setState(() {
         _isLoadingSystemMetrics = false;
@@ -274,82 +351,81 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     }
   }
 
-  Future<void> _loadTeamPerformance() async {
-    if (_isLoadingTeamPerformance) return;
-    
+  Future<void> _loadDashboardSprints() async {
+    if (_isLoadingDashboardSprints) return;
     setState(() {
-      _isLoadingTeamPerformance = true;
-      _teamPerformanceError = null;
+      _isLoadingDashboardSprints = true;
     });
-
     try {
-      final response = await _backendApiService.getAnalytics('team-performance');
-      
-      if (response.isSuccess) {
-        final data = response.data;
-        final teamData = data?['team_members'] ?? data?['members'] ?? [];
-        final summary = data?['summary'] ?? {};
-        
-        setState(() {
-          _teamPerformanceData = List<Map<String, dynamic>>.from(teamData);
-        });
-        
-        debugPrint('✅ Loaded team performance data: \${_teamPerformanceData.length} members');
-      } else {
-        setState(() {
-          _teamPerformanceError = response.error ?? 'Failed to load team performance data';
-        });
-        debugPrint('❌ Error loading team performance: \$_teamPerformanceError');
-      }
-    } catch (e) {
+      final sprints = await ApiService.getSprints();
       setState(() {
-        _teamPerformanceError = 'Failed to load team performance data: \$e';
+        _dashboardSprints = sprints;
       });
-      debugPrint('❌ Exception loading team performance: \$e');
+    } catch (e) {
+      debugPrint('Failed to load dashboard sprints: $e');
     } finally {
       setState(() {
-        _isLoadingTeamPerformance = false;
+        _isLoadingDashboardSprints = false;
       });
     }
   }
 
-  Future<void> _loadBurnDownData() async {
-    if (_isLoadingBurnDownData) return;
-    
+  Future<void> _loadDashboardApprovals() async {
+    if (_isLoadingDashboardApprovals) return;
     setState(() {
-      _isLoadingBurnDownData = true;
-      _burnDownDataError = null;
+      _isLoadingDashboardApprovals = true;
     });
-
     try {
-      final response = await _backendApiService.getAnalytics('burn-down');
-      
-      if (response.isSuccess) {
-        final data = response.data;
-        final burnDownData = data?['data'] ?? data?['burn_down_data'] ?? [];
-        
-        setState(() {
-          _burnDownData = List<Map<String, dynamic>>.from(burnDownData);
-        });
-        
-        debugPrint('✅ Loaded burn-down data: \${_burnDownData.length} data points');
-      } else {
-        setState(() {
-          _burnDownDataError = response.error ?? 'Failed to load burn-down data';
-        });
-        debugPrint('❌ Error loading burn-down data: \$_burnDownDataError');
-      }
-    } catch (e) {
+      final response = await _backendApiService.getApprovalRequests(page: 1, limit: 20);
+      final dynamic raw = response.data;
+      final List<dynamic> items = raw is List ? raw : (raw is Map ? (raw['data'] ?? raw['items'] ?? raw['approvals'] ?? []) : []);
+      final approvals = items.whereType<Map>().map((m) => ApprovalRequest.fromJson(Map<String, dynamic>.from(m))).toList();
       setState(() {
-        _burnDownDataError = 'Failed to load burn-down data: \$e';
+        _dashboardApprovals = approvals;
       });
-      debugPrint('❌ Exception loading burn-down data: \$e');
+    } catch (e) {
+      debugPrint('Failed to load dashboard approvals: $e');
     } finally {
       setState(() {
-        _isLoadingBurnDownData = false;
+        _isLoadingDashboardApprovals = false;
       });
     }
   }
+
+  Future<void> _loadDashboardDeliverables() async {
+    if (_isLoadingDashboardDeliverables) return;
+    setState(() {
+      _isLoadingDashboardDeliverables = true;
+    });
+    try {
+      final items = await ApiService.getDeliverables();
+      setState(() {
+        _dashboardDeliverables = items;
+      });
+    } catch (e) {
+      debugPrint('Failed to load dashboard deliverables: $e');
+    } finally {
+      setState(() {
+        _isLoadingDashboardDeliverables = false;
+      });
+    }
+  }
+
+  Future<void> _loadReviewHistoryReports() async {
+    try {
+      final backend = BackendApiService();
+      final response = await backend.getSignOffReports(page: 1, limit: 20);
+      if (response.isSuccess) {
+        final reports = backend.parseSignOffReportsFromResponse(response);
+        setState(() {
+          _reviewHistoryReports = reports;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load review history: $e');
+    }
+  }
+
 
   void _applySearchAndSort() {
     // Apply search filter
@@ -1890,6 +1966,29 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildPerformanceMetrics() {
+    final List<dynamic> rawMembers = (_analyticsData['team_performance'] ?? _analyticsData['members'] ?? _analyticsData['team'] ?? []) as List<dynamic>;
+    final List<Map<String, dynamic>> team = rawMembers.map((m) => (m is Map) ? m.cast<String, dynamic>() : <String, dynamic>{}).where((m) => m.isNotEmpty).toList();
+    final double avgVelocity = team.isNotEmpty
+        ? team.fold<double>(0.0, (sum, m) => sum + ((m['velocity'] ?? m['completed_points'] ?? 0) as num).toDouble()) / team.length
+        : 0.0;
+    final double avgQuality = team.isNotEmpty
+        ? team.fold<double>(0.0, (sum, m) => sum + ((m['qualityScore'] ?? m['quality'] ?? 0) as num).toDouble()) / team.length
+        : 0.0;
+    final double avgEfficiency = team.isNotEmpty
+        ? team.fold<double>(0.0, (sum, m) => sum + ((m['efficiency'] ?? 0) as num).toDouble()) / team.length
+        : 0.0;
+    final List<dynamic> rawTrends = (_analyticsData['performance_trends'] ?? _analyticsData['trends'] ?? []) as List<dynamic>;
+    final List<Map<String, dynamic>> trends = rawTrends.map((t) => (t is Map) ? t.cast<String, dynamic>() : <String, dynamic>{}).where((t) => t.isNotEmpty).toList();
+    final double velocityTrend = trends.isNotEmpty
+        ? ((trends.last['points'] ?? trends.last['value'] ?? 0) as num).toDouble() - ((trends.first['points'] ?? trends.first['value'] ?? 0) as num).toDouble()
+        : 0.0;
+    final double qualityTrend = trends.isNotEmpty
+        ? ((trends.last['quality'] ?? trends.last['score'] ?? 0) as num).toDouble() - ((trends.first['quality'] ?? trends.first['score'] ?? 0) as num).toDouble()
+        : 0.0;
+    final double efficiencyTrend = team.length >= 2
+        ? ((team.last['efficiency'] ?? 0) as num).toDouble() - ((team.first['efficiency'] ?? 0) as num).toDouble()
+        : 0.0;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -1913,31 +2012,36 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildPerformanceMetric(
-                  title: 'Velocity',
-                  value: '24 pts',
-                  trend: '+12%',
-                  icon: Icons.trending_up,
-                  color: Colors.green,
-                ),
-                _buildPerformanceMetric(
-                  title: 'Quality',
-                  value: '98%',
-                  trend: '+3%',
-                  icon: Icons.verified,
-                  color: Colors.blue,
-                ),
-                _buildPerformanceMetric(
-                  title: 'Efficiency',
-                  value: '87%',
-                  trend: '+5%',
-                  icon: Icons.speed,
-                  color: Colors.orange,
-                ),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildPerformanceMetric(
+                    title: 'Velocity',
+                    value: '${avgVelocity.toStringAsFixed(1)} pts',
+                    trend: '${velocityTrend >= 0 ? '+' : ''}${velocityTrend.toStringAsFixed(1)}',
+                    icon: velocityTrend >= 0 ? Icons.trending_up : Icons.trending_down,
+                    color: velocityTrend >= 0 ? Colors.green : Colors.red,
+                  ),
+                  const SizedBox(width: 16),
+                  _buildPerformanceMetric(
+                    title: 'Quality',
+                    value: '${avgQuality.toStringAsFixed(1)}%',
+                    trend: '${qualityTrend >= 0 ? '+' : ''}${qualityTrend.toStringAsFixed(1)}',
+                    icon: qualityTrend >= 0 ? Icons.verified : Icons.warning,
+                    color: qualityTrend >= 0 ? Colors.blue : Colors.orange,
+                  ),
+                  const SizedBox(width: 16),
+                  _buildPerformanceMetric(
+                    title: 'Efficiency',
+                    value: '${avgEfficiency.toStringAsFixed(1)}%',
+                    trend: '${efficiencyTrend >= 0 ? '+' : ''}${efficiencyTrend.toStringAsFixed(1)}',
+                    icon: efficiencyTrend >= 0 ? Icons.speed : Icons.timer,
+                    color: efficiencyTrend >= 0 ? Colors.orange : Colors.red,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             _buildWeeklyPerformanceChart(),
@@ -2492,13 +2596,64 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                _buildMetricCard('Sprint Progress', '75%', Icons.timeline, Colors.blue),
+                _buildMetricCard(
+                  title: 'Sprint Progress',
+                  value: () {
+                    final s = _selectCurrentSprint();
+                    final planned = _parseInt(s?['planned_points']) ?? _parseInt(s?['committed_points']) ?? _parseInt(s?['committedPoints']) ?? 0;
+                    final completed = _parseInt(s?['completed_points']) ?? _parseInt(s?['completedPoints']) ?? 0;
+                    final pct = planned > 0 ? ((completed / planned) * 100).toStringAsFixed(0) : '0';
+                    return '$pct%';
+                  }(),
+                  icon: Icons.timeline,
+                  color: Colors.blue,
+                  trend: '',
+                ),
                 const SizedBox(width: 12),
-                _buildMetricCard('Team Velocity', '32 pts', Icons.speed, Colors.green),
+                _buildMetricCard(
+                  title: 'Team Velocity',
+                  value: () {
+                    final List<dynamic> rawMembers = (_analyticsData['team_performance'] ?? _analyticsData['members'] ?? _analyticsData['team'] ?? []) as List<dynamic>;
+                    final velocities = rawMembers.map((m) {
+                      final mm = (m is Map) ? m : <String, dynamic>{};
+                      return _parseInt(mm['velocity']) ?? 0;
+                    }).toList();
+                    final avg = velocities.isNotEmpty ? (velocities.reduce((a,b)=>a+b) / velocities.length).toStringAsFixed(1) : '0.0';
+                    return '$avg pts';
+                  }(),
+                  icon: Icons.speed,
+                  color: Colors.green,
+                  trend: '',
+                ),
                 const SizedBox(width: 12),
-                _buildMetricCard('Work Completed', '24/32', Icons.check_circle, Colors.orange),
+                _buildMetricCard(
+                  title: 'Work Completed',
+                  value: () {
+                    final s = _selectCurrentSprint();
+                    final planned = _parseInt(s?['planned_points']) ?? _parseInt(s?['committed_points']) ?? _parseInt(s?['committedPoints']) ?? 0;
+                    final completed = _parseInt(s?['completed_points']) ?? _parseInt(s?['completedPoints']) ?? 0;
+                    return '$completed/$planned';
+                  }(),
+                  icon: Icons.check_circle,
+                  color: Colors.orange,
+                  trend: '',
+                ),
                 const SizedBox(width: 12),
-                _buildMetricCard('Blocked Items', '2', Icons.block, Colors.red),
+                _buildMetricCard(
+                  title: 'Blocked Items',
+                  value: () {
+                    final List<dynamic> rawMembers = (_analyticsData['team_performance'] ?? _analyticsData['members'] ?? _analyticsData['team'] ?? []) as List<dynamic>;
+                    final blocked = rawMembers.map((m) {
+                      final mm = (m is Map) ? m : <String, dynamic>{};
+                      return _parseInt(mm['blockedItems']) ?? _parseInt(mm['blocked']) ?? 0;
+                    }).toList();
+                    final sum = blocked.isNotEmpty ? blocked.reduce((a,b)=>a+b) : 0;
+                    return sum.toString();
+                  }(),
+                  icon: Icons.block,
+                  color: Colors.red,
+                  trend: '',
+                ),
               ],
             ),
           ],
@@ -2524,7 +2679,14 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                       ),
                 ),
                 TextButton(
-                  onPressed: () => context.go('/sprint-console'),
+                  onPressed: () {
+                    final sprint = _selectCurrentSprint();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => SprintOverviewDetailPage(sprint: sprint),
+                      ),
+                    );
+                  },
                   child: const Text('View Details'),
                 ),
               ],
@@ -2548,21 +2710,21 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
               children: [
                 _buildSprintMetricCard(
                   title: 'Days Remaining',
-                  value: '5',
+                  value: _computeDaysRemaining(),
                   icon: Icons.calendar_today,
                   color: Colors.blue,
                 ),
                 const SizedBox(width: 12),
                 _buildSprintMetricCard(
                   title: 'Points Burned',
-                  value: '24',
+                  value: _computePointsBurned(),
                   icon: Icons.trending_up,
                   color: Colors.green,
                 ),
                 const SizedBox(width: 12),
                 _buildSprintMetricCard(
                   title: 'Avg. Daily',
-                  value: '4.8',
+                  value: _computeAvgDailyBurn(),
                   icon: Icons.analytics,
                   color: Colors.orange,
                 ),
@@ -2575,6 +2737,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildPendingReviews() {
+    final pending = _dashboardApprovals.where((a) => a.status == ApprovalStatus.pending).toList();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -2591,36 +2754,31 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                       ),
                 ),
                 Badge(
-                  label: const Text('3'),
+                  label: Text(pending.length.toString()),
                   backgroundColor: Colors.red,
                   child: IconButton(
                     icon: const Icon(Icons.refresh),
-                    onPressed: _loadPendingReviews,
+                    onPressed: _loadDashboardApprovals,
                     tooltip: 'Refresh Reviews',
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            _buildReviewItem(
-              title: 'User Authentication System',
-              requester: 'John Smith',
-              daysPending: 2,
-              priority: 'High',
+            ...pending.take(3).map((r) => _buildReviewItem(
+                  title: r.deliverableTitle.isNotEmpty ? r.deliverableTitle : 'Deliverable',
+                  requester: r.requesterName.isNotEmpty ? r.requesterName : 'Unknown',
+                  daysPending: DateTime.now().difference(r.requestedAt).inDays,
+                  priority: 'High',
+                ),
             ),
-            const SizedBox(height: 12),
-            _buildReviewItem(
-              title: 'Payment Integration API',
-              requester: 'Sarah Johnson',
-              daysPending: 1,
-              priority: 'Medium',
-            ),
-            const SizedBox(height: 12),
-            _buildReviewItem(
-              title: 'Mobile App UI Design',
-              requester: 'Mike Chen',
-              daysPending: 3,
-              priority: 'Low',
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.center,
+              child: TextButton(
+                onPressed: () => context.go('/approvals'),
+                child: const Text('View Pending Reviews'),
+              ),
             ),
           ],
         ),
@@ -2632,16 +2790,20 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
 
   // Helper methods for Delivery Lead Dashboard
   Widget _buildSprintProgressBar() {
+    final s = _selectCurrentSprint();
+    final planned = _parseInt(s?['planned_points']) ?? _parseInt(s?['committed_points']) ?? _parseInt(s?['committedPoints']) ?? 0;
+    final completed = _parseInt(s?['completed_points']) ?? _parseInt(s?['completedPoints']) ?? 0;
+    final rate = planned > 0 ? (completed / planned) : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Sprint Progress: 60%',
+          'Sprint Progress: ${(rate * 100).toStringAsFixed(0)}%',
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
         LinearProgressIndicator(
-          value: 0.6,
+          value: rate,
           backgroundColor: Colors.grey[300],
           valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
           minHeight: 8,
@@ -2702,15 +2864,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  void _loadPendingReviews() {
-    // Simulate loading pending reviews
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Refreshing pending reviews...'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
+  
 
   Widget _buildReviewItem({
     required String title,
@@ -2869,63 +3023,33 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                       ),
                 ),
                 Badge(
-                  label: const Text('5'),
+                  label: Text((_dashboardApprovals.where((a) => a.status == ApprovalStatus.pending).length).toString()),
                   backgroundColor: Colors.red,
                   child: IconButton(
                     icon: const Icon(Icons.refresh),
-                    onPressed: _loadPendingApprovals,
+                    onPressed: _loadDashboardApprovals,
                     tooltip: 'Refresh Approvals',
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            
-            // Pending approval items
-            _buildPendingApprovalItem(
-              title: 'Mobile App Release v2.0',
-              submittedBy: 'John Smith',
-              daysPending: 2,
-              priority: 'High',
-              type: 'App Release',
-            ),
-            const SizedBox(height: 12),
-            _buildPendingApprovalItem(
-              title: 'Payment Gateway Integration',
-              submittedBy: 'Sarah Johnson',
-              daysPending: 1,
-              priority: 'Medium',
-              type: 'API Integration',
-            ),
-            const SizedBox(height: 12),
-            _buildPendingApprovalItem(
-              title: 'User Authentication System',
-              submittedBy: 'Mike Chen',
-              daysPending: 3,
-              priority: 'High',
-              type: 'Security Feature',
-            ),
-            const SizedBox(height: 12),
-            _buildPendingApprovalItem(
-              title: 'Dashboard UI Redesign',
-              submittedBy: 'Emily Davis',
-              daysPending: 1,
-              priority: 'Medium',
-              type: 'UI/UX Design',
-            ),
-            const SizedBox(height: 12),
-            _buildPendingApprovalItem(
-              title: 'Database Migration Script',
-              submittedBy: 'Alex Wilson',
-              daysPending: 4,
-              priority: 'Low',
-              type: 'Infrastructure',
-            ),
+            ..._dashboardApprovals
+              .where((r) => r.status == ApprovalStatus.pending)
+              .take(5)
+              .map((r) => _buildPendingApprovalItem(
+                    title: r.deliverableTitle.isNotEmpty ? r.deliverableTitle : 'Deliverable',
+                    submittedBy: r.requesterName.isNotEmpty ? r.requesterName : 'Unknown',
+                    daysPending: DateTime.now().difference(r.requestedAt).inDays,
+                    priority: 'High',
+                    type: 'Approval',
+                  ),
+              ),
             
             const SizedBox(height: 16),
             Center(
               child: TextButton(
-                onPressed: _showAllPendingApprovalsDialog,
+                onPressed: () => context.go('/approvals'),
                 child: const Text('View All Pending Approvals'),
               ),
             ),
@@ -2959,43 +3083,21 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Recent submission items
-            _buildRecentSubmissionItem(
-              title: 'Mobile App Analytics Dashboard',
-              submittedBy: 'John Smith',
-              submittedAt: DateTime.now().subtract(const Duration(hours: 2)),
-              status: 'Under Review',
-              type: 'Dashboard',
-            ),
-            const SizedBox(height: 12),
-            _buildRecentSubmissionItem(
-              title: 'Payment Processing API',
-              submittedBy: 'Sarah Johnson',
-              submittedAt: DateTime.now().subtract(const Duration(hours: 5)),
-              status: 'Approved',
-              type: 'API',
-            ),
-            const SizedBox(height: 12),
-            _buildRecentSubmissionItem(
-              title: 'User Profile Management',
-              submittedBy: 'Mike Chen',
-              submittedAt: DateTime.now().subtract(const Duration(days: 1)),
-              status: 'Revisions Requested',
-              type: 'Feature',
-            ),
-            const SizedBox(height: 12),
-            _buildRecentSubmissionItem(
-              title: 'Email Notification System',
-              submittedBy: 'Emily Davis',
-              submittedAt: DateTime.now().subtract(const Duration(days: 2)),
-              status: 'Approved',
-              type: 'Infrastructure',
-            ),
+            ..._dashboardDeliverables
+                .take(4)
+                .map((d) => _buildRecentSubmissionItem(
+                      title: d['title']?.toString() ?? 'Untitled',
+                      submittedBy: d['submitted_by']?.toString() ?? d['submittedBy']?.toString() ?? 'Unknown',
+                      submittedDate: _parseDate(d['submitted_at'] ?? d['submittedAt']) ?? DateTime.now(),
+                      status: d['status']?.toString() ?? 'submitted',
+                      type: 'Deliverable',
+                    ),
+                ),
             
             const SizedBox(height: 16),
             Center(
               child: TextButton(
-                onPressed: _showAllSubmissionsDialog,
+                onPressed: () => context.go('/report-repository'),
                 child: const Text('View All Submissions'),
               ),
             ),
@@ -3038,56 +3140,37 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Review history items
-            _buildReviewHistoryItem(
-              title: 'Mobile App Analytics Dashboard',
-              reviewedBy: 'You',
-              reviewDate: DateTime.now().subtract(const Duration(hours: 1)),
-              status: 'Approved',
-              reviewTime: '45 min',
-              score: 92,
-            ),
-            const SizedBox(height: 12),
-            _buildReviewHistoryItem(
-              title: 'Payment Processing API',
-              reviewedBy: 'You',
-              reviewDate: DateTime.now().subtract(const Duration(hours: 4)),
-              status: 'Approved',
-              reviewTime: '30 min',
-              score: 88,
-            ),
-            const SizedBox(height: 12),
-            _buildReviewHistoryItem(
-              title: 'User Profile Management',
-              reviewedBy: 'You',
-              reviewDate: DateTime.now().subtract(const Duration(days: 1)),
-              status: 'Revisions Requested',
-              reviewTime: '1h 15min',
-              score: 75,
-            ),
-            const SizedBox(height: 12),
-            _buildReviewHistoryItem(
-              title: 'Email Notification System',
-              reviewedBy: 'You',
-              reviewDate: DateTime.now().subtract(const Duration(days: 2)),
-              status: 'Approved',
-              reviewTime: '25 min',
-              score: 95,
-            ),
-            const SizedBox(height: 12),
-            _buildReviewHistoryItem(
-              title: 'Database Migration Script',
-              reviewedBy: 'You',
-              reviewDate: DateTime.now().subtract(const Duration(days: 3)),
-              status: 'Rejected',
-              reviewTime: '50 min',
-              score: 65,
-            ),
+            ..._reviewHistoryReports
+                .take(5)
+                .map((r) => _buildReviewHistoryItem(
+                      title: r.reportTitle,
+                      reviewedBy: r.reviewedBy ?? 'Unknown',
+                      reviewDate: r.reviewedAt ?? r.submittedAt ?? r.createdAt,
+                      status: r.statusDisplayName,
+                      reviewTime: (() {
+                        if (r.submittedAt != null && r.reviewedAt != null) {
+                          final mins = r.reviewedAt!.difference(r.submittedAt!).inMinutes;
+                          return '$mins min';
+                        }
+                        return '-';
+                      })(),
+                      score: (() {
+                        final perf = r.sprintPerformanceData;
+                        if (perf != null && perf.isNotEmpty) {
+                          final match = RegExp(r'quality\s*:\s*(\d+)').firstMatch(perf);
+                          if (match != null) {
+                            return int.tryParse(match.group(1)!) ?? 0;
+                          }
+                        }
+                        return 0;
+                      })(),
+                    ),
+                ),
             
             const SizedBox(height: 16),
             Center(
               child: TextButton(
-                onPressed: _showAllReviewHistoryDialog,
+                onPressed: () => context.go('/report-repository'),
                 child: const Text('View Complete History'),
               ),
             ),
@@ -3097,95 +3180,29 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
   Widget _buildTeamPerformance() {
-    if (_isLoadingTeamPerformance) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Team Performance Analytics',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              const Center(child: CircularProgressIndicator()),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_teamPerformanceError != null) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Team Performance Analytics',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: Column(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load team performance',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _teamPerformanceError!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _loadTeamPerformance,
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_teamPerformanceData.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Team Performance Analytics',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              const Center(
-                child: Text(
-                  'No team performance data available',
-                  style: TextStyle(fontStyle: FontStyle.italic),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final List<dynamic> rawMembers = (_analyticsData['team_performance'] ?? _analyticsData['members'] ?? _analyticsData['team'] ?? []) as List<dynamic>;
+    final List<Map<String, dynamic>> teamPerformanceData = rawMembers.map((m) {
+      final Map<String, dynamic> member = (m is Map)
+          ? Map<String, dynamic>.from(m)
+          : <String, dynamic>{};
+      final int completedPoints = _parseInt(member['completedPoints']) ?? _parseInt(member['completed_points']) ?? 0;
+      final int qualityScore = _parseInt(member['qualityScore']) ?? _parseInt(member['quality']) ?? 0;
+      final int velocity = _parseInt(member['velocity']) ?? 0;
+      final int blockedItems = _parseInt(member['blockedItems']) ?? _parseInt(member['blocked']) ?? 0;
+      final String avgCycleTime = (member['avgCycleTime'] ?? member['cycle_time'] ?? '').toString();
+      final String trend = (member['trend'] ?? '').toString();
+      return {
+        'name': (member['name'] ?? member['user_name'] ?? member['email'] ?? 'Unknown').toString(),
+        'role': (member['role'] ?? member['user_role'] ?? '').toString(),
+        'completedPoints': completedPoints,
+        'qualityScore': qualityScore,
+        'velocity': velocity,
+        'blockedItems': blockedItems,
+        'avgCycleTime': avgCycleTime,
+        'trend': trend.isEmpty ? 'stable' : trend,
+        'avatarUrl': member['avatarUrl'] ?? member['avatar_url'],
+      };
+    }).toList();
 
     return Card(
       child: Padding(
@@ -3217,19 +3234,23 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
               children: [
                 _buildTeamMetricCard(
                   title: 'Total Points',
-                  value: '143',
+                  value: teamPerformanceData.fold<int>(0, (sum, m) => sum + (m['completedPoints'] as int)).toString(),
                   icon: Icons.assessment,
                   color: Colors.blue,
                 ),
                 _buildTeamMetricCard(
                   title: 'Avg Quality',
-                  value: '91.5%',
+                  value: teamPerformanceData.isNotEmpty
+                      ? '${(teamPerformanceData.fold<int>(0, (sum, m) => sum + (m['qualityScore'] as int)) / teamPerformanceData.length).toStringAsFixed(1)}%'
+                      : '—',
                   icon: Icons.star,
                   color: Colors.green,
                 ),
                 _buildTeamMetricCard(
                   title: 'Avg Velocity',
-                  value: '21.3',
+                  value: teamPerformanceData.isNotEmpty
+                      ? (teamPerformanceData.fold<int>(0, (sum, m) => sum + (m['velocity'] as int)) / teamPerformanceData.length).toStringAsFixed(1)
+                      : '—',
                   icon: Icons.speed,
                   color: Colors.orange,
                 ),
@@ -3371,32 +3392,43 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                 ),
                 child: Row(
                   children: [
+        _buildMetricCard(
+          title: 'Active Users',
+          value: (_users.isNotEmpty
+                  ? _users.length
+                  : (_analyticsData['active_users'] ?? _systemMetrics!.userActivity.activeUsers))
+              .toString(),
+          icon: Icons.people,
+          color: Colors.blue,
+          trend: (_analyticsData['active_users_trend'] != null)
+              ? '${_analyticsData['active_users_trend'] > 0 ? '+' : ''}${(_analyticsData['active_users_trend']).toString()}%'
+              : '—',
+        ),
+                    const SizedBox(width: 12),
                     _buildMetricCard(
-                      'Active Users',
-                      '\${_systemMetrics!.userActivity.activeUsers}',
-                      Icons.people,
-                      Colors.blue,
+                      title: 'API Requests',
+                      value: (_analyticsData['api_requests'] ?? _systemMetrics!.database.queryCount).toString(),
+                      icon: Icons.api,
+                      color: Colors.green,
+                      trend: (_analyticsData['api_requests_trend'] != null)
+                          ? '${_analyticsData['api_requests_trend'] > 0 ? '+' : ''}${(_analyticsData['api_requests_trend']).toString()} today'
+                          : '—',
                     ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      'API Requests',
-                      '0',
-                      Icons.api,
-                      Colors.green,
+                      title: 'Response Time',
+                      value: '${_systemMetrics!.performance.responseTime}ms',
+                      icon: Icons.speed,
+                      color: Colors.orange,
+                      trend: '—',
                     ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      'Response Time',
-                      '\${_systemMetrics!.performance.responseTime}ms',
-                      Icons.speed,
-                      Colors.orange,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildMetricCard(
-                      'Uptime',
-                      '\${_systemMetrics!.systemHealth.uptimePercentage.toStringAsFixed(2)}%',
-                      Icons.timer,
-                      Colors.purple,
+                      title: 'Uptime',
+                      value: '${_systemMetrics!.performance.uptime.toStringAsFixed(1)}%',
+                      icon: Icons.timer,
+                      color: Colors.purple,
+                      trend: '—',
                     ),
                   ],
                 ),
@@ -3730,26 +3762,32 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
           children: [
             _buildUsageIndicator(
               title: 'CPU',
-              usage: 65,
+              usage: _systemMetrics?.performance.cpuUsage.round() ?? 0,
               max: 100,
-              color: Colors.blue,
+              color: _getUsageColor(_systemMetrics?.performance.cpuUsage ?? 0.0),
             ),
             _buildUsageIndicator(
               title: 'Memory',
-              usage: 78,
+              usage: _systemMetrics?.performance.memoryUsage.round() ?? 0,
               max: 100,
-              color: Colors.purple,
+              color: _getUsageColor(_systemMetrics?.performance.memoryUsage ?? 0.0),
             ),
             _buildUsageIndicator(
               title: 'Disk',
-              usage: 45,
+              usage: _systemMetrics?.performance.diskUsage.round() ?? 0,
               max: 100,
-              color: Colors.orange,
+              color: _getUsageColor(_systemMetrics?.performance.diskUsage ?? 0.0),
             ),
           ],
         ),
       ],
     );
+  }
+
+  Color _getUsageColor(double usage) {
+    if (usage < 70) return Colors.green;
+    if (usage < 85) return Colors.orange;
+    return Colors.red;
   }
 
   Widget _buildUsageIndicator({
@@ -3831,21 +3869,25 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
               children: [
                 _buildStatusItem(
                   title: 'System Status',
-                  status: 'Operational',
+                  status: _systemMetrics?.systemHealth.toString().split('.').last ?? 'Loading...',
                   icon: Icons.check_circle,
-                  color: Colors.green,
+                  color: _systemMetrics?.systemHealth == SystemHealthStatus.healthy 
+                      ? Colors.green : Colors.orange,
                 ),
                 _buildStatusItem(
                   title: 'Uptime',
-                  status: '15d 8h 23m',
+                  status: _systemMetrics?.performance.uptime != null 
+                      ? '${_systemMetrics!.performance.uptime.toStringAsFixed(1)}h' : 'Loading...',
                   icon: Icons.timer,
                   color: Colors.blue,
                 ),
                 _buildStatusItem(
                   title: 'Response Time',
-                  status: '42ms',
+                  status: _systemMetrics?.performance.responseTime != null 
+                      ? '${_systemMetrics!.performance.responseTime}ms' : 'Loading...',
                   icon: Icons.speed,
-                  color: Colors.green,
+                  color: _systemMetrics?.performance.responseTime != null && _systemMetrics!.performance.responseTime < 100 
+                      ? Colors.green : Colors.orange,
                 ),
               ],
             ),
@@ -4189,12 +4231,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     return Colors.red;
   }
 
-  void _loadPendingApprovals() {
-    // TODO: Implement actual pending approvals loading
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Refreshing pending approvals...')),
-    );
-  }
+  
 
   void _showRecentSubmissionsFilter() {
     // TODO: Implement recent submissions filter dialog
@@ -4242,53 +4279,11 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  void _showAllPendingApprovalsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('All Pending Approvals'),
-        content: const Text('You have 12 pending approvals across 5 different projects. Use the filter options to view by priority, project, or submission date.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
-  void _showAllSubmissionsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('All Submissions'),
-        content: const Text('There are 28 submissions in the last 30 days. 18 approved, 7 pending review, and 3 requiring revisions. Filter by status, date range, or project to see specific submissions.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
-  void _showAllReviewHistoryDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Complete Review History'),
-        content: const Text('Your review history shows 45 completed reviews with an average score of 87%. Export options include CSV, PDF, and detailed performance reports by date range or project.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
 
 
@@ -4789,31 +4784,31 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             children: [
               _buildSystemMetricCard(
                 title: 'Active Users',
-                value: '12',
+                value: '\${_systemMetrics!.userActivity.activeUsers}',
                 icon: Icons.people,
                 color: Colors.blue,
-                trend: '+2 today',
+                trend: '+\${_systemMetrics!.userActivity.newRegistrations} today',
               ),
               _buildSystemMetricCard(
                 title: 'Database Size',
-                value: '45.2 MB',
+                value: '\${_systemMetrics!.database.sizeMB.toStringAsFixed(1)} MB',
                 icon: Icons.data_usage,
                 color: Colors.purple,
-                trend: '+1.2 MB',
+                trend: '+\${_systemMetrics!.database.growthRate.toStringAsFixed(1)} MB',
               ),
               _buildSystemMetricCard(
                 title: 'Uptime',
-                value: '12d 8h',
+                value: '\${_formatUptime(_systemMetrics!.performance.uptime)}',
                 icon: Icons.timer,
                 color: Colors.orange,
-                trend: '99.8%',
+                trend: '\${_systemMetrics!.systemHealth.uptimePercentage.toStringAsFixed(1)}%',
               ),
               _buildSystemMetricCard(
                 title: 'API Requests',
-                value: '1.2K',
+                value: '\${_systemMetrics!.database.queryCount}',
                 icon: Icons.api,
                 color: Colors.green,
-                trend: '+142 today',
+                trend: '+\${_systemMetrics!.database.queryRate.toStringAsFixed(0)} today',
               ),
             ],
           ),
@@ -5218,33 +5213,33 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             const SizedBox(height: 16),
             _buildUsageChartItem(
               title: 'CPU Usage',
-              usage: 65,
+              usage: _systemMetrics?.performance.cpuUsage.round() ?? 0,
               max: 100,
-              color: Colors.blue,
-              trend: '+5%',
+              color: _getUsageColor(_systemMetrics?.performance.cpuUsage ?? 0.0),
+              trend: '${_systemMetrics != null ? _systemMetrics!.performance.cpuUsage.toStringAsFixed(1) : '0.0'}% avg',
             ),
             const SizedBox(height: 12),
             _buildUsageChartItem(
               title: 'Memory Usage',
-              usage: 78,
+              usage: _systemMetrics?.performance.memoryUsage.round() ?? 0,
               max: 100,
-              color: Colors.purple,
-              trend: '+12%',
+              color: _getUsageColor(_systemMetrics?.performance.memoryUsage ?? 0.0),
+              trend: '${_systemMetrics != null ? _systemMetrics!.performance.memoryUsage.toStringAsFixed(1) : '0.0'}% avg',
             ),
             const SizedBox(height: 12),
             _buildUsageChartItem(
               title: 'Disk Usage',
-              usage: 45,
+              usage: _systemMetrics?.performance.diskUsage.round() ?? 0,
               max: 100,
-              color: Colors.orange,
-              trend: '+3%',
+              color: _getUsageColor(_systemMetrics?.performance.diskUsage ?? 0.0),
+              trend: '${_systemMetrics != null ? _systemMetrics!.performance.diskUsage.toStringAsFixed(1) : '0.0'}% avg',
             ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Last updated: ${DateTime.now().toString().substring(11, 16)}',
+                  'Last updated: ${_systemMetrics?.lastUpdated.toString().substring(11, 16) ?? '—'}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.grey,
                       ),
@@ -5316,7 +5311,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '${usage}GB / ${max}GB',
+              '$usage% of $max%',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.grey,
                   ),
@@ -5335,6 +5330,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   void _refreshSystemUsage() {
+    _loadSystemMetrics();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('System usage data refreshed'),
@@ -5438,7 +5434,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter email';
                         }
-                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+\$').hasMatch(value)) {
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)) {
                           return 'Please enter a valid email';
                         }
                         return null;
@@ -6797,99 +6793,30 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildBurnDownChart() {
-    // Show loading state
-    if (_isLoadingBurnDownData) {
-      return Container(
-        height: 250,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Loading burn-down data...'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Show error state
-    if (_burnDownDataError != null) {
-      return Container(
-        height: 250,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'Failed to load burn-down data',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _burnDownDataError!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadBurnDownData,
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Show empty state
-    if (_burnDownData.isEmpty) {
-      return Container(
-        height: 250,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.analytics_outlined, color: Colors.grey, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'No burn-down data available',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Burn-down data will appear here once available',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final s = _selectCurrentSprint();
+    final planned = _parseInt(s?['planned_points']) ?? _parseInt(s?['committed_points']) ?? _parseInt(s?['committedPoints']) ?? 0;
+    final completed = _parseInt(s?['completed_points']) ?? _parseInt(s?['completedPoints']) ?? 0;
+    final start = _parseDate(s?['start_date'] ?? s?['startDate']);
+    final end = _parseDate(s?['end_date'] ?? s?['endDate']);
+    final totalDays = (start != null && end != null) ? (end.difference(start).inDays + 1).clamp(1, 60) : 8;
+    final todayIndex = (start != null) ? DateTime.now().difference(start).inDays.clamp(0, totalDays - 1) : totalDays - 1;
+    final idealPerDay = planned > 0 ? planned / totalDays : 0.0;
+    final remainingNow = (planned - completed).clamp(0, planned);
+    final burnDownData = List.generate(totalDays, (i) {
+      final ideal = (planned - idealPerDay * i).clamp(0.0, planned.toDouble());
+      double actualRemaining;
+      if (i <= todayIndex && completed > 0 && todayIndex > 0) {
+        final completedUpToDay = completed * (i / todayIndex);
+        actualRemaining = (planned - completedUpToDay).clamp(0.0, planned.toDouble());
+      } else {
+        actualRemaining = remainingNow.toDouble();
+      }
+      return {
+        'day': 'Day ${i + 1}',
+        'remaining': actualRemaining,
+        'ideal': ideal,
+      };
+    });
 
     return Container(
       height: 250,
@@ -7170,14 +7097,8 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildTeamPerformanceTrendsChart() {
-    // Sample trend data
-    final trendData = [
-      {'week': 'Week 1', 'points': 35, 'quality': 89},
-      {'week': 'Week 2', 'points': 38, 'quality': 91},
-      {'week': 'Week 3', 'points': 42, 'quality': 92},
-      {'week': 'Week 4', 'points': 45, 'quality': 94},
-      {'week': 'Week 5', 'points': 40, 'quality': 91},
-    ];
+    final List<dynamic> rawTrends = (_analyticsData['performance_trends'] ?? _analyticsData['trends'] ?? []) as List<dynamic>;
+    final List<Map<String, dynamic>> trendData = rawTrends.map((t) => (t is Map) ? t.cast<String, dynamic>() : <String, dynamic>{}).where((t) => t.isNotEmpty).toList();
 
     return Container(
       height: 200,
@@ -7191,73 +7112,78 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Performance Trends (Last 5 Weeks)',
+            'Performance Trends',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
           ),
           const SizedBox(height: 16),
-          Expanded(
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: true),
-                titlesData: FlTitlesData(
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final index = value.toInt();
-                        if (index >= 0 && index < trendData.length) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              trendData[index]['week'].toString(),
-                              style: const TextStyle(fontSize: 10),
-                            ),
+          if (trendData.isEmpty)
+            const Center(child: Text('No performance trends data available'))
+          else
+            Expanded(
+              child: LineChart(
+                LineChartData(
+                  gridData: const FlGridData(show: true),
+                  titlesData: FlTitlesData(
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index >= 0 && index < trendData.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                (trendData[index]['week'] ?? trendData[index]['label'] ?? '').toString(),
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            value.toInt().toString(),
+                            style: const TextStyle(fontSize: 10),
                           );
-                        }
-                        return const Text('');
-                      },
+                        },
+                      ),
                     ),
                   ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          value.toInt().toString(),
-                          style: const TextStyle(fontSize: 10),
-                        );
-                      },
+                  borderData: FlBorderData(show: true),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: trendData.asMap().entries.map((entry) {
+                        final num points = (entry.value['points'] ?? entry.value['value'] ?? 0) as num;
+                        return FlSpot(entry.key.toDouble(), points.toDouble());
+                      }).toList(),
+                      isCurved: true,
+                      color: Colors.blue,
+                      barWidth: 3,
+                      belowBarData: BarAreaData(show: false),
+                      dotData: const FlDotData(show: true),
                     ),
-                  ),
+                    LineChartBarData(
+                      spots: trendData.asMap().entries.map((entry) {
+                        final num quality = (entry.value['quality'] ?? entry.value['score'] ?? 0) as num;
+                        return FlSpot(entry.key.toDouble(), quality.toDouble());
+                      }).toList(),
+                      isCurved: true,
+                      color: Colors.green,
+                      barWidth: 3,
+                      belowBarData: BarAreaData(show: false),
+                      dotData: const FlDotData(show: true),
+                    ),
+                  ],
                 ),
-                borderData: FlBorderData(show: true),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: trendData.asMap().entries.map((entry) {
-                      return FlSpot(entry.key.toDouble(), (entry.value['points'] as num).toDouble());
-                    }).toList(),
-                    isCurved: true,
-                    color: Colors.blue,
-                    barWidth: 3,
-                    belowBarData: BarAreaData(show: false),
-                    dotData: const FlDotData(show: true),
-                  ),
-                  LineChartBarData(
-                    spots: trendData.asMap().entries.map((entry) {
-                      return FlSpot(entry.key.toDouble(), (entry.value['quality'] as num).toDouble());
-                    }).toList(),
-                    isCurved: true,
-                    color: Colors.green,
-                    barWidth: 3,
-                    belowBarData: BarAreaData(show: false),
-                    dotData: const FlDotData(show: true),
-                  ),
-                ],
               ),
             ),
-          ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -7337,6 +7263,100 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       ),
     );
   }
+
+  void _setupRealtimeListeners() {
+    realtimeService.on('user_role_changed', _handleRoleChanged);
+    realtimeService.on('audit_log_created', _handleAuditLogCreated);
+    realtimeService.on('audit_log_deleted', _handleAuditLogDeleted);
+    realtimeService.on('audit_log_cleared', _handleAuditLogCleared);
+    realtimeService.on('sprint_created', (_) => _loadDashboardSprints());
+    realtimeService.on('sprint_updated', (_) => _loadDashboardSprints());
+    realtimeService.on('deliverable_created', (_) { _loadDashboardApprovals(); _loadDashboardDeliverables(); });
+    realtimeService.on('deliverable_updated', (_) { _loadDashboardApprovals(); _loadDashboardDeliverables(); });
+    realtimeService.on('approval_created', (_) => _loadDashboardApprovals());
+    realtimeService.on('approval_updated', (_) => _loadDashboardApprovals());
+  }
+
+  void _handleRoleChanged(dynamic data) {
+    // When a user's role changes, reload the current user and users list
+    // to ensure the dashboard reflects the updated role
+    if (mounted) {
+      _loadCurrentUser();
+      _loadUsers();
+    }
+  }
+
+  void _handleAuditLogCreated(dynamic data) {
+    try {
+      final Map<String, dynamic> log = Map<String, dynamic>.from(data is Map ? data : {});
+      if (log.isEmpty) return;
+      setState(() {
+        _auditLogs.insert(0, log);
+        _filteredAuditLogs = _auditLogs;
+      });
+    } catch (_) {}
+  }
+
+  void _handleAuditLogDeleted(dynamic data) {
+    try {
+      final String id = (data is Map && data['id'] != null) ? data['id'].toString() : '';
+      if (id.isEmpty) return;
+      setState(() {
+        _auditLogs.removeWhere((log) => (log['id']?.toString() ?? '') == id);
+        _filteredAuditLogs = _auditLogs;
+      });
+    } catch (_) {}
+  }
+
+  void _handleAuditLogCleared(dynamic data) {
+    setState(() {
+      _auditLogs.clear();
+      _filteredAuditLogs = _auditLogs;
+    });
+  }
+  Map<String, dynamic>? _selectCurrentSprint() {
+    if (_dashboardSprints.isEmpty) return null;
+    final inProgress = _dashboardSprints.where((s) {
+      final status = (s['status'] ?? s['state'] ?? '').toString().toLowerCase();
+      return status == 'in_progress' || status == 'active';
+    }).toList();
+    if (inProgress.isNotEmpty) return inProgress.first;
+    return _dashboardSprints.last;
+  }
+
+  String _computeDaysRemaining() {
+    final s = _selectCurrentSprint();
+    if (s == null) return '0';
+    final endStr = s['end_date'] ?? s['endDate'];
+    try {
+      final end = DateTime.parse(endStr.toString());
+      final days = end.difference(DateTime.now()).inDays;
+      return days > 0 ? days.toString() : '0';
+    } catch (_) {
+      return '0';
+    }
+  }
+
+  String _computePointsBurned() {
+    final s = _selectCurrentSprint();
+    final completed = _parseInt(s?['completed_points']) ?? _parseInt(s?['completedPoints']) ?? 0;
+    return completed.toString();
+  }
+
+  String _computeAvgDailyBurn() {
+    final s = _selectCurrentSprint();
+    if (s == null) return '0';
+    final startStr = s['start_date'] ?? s['startDate'];
+    final completed = _parseInt(s['completed_points']) ?? _parseInt(s['completedPoints']) ?? 0;
+    try {
+      final start = DateTime.parse(startStr.toString());
+      final days = DateTime.now().difference(start).inDays;
+      final avg = days > 0 ? completed / days : completed.toDouble();
+      return avg.toStringAsFixed(1);
+    } catch (_) {
+      return completed.toString();
+    }
+  }
 }
 
 // Extension for number formatting with suffixes (K, M, etc.)
@@ -7345,57 +7365,169 @@ extension NumberFormatting on int {
     if (this < 1000) return toString();
     
     if (this < 1000000) {
-      return '\\${(this / 1000).toStringAsFixed(1)}K';
+      return '${(this / 1000).toStringAsFixed(1)}K';
     }
     
-    return '\\${(this / 1000000).toStringAsFixed(1)}M';
+    return '${(this / 1000000).toStringAsFixed(1)}M';
   }
 }
 
+class SprintOverviewDetailPage extends StatelessWidget {
+  final Map<String, dynamic>? sprint;
+  const SprintOverviewDetailPage({super.key, required this.sprint});
 
-// Recent submission item data class
-class RecentSubmissionItem {
-  final String id;
-  final String title;
-  final String type;
-  final String status;
-  final DateTime submittedAt;
-  final String submittedBy;
-  final double score;
-  final String? reviewComments;
+  int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
 
-  RecentSubmissionItem({
-    required this.id,
-    required this.title,
-    required this.type,
-    required this.status,
-    required this.submittedAt,
-    required this.submittedBy,
-    required this.score,
-    this.reviewComments,
-  });
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    try {
+      return DateTime.parse(value.toString());
+    } catch (_) {
+      return null;
+    }
+  }
 
-  factory RecentSubmissionItem.fromJson(Map<String, dynamic> json) {
-    return RecentSubmissionItem(
-      id: json['id']?.toString() ?? '',
-      title: json['title']?.toString() ?? '',
-      type: json['type']?.toString() ?? '',
-      status: json['status']?.toString() ?? '',
-      submittedAt: DateTime.parse(json['submitted_at']?.toString() ?? DateTime.now().toIso8601String()),
-      submittedBy: json['submitted_by']?.toString() ?? '',
-      score: (json['score'] as num?)?.toDouble() ?? 0.0,
-      reviewComments: json['review_comments']?.toString(),
+  @override
+  Widget build(BuildContext context) {
+    final planned = _parseInt(sprint?['planned_points']) ?? _parseInt(sprint?['committed_points']) ?? _parseInt(sprint?['committedPoints']) ?? 0;
+    final completed = _parseInt(sprint?['completed_points']) ?? _parseInt(sprint?['completedPoints']) ?? 0;
+    final start = _parseDate(sprint?['start_date'] ?? sprint?['startDate']);
+    final end = _parseDate(sprint?['end_date'] ?? sprint?['endDate']);
+    final totalDays = (start != null && end != null) ? (end.difference(start).inDays + 1).clamp(1, 60) : 8;
+    final todayIndex = (start != null) ? DateTime.now().difference(start).inDays.clamp(0, totalDays - 1) : totalDays - 1;
+    final idealPerDay = planned > 0 ? planned / totalDays : 0.0;
+    final remainingNow = (planned - completed).clamp(0, planned);
+    final burnDownData = List.generate(totalDays, (i) {
+      final ideal = (planned - idealPerDay * i).clamp(0.0, planned.toDouble());
+      double actualRemaining;
+      if (i <= todayIndex && completed > 0 && todayIndex > 0) {
+        final completedUpToDay = completed * (i / todayIndex);
+        actualRemaining = (planned - completedUpToDay).clamp(0.0, planned.toDouble());
+      } else {
+        actualRemaining = remainingNow.toDouble();
+      }
+      return {
+        'day': 'Day ${i + 1}',
+        'remaining': actualRemaining,
+        'ideal': ideal,
+      };
+    });
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Sprint Overview: ${sprint?['name'] ?? 'Sprint'}'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: _infoTile('Committed', '$planned pts', Icons.assignment, Colors.blue)),
+                const SizedBox(width: 12),
+                Expanded(child: _infoTile('Completed', '$completed pts', Icons.check_circle, Colors.green)),
+                const SizedBox(width: 12),
+                Expanded(child: _infoTile('Progress', planned > 0 ? '${((completed / planned) * 100).toStringAsFixed(0)}%' : '0%', Icons.timeline, Colors.orange)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Burn-down Chart', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 240,
+                      child: LineChart(
+                        LineChartData(
+                          gridData: const FlGridData(show: true),
+                          titlesData: FlTitlesData(
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) {
+                                  final index = value.toInt();
+                                  if (index >= 0 && index < burnDownData.length) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Text(burnDownData[index]['day'].toString(), style: const TextStyle(fontSize: 10)),
+                                    );
+                                  }
+                                  return const Text('');
+                                },
+                              ),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) => Text(value.toInt().toString(), style: const TextStyle(fontSize: 10)),
+                              ),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: true),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: burnDownData.asMap().entries.map((entry) => FlSpot(entry.key.toDouble(), (entry.value['remaining'] as num).toDouble())).toList(),
+                              isCurved: true,
+                              color: Colors.blue,
+                              barWidth: 3,
+                              belowBarData: BarAreaData(show: false),
+                              dotData: const FlDotData(show: true),
+                            ),
+                            LineChartBarData(
+                              spots: burnDownData.asMap().entries.map((entry) => FlSpot(entry.key.toDouble(), (entry.value['ideal'] as num).toDouble())).toList(),
+                              isCurved: false,
+                              color: Colors.grey,
+                              barWidth: 2,
+                              belowBarData: BarAreaData(show: false),
+                              dotData: const FlDotData(show: false),
+                              dashArray: [5, 5],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'type': type,
-        'status': status,
-        'submitted_at': submittedAt.toIso8601String(),
-        'submitted_by': submittedBy,
-        'score': score,
-        'review_comments': reviewComments,
-      };
+  Widget _infoTile(String title, String value, IconData icon, Color color) {
+    return Card(
+      color: color.withAlpha(20),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: color)),
+                Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
+

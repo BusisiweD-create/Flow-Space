@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/release_readiness.dart';
+import '../providers/client_approval_provider.dart';
+import '../providers/service_providers.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -216,14 +218,98 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     });
 
     try {
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      final backendService = ref.read(backendApiServiceProvider);
+      final payload = {
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'dueDate': (_dueDate ?? DateTime.now()).toIso8601String(),
+        'sprintIds': _selectedSprints,
+        'definitionOfDone': _definitionOfDone,
+        'evidenceLinks': _evidenceLinks,
+      };
+      final response = await backendService.createDeliverable(payload);
+      if (response.isSuccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Deliverable "${_titleController.text}" created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error creating deliverable: ${response.error ?? 'Request failed'}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating deliverable: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendForApproval() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    _checkReadiness();
+    final readinessStatus = _calculateReadinessStatus();
+    
+    if (readinessStatus == ReadinessStatus.red) {
+      _showReadinessDialog();
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final backendService = ref.read(backendApiServiceProvider);
+      final payload = {
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'dueDate': (_dueDate ?? DateTime.now()).toIso8601String(),
+        'sprintIds': _selectedSprints,
+        'definitionOfDone': _definitionOfDone,
+        'evidenceLinks': _evidenceLinks,
+      };
+      final createResponse = await backendService.createDeliverable(payload);
+      final createdDeliverableId = createResponse.data != null
+          ? (createResponse.data!['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString())
+          : DateTime.now().millisecondsSinceEpoch.toString();
+      
+      final approvalNotifier = ref.read(clientApprovalProvider.notifier);
+      await approvalNotifier.sendForApproval(
+        deliverableId: createdDeliverableId,
+        deliverableTitle: _titleController.text,
+        clientId: 'client_1',
+        clientName: 'Client Name',
+        dueDate: _dueDate,
+      );
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Deliverable "${_titleController.text}" created successfully!'),
-            backgroundColor: Colors.green,
+            content: Text('Deliverable "${_titleController.text}" sent for client approval!'),
+            backgroundColor: Colors.blue,
           ),
         );
         Navigator.pop(context);
@@ -232,7 +318,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error creating deliverable: $e'),
+            content: Text('Error sending for approval: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -474,27 +560,72 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
               ),
               const SizedBox(height: 24),
 
-              // Submit Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submitDeliverable,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: readinessStatus == ReadinessStatus.green ? Colors.green :
-                                   readinessStatus == ReadinessStatus.amber ? Colors.orange :
-                                   Colors.red,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isSubmitting
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          readinessStatus == ReadinessStatus.green ? 'Create Deliverable' :
-                          readinessStatus == ReadinessStatus.amber ? 'Create with Acknowledged Issues' :
-                          'Complete Required Items First',
-                          style: const TextStyle(fontSize: 16),
+              // Submit Buttons
+              if (readinessStatus != ReadinessStatus.red)
+                Column(
+                  children: [
+                    // Send for Approval Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _sendForApproval,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
+                        child: _isSubmitting
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text(
+                                'Send for Client Approval',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Regular Create Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submitDeliverable,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: readinessStatus == ReadinessStatus.green ? Colors.green :
+                                         readinessStatus == ReadinessStatus.amber ? Colors.orange :
+                                         Colors.red,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _isSubmitting
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : Text(
+                                readinessStatus == ReadinessStatus.green ? 'Create Deliverable' :
+                                readinessStatus == ReadinessStatus.amber ? 'Create with Acknowledged Issues' :
+                                'Complete Required Items First',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submitDeliverable,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: readinessStatus == ReadinessStatus.green ? Colors.green :
+                                     readinessStatus == ReadinessStatus.amber ? Colors.orange :
+                                     Colors.red,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: _isSubmitting
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : Text(
+                            readinessStatus == ReadinessStatus.green ? 'Create Deliverable' :
+                            readinessStatus == ReadinessStatus.amber ? 'Create with Acknowledged Issues' :
+                            'Complete Required Items First',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                  ),
                 ),
-              ),
             ],
           ),
         ),

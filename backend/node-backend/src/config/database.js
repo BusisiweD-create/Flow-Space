@@ -1,14 +1,19 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-// PostgreSQL configuration - only real database, no fallback
-const databaseUrl = process.env.DATABASE_URL;
+const DB_HOST = process.env.DB_HOST;
+const DB_PORT = process.env.DB_PORT || '5432';
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+const DB_PASSWORD = process.env.DB_PASSWORD;
 
-if (!databaseUrl || !databaseUrl.includes('postgresql://')) {
-  throw new Error('DATABASE_URL environment variable is required and must be a PostgreSQL connection string');
+if (!DB_HOST || !DB_NAME || !DB_USER || !DB_PASSWORD) {
+  throw new Error('Missing PostgreSQL env vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD');
 }
 
-const sequelize = new Sequelize(databaseUrl, {
+const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
+  host: DB_HOST,
+  port: parseInt(DB_PORT, 10),
   dialect: 'postgres',
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   pool: {

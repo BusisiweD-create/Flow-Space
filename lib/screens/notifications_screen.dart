@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/notification_item.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../providers/notification_provider.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -12,54 +13,67 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
-  final List<NotificationItem> _notifications = [
-    NotificationItem(
-      id: '1',
-      title: 'New Approval Request',
-      description:
-          'John Doe has requested approval for User Authentication System',
-      date: DateTime.now().subtract(const Duration(minutes: 30)),
-      isRead: false,
-      type: NotificationType.approval,
-      message: 'John Doe has requested approval for User Authentication System.',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
-    ),
-    NotificationItem(
-      id: '2',
-      title: 'Sprint Completed',
-      description: 'Sprint 3 has been completed successfully',
-      date: DateTime.now().subtract(const Duration(hours: 2)),
-      isRead: false,
-      type: NotificationType.sprint,
-      message: 'Sprint 3 has been completed successfully.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    NotificationItem(
-      id: '3',
-      title: 'File Uploaded',
-      description: 'Alice Johnson uploaded project_design.pdf to repository',
-      date: DateTime.now().subtract(const Duration(hours: 4)),
-      isRead: true,
-      type: NotificationType.repository,
-      message: 'Alice Johnson uploaded project_design.pdf to repository.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 4)),
-    ),
-    NotificationItem(
-      id: '4',
-      title: 'Deliverable Due',
-      description: 'Database Schema Update deliverable is due tomorrow',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      isRead: true,
-      type: NotificationType.deliverable,
-      message: 'Database Schema Update deliverable is due tomorrow.',
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Load notifications when screen is first displayed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationProvider.notifier).loadNotifications();
+    });
+  }
+
+  void _markAllAsRead() {
+    // This would need to be implemented in the notification provider
+    // For now, we'll just reload notifications
+    ref.read(notificationProvider.notifier).loadNotifications();
+  }
+
+  void _markAsRead(String notificationId) {
+    // This would need to be implemented in the notification provider
+    // For now, we'll just reload notifications
+    ref.read(notificationProvider.notifier).loadNotifications();
+  }
+
+  // Helper method to convert API notification type string to NotificationType enum
+
+  // Helper method to generate title from notification type
 
   @override
   Widget build(BuildContext context) {
-    final unreadCount = _notifications.where((n) => !n.isRead).length;
-    final totalCount = _notifications.length;
+    final notificationState = ref.watch(notificationProvider);
+    
+    if (notificationState.isLoading) {
+      return const Scaffold(
+        backgroundColor: FlownetColors.charcoalBlack,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: FlownetColors.electricBlue,
+          ),
+        ),
+      );
+    }
+    
+    if (notificationState.error != null) {
+      return Scaffold(
+        backgroundColor: FlownetColors.charcoalBlack,
+        appBar: AppBar(
+          title: const FlownetLogo(showText: true),
+          backgroundColor: FlownetColors.charcoalBlack,
+          foregroundColor: FlownetColors.pureWhite,
+          centerTitle: false,
+        ),
+        body: Center(
+          child: Text(
+            'Error loading notifications: ${notificationState.error}',
+            style: const TextStyle(color: FlownetColors.pureWhite),
+          ),
+        ),
+      );
+    }
+    
+    final notifications = notificationState.notifications;
+    final unreadCount = notificationState.unreadCount;
+    final totalCount = notifications.length;
 
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
@@ -144,9 +158,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           // Notifications list
           Expanded(
             child: ListView.builder(
-              itemCount: _notifications.length,
+              itemCount: notifications.length,
               itemBuilder: (context, index) {
-                final notification = _notifications[index];
+                final notification = notifications[index];
                 return Card(
                   margin:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -263,26 +277,5 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
   }
 
-  void _markAsRead(String id) {
-    setState(() {
-      final index = _notifications.indexWhere((n) => n.id == id);
-      if (index != -1) {
-        _notifications[index] = _notifications[index].copyWith(isRead: true);
-      }
-    });
-  }
 
-  void _markAllAsRead() {
-    setState(() {
-      for (int i = 0; i < _notifications.length; i++) {
-        _notifications[i] = _notifications[i].copyWith(isRead: true);
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('All notifications marked as read'),
-        backgroundColor: FlownetColors.electricBlue,
-      ),
-    );
-  }
 }

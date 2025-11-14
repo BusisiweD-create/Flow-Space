@@ -113,7 +113,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error creating sprint: \$e')),
+          SnackBar(content: Text('Error creating sprint: $e')),
         );
       }
     }
@@ -199,7 +199,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         ),
                         child: Text(
                           _startDate != null
-                              ? '\${_startDate!.day}/\${_startDate!.month}/\${_startDate!.year}'
+                              ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
                               : 'Select start date',
                         ),
                       ),
@@ -217,7 +217,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         ),
                         child: Text(
                           _endDate != null
-                              ? '\${_endDate!.day}/\${_endDate!.month}/\${_endDate!.year}'
+                              ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
                               : 'Select end date',
                         ),
                       ),

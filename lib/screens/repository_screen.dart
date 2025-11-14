@@ -2,8 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/repository_file.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -38,27 +38,35 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
       // For demo purposes, we'll use a default project ID
       final filesData = await ApiService.getProjectFiles('default-project-id');
       
-      // Convert API response to RepositoryFile objects
-      final files = filesData.map((fileData) {
-        return RepositoryFile(
-          id: fileData['id']?.toString() ?? '',
-          name: fileData['name']?.toString() ?? 'Unknown File',
-          fileType: fileData['fileType']?.toString() ?? 'document',
-          uploadDate: fileData['uploadDate'] != null 
-              ? DateTime.parse(fileData['uploadDate'])
-              : DateTime.now(),
-          uploadedBy: fileData['uploadedBy']?.toString() ?? '',
-          size: fileData['size']?.toString() ?? '0 MB',
-          description: fileData['description']?.toString() ?? '',
-          uploader: fileData['uploader']?.toString() ?? 'Unknown User',
-          sizeInMB: (fileData['sizeInMB'] as num?)?.toDouble() ?? 0.0,
-        );
-      }).toList();
-      
-      setState(() {
-        _files = files;
-        _isLoading = false;
-      });
+      if (filesData.isEmpty) {
+        // No files available - show empty state instead of mock data
+        setState(() {
+          _files = [];
+          _isLoading = false;
+        });
+      } else {
+        // Convert API response to RepositoryFile objects
+        final files = filesData.map((fileData) {
+          return RepositoryFile(
+            id: fileData['id']?.toString() ?? '',
+            name: fileData['name']?.toString() ?? 'Unknown File',
+            fileType: fileData['fileType']?.toString() ?? 'document',
+            uploadDate: fileData['uploadDate'] != null 
+                ? DateTime.parse(fileData['uploadDate'])
+                : DateTime.now(),
+            uploadedBy: fileData['uploadedBy']?.toString() ?? '',
+            size: fileData['size']?.toString() ?? '0 MB',
+            description: fileData['description']?.toString() ?? '',
+            uploader: fileData['uploader']?.toString() ?? 'Unknown User',
+            sizeInMB: (fileData['sizeInMB'] as num?)?.toDouble() ?? 0.0,
+          );
+        }).toList();
+        
+        setState(() {
+          _files = files;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -299,7 +307,6 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
   }
 
   Future<void> _uploadFile() async {
-    // Handle web platform where file_picker may not work properly
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -309,9 +316,8 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
       );
       return;
     }
-    
     try {
-      // Open file picker to select files
+      // Open file picker to select files - works on both web and desktop
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
         type: FileType.custom,

@@ -69,7 +69,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         ),
       );
 
-      // Use the API service (now with mock implementation)
+      // Use the API service
       final deliverable = await ApiService.createDeliverable(
         title: _titleController.text,
         description: _descriptionController.text,

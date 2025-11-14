@@ -111,7 +111,6 @@ Your project includes comprehensive database schemas:
 ## Database Files Available
 
 - `database_schema_complete.sql` - Complete schema
-- `database_sample_data.sql` - Sample data for testing
 - `database_migrations.sql` - Incremental migrations
 
 ## Next Steps

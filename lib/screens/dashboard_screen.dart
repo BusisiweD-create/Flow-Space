@@ -14,14 +14,40 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> {
+  List<Deliverable> deliverables = [];
+  List<Sprint> sprints = [];
+  bool _isLoading = false;
+  String? _error;
+
   @override
   void initState() {
     super.initState();
-    // Load dashboard data when the screen is initialized
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(dashboardNotifierProvider.notifier).loadDashboardData();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
     });
+
+    try {
+      // Load deliverables and sprints from API
+      // TODO: Implement actual API calls to load real data
+      // For now, we'll keep arrays empty to avoid mock data
+      setState(() {
+        deliverables = [];
+        sprints = [];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load dashboard data: \$e';
+        _isLoading = false;
+      });
+      debugPrint('Error loading dashboard data: \$e');
+    }
   }
 
   @override
@@ -78,23 +104,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ),
-      body: dashboardState.isLoading
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : dashboardState.error != null
+          : _error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
                       Text(
-                        dashboardState.error!,
-                        style: Theme.of(context).textTheme.bodyLarge,
+                        'Failed to load dashboard',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _error!,
                         textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: () {
-                          ref.read(dashboardNotifierProvider.notifier).loadDashboardData();
-                        },
+                        onPressed: _loadDashboardData,
                         child: const Text('Retry'),
                       ),
                     ],
@@ -110,15 +141,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       const SizedBox(height: 24),
 
                       // Key Metrics Row
-                      _buildMetricsRow(dashboardState),
+                      _buildMetricsRow(),
                       const SizedBox(height: 24),
 
                       // Sprint Performance Chart
-                      _buildSprintPerformanceSection(dashboardState),
+                      _buildSprintPerformanceSection(),
                       const SizedBox(height: 24),
 
                       // Deliverables Section
-                      _buildDeliverablesSection(dashboardState),
+                      _buildDeliverablesSection(),
                     ],
                   ),
                 ),
@@ -306,15 +337,36 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        ...dashboardState.deliverables.take(5).map((deliverable) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DeliverableCard(
-                deliverable: deliverable,
-                onTap: () {
-                  _showDeliverableDetailsDialog(deliverable);
-                },
-              ),
-            ),),
+        if (deliverables.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                const Icon(Icons.assignment, size: 48, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text(
+                  'No deliverables yet',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Create your first deliverable to get started',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
+        else
+          ...deliverables.map((deliverable) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DeliverableCard(
+                  deliverable: deliverable,
+                  onTap: () {
+                    _showDeliverableDetailsDialog(deliverable);
+                  },
+                ),
+              ),),
       ],
     );
   }

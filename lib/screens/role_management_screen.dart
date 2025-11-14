@@ -5,6 +5,7 @@ import '../models/user.dart';
 import '../models/user_role.dart';
 import '../services/backend_api_service.dart';
 import '../services/error_handler.dart';
+import '../services/realtime_service.dart';
 import '../services/user_data_service.dart';
 
 class RoleManagementScreen extends StatefulWidget {
@@ -23,10 +24,28 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   String _searchQuery = '';
   UserRole? _filterRole;
   final UserDataService _userDataService = UserDataService();
+  late final RealtimeService realtimeService;
 
   @override
   void initState() {
     super.initState();
+    realtimeService = RealtimeService();
+    _loadUsers();
+    _setupRealtimeListeners();
+  }
+
+  @override
+  void dispose() {
+    realtimeService.off('user_role_changed', _handleRoleChanged);
+    super.dispose();
+  }
+
+  void _setupRealtimeListeners() {
+    realtimeService.on('user_role_changed', _handleRoleChanged);
+  }
+
+  void _handleRoleChanged(dynamic data) {
+    // Reload users when a role change is detected from another session
     _loadUsers();
   }
 

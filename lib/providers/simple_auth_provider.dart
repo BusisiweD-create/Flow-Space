@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/api_service.dart';
+import '../providers/service_providers.dart';
+import '../models/user_role.dart';
 
 // Simple auth state for demo purposes
 class AuthState {
@@ -35,14 +36,13 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
     required String password,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
-    
     try {
-      final response = await ApiService.signIn(email: email, password: password);
-      
-      if (response != null && response['user'] != null) {
+      final auth = ref.read(authServiceProvider);
+      final ok = await auth.signIn(email, password);
+      if (ok) {
         state = state.copyWith(
           isLoading: false,
-          userEmail: email,
+          userEmail: auth.currentUser?.email ?? email,
         );
       } else {
         state = state.copyWith(
@@ -67,27 +67,22 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
     required String role,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
-    
     try {
-      final response = await ApiService.signUp(
-        email: email,
-        password: password,
-        firstName: firstName,
-        lastName: lastName,
-        company: company,
-        role: role,
+      final auth = ref.read(authServiceProvider);
+      final roleEnum = UserRole.values.firstWhere(
+        (e) => e.name.toLowerCase() == role.toLowerCase(),
+        orElse: () => UserRole.teamMember,
       );
-      
-      if (response != null && response['user'] != null) {
+      final result = await auth.signUp(email, password, '$firstName $lastName', roleEnum);
+      if (result['success'] == true) {
         state = state.copyWith(
           isLoading: false,
-          userEmail: email,
+          userEmail: auth.currentUser?.email ?? email,
         );
       } else {
-        final errorMessage = response?['message'] ?? response?['error'] ?? 'Registration failed. Please check your details.';
         state = state.copyWith(
           isLoading: false,
-          error: errorMessage,
+          error: (result['error']?.toString() ?? 'Registration failed. Please check your details.'),
         );
       }
     } catch (e) {
@@ -98,14 +93,65 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  Future<void> signInWithGoogle() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Google sign-in is not available',
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Google sign-in failed: $e',
+      );
+    }
+  }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final auth = ref.read(authServiceProvider);
+      final ok = await auth.forgotPassword(email);
+      state = state.copyWith(
+        isLoading: false,
+        error: ok ? null : 'Failed to send password reset email',
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to send password reset email: $e',
+      );
+    }
+  }
 
-
+  Future<void> resendEmailVerification() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final email = state.userEmail;
+      if (email == null || email.isEmpty) {
+        state = state.copyWith(isLoading: false, error: 'No email available');
+        return;
+      }
+      final auth = ref.read(authServiceProvider);
+      final response = await auth.resendVerificationEmail(email);
+      state = state.copyWith(
+        isLoading: false,
+        error: response.isSuccess ? null : (response.error ?? 'Failed to resend verification email'),
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to resend verification email: $e',
+      );
+    }
+  }
 
   Future<void> signOut() async {
     state = state.copyWith(isLoading: true, error: null);
-    
     try {
+      final auth = ref.read(authServiceProvider);
+      await auth.signOut();
       state = state.copyWith(
         isLoading: false,
         userEmail: null,

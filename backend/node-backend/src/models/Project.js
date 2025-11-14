@@ -56,5 +56,58 @@ module.exports = (sequelize, DataTypes) => {
     });
   };
 
+  // Real-time event hooks
+  Project.afterCreate(async (project, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('project_created', {
+          id: project.id,
+          name: project.name,
+          key: project.key,
+          created_by: project.created_by,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in project afterCreate hook:', error);
+    }
+  });
+
+  Project.afterUpdate(async (project, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('project_updated', {
+          id: project.id,
+          name: project.name,
+          key: project.key,
+          updated_by: options.updatedBy || project.updated_by,
+          changes: project.changed(),
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in project afterUpdate hook:', error);
+    }
+  });
+
+  Project.afterDestroy(async (project, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('project_deleted', {
+          id: project.id,
+          name: project.name,
+          key: project.key,
+          deleted_by: options.deletedBy,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in project afterDestroy hook:', error);
+    }
+  });
+
   return Project;
 };

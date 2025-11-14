@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/api_client.dart';
 import '../services/error_handler.dart';
+import '../services/realtime_service.dart';
 import '../models/user.dart';
 import '../theme/flownet_theme.dart';
 
@@ -22,6 +23,10 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 
 final errorHandlerProvider = Provider<ErrorHandler>((ref) {
   return ErrorHandler();
+});
+
+final realtimeServiceProvider = Provider<RealtimeService>((ref) {
+  return RealtimeService();
 });
 
 // User state provider

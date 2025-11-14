@@ -214,6 +214,8 @@ class AuthService {
       case '/client-review':
       case '/enhanced-client-review':
         return canViewClientReview();
+      case '/report-builder':
+        return isDeliveryLead || isSystemAdmin;
       case '/report-repository':
         return isDeliveryLead || isSystemAdmin || isClientReviewer;
       case '/notification-center':

@@ -24,39 +24,52 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   }
 
   Future<void> _loadNotifications() async {
-    if (_isLoading) return;
-    
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final backendApiService = ref.read(backendApiServiceProvider);
-      final response = await backendApiService.getNotifications();
+      final backendService = ref.read(backendApiServiceProvider);
+      final response = await backendService.getNotifications();
       
-      if (response.isSuccess) {
-        final data = response.data;
-        final notificationsData = data?['notifications'] ?? data?['items'] ?? [];
+      if (response.isSuccess && response.data != null) {
+        final notificationsData = response.data as List<dynamic>;
         
-        final List<NotificationItem> notifications = notificationsData.map<NotificationItem>((notificationData) {
-          return NotificationItem.fromJson(notificationData);
+        final notifications = notificationsData.map((notificationData) {
+          return NotificationItem(
+            id: notificationData['id']?.toString() ?? '',
+            title: notificationData['title']?.toString() ?? 'Notification',
+            message: notificationData['message']?.toString() ?? '',
+            type: _parseNotificationType(notificationData['type']?.toString()),
+            priority: _parseNotificationPriority(notificationData['priority']?.toString()),
+            isRead: notificationData['isRead'] ?? false,
+            createdAt: notificationData['createdAt'] != null
+                ? DateTime.parse(notificationData['createdAt'])
+                : DateTime.now(),
+            deliverableId: notificationData['deliverableId']?.toString(),
+            reportId: notificationData['reportId']?.toString(),
+            sprintId: notificationData['sprintId']?.toString(),
+            dueDate: notificationData['dueDate'] != null
+                ? DateTime.parse(notificationData['dueDate'])
+                : null,
+          );
         }).toList();
-        
+
         setState(() {
           _notifications = notifications;
+          _isLoading = false;
+        });
+      } else {
+        // No notifications available
+        setState(() {
+          _notifications = [];
+          _isLoading = false;
         });
       }
     } catch (e) {
-      // Handle error appropriately - show error message instead of mock data
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to load notifications: \$e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
+      debugPrint('Error loading notifications: $e');
       setState(() {
+        _notifications = [];
         _isLoading = false;
       });
     }
@@ -248,6 +261,39 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     );
   }
 
+  // Helper methods for parsing notification data from API
+  NotificationType _parseNotificationType(String? typeString) {
+    switch (typeString?.toLowerCase()) {
+      case 'review':
+        return NotificationType.review;
+      case 'metrics':
+        return NotificationType.metrics;
+      case 'change_request':
+        return NotificationType.changeRequest;
+      case 'report':
+        return NotificationType.report;
+      case 'reminder':
+        return NotificationType.reminder;
+      case 'approval':
+        return NotificationType.approval;
+      default:
+        return NotificationType.review; // Default to review
+    }
+  }
+
+  NotificationPriority _parseNotificationPriority(String? priorityString) {
+    switch (priorityString?.toLowerCase()) {
+      case 'high':
+        return NotificationPriority.high;
+      case 'medium':
+        return NotificationPriority.medium;
+      case 'low':
+        return NotificationPriority.low;
+      default:
+        return NotificationPriority.medium; // Default to medium
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -331,21 +377,27 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
 
           // Notifications List
           Expanded(
-            child: _filteredNotifications.isEmpty
+            child: _isLoading
                 ? const Center(
-                    child: Text(
-                      'No notifications found',
-                      style: TextStyle(color: Colors.grey),
+                    child: CircularProgressIndicator(
+                      color: FlownetColors.electricBlue,
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _filteredNotifications.length,
-                    itemBuilder: (context, index) {
-                      final notification = _filteredNotifications[index];
-                      return _buildNotificationCard(notification);
-                    },
-                  ),
+                : _filteredNotifications.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No notifications found',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _filteredNotifications.length,
+                        itemBuilder: (context, index) {
+                          final notification = _filteredNotifications[index];
+                          return _buildNotificationCard(notification);
+                        },
+                      ),
           ),
         ],
       ),

@@ -1,10 +1,12 @@
 import 'dart:convert';
+// ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
+import '../config/environment.dart';
 
 class SprintDatabaseService {
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  static final String _baseUrl = Environment.apiBaseUrl;
   final AuthService _authService = AuthService();
   
   // API Client for making HTTP requests
@@ -22,6 +24,7 @@ class SprintDatabaseService {
 
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     if (_token != null) 'Authorization': 'Bearer $_token',
   };
 
@@ -30,27 +33,21 @@ class SprintDatabaseService {
   /// Get all sprints for the current user
   Future<List<Map<String, dynamic>>> getSprints() async {
     try {
-      debugPrint('🔍 Fetching sprints from: $_baseUrl/sprints');
-      debugPrint('🔍 Auth token: ${_token != null ? "Present" : "Missing"}');
-      debugPrint('🔍 Headers: $_headers');
-      
       final response = await http.get(
         Uri.parse('$_baseUrl/sprints'),
         headers: _headers,
       );
 
-      debugPrint('🔍 Response status: ${response.statusCode}');
-      debugPrint('🔍 Response body: ${response.body}');
-
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          debugPrint('✅ Fetched ${data['data'].length} sprints from database');
-          return List<Map<String, dynamic>>.from(data['data']);
+        final dynamic data = jsonDecode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
         }
+        final List<dynamic> items = (data is Map)
+            ? (data['data'] ?? data['sprints'] ?? data['items'] ?? [])
+            : [];
+        return items.cast<Map<String, dynamic>>();
       }
-      
-      debugPrint('❌ Failed to fetch sprints: ${response.statusCode}');
       return [];
     } catch (e) {
       debugPrint('❌ Error fetching sprints: $e');
@@ -151,9 +148,11 @@ class SprintDatabaseService {
       final body = {
         'name': name,
         'key': key,
+        'project_key': key,
         'description': description,
         'projectType': projectType ?? 'software',
-      };
+        'type': projectType ?? 'software',
+      }..removeWhere((k, v) => v == null);
 
       final response = await http.post(
         Uri.parse('$_baseUrl/projects'),
@@ -162,14 +161,16 @@ class SprintDatabaseService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          debugPrint('✅ Project created successfully: ${data['data']['project_name']}');
-          return data['data'];
+        final dynamic data = jsonDecode(response.body);
+        if (data is Map) {
+          final dynamic item = data['data'] ?? data['project'] ?? data;
+          if (item is Map) return Map<String, dynamic>.from(item);
+          if (item is List && item.isNotEmpty) return Map<String, dynamic>.from(item.first);
+        }
+        if (data is List && data.isNotEmpty) {
+          return Map<String, dynamic>.from(data.first);
         }
       }
-      
-      debugPrint('❌ Failed to create project: ${response.statusCode}');
       return null;
     } catch (e) {
       debugPrint('❌ Error creating project: $e');
@@ -180,27 +181,20 @@ class SprintDatabaseService {
   /// Get all projects
   Future<List<Map<String, dynamic>>> getProjects() async {
     try {
-      debugPrint('🔍 Fetching projects from: $_baseUrl/projects');
-      debugPrint('🔍 Auth token: ${_token != null ? "Present" : "Missing"}');
-      debugPrint('🔍 Headers: $_headers');
-      
       final response = await http.get(
         Uri.parse('$_baseUrl/projects'),
         headers: _headers,
       );
-
-      debugPrint('🔍 Response status: ${response.statusCode}');
-      debugPrint('🔍 Response body: ${response.body}');
-
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          debugPrint('✅ Fetched ${data['data'].length} projects');
-          return List<Map<String, dynamic>>.from(data['data']);
+        final dynamic data = jsonDecode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
         }
+        final List<dynamic> items = (data is Map)
+            ? (data['data'] ?? data['projects'] ?? data['items'] ?? [])
+            : [];
+        return items.cast<Map<String, dynamic>>();
       }
-      
-      debugPrint('❌ Failed to fetch projects: ${response.statusCode}');
       return [];
     } catch (e) {
       debugPrint('❌ Error fetching projects: $e');
@@ -219,13 +213,16 @@ class SprintDatabaseService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          debugPrint('✅ Fetched ${data['data'].length} tickets for sprint $sprintId');
-          return List<Map<String, dynamic>>.from(data['data']);
+        final dynamic raw = jsonDecode(response.body);
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        if (raw is Map) {
+          final List<dynamic> items = raw['data'] ?? raw['tickets'] ?? raw['items'] ?? [];
+          debugPrint('✅ Fetched ${items.length} tickets for sprint $sprintId');
+          return items.cast<Map<String, dynamic>>();
         }
       }
-      
       debugPrint('❌ Failed to fetch tickets: ${response.statusCode}');
       return [];
     } catch (e) {
@@ -243,13 +240,21 @@ class SprintDatabaseService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          debugPrint('✅ Fetched sprint details for sprint $sprintId');
-          return data['data'];
+        final dynamic raw = jsonDecode(response.body);
+        if (raw is Map) {
+          final dynamic body = raw['data'] ?? raw['sprint'] ?? raw;
+          if (body is Map) {
+            debugPrint('✅ Fetched sprint details for sprint $sprintId');
+            return Map<String, dynamic>.from(body);
+          }
+          if (body is List && body.isNotEmpty) {
+            debugPrint('✅ Fetched sprint details for sprint $sprintId');
+            return Map<String, dynamic>.from(body.first);
+          }
+        } else if (raw is List && raw.isNotEmpty) {
+          return Map<String, dynamic>.from(raw.first);
         }
       }
-      
       debugPrint('❌ Failed to fetch sprint details: ${response.statusCode}');
       return null;
     } catch (e) {
@@ -407,14 +412,14 @@ class SprintDatabaseService {
       final body = {'status': status};
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/sprints/$sprintId/status'),
+        Uri.parse('$_baseUrl/sprints/$sprintId'),
         headers: _headers,
         body: jsonEncode(body),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
+        if (data is Map && (data['success'] == true || data['status'] == 'ok' || data.containsKey('data'))) {
           debugPrint('✅ Sprint $sprintId status updated to $status');
           return true;
         }

@@ -8,20 +8,20 @@ void main() async {
   
   try {
     final httpClient = HttpClient();
-    final request = await httpClient.getUrl(Uri.parse('http://localhost:8000/system/stats'));
+    final request = await httpClient.getUrl(Uri.parse('http://localhost:8000/api/v1/system/stats'));
     
     // Add basic headers
     request.headers.add('Content-Type', 'application/json');
     request.headers.add('Accept', 'application/json');
     
     final response = await request.close();
-    await response.transform(utf8.decoder).join();
+    final responseBody = await response.transform(utf8.decoder).join();
 
     
     print('✅ Endpoint check completed!');
-    print('📋 Response status: \${response.statusCode}');
-    print('📄 Response headers: \${response.headers}');
-    print('📝 Response body (first 200 chars): \${responseBody.length > 200 ? responseBody.substring(0, 200) + "..." : responseBody}');
+    print('📋 Response status: ${response.statusCode}');
+    print('📄 Response headers: ${response.headers}');
+    print('📝 Response body (first 200 chars): ${responseBody.length > 200 ? responseBody.substring(0, 200) : responseBody}${responseBody.length > 200 ? '...' : ''}');
     
     if (response.statusCode == 200) {
       print('🎉 /system/stats endpoint exists and is working!');
@@ -30,14 +30,14 @@ void main() async {
     } else if (response.statusCode == 401) {
       print('🔐 /system/stats endpoint requires authentication');
     } else {
-      print('⚠️ /system/stats endpoint returned status: \${response.statusCode}');
+      print('⚠️ /system/stats endpoint returned status: ${response.statusCode}');
     }
     
     httpClient.close();
   } catch (e) {
     print('❌ Error checking endpoint: $e');
     print('\n⚠️ This might indicate:');
-    print('   - Backend server is not running on port 3000');
+    print('   - Backend server is not running on port 8000');
     print('   - /system/stats endpoint does not exist');
     print('   - Network connectivity issues');
   }

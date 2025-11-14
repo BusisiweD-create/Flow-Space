@@ -3,6 +3,7 @@ import 'dart:io';
 // ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/environment.dart';
 import 'package:flutter/foundation.dart';
 
 class ApiClient {
@@ -10,8 +11,7 @@ class ApiClient {
   factory ApiClient() => _instance;
   ApiClient._internal();
 
-  static const String _baseUrl = 'http://localhost:8000/api'; // Local backend server
-  static const String _apiVersion = '/v1';
+  static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   static const Duration _timeout = Duration(seconds: 30);
 
   String? _accessToken;
@@ -28,7 +28,7 @@ class ApiClient {
   // Initialize API client
   Future<void> initialize() async {
     await _loadStoredTokens();
-    debugPrint('API Client initialized with base URL: $_baseUrl');
+    debugPrint('API Client initialized with base URL: $_baseUrlWithVersion');
   }
 
   // Token management
@@ -86,7 +86,7 @@ class ApiClient {
 
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl$_apiVersion/auth/refresh'),
+        Uri.parse('$_baseUrlWithVersion/auth/refresh'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_refreshToken',
@@ -141,7 +141,7 @@ class ApiClient {
       }
 
       // Build URL
-      final String url = '$_baseUrl$_apiVersion$endpoint';
+      final String url = '$_baseUrlWithVersion$endpoint';
 
       // Create multipart request
       final request = http.MultipartRequest('POST', Uri.parse(url));
@@ -202,7 +202,7 @@ class ApiClient {
       }
 
       // Build URL
-      String url = '$_baseUrl$_apiVersion$endpoint';
+      String url = '$_baseUrlWithVersion$endpoint';
       if (queryParams != null && queryParams.isNotEmpty) {
         final uri = Uri.parse(url);
         url = uri.replace(queryParameters: queryParams).toString();
@@ -260,31 +260,48 @@ class ApiClient {
 
   ApiResponse _handleResponse(http.Response response) {
     try {
-      final responseBody = jsonDecode(response.body);
-      
+      final raw = response.body.isNotEmpty ? jsonDecode(response.body) : null;
+
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        // Handle different backend response structures:
-        // 1. Standard format: { success: true, message: '...', data: {...} }
-        // 2. Direct format: { token: '...', user: {...}, ... } (for auth endpoints)
-        // 3. Simple format: direct data at root level
-        
-        final bool isStandardFormat = responseBody['success'] == true && responseBody.containsKey('data');
-        final bool isAuthFormat = responseBody.containsKey('token') || responseBody.containsKey('user');
-        
-        if (isStandardFormat) {
-          // Standard format with success, message, and data fields
-          final data = responseBody['data'] ?? responseBody;
-          return ApiResponse.success(data, response.statusCode);
-        } else if (isAuthFormat) {
-          // Auth endpoints return data directly at root level
-          return ApiResponse.success(responseBody, response.statusCode);
-        } else {
-          // Fallback: return the entire response body
-          return ApiResponse.success(responseBody, response.statusCode);
+        if (raw == null) {
+          return ApiResponse.success(null, response.statusCode);
         }
+
+        // Support top-level lists (e.g., files, users collections)
+        if (raw is List) {
+          return ApiResponse.success(raw, response.statusCode);
+        }
+
+        // From here on, raw must be a Map-like structure
+        if (raw is! Map) {
+          return ApiResponse.success(raw, response.statusCode);
+        }
+
+        final Map<String, dynamic> body = raw as Map<String, dynamic>;
+
+        // 1) Standard format: { success: true, data: ... }
+        final bool isStandardFormat = body['success'] == true && body.containsKey('data');
+        // 2) Auth format: { token: '...', user: {...} }
+        final bool isAuthFormat = body.containsKey('token') || body.containsKey('user');
+
+        if (isStandardFormat) {
+          final data = body['data'];
+          return ApiResponse.success(data, response.statusCode);
+        }
+
+        if (isAuthFormat) {
+          return ApiResponse.success(body, response.statusCode);
+        }
+
+        // 3) Fallback: return entire map as data
+        return ApiResponse.success(body, response.statusCode);
       } else {
-        final errorMessage = responseBody['message'] ?? responseBody['error'] ?? 'Request failed';
-        return ApiResponse.error(errorMessage, response.statusCode);
+        if (raw is Map) {
+          final Map<String, dynamic> body = raw as Map<String, dynamic>;
+          final errorMessage = body['message']?.toString() ?? body['error']?.toString() ?? 'Request failed';
+          return ApiResponse.error(errorMessage, response.statusCode);
+        }
+        return ApiResponse.error('Request failed', response.statusCode);
       }
     } catch (e) {
       return ApiResponse.error('Invalid response format: $e', response.statusCode);
@@ -348,8 +365,8 @@ class ApiClient {
 
   Future<ApiResponse> changePassword(String currentPassword, String newPassword) async {
     return await post('/auth/change-password', body: {
-      'current_password': currentPassword,
-      'new_password': newPassword,
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
     },);
   }
 
@@ -396,6 +413,8 @@ class ApiResponse {
       statusCode: statusCode,
     );
   }
+
+  String? get deliverableId => null;
 
   @override
   String toString() {

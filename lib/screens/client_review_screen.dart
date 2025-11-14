@@ -94,23 +94,54 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     });
 
     try {
-      final api = BackendApiService();
+      final backendService = BackendApiService();
+      
       if (_selectedAction == 'approve') {
-        await api.approveSignOffReport(widget.reportId, _commentController.text.isNotEmpty ? _commentController.text : null, null);
-      } else {
-        await api.requestSignOffChanges(widget.reportId, _changeRequestController.text);
-      }
-      if (mounted) {
-        final message = _selectedAction == 'approve' 
-            ? 'Deliverable approved successfully!'
-            : 'Change request submitted successfully!';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.green,
-          ),
+        // Approve the deliverable
+        final response = await backendService.approveDeliverable(
+          _deliverable!.id,
+          _commentController.text.isNotEmpty ? _commentController.text : null,
         );
-        Navigator.pop(context);
+        
+        if (response.isSuccess && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Deliverable approved successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to approve deliverable: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else if (_selectedAction == 'changeRequest') {
+        // Request changes
+        final response = await backendService.requestChanges(
+          _deliverable!.id,
+          _changeRequestController.text,
+        );
+        
+        if (response.isSuccess && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Change request submitted successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to submit change request: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -130,65 +161,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_report == null || _deliverable == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
-      appBar: AppBar(
-        title: const FlownetLogo(showText: true),
-        backgroundColor: FlownetColors.charcoalBlack,
-        foregroundColor: FlownetColors.pureWhite,
-        centerTitle: false,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Text(
-              'Client Review & Approval',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: FlownetColors.pureWhite,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Review the deliverable and provide your decision',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: FlownetColors.coolGray,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Deliverable Status Card
-            _buildStatusCard(),
-            const SizedBox(height: 24),
-
-            // Report Content
-            _buildReportContent(),
-            const SizedBox(height: 24),
-
-            // Review Actions
-            _buildReviewActions(),
-            const SizedBox(height: 24),
-
-            // Digital Signature Section
-            _buildDigitalSignatureSection(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusCard() {
+  Widget buildStatusCard() {
     return Card(
       color: FlownetColors.graphiteGray,
       child: Padding(
@@ -217,10 +190,10 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildStatusItem('Title', _deliverable!.title),
+                  child: buildStatusItem('Title', _deliverable!.title),
                 ),
                 Expanded(
-                  child: _buildStatusItem('Status', _deliverable!.statusDisplayName),
+                  child: buildStatusItem('Status', _deliverable!.statusDisplayName),
                 ),
               ],
             ),
@@ -228,10 +201,10 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildStatusItem('Due Date', _formatDate(_deliverable!.dueDate)),
+                  child: buildStatusItem('Due Date', formatDate(_deliverable!.dueDate)),
                 ),
                 Expanded(
-                  child: _buildStatusItem('Submitted By', _deliverable!.submittedBy ?? 'Unknown'),
+                  child: buildStatusItem('Submitted By', _deliverable!.submittedBy ?? 'Unknown'),
                 ),
               ],
             ),
@@ -241,7 +214,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     );
   }
 
-  Widget _buildStatusItem(String label, String value) {
+  Widget buildStatusItem(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -264,7 +237,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     );
   }
 
-  Widget _buildReportContent() {
+  Widget buildReportContent() {
     return Card(
       color: FlownetColors.graphiteGray,
       child: Padding(
@@ -312,7 +285,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     );
   }
 
-  Widget _buildReviewActions() {
+  Widget buildReviewActions() {
     return Card(
       color: FlownetColors.graphiteGray,
       child: Padding(
@@ -328,8 +301,6 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            
-            // Action Selection
             Row(
               children: [
                 Expanded(
@@ -367,8 +338,6 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Comments
             TextFormField(
               controller: _commentController,
               decoration: const InputDecoration(
@@ -380,8 +349,6 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
-
-            // Change Request Details
             if (_selectedAction == 'changeRequest') ...[
               TextFormField(
                 controller: _changeRequestController,
@@ -407,7 +374,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     );
   }
 
-  Widget _buildDigitalSignatureSection() {
+  Widget buildDigitalSignatureSection() {
     return Card(
       color: FlownetColors.graphiteGray,
       child: Padding(
@@ -460,8 +427,6 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Submit Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -488,9 +453,68 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_report == null || _deliverable == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: FlownetColors.charcoalBlack,
+      appBar: AppBar(
+        title: const FlownetLogo(showText: true),
+        backgroundColor: FlownetColors.charcoalBlack,
+        foregroundColor: FlownetColors.pureWhite,
+        centerTitle: false,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Text(
+              'Client Review & Approval',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: FlownetColors.pureWhite,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Review the deliverable and provide your decision',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: FlownetColors.coolGray,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Deliverable Status Card
+            buildStatusCard(),
+            const SizedBox(height: 24),
+
+            // Report Content
+            buildReportContent(),
+            const SizedBox(height: 24),
+
+            // Review Actions
+            buildReviewActions(),
+            const SizedBox(height: 24),
+
+            // Digital Signature Section
+            buildDigitalSignatureSection(),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   @override
   void dispose() {

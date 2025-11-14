@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/sign_off_report.dart';
 import '../services/backend_api_service.dart';
+import '../services/api_client.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/role_guard.dart';
 
 class ReportRepositoryScreen extends ConsumerStatefulWidget {
   const ReportRepositoryScreen({super.key});
@@ -17,6 +20,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   String _selectedFilter = 'all';
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -25,27 +29,49 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   }
 
   Future<void> _loadReports() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
     try {
-      final api = BackendApiService();
-      final response = await api.getSignOffReports(limit: 100);
-      if (mounted) {
-        if (response.isSuccess && response.data != null) {
-          final List<dynamic> items = response.data!['data'] ?? response.data!['reports'] ?? [];
-          setState(() {
-            _reports = items.map((e) => SignOffReport.fromJson(e)).toList();
-          });
-        } else {
-          setState(() {
-            _reports = [];
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
+      final backendService = BackendApiService();
+      final response = await backendService.getSignOffReports();
+      
+      if (response.isSuccess) {
+        final reports = backendService.parseSignOffReportsFromResponse(response);
         setState(() {
-          _reports = [];
+          _reports = reports;
+          _isLoading = false;
+        });
+      } else {
+        // Handle API error gracefully
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to load reports: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+          _reports = []; // Empty array instead of mock data
         });
       }
+    } catch (e) {
+      debugPrint('Error loading reports: \$e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to load reports. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      setState(() {
+        _isLoading = false;
+        _reports = []; // Empty array instead of mock data
+      });
     }
   }
 
@@ -114,6 +140,14 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
           ),
+          TextButton(
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              await _confirmDeleteReport(report);
+              navigator.pop();
+            },
+            child: const Text('Delete'),
+          ),
           if (report.status == ReportStatus.draft)
             TextButton(
               onPressed: () {
@@ -153,6 +187,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: FlownetColors.charcoalBlack,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
@@ -160,6 +201,14 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
+      ),
+      floatingActionButton: RoleBuilder(
+        allowedRoles: const ['deliveryLead', 'systemAdmin'],
+        builder: (context) => FloatingActionButton.extended(
+          onPressed: _showCreateReportDialog,
+          icon: const Icon(Icons.add),
+          label: const Text('New Sign-Off'),
+        ),
       ),
       body: Column(
         children: [
@@ -300,6 +349,20 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<String>(
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete'),
+                      ),
+                    ],
+                    onSelected: (value) async {
+                      if (value == 'delete') {
+                        await _confirmDeleteReport(report);
+                      }
+                    },
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -359,6 +422,37 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     );
   }
 
+  Future<void> _confirmDeleteReport(SignOffReport report) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Delete Report'),
+        content: Text('Are you sure you want to delete "${report.reportTitle}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final api = BackendApiService();
+    final response = await api.deleteSignOffReport(report.id);
+    if (response.isSuccess) {
+      messenger.showSnackBar(const SnackBar(content: Text('Report deleted')));
+      _loadReports();
+    } else {
+      messenger.showSnackBar(SnackBar(content: Text('Failed to delete: ${response.error ?? 'Unknown error'}')));
+    }
+  }
+
   Widget _buildInfoItem(IconData icon, String text) {
     return Row(
       children: [
@@ -380,6 +474,69 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _showCreateReportDialog() async {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final api = BackendApiService();
+        return AlertDialog(
+          backgroundColor: FlownetColors.graphiteGray,
+          title: const Text('Create Sign-Off Report'),
+          content: SizedBox(
+            width: 450,
+            child: FutureBuilder(
+              future: api.getDeliverables(page: 1, limit: 50),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox(
+                    height: 120,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                final response = snapshot.data as ApiResponse;
+                final items = api.parseDeliverablesFromResponse(response);
+
+                if (items.isEmpty) {
+                  return const Text('No deliverables available');
+                }
+
+                return SizedBox(
+                  height: 400,
+                  child: ListView.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final d = items[index];
+                      return ListTile(
+                        leading: Icon(Icons.assignment, color: d.statusColor),
+                        title: Text(d.title, style: const TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          'Due ${_formatDate(d.dueDate)} · ${d.statusDisplayName}',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          this.context.go('/report-builder/${d.id}');
+                        },
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override

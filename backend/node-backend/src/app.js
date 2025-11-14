@@ -40,6 +40,7 @@ const signoffRoutes = require('./routes/signoff');
 const websocketRoutes = require('./routes/websocket');
 const systemRoutes = require('./routes/system');
 const usersRoutes = require('./routes/users');
+const approvalsRoutes = require('./routes/approvals');
 
 // Import services
 const { presenceService } = require('./services/presenceService');
@@ -47,6 +48,7 @@ const { notificationService } = require('./services/notificationService');
 const analyticsService = require('./services/analyticsService');
 const { loggingService } = require('./services/loggingService');
 const socketService = require('./services/socketService');
+const { databaseNotificationService } = require('./services/DatabaseNotificationService');
 
 // Middleware
 app.use(helmet());
@@ -72,6 +74,7 @@ app.use('/api/v1/deliverables', deliverablesRoutes);
 app.use('/api/v1/sprints', sprintsRoutes);
 app.use('/api/v1/projects', projectsRoutes);
 app.use('/api/v1/signoff', signoffRoutes);
+app.use('/api/v1/sign-off-reports', signoffRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/profile', profileRoutes);
@@ -82,6 +85,10 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/users', usersRoutes);
+app.use('/api/v1/approvals', approvalsRoutes);
+
+// Public alias for system routes
+app.use('/system', systemRoutes);
 
 // Health check endpoints
 app.get('/', (req, res) => {
@@ -130,6 +137,24 @@ async function startServer() {
       // Initialize Socket.io server
       socketService.initialize(server);
       console.log('✅ Socket.io server initialized for real-time communication');
+      
+      // Initialize Database Notification Service
+      const dbConnectionString = process.env.DATABASE_URL;
+      if (dbConnectionString) {
+        databaseNotificationService.initialize(dbConnectionString)
+          .then(() => {
+            console.log('✅ Database notification service initialized');
+            
+            // Integrate socket service with database notification service
+            databaseNotificationService.setSocketService(socketService);
+            console.log('✅ Real-time services integrated successfully');
+          })
+          .catch(error => {
+            console.error('❌ Failed to initialize database notification service:', error);
+          });
+      } else {
+        console.warn('⚠️ DATABASE_URL not set, database notification service disabled');
+      }
       
       // Start background services after server is listening
       // Analytics service is now started on-demand via API endpoints to prevent server overload

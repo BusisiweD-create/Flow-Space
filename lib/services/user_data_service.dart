@@ -424,9 +424,38 @@ class UserDataService {
           } else {
             throw Exception('No valid users found in response');
           }
+        } else if (responseData is Map) {
+          final map = Map<String, dynamic>.from(responseData);
+          final items = map['users'] ?? map['data'] ?? map['items'] ?? [];
+          if (items is List) {
+            final users = <User>[];
+            for (var userData in items) {
+              try {
+                Map<String, dynamic> userMap;
+                if (userData is Map<String, dynamic>) {
+                  userMap = userData;
+                } else if (userData is Map) {
+                  userMap = Map<String, dynamic>.from(userData);
+                } else if (userData is String) {
+                  userMap = Map<String, dynamic>.from(jsonDecode(userData));
+                } else {
+                  continue;
+                }
+                final user = _parseUserFromApi(userMap);
+                users.add(user);
+              } catch (e) {
+                debugPrint('Error parsing individual user: $e');
+              }
+            }
+            if (users.isNotEmpty) {
+              return users;
+            }
+          }
+          final userMap = Map<String, dynamic>.from(map);
+          final user = _parseUserFromApi(userMap);
+          return [user];
         } else {
-          debugPrint('Unexpected response format: ${responseData.runtimeType}');
-          throw Exception('Invalid API response format');
+          throw Exception('Unsupported users response format');
         }
       
       
