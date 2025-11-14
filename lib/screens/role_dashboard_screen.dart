@@ -2,6 +2,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:csv/csv.dart';
@@ -14,6 +15,7 @@ import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/user_data_service.dart';
 import '../services/api_service.dart';
+import '../providers/qa_data_provider.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -61,6 +63,19 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   SystemMetrics? _systemMetrics;
   bool _isLoadingSystemMetrics = false;
   String? _systemMetricsError;
+
+  // Recent submissions state
+  final List<RecentSubmissionItem> _recentSubmissions = [];
+  
+  // Team performance state
+  List<Map<String, dynamic>> _teamPerformanceData = [];
+  bool _isLoadingTeamPerformance = false;
+  String? _teamPerformanceError;
+  
+  // Burn-down data state
+  List<Map<String, dynamic>> _burnDownData = [];
+  bool _isLoadingBurnDownData = false;
+  String? _burnDownDataError;
   
   @override
   void initState() {
@@ -68,6 +83,8 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     _loadCurrentUser();
     _loadUsers();
     _loadSystemMetrics();
+    _loadTeamPerformance();
+    _loadBurnDownData();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -214,22 +231,16 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
 
   Future<void> _loadAnalyticsData() async {
     if (_isLoadingAnalytics) return;
-    
     setState(() {
       _isLoadingAnalytics = true;
     });
-
     try {
-      // Simulate API call delay
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Sample analytics data - in real app, this would come from API
-      setState(() {
-        // Analytics data loading completed
-      });
-      
+      final response = await _backendApiService.getDashboardData();
+      if (response.isSuccess) {
+        setState(() {});
+      }
     } catch (e) {
-      debugPrint('❌ Error loading analytics data: \$e');
+      debugPrint('❌ Error loading analytics data: $e');
     } finally {
       setState(() {
         _isLoadingAnalytics = false;
@@ -259,6 +270,83 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     } finally {
       setState(() {
         _isLoadingSystemMetrics = false;
+      });
+    }
+  }
+
+  Future<void> _loadTeamPerformance() async {
+    if (_isLoadingTeamPerformance) return;
+    
+    setState(() {
+      _isLoadingTeamPerformance = true;
+      _teamPerformanceError = null;
+    });
+
+    try {
+      final response = await _backendApiService.getAnalytics('team-performance');
+      
+      if (response.isSuccess) {
+        final data = response.data;
+        final teamData = data?['team_members'] ?? data?['members'] ?? [];
+        final summary = data?['summary'] ?? {};
+        
+        setState(() {
+          _teamPerformanceData = List<Map<String, dynamic>>.from(teamData);
+        });
+        
+        debugPrint('✅ Loaded team performance data: \${_teamPerformanceData.length} members');
+      } else {
+        setState(() {
+          _teamPerformanceError = response.error ?? 'Failed to load team performance data';
+        });
+        debugPrint('❌ Error loading team performance: \$_teamPerformanceError');
+      }
+    } catch (e) {
+      setState(() {
+        _teamPerformanceError = 'Failed to load team performance data: \$e';
+      });
+      debugPrint('❌ Exception loading team performance: \$e');
+    } finally {
+      setState(() {
+        _isLoadingTeamPerformance = false;
+      });
+    }
+  }
+
+  Future<void> _loadBurnDownData() async {
+    if (_isLoadingBurnDownData) return;
+    
+    setState(() {
+      _isLoadingBurnDownData = true;
+      _burnDownDataError = null;
+    });
+
+    try {
+      final response = await _backendApiService.getAnalytics('burn-down');
+      
+      if (response.isSuccess) {
+        final data = response.data;
+        final burnDownData = data?['data'] ?? data?['burn_down_data'] ?? [];
+        
+        setState(() {
+          _burnDownData = List<Map<String, dynamic>>.from(burnDownData);
+        });
+        
+        debugPrint('✅ Loaded burn-down data: \${_burnDownData.length} data points');
+      } else {
+        setState(() {
+          _burnDownDataError = response.error ?? 'Failed to load burn-down data';
+        });
+        debugPrint('❌ Error loading burn-down data: \$_burnDownDataError');
+      }
+    } catch (e) {
+      setState(() {
+        _burnDownDataError = 'Failed to load burn-down data: \$e';
+      });
+      debugPrint('❌ Exception loading burn-down data: \$e');
+    } finally {
+      setState(() {
+        _isLoadingBurnDownData = false;
       });
     }
   }
@@ -597,6 +685,8 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         return _buildClientReviewerDashboard();
       case UserRole.systemAdmin:
         return _buildSystemAdminDashboard();
+      case UserRole.qaEngineer:
+        return _buildQAEngineerDashboard();
     }
   }
 
@@ -685,6 +775,594 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
           _buildAuditLogs(),
         ],
       ),
+    );
+  }
+
+  Widget _buildQAEngineerDashboard() {
+    return Consumer(
+      builder: (context, ref, child) {
+        final qaNotifier = ref.watch(qaDataProvider.notifier);
+        final qaState = ref.watch(qaDataProvider);
+        
+        if (qaState.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (qaState.error != null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Error loading QA data'),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: qaNotifier.loadQAData,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWelcomeCard(),
+              const SizedBox(height: 24),
+              _buildQAQuickActions(),
+              const SizedBox(height: 24),
+              _buildTestQueue(qaState.testQueue),
+              const SizedBox(height: 24),
+              _buildQualityMetrics(qaState.qualityMetrics),
+              const SizedBox(height: 24),
+              _buildBugReports(qaState.bugReports),
+              const SizedBox(height: 24),
+              _buildTestCoverage(qaState.testCoverage),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildQAQuickActions() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'QA Quick Actions',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.bug_report,
+                    label: 'Report Bug',
+                    onTap: () => context.go('/bug-report'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.play_arrow,
+                    label: 'Run Tests',
+                    onTap: () => context.go('/test-runner'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.analytics,
+                    label: 'Test Coverage',
+                    onTap: () => context.go('/test-coverage'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildActionButton(
+                    icon: Icons.timeline,
+                    label: 'Quality Metrics',
+                    onTap: () => context.go('/quality-metrics'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTestQueue(List<Map<String, dynamic>> testQueue) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Test Queue',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refreshTestQueue,
+                  tooltip: 'Refresh Test Queue',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (testQueue.isEmpty)
+              const Center(
+                child: Text('No tests in queue'),
+              )
+            else
+              ...testQueue.take(3).map((test) => Column(
+                children: [
+                  _buildTestQueueItem(
+                    test['title'] ?? 'Untitled Test',
+                    '${test['priority'] ?? 'Unknown'} Priority',
+                    test['status'] ?? 'Unknown',
+                    _getTestIcon(test['title'] ?? ''),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go('/test-queue'),
+              child: const Text('View Full Test Queue'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTestQueueItem(String title, String priority, String status, IconData icon) {
+    Color statusColor;
+    switch (status.toLowerCase()) {
+      case 'pending':
+        statusColor = Colors.orange;
+        break;
+      case 'in progress':
+        statusColor = Colors.blue;
+        break;
+      case 'completed':
+        statusColor = Colors.green;
+        break;
+      default:
+        statusColor = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 24, color: _currentUser!.roleColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                Text(
+                  priority,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              // ignore: deprecated_member_use
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: statusColor),
+            ),
+            child: Text(
+              status,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _refreshTestQueue() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refreshing test queue...')),
+    );
+  }
+
+  IconData _getTestIcon(String title) {
+    if (title.toLowerCase().contains('login') || title.toLowerCase().contains('auth')) {
+      return Icons.security;
+    } else if (title.toLowerCase().contains('payment')) {
+      return Icons.payment;
+    } else if (title.toLowerCase().contains('mobile')) {
+      return Icons.phone_android;
+    } else if (title.toLowerCase().contains('ui')) {
+      return Icons.palette;
+    } else if (title.toLowerCase().contains('api')) {
+      return Icons.api;
+    } else {
+      return Icons.play_arrow;
+    }
+  }
+
+  Widget _buildQualityMetrics(Map<String, dynamic> qualityMetrics) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Quality Metrics',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refreshQualityMetrics,
+                  tooltip: 'Refresh Quality Metrics',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildMetricCard(
+                  'Test Coverage',
+                  qualityMetrics['testCoverage'] ?? 'N/A',
+                  Icons.analytics,
+                  Colors.green,
+                ),),
+                const SizedBox(width: 12),
+                Expanded(child: _buildMetricCard(
+                  'Bugs Found',
+                  qualityMetrics['bugsFound']?.toString() ?? 'N/A',
+                  Icons.bug_report,
+                  Colors.red,
+                ),),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildMetricCard(
+                  'Pass Rate',
+                  qualityMetrics['passRate'] ?? 'N/A',
+                  Icons.check_circle,
+                  Colors.green,
+                ),),
+                const SizedBox(width: 12),
+                Expanded(child: _buildMetricCard(
+                  'Avg. Fix Time',
+                  qualityMetrics['avgFixTime'] ?? 'N/A',
+                  Icons.access_time,
+                  Colors.orange,
+                ),),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go('/quality-metrics'),
+              child: const Text('View Detailed Metrics'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 24, color: color),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+          ),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _refreshQualityMetrics() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refreshing quality metrics...')),
+    );
+  }
+
+  Widget _buildBugReports(List<Map<String, dynamic>> bugReports) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Bug Reports',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refreshBugReports,
+                  tooltip: 'Refresh Bug Reports',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (bugReports.isEmpty)
+              const Center(
+                child: Text('No bug reports'),
+              )
+            else
+              ...bugReports.take(3).map((bug) => Column(
+                children: [
+                  _buildBugReportItem(
+                    bug['title'] ?? 'Untitled Bug',
+                    bug['priority'] ?? 'Unknown',
+                    bug['status'] ?? 'Unknown',
+                    Icons.bug_report,
+                    _getBugColor(bug['priority'] ?? ''),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go('/bug-reports'),
+              child: const Text('View All Bug Reports'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBugReportItem(String title, String priority, String status, IconData icon, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: priority == 'High' ? Colors.red : 
+                               priority == 'Medium' ? Colors.orange : Colors.green,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        priority,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        color: status == 'Open' ? Colors.red : 
+                               status == 'In Progress' ? Colors.orange : Colors.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _refreshBugReports() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refreshing bug reports...')),
+    );
+  }
+
+  Color _getBugColor(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'high':
+        return Colors.red;
+      case 'medium':
+        return Colors.orange;
+      case 'low':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _buildTestCoverage(Map<String, dynamic> testCoverage) {
+    final overall = double.tryParse((testCoverage['overall'] ?? '0').replaceAll('%', '')) ?? 0;
+    final goal = double.tryParse((testCoverage['goal'] ?? '95').replaceAll('%', '')) ?? 95;
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Test Coverage',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refreshTestCoverage,
+                  tooltip: 'Refresh Test Coverage',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: overall / 100,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                overall >= goal ? Colors.green : 
+                overall >= goal * 0.8 ? Colors.orange : Colors.red,
+              ),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${overall.toStringAsFixed(0)}% Coverage',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: overall >= goal ? Colors.green : 
+                               overall >= goal * 0.8 ? Colors.orange : Colors.red,
+                      ),
+                ),
+                Text(
+                  'Goal: ${goal.toStringAsFixed(0)}%',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildCoverageMetric('Unit Tests', testCoverage['unit'] ?? 'N/A', Colors.blue),
+                _buildCoverageMetric('Integration', testCoverage['integration'] ?? 'N/A', Colors.orange),
+                _buildCoverageMetric('E2E Tests', testCoverage['e2e'] ?? 'N/A', Colors.purple),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.go('/test-coverage'),
+              child: const Text('View Detailed Coverage Report'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCoverageMetric(String type, String percentage, Color color) {
+    return Column(
+      children: [
+        Text(
+          type,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          percentage,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+        ),
+      ],
+    );
+  }
+
+  void _refreshTestCoverage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Refreshing test coverage...')),
     );
   }
 
@@ -1814,37 +2492,13 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                _buildMetricCard(
-                  title: 'Sprint Progress',
-                  value: '75%',
-                  icon: Icons.timeline,
-                  color: Colors.blue,
-                  trend: '+12%',
-                ),
+                _buildMetricCard('Sprint Progress', '75%', Icons.timeline, Colors.blue),
                 const SizedBox(width: 12),
-                _buildMetricCard(
-                  title: 'Team Velocity',
-                  value: '32 pts',
-                  icon: Icons.speed,
-                  color: Colors.green,
-                  trend: '+8%',
-                ),
+                _buildMetricCard('Team Velocity', '32 pts', Icons.speed, Colors.green),
                 const SizedBox(width: 12),
-                _buildMetricCard(
-                  title: 'Work Completed',
-                  value: '24/32',
-                  icon: Icons.check_circle,
-                  color: Colors.orange,
-                  trend: '+15%',
-                ),
+                _buildMetricCard('Work Completed', '24/32', Icons.check_circle, Colors.orange),
                 const SizedBox(width: 12),
-                _buildMetricCard(
-                  title: 'Blocked Items',
-                  value: '2',
-                  icon: Icons.block,
-                  color: Colors.red,
-                  trend: '-1',
-                ),
+                _buildMetricCard('Blocked Items', '2', Icons.block, Colors.red),
               ],
             ),
           ],
@@ -2309,7 +2963,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             _buildRecentSubmissionItem(
               title: 'Mobile App Analytics Dashboard',
               submittedBy: 'John Smith',
-              submittedDate: DateTime.now().subtract(const Duration(hours: 2)),
+              submittedAt: DateTime.now().subtract(const Duration(hours: 2)),
               status: 'Under Review',
               type: 'Dashboard',
             ),
@@ -2317,7 +2971,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             _buildRecentSubmissionItem(
               title: 'Payment Processing API',
               submittedBy: 'Sarah Johnson',
-              submittedDate: DateTime.now().subtract(const Duration(hours: 5)),
+              submittedAt: DateTime.now().subtract(const Duration(hours: 5)),
               status: 'Approved',
               type: 'API',
             ),
@@ -2325,7 +2979,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             _buildRecentSubmissionItem(
               title: 'User Profile Management',
               submittedBy: 'Mike Chen',
-              submittedDate: DateTime.now().subtract(const Duration(days: 1)),
+              submittedAt: DateTime.now().subtract(const Duration(days: 1)),
               status: 'Revisions Requested',
               type: 'Feature',
             ),
@@ -2333,7 +2987,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             _buildRecentSubmissionItem(
               title: 'Email Notification System',
               submittedBy: 'Emily Davis',
-              submittedDate: DateTime.now().subtract(const Duration(days: 2)),
+              submittedAt: DateTime.now().subtract(const Duration(days: 2)),
               status: 'Approved',
               type: 'Infrastructure',
             ),
@@ -2443,53 +3097,95 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
   Widget _buildTeamPerformance() {
-    // Sample team performance data
-    final teamPerformanceData = [
-      {
-        'name': 'John Smith',
-        'role': 'Senior Developer',
-        'completedPoints': 42,
-        'qualityScore': 92,
-        'velocity': 25,
-        'blockedItems': 2,
-        'avgCycleTime': '3.2 days',
-        'trend': 'up',
-        'avatarUrl': null,
-      },
-      {
-        'name': 'Sarah Johnson',
-        'role': 'Frontend Developer',
-        'completedPoints': 38,
-        'qualityScore': 88,
-        'velocity': 22,
-        'blockedItems': 1,
-        'avgCycleTime': '2.8 days',
-        'trend': 'up',
-        'avatarUrl': null,
-      },
-      {
-        'name': 'Mike Chen',
-        'role': 'Backend Developer',
-        'completedPoints': 35,
-        'qualityScore': 95,
-        'velocity': 20,
-        'blockedItems': 0,
-        'avgCycleTime': '3.5 days',
-        'trend': 'stable',
-        'avatarUrl': null,
-      },
-      {
-        'name': 'Emily Davis',
-        'role': 'QA Engineer',
-        'completedPoints': 28,
-        'qualityScore': 91,
-        'velocity': 18,
-        'blockedItems': 3,
-        'avgCycleTime': '4.1 days',
-        'trend': 'down',
-        'avatarUrl': null,
-      },
-    ];
+    if (_isLoadingTeamPerformance) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Team Performance Analytics',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_teamPerformanceError != null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Team Performance Analytics',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load team performance',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _teamPerformanceError!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadTeamPerformance,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_teamPerformanceData.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Team Performance Analytics',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              const Center(
+                child: Text(
+                  'No team performance data available',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Card(
       child: Padding(
@@ -2557,7 +3253,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             const Divider(),
             
             // Team member performance list
-            ...teamPerformanceData.map((member) => _buildTeamPerformanceRow(member)),
+            ..._teamPerformanceData.map((member) => _buildTeamPerformanceRow(member)),
             
             const SizedBox(height: 16),
             
@@ -2676,35 +3372,31 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                 child: Row(
                   children: [
                     _buildMetricCard(
-                      title: 'Active Users',
-                      value: '\${_systemMetrics!.userActivity.activeUsers}',
-                      icon: Icons.people,
-                      color: Colors.blue,
-                      trend: '0%',
+                      'Active Users',
+                      '\${_systemMetrics!.userActivity.activeUsers}',
+                      Icons.people,
+                      Colors.blue,
                     ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      title: 'API Requests',
-                      value: '0',
-                      icon: Icons.api,
-                      color: Colors.green,
-                      trend: '0%',
+                      'API Requests',
+                      '0',
+                      Icons.api,
+                      Colors.green,
                     ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      title: 'Response Time',
-                      value: '\${_systemMetrics!.performance.responseTime}ms',
-                      icon: Icons.speed,
-                      color: Colors.orange,
-                      trend: '0%',
+                      'Response Time',
+                      '\${_systemMetrics!.performance.responseTime}ms',
+                      Icons.speed,
+                      Colors.orange,
                     ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      title: 'Uptime',
-                      value: '\${_systemMetrics!.systemHealth.uptimePercentage.toStringAsFixed(2)}%',
-                      icon: Icons.timer,
-                      color: Colors.purple,
-                      trend: '100%',
+                      'Uptime',
+                      '\${_systemMetrics!.systemHealth.uptimePercentage.toStringAsFixed(2)}%',
+                      Icons.timer,
+                      Colors.purple,
                     ),
                   ],
                 ),
@@ -3376,7 +4068,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   Widget _buildRecentSubmissionItem({
     required String title,
     required String submittedBy,
-    required DateTime submittedDate,
+    required DateTime submittedAt,
     required String status,
     required String type,
   }) {
@@ -3398,7 +4090,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
         statusColor = Colors.grey;
     }
 
-    final timeAgo = _formatTimeAgo(submittedDate);
+    final timeAgo = _formatTimeAgo(submittedAt);
 
     return Card(
       color: Colors.grey[50],
@@ -3687,9 +4379,93 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   void _viewSubmission(String title) {
-    // TODO: Implement submission view
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Viewing submission: $title')),
+    // Find the submission data from recent submissions
+    final submission = _recentSubmissions.firstWhere(
+      (sub) => sub.title == title,
+      orElse: () => RecentSubmissionItem(
+        id: 'unknown_$title',
+        title: title,
+        type: 'Unknown',
+        status: 'Unknown',
+        submittedAt: DateTime.now(),
+        submittedBy: 'Unknown',
+        score: 0.0,
+      ),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Submission Details: $title'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow('Submitted by:', submission.submittedBy),
+              _buildDetailRow('Type:', submission.type),
+              _buildDetailRow('Status:', submission.status),
+              _buildDetailRow('Date:', _formatDate(submission.submittedAt)),
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(
+                'Actions:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      context.go('/review?submission=$title');
+                    },
+                    child: const Text('Review'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      // TODO: Navigate to revision details
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Revision details view coming soon')),
+                      );
+                    },
+                    child: const Text('View Revisions'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value)),
+        ],
+      ),
     );
   }
 
@@ -3829,6 +4605,12 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
           onPressed: () => _showAdminMenu(),
           icon: const Icon(Icons.admin_panel_settings),
           label: const Text('Admin Panel'),
+        );
+      case UserRole.qaEngineer:
+        return FloatingActionButton.extended(
+          onPressed: () => context.go('/test-runner'),
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Run Tests'),
         );
     }
   }
@@ -4005,28 +4787,28 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
             mainAxisSpacing: 16,
             childAspectRatio: 2.5,
             children: [
-              _buildMetricCard(
+              _buildSystemMetricCard(
                 title: 'Active Users',
                 value: '12',
                 icon: Icons.people,
                 color: Colors.blue,
                 trend: '+2 today',
               ),
-              _buildMetricCard(
+              _buildSystemMetricCard(
                 title: 'Database Size',
                 value: '45.2 MB',
                 icon: Icons.data_usage,
                 color: Colors.purple,
                 trend: '+1.2 MB',
               ),
-              _buildMetricCard(
+              _buildSystemMetricCard(
                 title: 'Uptime',
                 value: '12d 8h',
                 icon: Icons.timer,
                 color: Colors.orange,
                 trend: '99.8%',
               ),
-              _buildMetricCard(
+              _buildSystemMetricCard(
                 title: 'API Requests',
                 value: '1.2K',
                 icon: Icons.api,
@@ -4380,7 +5162,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildMetricCard({
+  Widget _buildSystemMetricCard({
     required String title,
     required String value,
     required IconData icon,
@@ -5019,30 +5801,7 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(
-            width: 100,
-            child: Text(
-              '\$label:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   String _formatUserDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -6038,17 +6797,99 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildBurnDownChart() {
-    // Sample burn-down data - in real app, this would come from analytics data
-    final burnDownData = [
-      {'day': 'Day 1', 'remaining': 40, 'ideal': 40},
-      {'day': 'Day 2', 'remaining': 36, 'ideal': 34},
-      {'day': 'Day 3', 'remaining': 32, 'ideal': 28},
-      {'day': 'Day 4', 'remaining': 28, 'ideal': 22},
-      {'day': 'Day 5', 'remaining': 24, 'ideal': 16},
-      {'day': 'Day 6', 'remaining': 20, 'ideal': 10},
-      {'day': 'Day 7', 'remaining': 16, 'ideal': 4},
-      {'day': 'Day 8', 'remaining': 12, 'ideal': 0},
-    ];
+    // Show loading state
+    if (_isLoadingBurnDownData) {
+      return Container(
+        height: 250,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading burn-down data...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Show error state
+    if (_burnDownDataError != null) {
+      return Container(
+        height: 250,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'Failed to load burn-down data',
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _burnDownDataError!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadBurnDownData,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Show empty state
+    if (_burnDownData.isEmpty) {
+      return Container(
+        height: 250,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.analytics_outlined, color: Colors.grey, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'No burn-down data available',
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Burn-down data will appear here once available',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Container(
       height: 250,
@@ -6079,11 +6920,13 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
-                        if (index >= 0 && index < burnDownData.length) {
+                        if (index >= 0 && index < _burnDownData.length) {
+                          final dayData = _burnDownData[index];
+                          final dayLabel = dayData['day'] ?? dayData['label'] ?? dayData['date'] ?? 'Day \${index + 1}';
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(
-                              burnDownData[index]['day'].toString(),
+                              dayLabel.toString(),
                               style: const TextStyle(fontSize: 10),
                             ),
                           );
@@ -6107,8 +6950,9 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                 borderData: FlBorderData(show: true),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: burnDownData.asMap().entries.map((entry) {
-                      return FlSpot(entry.key.toDouble(), (entry.value['remaining'] as num).toDouble());
+                    spots: _burnDownData.asMap().entries.map((entry) {
+                      final remaining = entry.value['remaining'] ?? entry.value['actual'] ?? entry.value['points_remaining'] ?? 0;
+                      return FlSpot(entry.key.toDouble(), (remaining as num).toDouble());
                     }).toList(),
                     isCurved: true,
                     color: Colors.blue,
@@ -6117,8 +6961,9 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                     dotData: const FlDotData(show: true),
                   ),
                   LineChartBarData(
-                    spots: burnDownData.asMap().entries.map((entry) {
-                      return FlSpot(entry.key.toDouble(), (entry.value['ideal'] as num).toDouble());
+                    spots: _burnDownData.asMap().entries.map((entry) {
+                      final ideal = entry.value['ideal'] ?? entry.value['planned'] ?? entry.value['points_planned'] ?? 0;
+                      return FlSpot(entry.key.toDouble(), (ideal as num).toDouble());
                     }).toList(),
                     isCurved: false,
                     color: Colors.grey,
@@ -6508,3 +7353,49 @@ extension NumberFormatting on int {
 }
 
 
+// Recent submission item data class
+class RecentSubmissionItem {
+  final String id;
+  final String title;
+  final String type;
+  final String status;
+  final DateTime submittedAt;
+  final String submittedBy;
+  final double score;
+  final String? reviewComments;
+
+  RecentSubmissionItem({
+    required this.id,
+    required this.title,
+    required this.type,
+    required this.status,
+    required this.submittedAt,
+    required this.submittedBy,
+    required this.score,
+    this.reviewComments,
+  });
+
+  factory RecentSubmissionItem.fromJson(Map<String, dynamic> json) {
+    return RecentSubmissionItem(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      type: json['type']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      submittedAt: DateTime.parse(json['submitted_at']?.toString() ?? DateTime.now().toIso8601String()),
+      submittedBy: json['submitted_by']?.toString() ?? '',
+      score: (json['score'] as num?)?.toDouble() ?? 0.0,
+      reviewComments: json['review_comments']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'type': type,
+        'status': status,
+        'submitted_at': submittedAt.toIso8601String(),
+        'submitted_by': submittedBy,
+        'score': score,
+        'review_comments': reviewComments,
+      };
+}

@@ -692,16 +692,10 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "web_socket",
-      "rootUri": "file:///C:/Users/ThabangN/AppData/Local/Pub/Cache/hosted/pub.dev/web_socket-1.0.1",
-      "packageUri": "lib/",
-      "languageVersion": "3.4"
-    },
-    {
       "name": "web_socket_channel",
-      "rootUri": "file:///C:/Users/ThabangN/AppData/Local/Pub/Cache/hosted/pub.dev/web_socket_channel-3.0.3",
+      "rootUri": "file:///C:/Users/ThabangN/AppData/Local/Pub/Cache/hosted/pub.dev/web_socket_channel-2.4.0",
       "packageUri": "lib/",
-      "languageVersion": "3.3"
+      "languageVersion": "2.15"
     },
     {
       "name": "webkit_inspection_protocol",

@@ -1,106 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/deliverable.dart';
-import '../models/sprint.dart';
 import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
+import '../providers/dashboard_provider.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  // Sample data for demonstration
-  final List<Deliverable> deliverables = [
-    Deliverable(
-      id: '1',
-      title: 'User Authentication System',
-      description: 'Complete user login, registration, and role-based access control',
-      status: DeliverableStatus.submitted,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      dueDate: DateTime.now().add(const Duration(days: 2)),
-      sprintIds: ['1', '2'],
-      definitionOfDone: [
-        'All unit tests pass',
-        'Code review completed',
-        'Security audit passed',
-        'Documentation updated',
-      ],
-    ),
-    Deliverable(
-      id: '2',
-      title: 'Payment Integration',
-      description: 'Stripe payment gateway integration with subscription management',
-      status: DeliverableStatus.draft,
-      createdAt: DateTime.now().subtract(const Duration(days: 3)),
-      dueDate: DateTime.now().add(const Duration(days: 7)),
-      sprintIds: ['3'],
-      definitionOfDone: [
-        'Payment flow tested',
-        'PCI compliance verified',
-        'Error handling implemented',
-        'User documentation created',
-      ],
-    ),
-    Deliverable(
-      id: '3',
-      title: 'Mobile App Release',
-      description: 'iOS and Android app store deployment',
-      status: DeliverableStatus.approved,
-      createdAt: DateTime.now().subtract(const Duration(days: 10)),
-      dueDate: DateTime.now().subtract(const Duration(days: 1)),
-      sprintIds: ['4', '5'],
-      definitionOfDone: [
-        'App store approval received',
-        'Performance testing completed',
-        'User acceptance testing passed',
-        'Release notes published',
-      ],
-    ),
-  ];
-
-  final List<Sprint> sprints = [
-    Sprint(
-      id: '1',
-      name: 'Sprint 1 - Auth Foundation',
-      startDate: DateTime.now().subtract(const Duration(days: 14)),
-      endDate: DateTime.now().subtract(const Duration(days: 7)),
-      committedPoints: 21,
-      completedPoints: 18,
-      velocity: 18,
-      testPassRate: 95.5,
-      defectCount: 3,
-    ),
-    Sprint(
-      id: '2',
-      name: 'Sprint 2 - Auth Enhancement',
-      startDate: DateTime.now().subtract(const Duration(days: 7)),
-      endDate: DateTime.now(),
-      committedPoints: 19,
-      completedPoints: 19,
-      velocity: 19,
-      testPassRate: 98.2,
-      defectCount: 1,
-    ),
-    Sprint(
-      id: '3',
-      name: 'Sprint 3 - Payment Integration',
-      startDate: DateTime.now(),
-      endDate: DateTime.now().add(const Duration(days: 7)),
-      committedPoints: 25,
-      completedPoints: 12,
-      velocity: 0, // In progress
-      testPassRate: 92.1,
-      defectCount: 2,
-    ),
-  ];
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Load dashboard data when the screen is initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(dashboardNotifierProvider.notifier).loadDashboardData();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final dashboardState = ref.watch(dashboardNotifierProvider);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Flow-Space Dashboard'),
@@ -151,28 +78,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Section
-            _buildWelcomeSection(),
-            const SizedBox(height: 24),
+      body: dashboardState.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : dashboardState.error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        dashboardState.error!,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          ref.read(dashboardNotifierProvider.notifier).loadDashboardData();
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Welcome Section
+                      _buildWelcomeSection(),
+                      const SizedBox(height: 24),
 
-            // Key Metrics Row
-            _buildMetricsRow(),
-            const SizedBox(height: 24),
+                      // Key Metrics Row
+                      _buildMetricsRow(dashboardState),
+                      const SizedBox(height: 24),
 
-            // Sprint Performance Chart
-            _buildSprintPerformanceSection(),
-            const SizedBox(height: 24),
+                      // Sprint Performance Chart
+                      _buildSprintPerformanceSection(dashboardState),
+                      const SizedBox(height: 24),
 
-            // Deliverables Section
-            _buildDeliverablesSection(),
-          ],
-        ),
-      ),
+                      // Deliverables Section
+                      _buildDeliverablesSection(dashboardState),
+                    ],
+                  ),
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           _showCreateDeliverableDialog();
@@ -230,10 +179,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMetricsRow() {
-    final totalDeliverables = deliverables.length;
-    final approvedDeliverables = deliverables.where((d) => d.status == DeliverableStatus.approved).length;
-    final pendingDeliverables = deliverables.where((d) => d.status == DeliverableStatus.submitted).length;
+  Widget _buildMetricsRow(DashboardState dashboardState) {
+    final totalDeliverables = dashboardState.deliverables.length;
+    final approvedDeliverables = dashboardState.deliverables.where((d) => d.status == DeliverableStatus.approved).length;
+    final pendingDeliverables = dashboardState.deliverables.where((d) => d.status == DeliverableStatus.submitted).length;
 
     return Row(
       children: [
@@ -276,7 +225,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildSprintPerformanceSection() {
+  Widget _buildSprintPerformanceSection(DashboardState dashboardState) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -316,7 +265,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: SprintPerformanceChart(sprints: sprints.map((sprint) {
+              child: SprintPerformanceChart(sprints: dashboardState.sprints.map((sprint) {
                 return {
                   'id': sprint.id,
                   'name': sprint.name,
@@ -334,7 +283,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDeliverablesSection() {
+  Widget _buildDeliverablesSection(DashboardState dashboardState) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -357,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        ...deliverables.map((deliverable) => Padding(
+        ...dashboardState.deliverables.take(5).map((deliverable) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: DeliverableCard(
                 deliverable: deliverable,

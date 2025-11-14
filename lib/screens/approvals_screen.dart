@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/approval_request.dart';
+import '../services/backend_api_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -12,32 +13,42 @@ class ApprovalsScreen extends ConsumerStatefulWidget {
 }
 
 class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
-  final List<ApprovalRequest> _approvalRequests = [
-    ApprovalRequest(
-      id: '1',
-      itemName: 'User Authentication System',
-      requester: 'John Doe',
-      date: DateTime.now().subtract(const Duration(days: 2)),
-      status: ApprovalStatus.pending,
-      description: 'Implementation of secure user login system with JWT tokens',
-    ),
-    ApprovalRequest(
-      id: '2',
-      itemName: 'Database Schema Update',
-      requester: 'Jane Smith',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      status: ApprovalStatus.pending,
-      description: 'Update database schema to support new user roles',
-    ),
-    ApprovalRequest(
-      id: '3',
-      itemName: 'API Documentation',
-      requester: 'Mike Johnson',
-      date: DateTime.now().subtract(const Duration(hours: 5)),
-      status: ApprovalStatus.approved,
-      description: 'Complete API documentation with examples and endpoints',
-    ),
-  ];
+  final List<ApprovalRequest> _approvalRequests = [];
+  final BackendApiService _apiService = BackendApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadApprovalRequests();
+  }
+
+  Future<void> _loadApprovalRequests() async {
+    setState(() {
+    });
+
+    try {
+      final response = await _apiService.getApprovalRequests();
+      
+      if (response.isSuccess && response.data != null) {
+        final List<dynamic> data = response.data!['data'] ?? response.data!['approvals'] ?? [];
+        final List<ApprovalRequest> requests = data.map((item) => ApprovalRequest.fromJson(item)).toList();
+        
+        setState(() {
+          _approvalRequests.clear();
+          _approvalRequests.addAll(requests);
+        });
+      } else {
+        setState(() {
+        });
+      }
+    } catch (e) {
+      setState(() {
+      });
+    } finally {
+      setState(() {
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

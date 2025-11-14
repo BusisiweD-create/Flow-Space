@@ -568,7 +568,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           userRole = UserRole.deliveryLead;
           break;
         case 'qa engineer':
-          userRole = UserRole.teamMember;
+          userRole = UserRole.qaEngineer;
           break;
         case 'client':
           userRole = UserRole.clientReviewer;
@@ -596,8 +596,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (result['success'] == true && mounted) {
         _errorHandler.showSuccessSnackBar(context, 'Registration successful!');
-        // Small delay to show success message
-        await Future.delayed(const Duration(milliseconds: 500));
         // Navigate to email verification screen
         if (mounted) {
           context.go('/email-verification', extra: {

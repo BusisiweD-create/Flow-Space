@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sign_off_report.dart';
+import '../services/backend_api_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -23,66 +24,29 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     _loadReports();
   }
 
-  void _loadReports() {
-    // Mock data - in real app this would come from API
-    setState(() {
-      _reports = [
-        SignOffReport(
-          id: '1',
-          deliverableId: 'deliverable-1',
-          reportTitle: 'Sign-Off Report: User Authentication System',
-          reportContent: 'Comprehensive report for authentication system...',
-          sprintIds: ['sprint-1', 'sprint-2'],
-          status: ReportStatus.approved,
-          createdAt: DateTime.now().subtract(const Duration(days: 5)),
-          createdBy: 'John Doe',
-          submittedAt: DateTime.now().subtract(const Duration(days: 4)),
-          submittedBy: 'Project Manager',
-          reviewedAt: DateTime.now().subtract(const Duration(days: 2)),
-          reviewedBy: 'Client User',
-          approvedAt: DateTime.now().subtract(const Duration(days: 2)),
-          approvedBy: 'Client User',
-          digitalSignature: 'sig_123456789',
-        ),
-        SignOffReport(
-          id: '2',
-          deliverableId: 'deliverable-2',
-          reportTitle: 'Sign-Off Report: Payment Integration',
-          reportContent: 'Payment gateway integration report...',
-          sprintIds: ['sprint-3'],
-          status: ReportStatus.submitted,
-          createdAt: DateTime.now().subtract(const Duration(days: 2)),
-          createdBy: 'Jane Smith',
-          submittedAt: DateTime.now().subtract(const Duration(days: 1)),
-          submittedBy: 'Project Manager',
-        ),
-        SignOffReport(
-          id: '3',
-          deliverableId: 'deliverable-3',
-          reportTitle: 'Sign-Off Report: Dashboard Analytics',
-          reportContent: 'Analytics dashboard implementation report...',
-          sprintIds: ['sprint-4', 'sprint-5'],
-          status: ReportStatus.changeRequested,
-          createdAt: DateTime.now().subtract(const Duration(days: 3)),
-          createdBy: 'Mike Johnson',
-          submittedAt: DateTime.now().subtract(const Duration(days: 2)),
-          submittedBy: 'Project Manager',
-          reviewedAt: DateTime.now().subtract(const Duration(days: 1)),
-          reviewedBy: 'Client User',
-          changeRequestDetails: 'Please add more detailed performance metrics and user engagement data.',
-        ),
-        SignOffReport(
-          id: '4',
-          deliverableId: 'deliverable-4',
-          reportTitle: 'Sign-Off Report: Mobile App Features',
-          reportContent: 'Mobile application feature implementation...',
-          sprintIds: ['sprint-6'],
-          status: ReportStatus.draft,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          createdBy: 'Sarah Wilson',
-        ),
-      ];
-    });
+  Future<void> _loadReports() async {
+    try {
+      final api = BackendApiService();
+      final response = await api.getSignOffReports(limit: 100);
+      if (mounted) {
+        if (response.isSuccess && response.data != null) {
+          final List<dynamic> items = response.data!['data'] ?? response.data!['reports'] ?? [];
+          setState(() {
+            _reports = items.map((e) => SignOffReport.fromJson(e)).toList();
+          });
+        } else {
+          setState(() {
+            _reports = [];
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _reports = [];
+        });
+      }
+    }
   }
 
   List<SignOffReport> get _filteredReports {

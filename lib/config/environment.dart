@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 class Environment {
   // App Configuration
   static const String appName = 'Khonology';
@@ -5,7 +7,9 @@ class Environment {
   static const String appDescription = 'A social learning platform built with Flutter';
 
   // API Configuration
-  static const String apiBaseUrl = 'https://api.khono.com';
+  static String get apiBaseUrl => kIsWeb
+      ? 'http://localhost:8000/api/v1'
+      : 'http://localhost:8000/api/v1';
   static const int apiTimeout = 30000;
 
   // Feature Flags

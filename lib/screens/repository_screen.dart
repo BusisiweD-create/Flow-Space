@@ -38,69 +38,27 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
       // For demo purposes, we'll use a default project ID
       final filesData = await ApiService.getProjectFiles('default-project-id');
       
-      if (filesData.isEmpty) {
-        // Fallback to mock data if no files returned
-        setState(() {
-          _files = [
-            RepositoryFile(
-              id: '1',
-              name: 'Technical Requirements Document',
-              fileType: 'document',
-              uploadDate: DateTime.now().subtract(const Duration(days: 3)),
-              uploadedBy: 'user1',
-              size: '2.5 MB',
-              description: 'Complete technical requirements for the authentication system',
-              uploader: 'Sarah Chen',
-              sizeInMB: 2.5,
-            ),
-            RepositoryFile(
-              id: '2',
-              name: 'API Design Specification',
-              fileType: 'document',
-              uploadDate: DateTime.now().subtract(const Duration(days: 2)),
-              uploadedBy: 'user2',
-              size: '1.8 MB',
-              description: 'Detailed API design and endpoints specification',
-              uploader: 'Michael Rodriguez',
-              sizeInMB: 1.8,
-            ),
-            RepositoryFile(
-              id: '3',
-              name: 'Database Schema Diagram',
-              fileType: 'image',
-              uploadDate: DateTime.now().subtract(const Duration(days: 1)),
-              uploadedBy: 'user3',
-              size: '3.2 MB',
-              description: 'ER diagram showing database relationships',
-              uploader: 'Emily Wang',
-              sizeInMB: 3.2,
-            ),
-          ];
-          _isLoading = false;
-        });
-      } else {
-        // Convert API response to RepositoryFile objects
-        final files = filesData.map((fileData) {
-          return RepositoryFile(
-            id: fileData['id']?.toString() ?? '',
-            name: fileData['name']?.toString() ?? 'Unknown File',
-            fileType: fileData['fileType']?.toString() ?? 'document',
-            uploadDate: fileData['uploadDate'] != null 
-                ? DateTime.parse(fileData['uploadDate'])
-                : DateTime.now(),
-            uploadedBy: fileData['uploadedBy']?.toString() ?? '',
-            size: fileData['size']?.toString() ?? '0 MB',
-            description: fileData['description']?.toString() ?? '',
-            uploader: fileData['uploader']?.toString() ?? 'Unknown User',
-            sizeInMB: (fileData['sizeInMB'] as num?)?.toDouble() ?? 0.0,
-          );
-        }).toList();
-        
-        setState(() {
-          _files = files;
-          _isLoading = false;
-        });
-      }
+      // Convert API response to RepositoryFile objects
+      final files = filesData.map((fileData) {
+        return RepositoryFile(
+          id: fileData['id']?.toString() ?? '',
+          name: fileData['name']?.toString() ?? 'Unknown File',
+          fileType: fileData['fileType']?.toString() ?? 'document',
+          uploadDate: fileData['uploadDate'] != null 
+              ? DateTime.parse(fileData['uploadDate'])
+              : DateTime.now(),
+          uploadedBy: fileData['uploadedBy']?.toString() ?? '',
+          size: fileData['size']?.toString() ?? '0 MB',
+          description: fileData['description']?.toString() ?? '',
+          uploader: fileData['uploader']?.toString() ?? 'Unknown User',
+          sizeInMB: (fileData['sizeInMB'] as num?)?.toDouble() ?? 0.0,
+        );
+      }).toList();
+      
+      setState(() {
+        _files = files;
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _isLoading = false;

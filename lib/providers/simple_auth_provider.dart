@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/api_service.dart';
 
 // Simple auth state for demo purposes
 class AuthState {
@@ -35,19 +36,24 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Simple validation for demo
-    if (email.isNotEmpty && password.length >= 6) {
+    try {
+      final response = await ApiService.signIn(email: email, password: password);
+      
+      if (response != null && response['user'] != null) {
+        state = state.copyWith(
+          isLoading: false,
+          userEmail: email,
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Invalid email or password',
+        );
+      }
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        userEmail: email,
-      );
-    } else {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Invalid email or password',
+        error: 'Sign in failed: $e',
       );
     }
   }
@@ -62,63 +68,54 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Simple validation for demo
-    if (email.isNotEmpty && password.length >= 8) {
-      state = state.copyWith(
-        isLoading: false,
-        userEmail: email,
+    try {
+      final response = await ApiService.signUp(
+        email: email,
+        password: password,
+        firstName: firstName,
+        lastName: lastName,
+        company: company,
+        role: role,
       );
-    } else {
+      
+      if (response != null && response['user'] != null) {
+        state = state.copyWith(
+          isLoading: false,
+          userEmail: email,
+        );
+      } else {
+        final errorMessage = response?['message'] ?? response?['error'] ?? 'Registration failed. Please check your details.';
+        state = state.copyWith(
+          isLoading: false,
+          error: errorMessage,
+        );
+      }
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Registration failed. Please check your details.',
+        error: 'Registration failed: $e',
       );
     }
   }
 
-  Future<void> signInWithGoogle() async {
-    state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    state = state.copyWith(
-      isLoading: false,
-      userEmail: 'demo@google.com',
-    );
-  }
 
-  Future<void> sendPasswordResetEmail(String email) async {
-    state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-    
-    state = state.copyWith(isLoading: false);
-  }
 
-  Future<void> resendEmailVerification() async {
-    state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-    
-    state = state.copyWith(isLoading: false);
-  }
+
 
   Future<void> signOut() async {
     state = state.copyWith(isLoading: true, error: null);
     
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-    
-    state = state.copyWith(
-      isLoading: false,
-      userEmail: null,
-    );
+    try {
+      state = state.copyWith(
+        isLoading: false,
+        userEmail: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Sign out failed: $e',
+      );
+    }
   }
 
   void clearError() {
@@ -128,10 +125,4 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
 
 final authStateProvider = NotifierProvider<SimpleAuthNotifier, AuthState>(() {
   return SimpleAuthNotifier();
-});
-
-// Mock current user provider
-final currentUserProvider = StreamProvider<String?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return Stream.value(authState.userEmail);
 });
