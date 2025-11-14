@@ -481,6 +481,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       case 'systemadmin':
       case 'system_admin':
       case 'system admin':
+      case 'manager':  // Add manager mapping to systemAdmin
         return UserRole.systemAdmin;
       case 'deliverylead':
       case 'delivery_lead':

@@ -105,5 +105,57 @@ module.exports = (sequelize, DataTypes) => {
     });
   };
 
+  // Real-time event hooks
+  Deliverable.afterCreate(async (deliverable, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('deliverable_created', {
+          id: deliverable.id,
+          title: deliverable.title,
+          status: deliverable.status,
+          created_by: deliverable.created_by,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in deliverable afterCreate hook:', error);
+    }
+  });
+
+  Deliverable.afterUpdate(async (deliverable, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('deliverable_updated', {
+          id: deliverable.id,
+          title: deliverable.title,
+          status: deliverable.status,
+          updated_by: options.updatedBy || deliverable.updated_by,
+          changes: deliverable.changed(),
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in deliverable afterUpdate hook:', error);
+    }
+  });
+
+  Deliverable.afterDestroy(async (deliverable, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('deliverable_deleted', {
+          id: deliverable.id,
+          title: deliverable.title,
+          deleted_by: options.deletedBy,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in deliverable afterDestroy hook:', error);
+    }
+  });
+
   return Deliverable;
 };

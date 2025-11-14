@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/api_auth_riverpod_provider.dart';
+import '../services/api_service.dart';
 
 class EmailVerificationScreen extends ConsumerStatefulWidget {
   const EmailVerificationScreen({super.key});
@@ -199,37 +200,59 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
       }
       return;
     }
+    final error = ref.read(apiAuthProvider).error;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Email verification resend functionality coming soon!'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification email sent! Please check your inbox.'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(error ?? 'Verification email sent! Please check your inbox.'),
+          backgroundColor: error == null ? Colors.green : Colors.red,
         ),
       );
     }
   }
 
   Future<void> _checkVerificationStatus() async {
-    // Simulate email verification check
-    await Future.delayed(const Duration(seconds: 1));
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Email verified successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      context.go('/dashboard');
+    try {
+      final email = await ApiService.getCurrentUserEmail();
+      if (email == null || email.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No email found for current user'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      final verified = await ApiService.checkEmailVerificationStatus(email);
+      if (mounted) {
+        if (verified) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Email verified successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          context.go('/dashboard');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Email not verified yet'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification check failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
+import '../services/sprint_database_service.dart';
 import '../services/jira_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -29,8 +30,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   String? _selectedProjectKey;
   String? _selectedSprintId;
   
-  // ignore: strict_top_level_inference
-  get _databaseService => SprintDatabaseService();
+  final SprintDatabaseService _databaseService = SprintDatabaseService();
   
   // ignore: strict_top_level_inference
   get id => null;
@@ -47,6 +47,14 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     });
 
     try {
+      // Load projects first
+      final projects = await _databaseService.getProjects();
+      setState(() {
+        _projects
+          ..clear()
+          ..addAll(projects);
+      });
+
       // Load sprints using API service
       final sprints = await ApiService.getSprints();
       setState(() {
@@ -138,7 +146,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           const SizedBox(height: 24),
           
           // Sprints Section
-          if (_selectedProjectKey != null) _buildSprintsSection(),
+          _buildSprintsSection(),
           
           // Tickets Section
           if (_selectedSprintId != null) _buildTicketsSection(),
@@ -257,12 +265,21 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   }
 
   Widget _buildProjectsGrid() {
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width < 600
+        ? 1
+        : width < 900
+            ? 2
+            : width < 1200
+                ? 3
+                : 4;
+    final aspectRatio = width < 600 ? 1.3 : 1.5;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1.5,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: aspectRatio,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -378,7 +395,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   Widget _buildSprintsList() {
     return ListView.builder(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      primary: false,
       itemCount: _sprints.length,
       itemBuilder: (context, index) {
         final sprint = _sprints[index];
@@ -607,7 +624,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => SprintBoardScreen(
-          sprintId: sprint['id'],
+          sprintId: sprint['id']?.toString() ?? '',
           sprintName: sprint['name'] ?? 'Unknown Sprint',
           projectKey: _selectedProjectKey,
         ),
@@ -968,6 +985,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
 
       if (result != null) {
         _showSnackBar('Project created successfully!');
+        setState(() {
+          _selectedProjectKey = key;
+        });
         await _loadData(); // Reload projects
       } else {
         _showSnackBar('Failed to create project', isError: true);
@@ -1029,6 +1049,5 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     );
   }
   
-  // ignore: non_constant_identifier_names
-  SprintDatabaseService() {}
+  
 }

@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../models/sprint.dart';
 import '../models/user.dart';
 import '../models/deliverable.dart';
+import '../providers/client_approval_provider.dart';
 
-class DeliveryManagerDashboard extends StatefulWidget {
+class DeliveryManagerDashboard extends ConsumerStatefulWidget {
   const DeliveryManagerDashboard({super.key});
 
   @override
-  State<DeliveryManagerDashboard> createState() => _DeliveryManagerDashboardState();
+  ConsumerState<DeliveryManagerDashboard> createState() => _DeliveryManagerDashboardState();
 }
 
-class _DeliveryManagerDashboardState extends State<DeliveryManagerDashboard> {
+class _DeliveryManagerDashboardState extends ConsumerState<DeliveryManagerDashboard> {
   List<Sprint> _sprints = [];
   List<User> _teamMembers = [];
   List<Deliverable> _recentDeliverables = [];
+  int _pendingApprovalsCount = 0;
+  int _overdueApprovalsCount = 0;
+  int _approvalsNeedingReminderCount = 0;
   bool _isLoading = true;
 
   @override
@@ -36,10 +41,20 @@ class _DeliveryManagerDashboardState extends State<DeliveryManagerDashboard> {
       final deliverables = await ApiService.getDeliverables();
       final recentDeliverables = deliverables.take(5).toList();
       
+      // Load client approval metrics
+      final clientApprovalNotifier = ref.read(clientApprovalProvider.notifier);
+      await clientApprovalNotifier.loadApprovalRequests();
+      final pendingApprovals = clientApprovalNotifier.getPendingApprovals();
+      final overdueApprovals = clientApprovalNotifier.getOverdueApprovals();
+      final approvalsNeedingReminder = clientApprovalNotifier.getApprovalsNeedingReminder();
+      
       setState(() {
         _sprints = activeSprints;
         _teamMembers = teamMembers;
         _recentDeliverables = recentDeliverables;
+        _pendingApprovalsCount = pendingApprovals.length;
+        _overdueApprovalsCount = overdueApprovals.length;
+        _approvalsNeedingReminderCount = approvalsNeedingReminder.length;
         _isLoading = false;
       });
     } catch (e) {
@@ -109,6 +124,32 @@ class _DeliveryManagerDashboardState extends State<DeliveryManagerDashboard> {
                 _buildMetricCard('Team Members', _teamMembers.length.toString(), Icons.people),
                 _buildMetricCard('Active Sprints', _sprints.length.toString(), Icons.directions_run),
                 _buildMetricCard('Recent Deliverables', _recentDeliverables.length.toString(), Icons.assignment_turned_in),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClientApprovalMetrics() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Client Approval Metrics',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildMetricCard('Pending Approvals', _pendingApprovalsCount.toString(), Icons.pending_actions),
+                _buildMetricCard('Overdue Approvals', _overdueApprovalsCount.toString(), Icons.warning),
+                _buildMetricCard('Need Reminder', _approvalsNeedingReminderCount.toString(), Icons.notifications_active),
               ],
             ),
           ],
@@ -219,6 +260,8 @@ class _DeliveryManagerDashboardState extends State<DeliveryManagerDashboard> {
             _buildWelcomeSection(),
             const SizedBox(height: 16),
             _buildTeamMetrics(),
+            const SizedBox(height: 16),
+            _buildClientApprovalMetrics(),
             const SizedBox(height: 16),
             _buildQuickActions(),
             const SizedBox(height: 16),

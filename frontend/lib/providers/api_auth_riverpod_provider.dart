@@ -146,7 +146,24 @@ class ApiAuthNotifier extends StateNotifier<ApiAuthState> {
 
   Future<void> signInWithGoogle() async {}
 
-  Future<void> resendVerificationEmail() async {}
+  Future<void> resendVerificationEmail() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final emailFromState = state.user?.email;
+      final email = emailFromState ?? await ApiService.getCurrentUserEmail();
+      if (email == null || email.isEmpty) {
+        throw Exception('Email not available');
+      }
+      final success = await ApiService.resendVerificationEmail(email);
+      if (!success) {
+        state = state.copyWith(isLoading: false, error: 'Failed to resend verification email');
+        return;
+      }
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
 }
 
 // Riverpod provider for API authentication

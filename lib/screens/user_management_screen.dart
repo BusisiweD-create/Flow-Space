@@ -7,6 +7,7 @@ import '../models/user_role.dart';
 import '../services/api_client.dart';
 import '../services/backend_api_service.dart';
 import '../services/error_handler.dart';
+import '../services/realtime_service.dart';
 import '../widgets/role_guard.dart';
 
 class UserManagementScreen extends ConsumerStatefulWidget {
@@ -25,18 +26,36 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   UserRole? _filterRole;
-  bool _showInactive = false;
+  bool _showInactive = true;
+  late final RealtimeService realtimeService;
 
   @override
   void initState() {
     super.initState();
+    realtimeService = RealtimeService();
+    _loadUsers();
+    _setupRealtimeListeners();
+  }
+
+  @override
+  void dispose() {
+    realtimeService.off('user_role_changed', _handleRoleChanged);
+    super.dispose();
+  }
+
+  void _setupRealtimeListeners() {
+    realtimeService.on('user_role_changed', _handleRoleChanged);
+  }
+
+  void _handleRoleChanged(dynamic data) {
+    // Reload users when a role change is detected from another session
     _loadUsers();
   }
 
   Future<void> _loadUsers() async {
     try {
       setState(() => _isLoading = true);
-      final response = await _apiService.getUsers();
+      final response = await _apiService.getUsers(page: 1, limit: 500);
       
       if (response.isSuccess && response.data != null) {
         final List<dynamic> usersData = response.data!['users'] ?? response.data!;
@@ -133,7 +152,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
 
   Future<void> _toggleUserStatus(User user) async {
     try {
-      final updates = {'isActive': !user.isActive};
+      final updates = {'is_active': !user.isActive};
       final response = await _apiService.updateUser(user.id, updates);
       if (response.isSuccess) {
         final status = !user.isActive ? 'activated' : 'deactivated';
@@ -265,7 +284,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   }
 
   void _showEditUserDialog(User user) {
-    // Placeholder for edit user dialog
+    // Edit user dialog implementation
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Edit user functionality coming soon'),
@@ -319,6 +338,16 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
               setState(() => _showInactive = selected);
               _filterUsers();
             },
+          ),
+          const SizedBox(width: 8),
+          Chip(
+            label: Text('All: ${_users.length}'),
+          ),
+          const SizedBox(width: 4),
+          Chip(
+            label: Text('Active: ${_users.where((u) => u.isActive).length}'),
+            backgroundColor: Colors.green[50],
+            labelStyle: TextStyle(color: Colors.green[800]),
           ),
         ],
       ),

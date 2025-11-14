@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/deliverable.dart';
 import '../models/sign_off_report.dart';
+import '../services/backend_api_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -32,110 +33,61 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
     _loadReportData();
   }
 
-  void _loadReportData() {
-    // Mock data - in real app this would come from API
+  Future<void> _loadReportData() async {
     setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final backendService = BackendApiService();
+      
+      // Fetch sign-off report
+      final reportResponse = await backendService.getSignOffReport(widget.reportId);
+      if (reportResponse.isSuccess && reportResponse.data != null) {
+        _report = SignOffReport.fromJson(reportResponse.data!);
+        
+        // Fetch deliverable data
+        if (_report != null && _report!.deliverableId.isNotEmpty) {
+          final deliverableResponse = await backendService.getDeliverable(_report!.deliverableId);
+          if (deliverableResponse.isSuccess && deliverableResponse.data != null) {
+            _deliverable = Deliverable.fromJson(deliverableResponse.data!);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading report data: $e');
+      // Fallback to empty data rather than mock data
       _report = SignOffReport(
         id: widget.reportId,
-        deliverableId: 'deliverable-1',
-        reportTitle: 'Sign-Off Report: User Authentication System',
-        reportContent: '''
-## Executive Summary
-
-This report provides a comprehensive overview of the User Authentication System deliverable, including sprint performance metrics, quality indicators, and readiness for client approval.
-
-## Deliverable Overview
-
-**Title:** User Authentication System
-**Description:** Complete user login, registration, and role-based access control with multi-factor authentication
-**Due Date:** 15/12/2024
-**Status:** Submitted
-
-## Definition of Done Checklist
-
-1. ✅ All unit tests pass with >90% coverage
-2. ✅ Code review completed by senior developer
-3. ✅ Security audit passed with no critical issues
-4. ✅ Documentation updated and reviewed
-5. ✅ Performance benchmarks met
-6. ✅ User acceptance testing completed
-
-## Evidence & Artifacts
-
-1. [Demo Environment](https://demo.example.com/auth)
-2. [Source Code Repository](https://github.com/company/auth-system)
-3. [User Documentation](https://docs.example.com/auth-guide)
-4. [Test Coverage Report](https://test-results.example.com/auth-coverage)
-
-## Sprint Performance Summary
-
-**Total Committed Points:** 60
-**Total Completed Points:** 56
-**Completion Rate:** 93.3%
-**Average Test Pass Rate:** 96.9%
-**Total Defects:** 6
-**Resolved Defects:** 6
-**Defect Resolution Rate:** 100.0%
-
-## Quality Indicators
-
-All sprints maintained high quality standards with:
-- Test pass rates consistently above 95%
-- Complete code review coverage
-- Comprehensive documentation
-- Zero critical defects in production
-
-## Risk Assessment
-
-No significant risks identified during development.
-
-## Known Limitations
-
-- MFA setup requires admin configuration
-- Password reset emails may take up to 5 minutes to deliver
-- Session timeout is set to 8 hours for security
-
-## Next Steps
-
-- Deploy to production environment
-- Monitor authentication metrics
-- Schedule user training sessions
-- Plan future enhancements based on user feedback
-        ''',
-        sprintIds: ['sprint-1', 'sprint-2', 'sprint-3'],
-        status: ReportStatus.submitted,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        createdBy: 'John Doe',
-        submittedAt: DateTime.now().subtract(const Duration(hours: 2)),
-        submittedBy: 'Project Manager',
+        deliverableId: '',
+        reportTitle: 'Sign-Off Report',
+        reportContent: 'Report data could not be loaded.',
+        sprintIds: [],
+        status: ReportStatus.draft,
+        createdAt: DateTime.now(),
+        createdBy: '',
+        submittedAt: null,
+        submittedBy: '',
       );
-
+      
       _deliverable = Deliverable(
-        id: 'deliverable-1',
-        title: 'User Authentication System',
-        description: 'Complete user login, registration, and role-based access control with multi-factor authentication',
-        status: DeliverableStatus.submitted,
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        dueDate: DateTime.now().add(const Duration(days: 2)),
-        sprintIds: ['sprint-1', 'sprint-2', 'sprint-3'],
-        definitionOfDone: [
-          'All unit tests pass with >90% coverage',
-          'Code review completed by senior developer',
-          'Security audit passed with no critical issues',
-          'Documentation updated and reviewed',
-          'Performance benchmarks met',
-          'User acceptance testing completed',
-        ],
-        evidenceLinks: [
-          'https://demo.example.com/auth',
-          'https://github.com/company/auth-system',
-          'https://docs.example.com/auth-guide',
-          'https://test-results.example.com/auth-coverage',
-        ],
-        submittedBy: 'John Doe',
-        submittedAt: DateTime.now().subtract(const Duration(days: 1)),
+        id: '',
+        title: 'Deliverable',
+        description: 'Deliverable data could not be loaded.',
+        status: DeliverableStatus.draft,
+        createdAt: DateTime.now(),
+        dueDate: DateTime.now(),
+        sprintIds: [],
+        definitionOfDone: [],
+        evidenceLinks: [],
+        submittedBy: '',
+        submittedAt: null,
       );
-    });
+    } finally {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
   }
 
   Future<void> _submitApproval() async {
@@ -164,23 +116,54 @@ No significant risks identified during development.
     });
 
     try {
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      final backendService = BackendApiService();
       
-      if (mounted) {
-        final message = _selectedAction == 'approve' 
-            ? 'Deliverable approved successfully!'
-            : 'Change request submitted successfully!';
-            
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.green,
-          ),
+      if (_selectedAction == 'approve') {
+        // Approve the deliverable
+        final response = await backendService.approveDeliverable(
+          _deliverable!.id,
+          _commentController.text.isNotEmpty ? _commentController.text : null,
         );
         
-        // Navigate back or show success page
-        Navigator.pop(context);
+        if (response.isSuccess && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Deliverable approved successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to approve deliverable: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else if (_selectedAction == 'changeRequest') {
+        // Request changes
+        final response = await backendService.requestChanges(
+          _deliverable!.id,
+          _changeRequestController.text,
+        );
+        
+        if (response.isSuccess && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Change request submitted successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to submit change request: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

@@ -169,14 +169,7 @@ SELECT email, is_active FROM users WHERE email = 'test@example.com';
 
 ## Test Data
 
-Use these test accounts for consistent testing:
-
-| Email | Password | Role | Status |
-|-------|----------|------|--------|
-| test@example.com | testpassword123 | teamMember | Active |
-| admin@example.com | admin123 | systemAdmin | Active |
-| lead@example.com | lead123 | deliveryLead | Active |
-| client@example.com | client123 | clientReviewer | Active |
+For testing purposes, create test accounts in your development environment with appropriate roles and permissions.
 
 ## Troubleshooting
 

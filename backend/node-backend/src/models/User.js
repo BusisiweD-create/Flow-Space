@@ -87,5 +87,77 @@ module.exports = (sequelize, DataTypes) => {
     });
   };
 
+  // Real-time event hooks
+  User.afterCreate(async (user, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('user_created', {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in user afterCreate hook:', error);
+    }
+  });
+
+  User.afterUpdate(async (user, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        const changes = user.changed();
+        global.realtimeEvents.emit('user_updated', {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+          updated_by: options.updatedBy,
+          changes,
+          timestamp: new Date()
+        });
+
+        // Special handling for role changes
+        if (changes && changes.includes('role')) {
+          global.realtimeEvents.emit('user_role_changed', {
+            id: user.id,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            old_role: user.previous('role'),
+            new_role: user.role,
+            changed_by: options.updatedBy,
+            timestamp: new Date()
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error in user afterUpdate hook:', error);
+    }
+  });
+
+  User.afterDestroy(async (user, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('user_deleted', {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          deleted_by: options.deletedBy,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in user afterDestroy hook:', error);
+    }
+  });
+
   return User;
 };

@@ -40,7 +40,16 @@ class BackendApiService {
   }
 
   Future<ApiResponse> updateProfile(Map<String, dynamic> updates) async {
-    return await _apiClient.updateProfile(updates);
+    final me = await _apiClient.getCurrentUser();
+    if (!me.isSuccess || me.data == null) {
+      return ApiResponse.error('Failed to load current user');
+    }
+    final user = me.data['user'] ?? me.data;
+    final id = user['id']?.toString();
+    if (id == null || id.isEmpty) {
+      return ApiResponse.error('Missing user id');
+    }
+    return await _apiClient.put('/profile/$id', body: updates);
   }
 
   Future<ApiResponse> changePassword(String currentPassword, String newPassword) async {
@@ -64,23 +73,23 @@ class BackendApiService {
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
-    return await _apiClient.get('/api/v1/users', queryParams: queryParams);
+    return await _apiClient.get('/users', queryParams: queryParams);
   }
 
   Future<ApiResponse> getUser(String userId) async {
-    return await _apiClient.get('/api/v1/users/$userId');
+    return await _apiClient.get('/users/$userId');
   }
 
   Future<ApiResponse> updateUser(String userId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/api/v1/users/$userId', body: updates);
+    return await _apiClient.put('/users/$userId', body: updates);
   }
 
   Future<ApiResponse> deleteUser(String userId) async {
-    return await _apiClient.delete('/api/v1/users/$userId');
+    return await _apiClient.delete('/users/$userId');
   }
 
   Future<ApiResponse> updateUserRole(String userId, UserRole newRole) async {
-    return await _apiClient.put('/api/v1/users/$userId/role', body: {'role': newRole.name});
+    return await _apiClient.put('/users/$userId/role', body: {'role': newRole.name});
   }
 
   // Admin-only user creation endpoint
@@ -110,23 +119,23 @@ class BackendApiService {
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
-    return await _apiClient.get('/api/v1/deliverables', queryParams: queryParams);
+    return await _apiClient.get('/deliverables', queryParams: queryParams);
   }
 
   Future<ApiResponse> getDeliverable(String deliverableId) async {
-    return await _apiClient.get('/api/v1/deliverables/$deliverableId');
+    return await _apiClient.get('/deliverables/$deliverableId');
   }
 
   Future<ApiResponse> createDeliverable(Map<String, dynamic> deliverableData) async {
-    return await _apiClient.post('/api/v1/deliverables', body: deliverableData);
+    return await _apiClient.post('/deliverables', body: deliverableData);
   }
 
   Future<ApiResponse> updateDeliverable(String deliverableId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/api/v1/deliverables/$deliverableId', body: updates);
+    return await _apiClient.put('/deliverables/$deliverableId', body: updates);
   }
 
   Future<ApiResponse> deleteDeliverable(String deliverableId) async {
-    return await _apiClient.delete('/api/v1/deliverables/$deliverableId');
+    return await _apiClient.delete('/deliverables/$deliverableId');
   }
 
   Future<ApiResponse> submitDeliverable(String deliverableId) async {
@@ -154,36 +163,36 @@ class BackendApiService {
     if (status != null && status.isNotEmpty) {
       queryParams['status'] = status;
     }
-    return await _apiClient.get('/api/v1/sprints', queryParams: queryParams);
+    return await _apiClient.get('/sprints', queryParams: queryParams);
   }
 
   Future<ApiResponse> getSprint(String sprintId) async {
-    return await _apiClient.get('/api/v1/sprints/$sprintId');
+    return await _apiClient.get('/sprints/$sprintId');
   }
 
   Future<ApiResponse> createSprint(Map<String, dynamic> sprintData) async {
-    return await _apiClient.post('/api/v1/sprints', body: sprintData);
+    return await _apiClient.post('/sprints', body: sprintData);
   }
 
   Future<ApiResponse> updateSprint(String sprintId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/api/v1/sprints/$sprintId', body: updates);
+    return await _apiClient.put('/sprints/$sprintId', body: updates);
   }
 
   Future<ApiResponse> deleteSprint(String sprintId) async {
-    return await _apiClient.delete('/api/v1/sprints/$sprintId');
+    return await _apiClient.delete('/sprints/$sprintId');
   }
 
   // Sprint metrics endpoints
   Future<ApiResponse> getSprintMetrics(String sprintId) async {
-    return await _apiClient.get('/api/v1/sprints/$sprintId/metrics');
+    return await _apiClient.get('/sprints/$sprintId/metrics');
   }
 
   Future<ApiResponse> createSprintMetrics(String sprintId, Map<String, dynamic> metricsData) async {
-    return await _apiClient.post('/api/v1/sprints/$sprintId/metrics', body: metricsData);
+    return await _apiClient.post('/sprints/$sprintId/metrics', body: metricsData);
   }
 
   Future<ApiResponse> updateSprintMetrics(String sprintId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/api/v1/sprints/$sprintId/metrics', body: updates);
+    return await _apiClient.put('/sprints/$sprintId/metrics', body: updates);
   }
 
   // Sign-off report endpoints
@@ -213,6 +222,26 @@ class BackendApiService {
     return await _apiClient.put('/sign-off-reports/$reportId', body: updates);
   }
 
+  Future<ApiResponse> deleteSignOffReport(String reportId) async {
+    return await _apiClient.delete('/sign-off-reports/$reportId');
+  }
+
+  Future<ApiResponse> submitSignOffReport(String reportId) async {
+    return await _apiClient.post('/sign-off-reports/$reportId/submit');
+  }
+
+  Future<ApiResponse> approveSignOffReport(String reportId, String? comment) async {
+    return await _apiClient.post('/sign-off-reports/$reportId/approve', body: {
+      'comment': comment,
+    },);
+  }
+
+  Future<ApiResponse> requestChangesSignOffReport(String reportId, String changeRequest) async {
+    return await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: {
+      'change_request': changeRequest,
+    },);
+  }
+
   // Project endpoints
   Future<ApiResponse> getProjects({int page = 1, int limit = 20, String? search}) async {
     final queryParams = <String, String>{
@@ -239,23 +268,6 @@ class BackendApiService {
 
   Future<ApiResponse> deleteProject(String projectId) async {
     return await _apiClient.delete('/projects/$projectId');
-  }
-
-  Future<ApiResponse> submitSignOffReport(String reportId) async {
-    return await _apiClient.post('/sign-off-reports/$reportId/submit');
-  }
-
-  Future<ApiResponse> approveSignOffReport(String reportId, String? comment, String? digitalSignature) async {
-    return await _apiClient.post('/sign-off-reports/$reportId/approve', body: {
-      'comment': comment,
-      'digital_signature': digitalSignature,
-    },);
-  }
-
-  Future<ApiResponse> requestSignOffChanges(String reportId, String changeRequest) async {
-    return await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: {
-      'change_request': changeRequest,
-    },);
   }
 
   // Release readiness endpoints
@@ -293,7 +305,7 @@ class BackendApiService {
 
   // Dashboard and analytics endpoints
   Future<ApiResponse> getDashboardData() async {
-    return await _apiClient.get('/dashboard');
+    return await _apiClient.get('/analytics/dashboard');
   }
 
   Future<ApiResponse> getAnalytics(String type, {Map<String, String>? filters}) async {
@@ -312,9 +324,9 @@ class BackendApiService {
       queryParams['user_id'] = userId;
     }
     
-    final response = await _apiClient.get('/audit', queryParams: queryParams);
+    final response = await _apiClient.get('/audit-logs', queryParams: queryParams);
     
-    // If the endpoint doesn't exist or returns error, provide empty response instead of mock data
+    // If the endpoint doesn't exist or returns error, provide empty response
     if (!response.isSuccess) {
       debugPrint('Audit endpoint not available, returning empty response');
       return ApiResponse.success({
@@ -334,7 +346,7 @@ class BackendApiService {
 
   // File upload endpoints
   Future<ApiResponse> uploadFile(String filePath, String fileName, String fileType) async {
-    return await _apiClient.uploadFile('/files', filePath, fileName, fileType);
+    return await _apiClient.uploadFile('/files/upload', filePath, fileName, fileType);
   }
 
   Future<ApiResponse> deleteFile(String fileId) async {
@@ -406,20 +418,20 @@ class BackendApiService {
       queryParams['user_id'] = userId;
     }
     
-    return await _apiClient.get('/audit', queryParams: queryParams);
+    return await _apiClient.get('/audit-logs', queryParams: queryParams);
   }
 
   // User settings endpoints
   Future<ApiResponse> getUserSettings() async {
-    return await _apiClient.get('/api/settings/me');
+    return await _apiClient.get('/settings/me');
   }
 
   Future<ApiResponse> updateUserSettings(Map<String, dynamic> settings) async {
-    return await _apiClient.put('/api/settings/me', body: settings);
+    return await _apiClient.put('/settings/me', body: settings);
   }
 
   Future<ApiResponse> resetUserSettings() async {
-    return await _apiClient.delete('/api/settings/me');
+    return await _apiClient.delete('/settings/me');
   }
 
   Future<ApiResponse> exportUserData() async {
@@ -432,13 +444,13 @@ class BackendApiService {
 
   // Sprint tickets endpoints
   Future<ApiResponse> getSprintTickets(String sprintId) async {
-    return await _apiClient.get('/sprints/\$sprintId/tickets');
+    return await _apiClient.get('/sprints/$sprintId/tickets');
   }
 
   // File listing endpoint
   Future<ApiResponse> listFiles({String? prefix}) async {
     final queryParams = prefix != null ? {'prefix': prefix} : null;
-    return await _apiClient.get('/file-upload', queryParams: queryParams);
+    return await _apiClient.get('/files', queryParams: queryParams);
   }
 
   // Email verification endpoints
@@ -459,6 +471,43 @@ class BackendApiService {
     return await _apiClient.get('/auth/verification-status', queryParams: {
       'email': email,
     },);
+  }
+
+  // Approval requests endpoints
+  Future<ApiResponse> getApprovalRequests({String? status, String? deliverableId, String? requestedBy, int page = 1, int limit = 100}) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (status != null) queryParams['status'] = status;
+    if (deliverableId != null) queryParams['deliverable_id'] = deliverableId;
+    if (requestedBy != null) queryParams['requested_by'] = requestedBy;
+    
+    return await _apiClient.get('/approvals', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> getApprovalRequest(String id) async {
+    return await _apiClient.get('/approvals/$id');
+  }
+
+  Future<ApiResponse> createApprovalRequest(Map<String, dynamic> requestData) async {
+    return await _apiClient.post('/approvals', body: requestData);
+  }
+
+  Future<ApiResponse> approveRequest(String id, Map<String, dynamic> approvalData) async {
+    return await _apiClient.put('/approvals/$id/approve', body: approvalData);
+  }
+
+  Future<ApiResponse> rejectRequest(String id, Map<String, dynamic> rejectionData) async {
+    return await _apiClient.put('/approvals/$id/reject', body: rejectionData);
+  }
+
+  Future<ApiResponse> sendReminder(String id) async {
+    return await _apiClient.put('/approvals/$id/remind');
+  }
+
+  Future<ApiResponse> getApprovalMetrics() async {
+    return await _apiClient.get('/approvals/stats/metrics');
   }
 
   // Helper methods for data transformation
@@ -573,10 +622,11 @@ class BackendApiService {
     if (!response.isSuccess || response.data == null) return [];
     
     try {
-      final List<dynamic> items = response.data!['data'] ?? response.data!['reports'] ?? [];
+      final dynamic raw = response.data;
+      final List<dynamic> items = raw is List ? raw : (raw['data'] ?? raw['reports'] ?? raw['items'] ?? []);
       return items.map((item) => SignOffReport.fromJson(item)).toList();
     } catch (e) {
-      debugPrint('Error parsing sign-off reports: \$e');
+      debugPrint('Error parsing sign-off reports: $e');
       return [];
     }
   }

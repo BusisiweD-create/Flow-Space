@@ -180,7 +180,132 @@ class ApiService {
       return false;
     }
   }
-  
+
+  static Future<bool> resendVerificationEmail(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Environment.apiBaseUrl}/auth/resend-verification'),
+        headers: _getHeaders(),
+        body: jsonEncode({'email': email}),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          final success = data['success'];
+          if (success is bool) return success;
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Resend verification email failed: \$e');
+      return false;
+    }
+  }
+
+  static Future<bool> checkEmailVerificationStatus(String email) async {
+    try {
+      final uri = Uri.parse('${Environment.apiBaseUrl}/auth/verification-status')
+          .replace(queryParameters: {'email': email});
+      final response = await http.get(uri, headers: _getHeaders());
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          if (data['verified'] == true) return true;
+          if (data['isVerified'] == true) return true;
+          final nested = data['data'];
+          if (nested is Map<String, dynamic>) {
+            if (nested['verified'] == true || nested['isVerified'] == true) return true;
+          }
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Check verification status failed: \$e');
+      return false;
+    }
+  }
+
+  // Approval endpoints
+  static Future<List<Map<String, dynamic>>> getApprovalRequests({String? status, String? type, int? limit, int? offset}) async {
+    try {
+      final uri = Uri.parse('${Environment.apiBaseUrl}/approvals').replace(queryParameters: {
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (type != null && type.isNotEmpty) 'type': type,
+        if (limit != null) 'limit': limit.toString(),
+        if (offset != null) 'offset': offset.toString(),
+      });
+      final response = await http.get(uri, headers: _getHeaders());
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = _extractListFromResponse(data, ['data', 'approvals', 'items']) ?? [];
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching approvals: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> createApprovalRequest(Map<String, dynamic> requestData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Environment.apiBaseUrl}/approvals'),
+        headers: _getHeaders(),
+        body: jsonEncode(requestData),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return data is Map<String, dynamic> ? data : {'data': data};
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error creating approval request: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> approveApprovalRequest(String id, {String? comment}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Environment.apiBaseUrl}/approvals/$id/approve'),
+        headers: _getHeaders(),
+        body: comment != null && comment.isNotEmpty ? jsonEncode({'comment': comment}) : null,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error approving request: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> rejectApprovalRequest(String id, {String? comment}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Environment.apiBaseUrl}/approvals/$id/reject'),
+        headers: _getHeaders(),
+        body: comment != null && comment.isNotEmpty ? jsonEncode({'comment': comment}) : null,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error rejecting request: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> sendApprovalReminder(String id) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Environment.apiBaseUrl}/approvals/$id/reminder'),
+        headers: _getHeaders(),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error sending reminder: $e');
+      return false;
+    }
+  }
   // Authentication methods
   static Future<TokenResponse> signUp(UserCreate userData) async {
     final requestBody = jsonEncode(userData.toJson());

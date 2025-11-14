@@ -1,8 +1,12 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/deliverable.dart';
 import '../models/sign_off_report.dart';
 import '../models/sprint_metrics.dart';
+import '../services/api_service.dart';
+import '../services/backend_api_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -37,183 +41,106 @@ class _EnhancedClientReviewScreenState extends ConsumerState<EnhancedClientRevie
     _loadReportData();
   }
 
-  void _loadReportData() {
-    // Mock data - in real app this would come from API
-    setState(() {
-      _report = SignOffReport(
-        id: widget.reportId,
-        deliverableId: 'deliverable-1',
-        reportTitle: 'Sign-Off Report: User Authentication System',
-        reportContent: '''
-## Executive Summary
-
-This report provides a comprehensive overview of the User Authentication System deliverable, including sprint performance metrics, quality indicators, and readiness for client approval.
-
-## Deliverable Overview
-
-**Title:** User Authentication System
-**Description:** Complete user login, registration, and role-based access control with multi-factor authentication
-**Due Date:** 15/12/2024
-**Status:** Submitted
-
-## Definition of Done Checklist
-
-1. ✅ All unit tests pass with >90% coverage
-2. ✅ Code review completed by senior developer
-3. ✅ Security audit passed with no critical issues
-4. ✅ Documentation updated and reviewed
-5. ✅ Performance benchmarks met
-6. ✅ User acceptance testing completed
-
-## Evidence & Artifacts
-
-1. [Demo Environment](https://demo.example.com/auth)
-2. [Source Code Repository](https://github.com/company/auth-system)
-3. [User Documentation](https://docs.example.com/auth-guide)
-4. [Test Coverage Report](https://test-results.example.com/auth-coverage)
-
-## Sprint Performance Summary
-
-**Total Committed Points:** 60
-**Total Completed Points:** 56
-**Completion Rate:** 93.3%
-**Average Test Pass Rate:** 96.9%
-**Total Defects:** 6
-**Resolved Defects:** 6
-**Defect Resolution Rate:** 100.0%
-
-## Quality Indicators
-
-All sprints maintained high quality standards with:
-- Test pass rates consistently above 95%
-- Complete code review coverage
-- Comprehensive documentation
-- Zero critical defects in production
-
-## Risk Assessment
-
-No significant risks identified during development.
-
-## Known Limitations
-
-- MFA setup requires admin configuration
-- Password reset emails may take up to 5 minutes to deliver
-- Session timeout is set to 8 hours for security
-
-## Next Steps
-
-- Deploy to production environment
-- Monitor authentication metrics
-- Schedule user training sessions
-- Plan future enhancements based on user feedback
-        ''',
-        sprintIds: ['sprint-1', 'sprint-2', 'sprint-3'],
-        status: ReportStatus.submitted,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        createdBy: 'John Doe',
-        submittedAt: DateTime.now().subtract(const Duration(hours: 2)),
-        submittedBy: 'Project Manager',
-      );
-
-      _deliverable = Deliverable(
-        id: 'deliverable-1',
-        title: 'User Authentication System',
-        description: 'Complete user login, registration, and role-based access control with multi-factor authentication',
-        status: DeliverableStatus.submitted,
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        dueDate: DateTime.now().add(const Duration(days: 2)),
-        sprintIds: ['sprint-1', 'sprint-2', 'sprint-3'],
-        definitionOfDone: [
-          'All unit tests pass with >90% coverage',
-          'Code review completed by senior developer',
-          'Security audit passed with no critical issues',
-          'Documentation updated and reviewed',
-          'Performance benchmarks met',
-          'User acceptance testing completed',
-        ],
-        evidenceLinks: [
-          'https://demo.example.com/auth',
-          'https://github.com/company/auth-system',
-          'https://docs.example.com/auth-guide',
-          'https://test-results.example.com/auth-coverage',
-        ],
-        submittedBy: 'John Doe',
-        submittedAt: DateTime.now().subtract(const Duration(days: 1)),
-      );
-
-      // Mock sprint metrics
-      _sprintMetrics = [
-        SprintMetrics(
-          id: '1',
-          sprintId: 'sprint-1',
-          committedPoints: 20,
-          completedPoints: 18,
-          carriedOverPoints: 2,
-          testPassRate: 95.5,
-          defectsOpened: 3,
-          defectsClosed: 3,
-          criticalDefects: 0,
-          highDefects: 1,
-          mediumDefects: 1,
-          lowDefects: 1,
-          codeReviewCompletion: 100.0,
-          documentationStatus: 85.0,
-          risks: 'Initial authentication complexity',
-          mitigations: 'Extended testing phase, additional security review',
-          scopeChanges: 'Added MFA requirement mid-sprint',
-          uatNotes: 'Client feedback incorporated successfully',
-          recordedAt: DateTime.now().subtract(const Duration(days: 7)),
-          recordedBy: 'Sprint Lead',
-        ),
-        SprintMetrics(
-          id: '2',
-          sprintId: 'sprint-2',
-          committedPoints: 22,
-          completedPoints: 20,
-          carriedOverPoints: 2,
-          testPassRate: 97.2,
-          defectsOpened: 2,
-          defectsClosed: 2,
-          criticalDefects: 0,
-          highDefects: 0,
-          mediumDefects: 1,
-          lowDefects: 1,
-          codeReviewCompletion: 100.0,
-          documentationStatus: 95.0,
-          risks: 'Integration complexity with existing systems',
-          mitigations: 'Dedicated integration testing, API documentation',
-          scopeChanges: 'Minor UI adjustments based on feedback',
-          uatNotes: 'Excellent user feedback, ready for production',
-          recordedAt: DateTime.now().subtract(const Duration(days: 4)),
-          recordedBy: 'Sprint Lead',
-        ),
-        SprintMetrics(
-          id: '3',
-          sprintId: 'sprint-3',
-          committedPoints: 18,
-          completedPoints: 18,
-          carriedOverPoints: 0,
-          testPassRate: 98.1,
-          defectsOpened: 1,
-          defectsClosed: 1,
-          criticalDefects: 0,
-          highDefects: 0,
-          mediumDefects: 0,
-          lowDefects: 1,
-          codeReviewCompletion: 100.0,
-          documentationStatus: 100.0,
-          risks: 'None identified',
-          mitigations: 'N/A',
-          scopeChanges: 'None',
-          uatNotes: 'Final testing completed, all acceptance criteria met',
-          recordedAt: DateTime.now().subtract(const Duration(days: 1)),
-          recordedBy: 'Sprint Lead',
-        ),
-      ];
-    });
+  Future<void> _loadReportData() async {
+    try {
+      final backendService = BackendApiService();
+      
+      // Try BackendApiService first
+      try {
+        final reportResponse = await backendService.getSignOffReport(widget.reportId);
+        if (reportResponse.isSuccess && reportResponse.data != null) {
+          final report = SignOffReport.fromJson(reportResponse.data!);
+          
+          final deliverableResponse = await backendService.getDeliverable(report.deliverableId);
+          if (deliverableResponse.isSuccess && deliverableResponse.data != null) {
+            final deliverable = Deliverable.fromJson(deliverableResponse.data!);
+            
+            // Fetch sprint metrics for each sprint in the report
+            final List<SprintMetrics> metrics = [];
+            for (final sprintId in report.sprintIds) {
+              try {
+                final metricResponse = await backendService.getSprintMetrics(sprintId);
+                if (metricResponse.isSuccess && metricResponse.data != null) {
+                  final metric = SprintMetrics.fromJson(metricResponse.data!);
+                  metrics.add(metric);
+                }
+              // ignore: empty_catches
+              } catch (e) {
+              }
+            }
+            
+            if (mounted) {
+              setState(() {
+                _report = report;
+                _deliverable = deliverable;
+                _sprintMetrics = metrics;
+              });
+            }
+          }
+        }
+      } catch (backendError) {
+        // Fallback to ApiService if BackendApiService fails
+        print('BackendApiService failed, falling back to ApiService: $backendError');
+        
+        try {
+          final signOffReports = await ApiService.getSignOffReports();
+          final reportData = signOffReports.firstWhere(
+            (report) => report['id'] == widget.reportId,
+            orElse: () => {},
+          );
+          
+          if (reportData.isNotEmpty) {
+            final report = SignOffReport.fromJson(reportData);
+            
+            final deliverables = await ApiService.getDeliverables();
+            final deliverableData = deliverables.firstWhere(
+              (deliverable) => deliverable['id'] == report.deliverableId,
+              orElse: () => {},
+            );
+            
+            if (deliverableData.isNotEmpty) {
+              final deliverable = Deliverable.fromJson(deliverableData);
+              
+              // Fetch sprint metrics for each sprint in the report
+              final List<SprintMetrics> metrics = [];
+              for (final sprintId in report.sprintIds) {
+                try {
+                  final sprintMetrics = await ApiService.getSprintMetrics(sprintId);
+                  if (sprintMetrics.isNotEmpty) {
+                    final metric = SprintMetrics.fromJson(sprintMetrics.first);
+                    metrics.add(metric);
+                  }
+                } catch (e) {
+                  print('Failed to fetch metrics for sprint $sprintId: $e');
+                }
+              }
+              
+              if (mounted) {
+                setState(() {
+                  _report = report;
+                  _deliverable = deliverable;
+                  _sprintMetrics = metrics;
+                });
+              }
+            }
+          }
+        } catch (apiError) {
+          print('ApiService also failed: $apiError');
+        }
+      }
+    } catch (error) {
+      print('Failed to load report data: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load report data: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
-
-  Future<void> _submitApproval() async {
+Future<void> _submitApproval() async {
     if (_selectedAction.isEmpty) {
       _showErrorDialog('Please select an action (Approve or Request Changes)');
       return;

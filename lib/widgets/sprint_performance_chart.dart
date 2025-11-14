@@ -212,13 +212,12 @@ class SprintPerformanceChart extends StatelessWidget {
   }
 
   Widget _buildDefectsChart() {
-    // Mock data for defects - in real app, this would come from database
     final spots = <FlSpot>[];
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      // Mock defect count based on sprint data
-      final defectCount = ((sprint['planned_points'] ?? 0) * 0.1).round();
-      spots.add(FlSpot(i.toDouble(), defectCount.toDouble()));
+      // Use actual defect data from sprint
+      final defectCount = (sprint['defects_opened'] ?? 0).toDouble();
+      spots.add(FlSpot(i.toDouble(), defectCount));
     }
 
     return LineChart(
@@ -257,15 +256,11 @@ class SprintPerformanceChart extends StatelessWidget {
   }
 
   Widget _buildTestPassRateChart() {
-    // Mock data for test pass rate - in real app, this would come from database
     final spots = <FlSpot>[];
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      // Mock test pass rate based on sprint completion
-      final completionRate = sprint['planned_points'] > 0
-          ? (sprint['completed_points'] / sprint['planned_points'])
-          : 0.0;
-      final passRate = (completionRate * 100).clamp(0, 100);
+      // Use actual test pass rate data from sprint
+      final passRate = (sprint['test_pass_rate'] ?? 0.0).toDouble();
       spots.add(FlSpot(i.toDouble(), passRate));
     }
 

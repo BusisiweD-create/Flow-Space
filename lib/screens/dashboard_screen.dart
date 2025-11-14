@@ -14,90 +14,40 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Sample data for demonstration
-  final List<Deliverable> deliverables = [
-    Deliverable(
-      id: '1',
-      title: 'User Authentication System',
-      description: 'Complete user login, registration, and role-based access control',
-      status: DeliverableStatus.submitted,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      dueDate: DateTime.now().add(const Duration(days: 2)),
-      sprintIds: ['1', '2'],
-      definitionOfDone: [
-        'All unit tests pass',
-        'Code review completed',
-        'Security audit passed',
-        'Documentation updated',
-      ],
-    ),
-    Deliverable(
-      id: '2',
-      title: 'Payment Integration',
-      description: 'Stripe payment gateway integration with subscription management',
-      status: DeliverableStatus.draft,
-      createdAt: DateTime.now().subtract(const Duration(days: 3)),
-      dueDate: DateTime.now().add(const Duration(days: 7)),
-      sprintIds: ['3'],
-      definitionOfDone: [
-        'Payment flow tested',
-        'PCI compliance verified',
-        'Error handling implemented',
-        'User documentation created',
-      ],
-    ),
-    Deliverable(
-      id: '3',
-      title: 'Mobile App Release',
-      description: 'iOS and Android app store deployment',
-      status: DeliverableStatus.approved,
-      createdAt: DateTime.now().subtract(const Duration(days: 10)),
-      dueDate: DateTime.now().subtract(const Duration(days: 1)),
-      sprintIds: ['4', '5'],
-      definitionOfDone: [
-        'App store approval received',
-        'Performance testing completed',
-        'User acceptance testing passed',
-        'Release notes published',
-      ],
-    ),
-  ];
+  List<Deliverable> deliverables = [];
+  List<Sprint> sprints = [];
+  bool _isLoading = false;
+  String? _error;
 
-  final List<Sprint> sprints = [
-    Sprint(
-      id: '1',
-      name: 'Sprint 1 - Auth Foundation',
-      startDate: DateTime.now().subtract(const Duration(days: 14)),
-      endDate: DateTime.now().subtract(const Duration(days: 7)),
-      committedPoints: 21,
-      completedPoints: 18,
-      velocity: 18,
-      testPassRate: 95.5,
-      defectCount: 3,
-    ),
-    Sprint(
-      id: '2',
-      name: 'Sprint 2 - Auth Enhancement',
-      startDate: DateTime.now().subtract(const Duration(days: 7)),
-      endDate: DateTime.now(),
-      committedPoints: 19,
-      completedPoints: 19,
-      velocity: 19,
-      testPassRate: 98.2,
-      defectCount: 1,
-    ),
-    Sprint(
-      id: '3',
-      name: 'Sprint 3 - Payment Integration',
-      startDate: DateTime.now(),
-      endDate: DateTime.now().add(const Duration(days: 7)),
-      committedPoints: 25,
-      completedPoints: 12,
-      velocity: 0, // In progress
-      testPassRate: 92.1,
-      defectCount: 2,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // Load deliverables and sprints from API
+      // TODO: Implement actual API calls to load real data
+      // For now, we'll keep arrays empty to avoid mock data
+      setState(() {
+        deliverables = [];
+        sprints = [];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load dashboard data: \$e';
+        _isLoading = false;
+      });
+      debugPrint('Error loading dashboard data: \$e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,28 +101,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Section
-            _buildWelcomeSection(),
-            const SizedBox(height: 24),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Failed to load dashboard',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadDashboardData,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Welcome Section
+                      _buildWelcomeSection(),
+                      const SizedBox(height: 24),
 
-            // Key Metrics Row
-            _buildMetricsRow(),
-            const SizedBox(height: 24),
+                      // Key Metrics Row
+                      _buildMetricsRow(),
+                      const SizedBox(height: 24),
 
-            // Sprint Performance Chart
-            _buildSprintPerformanceSection(),
-            const SizedBox(height: 24),
+                      // Sprint Performance Chart
+                      _buildSprintPerformanceSection(),
+                      const SizedBox(height: 24),
 
-            // Deliverables Section
-            _buildDeliverablesSection(),
-          ],
-        ),
-      ),
+                      // Deliverables Section
+                      _buildDeliverablesSection(),
+                    ],
+                  ),
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           _showCreateDeliverableDialog();
@@ -357,15 +334,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        ...deliverables.map((deliverable) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DeliverableCard(
-                deliverable: deliverable,
-                onTap: () {
-                  _showDeliverableDetailsDialog(deliverable);
-                },
-              ),
-            ),),
+        if (deliverables.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                const Icon(Icons.assignment, size: 48, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text(
+                  'No deliverables yet',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Create your first deliverable to get started',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
+        else
+          ...deliverables.map((deliverable) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DeliverableCard(
+                  deliverable: deliverable,
+                  onTap: () {
+                    _showDeliverableDetailsDialog(deliverable);
+                  },
+                ),
+              ),),
       ],
     );
   }

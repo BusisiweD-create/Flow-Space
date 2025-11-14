@@ -2,8 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/repository_file.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -39,43 +39,9 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
       final filesData = await ApiService.getProjectFiles('default-project-id');
       
       if (filesData.isEmpty) {
-        // Fallback to mock data if no files returned
+        // No files available - show empty state instead of mock data
         setState(() {
-          _files = [
-            RepositoryFile(
-              id: '1',
-              name: 'Technical Requirements Document',
-              fileType: 'document',
-              uploadDate: DateTime.now().subtract(const Duration(days: 3)),
-              uploadedBy: 'user1',
-              size: '2.5 MB',
-              description: 'Complete technical requirements for the authentication system',
-              uploader: 'Sarah Chen',
-              sizeInMB: 2.5,
-            ),
-            RepositoryFile(
-              id: '2',
-              name: 'API Design Specification',
-              fileType: 'document',
-              uploadDate: DateTime.now().subtract(const Duration(days: 2)),
-              uploadedBy: 'user2',
-              size: '1.8 MB',
-              description: 'Detailed API design and endpoints specification',
-              uploader: 'Michael Rodriguez',
-              sizeInMB: 1.8,
-            ),
-            RepositoryFile(
-              id: '3',
-              name: 'Database Schema Diagram',
-              fileType: 'image',
-              uploadDate: DateTime.now().subtract(const Duration(days: 1)),
-              uploadedBy: 'user3',
-              size: '3.2 MB',
-              description: 'ER diagram showing database relationships',
-              uploader: 'Emily Wang',
-              sizeInMB: 3.2,
-            ),
-          ];
+          _files = [];
           _isLoading = false;
         });
       } else {
@@ -341,7 +307,6 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
   }
 
   Future<void> _uploadFile() async {
-    // Handle web platform where file_picker may not work properly
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -351,9 +316,8 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
       );
       return;
     }
-    
     try {
-      // Open file picker to select files
+      // Open file picker to select files - works on both web and desktop
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
         type: FileType.custom,

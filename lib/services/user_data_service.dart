@@ -369,20 +369,38 @@ class UserDataService {
           } else {
             throw Exception('No valid users found in response');
           }
-        } else {
-          // Handle case where backend returns a single user object (could be Map or Map<String, dynamic>)
-        debugPrint('Received single user object instead of list');
-        }
-        
-        try {
-          // Convert to Map<String, dynamic> to ensure type safety
-          final userMap = Map<String, dynamic>.from(responseData as Map<dynamic, dynamic>);
+        } else if (responseData is Map) {
+          final map = Map<String, dynamic>.from(responseData);
+          final items = map['users'] ?? map['data'] ?? map['items'] ?? [];
+          if (items is List) {
+            final users = <User>[];
+            for (var userData in items) {
+              try {
+                Map<String, dynamic> userMap;
+                if (userData is Map<String, dynamic>) {
+                  userMap = userData;
+                } else if (userData is Map) {
+                  userMap = Map<String, dynamic>.from(userData);
+                } else if (userData is String) {
+                  userMap = Map<String, dynamic>.from(jsonDecode(userData));
+                } else {
+                  continue;
+                }
+                final user = _parseUserFromApi(userMap);
+                users.add(user);
+              } catch (e) {
+                debugPrint('Error parsing individual user: $e');
+              }
+            }
+            if (users.isNotEmpty) {
+              return users;
+            }
+          }
+          final userMap = Map<String, dynamic>.from(map);
           final user = _parseUserFromApi(userMap);
           return [user];
-        } catch (e) {
-          debugPrint('Error parsing single user: $e');
-          debugPrint('User data: $responseData');
-          throw Exception('Failed to parse single user response');
+        } else {
+          throw Exception('Unsupported users response format');
         }
       
       

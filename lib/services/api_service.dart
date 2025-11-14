@@ -6,12 +6,11 @@ import '../models/system_metrics.dart';
 import 'backend_api_service.dart';
 
 class ApiService {
-  // Base URL for your backend API (you'll need to create this)
-  static const String baseUrl = 'http://localhost:8000/api';
+  static const String baseUrl = 'http://localhost:8000/api/v1';
   
   // Initialize the service
   static Future<void> initialize() async {
-    debugPrint('API Service initialized (mock mode - no backend required)');
+    debugPrint('API Service initialized');
   }
   
   // Authentication methods
@@ -25,7 +24,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/signup'),
+        Uri.parse('$baseUrl/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -71,7 +70,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/signin'),
+        Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -98,7 +97,13 @@ class ApiService {
       final response = await backendService.getDeliverables();
       
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> items = response.data!['data'] ?? response.data!['deliverables'] ?? [];
+        final dynamic raw = response.data;
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        final List<dynamic> items = (raw is Map)
+            ? (raw['data'] ?? raw['deliverables'] ?? raw['items'] ?? [])
+            : [];
         return items.cast<Map<String, dynamic>>();
       } else {
         debugPrint('Failed to fetch deliverables: ${response.statusCode} - ${response.error}');
@@ -118,23 +123,27 @@ class ApiService {
     required String assignedTo,
     required String createdBy,
   }) async {
-    // Mock implementation - no real API call
-    debugPrint('Creating deliverable: $title (mock mode)');
-    
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // Return mock success response
-    return {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'title': title,
-      'description': description,
-      'definitionOfDone': definitionOfDone,
-      'status': status,
-      'assignedTo': assignedTo,
-      'createdBy': createdBy,
-      'createdAt': DateTime.now().toIso8601String(),
-    };
+    try {
+      final backendService = BackendApiService();
+      final payload = {
+        'title': title,
+        'description': description,
+        'definitionOfDone': definitionOfDone,
+        'status': status,
+        'assignedTo': assignedTo,
+        'createdBy': createdBy,
+      };
+      final response = await backendService.createDeliverable(payload);
+      if (response.isSuccess && response.data != null) {
+        return Map<String, dynamic>.from(response.data!);
+      } else {
+        debugPrint('Failed to create deliverable: ${response.statusCode} - ${response.error}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error creating deliverable: $e');
+      return null;
+    }
   }
   
   static Future<void> updateDeliverableStatus({
@@ -159,7 +168,13 @@ class ApiService {
       final response = await backendService.getSprints();
       
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> items = response.data!['data'] ?? response.data!['sprints'] ?? [];
+        final dynamic raw = response.data;
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        final List<dynamic> items = (raw is Map)
+            ? (raw['data'] ?? raw['sprints'] ?? [])
+            : [];
         return items.cast<Map<String, dynamic>>();
       } else {
         debugPrint('Failed to fetch sprints: ${response.statusCode} - ${response.error}');
@@ -180,23 +195,39 @@ class ApiService {
     required String createdBy, required String description, int? committedPoints, int? carriedOverPoints, int? addedDuringSprint, int? removedDuringSprint, int? testPassRate, int? codeCoverage, int? escapedDefects, int? defectsOpened, int? defectsClosed, required String defectSeverityMix, int? codeReviewCompletion, required String documentationStatus, required String uatNotes, int? uatPassRate, int? risksIdentified, int? risksMitigated, required String blockers, required String decisions,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/sprints'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': name,
-          'startDate': startDate.toIso8601String(),
-          'endDate': endDate.toIso8601String(),
-          'plannedPoints': plannedPoints,
-          'completedPoints': completedPoints,
-          'createdBy': createdBy,
-        }),
-      );
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
+      final backendService = BackendApiService();
+      final payload = {
+        'name': name,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        'plannedPoints': plannedPoints,
+        'completedPoints': completedPoints,
+        'createdBy': createdBy,
+        'description': description,
+        'committedPoints': committedPoints,
+        'carriedOverPoints': carriedOverPoints,
+        'addedDuringSprint': addedDuringSprint,
+        'removedDuringSprint': removedDuringSprint,
+        'testPassRate': testPassRate,
+        'codeCoverage': codeCoverage,
+        'escapedDefects': escapedDefects,
+        'defectsOpened': defectsOpened,
+        'defectsClosed': defectsClosed,
+        'defectSeverityMix': defectSeverityMix,
+        'codeReviewCompletion': codeReviewCompletion,
+        'documentationStatus': documentationStatus,
+        'uatNotes': uatNotes,
+        'uatPassRate': uatPassRate,
+        'risksIdentified': risksIdentified,
+        'risksMitigated': risksMitigated,
+        'blockers': blockers,
+        'decisions': decisions,
+      }..removeWhere((key, value) => value == null);
+      final response = await backendService.createSprint(payload);
+      if (response.isSuccess && response.data != null) {
+        return Map<String, dynamic>.from(response.data!);
       } else {
-        debugPrint('Failed to create sprint: ${response.statusCode}');
+        debugPrint('Failed to create sprint: ${response.statusCode} - ${response.error}');
         return null;
       }
     } catch (e) {
@@ -212,7 +243,13 @@ class ApiService {
       final response = await backendService.getSprintMetrics(sprintId);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> items = response.data!['data'] ?? response.data!['metrics'] ?? [];
+        final dynamic raw = response.data;
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        final List<dynamic> items = (raw is Map)
+            ? (raw['data'] ?? raw['metrics'] ?? [])
+            : [];
         return items.cast<Map<String, dynamic>>();
       } else {
         debugPrint('Failed to load sprint metrics: ${response.statusCode} - ${response.error}');
@@ -267,8 +304,14 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['reports']);
+        final dynamic data = jsonDecode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+        final List<dynamic> items = (data is Map)
+            ? (data['reports'] ?? data['data'] ?? [])
+            : [];
+        return items.cast<Map<String, dynamic>>();
       } else {
         debugPrint('Failed to load sign-off reports: ${response.statusCode}');
         return [];
@@ -358,7 +401,113 @@ class ApiService {
     }
   }
 
-  static Future getDashboardData() async {}
+  static Future<Map<String, dynamic>> getDashboardData() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getDashboardData();
+      if (response.isSuccess && response.data != null) {
+        final dynamic raw = response.data!;
+        if (raw is Map<String, dynamic>) return raw;
+        if (raw is List && raw.isNotEmpty) return {'items': raw};
+      }
+      final sprintsResp = await backendService.getSprints(page: 1, limit: 100);
+      final dynamic sprintsRaw = sprintsResp.isSuccess ? sprintsResp.data : null;
+      final List<dynamic> sprintsList = sprintsRaw is List
+          ? sprintsRaw
+          : (sprintsRaw is Map ? (sprintsRaw['data'] ?? sprintsRaw['sprints'] ?? []) : []);
+      final List<Map<String, dynamic>> sprints = sprintsList
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      final sprintStats = sprints
+          .map(
+            (s) => {
+              'completed_points': (s['completed_points'] ?? 0) as num,
+              'committed_points': (s['committed_points'] ?? 0) as num,
+              'test_pass_rate': (s['test_pass_rate'] ?? 0) as num,
+            },
+          )
+          .toList();
+      final double avgVelocity = sprintStats.isNotEmpty
+          ? sprintStats.map((m) => (m['completed_points'] as num).toDouble()).reduce((a, b) => a + b) / sprintStats.length
+          : 0.0;
+      final double avgTestPassRate = sprints.isNotEmpty
+          ? sprints.map((s) => ((s['test_pass_rate'] ?? 0) as num).toDouble()).reduce((a, b) => a + b) / sprints.length
+          : 0.0;
+      final trends = sprints.asMap().entries.map((e) {
+        final m = e.value;
+        final num points = (m['completed_points'] ?? 0) as num;
+        final num quality = (m['test_pass_rate'] ?? 0) as num;
+        return {
+          'week': 'S${e.key + 1}',
+          'points': points,
+          'quality': quality,
+        };
+      }).toList();
+      int activeUsers = 0;
+      try {
+        final usersResp = await backendService.getUsers(page: 1, limit: 200);
+        final dynamic usersRaw = usersResp.isSuccess ? usersResp.data : null;
+        final List<dynamic> usersList = usersRaw is List
+            ? usersRaw
+            : (usersRaw is Map ? (usersRaw['data'] ?? usersRaw['users'] ?? []) : []);
+        activeUsers = usersList.length;
+      } catch (_) {}
+      int dailyActions = 0;
+      try {
+        final logsResp = await backendService.getAuditLogs(limit: 100);
+        final dynamic logsRaw = logsResp.isSuccess ? logsResp.data : null;
+        final List<dynamic> logsList = logsRaw is List
+            ? logsRaw
+            : (logsRaw is Map ? (logsRaw['audit_logs'] ?? logsRaw['items'] ?? logsRaw['logs'] ?? []) : []);
+        dailyActions = logsList.length;
+      } catch (_) {}
+      return {
+        'sprints': sprints,
+        'sprint_stats': sprintStats,
+        'team_performance': sprints.map(
+          (s) => {
+            'name': s['name'] ?? 'Sprint',
+            'velocity': (s['completed_points'] ?? 0) as num,
+            'qualityScore': (s['test_pass_rate'] ?? 0) as num,
+            'efficiency': ((s['completed_points'] ?? 0) as num) == 0
+                ? 0
+                : (((s['completed_points'] ?? 0) as num).toDouble() /
+                    (((s['committed_points'] ?? 1) as num).toDouble())) * 100,
+          },
+        ).toList(),
+        'performance_trends': trends,
+        'user_activity': {
+          'active_users': activeUsers,
+          'daily_actions': dailyActions,
+          'defect_rate': 0,
+          'avg_review_time': 0,
+        },
+        'metrics': {
+          'avg_velocity': avgVelocity,
+          'avg_test_pass_rate': avgTestPassRate,
+        },
+      };
+    } catch (e) {
+      debugPrint('Error assembling dashboard data: $e');
+      return {
+        'sprints': [],
+        'sprint_stats': [],
+        'team_performance': [],
+        'performance_trends': [],
+        'user_activity': {
+          'active_users': 0,
+          'daily_actions': 0,
+          'defect_rate': 0,
+          'avg_review_time': 0,
+        },
+        'metrics': {
+          'avg_velocity': 0,
+          'avg_test_pass_rate': 0,
+        },
+      };
+    }
+  }
 
   // Repository file methods
   static Future<List<Map<String, dynamic>>> getProjectFiles(String projectId) async {
@@ -367,8 +516,30 @@ class ApiService {
       final response = await backendService.listFiles(prefix: projectId);
       
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> items = response.data!;
-        return items.cast<Map<String, dynamic>>();
+        final dynamic raw = response.data!;
+        final List<dynamic> items = raw is List
+            ? raw
+            : (raw is Map<String, dynamic>
+                ? (raw['data'] ?? raw['files'] ?? raw['items'] ?? [])
+                : []);
+        final List<Map<String, dynamic>> normalized = [];
+        for (final item in items) {
+          if (item is Map<String, dynamic>) {
+            final map = Map<String, dynamic>.from(item);
+            final v = map['sizeInMB'];
+            double parsed;
+            if (v is num) {
+              parsed = v.toDouble();
+            } else if (v is String) {
+              parsed = double.tryParse(v) ?? 0.0;
+            } else {
+              parsed = 0.0;
+            }
+            map['sizeInMB'] = parsed;
+            normalized.add(map);
+          }
+        }
+        return normalized;
       } else {
         debugPrint('Failed to fetch project files: ${response.statusCode} - ${response.error}');
         return [];
@@ -429,7 +600,7 @@ class ApiService {
             slowQueries: _parseInt(data['system']?['slowQueries']) ?? 0,
           ),
           userActivity: UserActivityMetrics(
-            activeUsers: _parseInt(data['statistics']?['users']) ?? 0,
+            activeUsers: _parseInt(data['statistics']?['users']) ?? await _fallbackActiveUsers(),
             totalSessions: _parseInt(data['system']?['totalSessions']) ?? 0,
             newRegistrations: _parseInt(data['system']?['newRegistrations']) ?? 0,
             failedLogins: _parseInt(data['system']?['failedLogins']) ?? 0,
@@ -440,13 +611,35 @@ class ApiService {
         return systemMetrics;
       } else {
         debugPrint('Failed to load system metrics: ${response.statusCode} - ${response.error}');
-        // Return mock data for development
         throw Exception('Failed to load system metrics: ${response.statusCode} - ${response.error}');
       }
     } catch (e) {
       debugPrint('Error loading system metrics: $e');
-      // Return mock data for development
       throw Exception('Error loading system metrics: $e');
+    }
+  }
+
+  static Future<int> _fallbackActiveUsers() async {
+    try {
+      final backendService = BackendApiService();
+      final resp = await backendService.getUsers(page: 1, limit: 500);
+      final dynamic raw = resp.isSuccess ? resp.data : null;
+      final List<dynamic> items = raw is List
+          ? raw
+          : (raw is Map ? (raw['users'] ?? raw['data'] ?? raw['items'] ?? []) : []);
+      int count = 0;
+      for (final u in items) {
+        if (u is Map) {
+          final m = Map<String, dynamic>.from(u);
+          final active = m['is_active'];
+          if (active == true || active == 'true' || active == 1) {
+            count++;
+          }
+        }
+      }
+      return count > 0 ? count : items.length;
+    } catch (_) {
+      return 0;
     }
   }
 
@@ -466,8 +659,6 @@ class ApiService {
     if (value is String) return int.tryParse(value);
     return null;
   }
-
-  // Mock system metrics for development
 
   static Future<bool> deleteFile(String fileId) async {
     try {
@@ -553,7 +744,13 @@ class ApiService {
       final response = await backendService.getSprintTickets(sprintId);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> items = response.data!['data'] ?? response.data!['tickets'] ?? [];
+        final dynamic raw = response.data;
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        final List<dynamic> items = (raw is Map)
+            ? (raw['data'] ?? raw['tickets'] ?? raw['items'] ?? [])
+            : [];
         return items.cast<Map<String, dynamic>>();
       } else {
         debugPrint('Failed to load sprint tickets: ${response.statusCode} - ${response.error}');

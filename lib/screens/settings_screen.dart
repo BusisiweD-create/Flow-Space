@@ -73,17 +73,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       );
 
-      // Simulate cache clearing process
-      await Future.delayed(const Duration(seconds: 1));
-
-      // Clear actual cache (this would be implemented with actual cache clearing logic)
-      await SharedPreferences.getInstance();
-      // Add any cache clearing logic here
+      final success = await ApiService.clearUserCache();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cache cleared successfully'),
-          backgroundColor: FlownetColors.emeraldGreen,
+        SnackBar(
+          content: Text(success ? 'Cache cleared successfully' : 'Failed to clear cache'),
+          backgroundColor: success ? FlownetColors.emeraldGreen : FlownetColors.crimsonRed,
         ),
       );
 
@@ -239,8 +234,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
   
   Future<void> _calculateCacheSize() async {
-    // Simulate cache size calculation
-    await Future.delayed(const Duration(milliseconds: 500));
     setState(() {});
   }
   
