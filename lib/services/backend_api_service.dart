@@ -490,9 +490,6 @@ class BackendApiService {
     return await _apiClient.get('/approvals/$id');
   }
 
-  Future<ApiResponse> createApprovalRequest(Map<String, dynamic> requestData) async {
-    return await _apiClient.post('/approvals', body: requestData);
-  }
 
   Future<ApiResponse> approveRequest(String id, Map<String, dynamic> approvalData) async {
     return await _apiClient.put('/approvals/$id/approve', body: approvalData);
@@ -650,53 +647,13 @@ class BackendApiService {
   }
 
   // Approval endpoints
-  Future<ApiResponse> getApprovalRequests({String? status, String? type, int? limit, int? offset}) async {
-    final queryParams = <String, String>{};
-    if (status != null && status.isNotEmpty) {
-      queryParams['status'] = status;
-    }
-    if (type != null && type.isNotEmpty) {
-      queryParams['type'] = type;
-    }
-    if (limit != null) {
-      queryParams['limit'] = limit.toString();
-    }
-    if (offset != null) {
-      queryParams['offset'] = offset.toString();
-    }
-    
-    return await _apiClient.get('/approvals', queryParams: queryParams.isNotEmpty ? queryParams : null);
-  }
 
-  Future<ApiResponse> getApprovalRequest(String id) async {
-    return await _apiClient.get('/approvals/\$id');
-  }
 
   Future<ApiResponse> createApprovalRequest(Map<String, dynamic> requestData) async {
     return await _apiClient.post('/approvals', body: requestData);
   }
 
-  Future<ApiResponse> approveRequest(String id, {String? comment}) async {
-    final body = <String, dynamic>{};
-    if (comment != null && comment.isNotEmpty) {
-      body['comment'] = comment;
-    }
-    return await _apiClient.post('/approvals/\$id/approve', body: body.isNotEmpty ? body : null);
-  }
 
-  Future<ApiResponse> rejectRequest(String id, {String? comment}) async {
-    final body = <String, dynamic>{};
-    if (comment != null && comment.isNotEmpty) {
-      body['comment'] = comment;
-    }
-    return await _apiClient.post('/approvals/\$id/reject', body: body.isNotEmpty ? body : null);
-  }
 
-  Future<ApiResponse> sendReminder(String id) async {
-    return await _apiClient.post('/approvals/\$id/reminder');
-  }
 
-  Future<ApiResponse> getApprovalMetrics() async {
-    return await _apiClient.get('/approvals/metrics');
-  }
 }

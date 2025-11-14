@@ -73,8 +73,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
           _isLoading = false;
         });
         
-        // Auto-generate report content
-        _generateReportContent();
+        generateReportContent();
       } else {
         // Handle API error gracefully
         if (mounted) {

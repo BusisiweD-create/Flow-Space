@@ -14,40 +14,14 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  List<Deliverable> deliverables = [];
-  List<Sprint> sprints = [];
-  bool _isLoading = false;
-  String? _error;
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   void initState() {
     super.initState();
-    _loadDashboardData();
-  }
-
-  Future<void> _loadDashboardData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(dashboardNotifierProvider.notifier).loadDashboardData();
     });
-
-    try {
-      // Load deliverables and sprints from API
-      // TODO: Implement actual API calls to load real data
-      // For now, we'll keep arrays empty to avoid mock data
-      setState(() {
-        deliverables = [];
-        sprints = [];
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'Failed to load dashboard data: \$e';
-        _isLoading = false;
-      });
-      debugPrint('Error loading dashboard data: \$e');
-    }
   }
 
   @override
@@ -104,28 +78,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: _isLoading
+      body: dashboardState.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
+          : dashboardState.error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                      const SizedBox(height: 16),
                       Text(
-                        'Failed to load dashboard',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _error!,
+                        dashboardState.error!,
+                        style: Theme.of(context).textTheme.bodyLarge,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: _loadDashboardData,
+                        onPressed: () {
+                          ref.read(dashboardNotifierProvider.notifier).loadDashboardData();
+                        },
                         child: const Text('Retry'),
                       ),
                     ],
@@ -141,15 +110,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 24),
 
                       // Key Metrics Row
-                      _buildMetricsRow(),
+                      _buildMetricsRow(dashboardState),
                       const SizedBox(height: 24),
 
                       // Sprint Performance Chart
-                      _buildSprintPerformanceSection(),
+                      _buildSprintPerformanceSection(dashboardState),
                       const SizedBox(height: 24),
 
                       // Deliverables Section
-                      _buildDeliverablesSection(),
+                      _buildDeliverablesSection(dashboardState),
                     ],
                   ),
                 ),
@@ -337,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        if (deliverables.isEmpty)
+        if (dashboardState.deliverables.isEmpty)
           Container(
             padding: const EdgeInsets.all(32),
             child: Column(
@@ -358,7 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           )
         else
-          ...deliverables.map((deliverable) => Padding(
+          ...dashboardState.deliverables.take(5).map((deliverable) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: DeliverableCard(
                   deliverable: deliverable,

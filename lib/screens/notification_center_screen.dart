@@ -33,7 +33,12 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
       final response = await backendService.getNotifications();
       
       if (response.isSuccess && response.data != null) {
-        final notificationsData = response.data as List<dynamic>;
+        final raw = response.data;
+        final List<dynamic> notificationsData = raw is List
+            ? raw
+            : (raw is Map
+                ? (raw['data'] ?? raw['notifications'] ?? raw['items'] ?? [])
+                : []);
         
         final notifications = notificationsData.map((notificationData) {
           return NotificationItem(

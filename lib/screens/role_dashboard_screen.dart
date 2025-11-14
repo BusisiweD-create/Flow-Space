@@ -19,6 +19,7 @@ import '../services/user_data_service.dart';
 import '../services/api_service.dart';
 import '../services/api_client.dart';
 import '../services/realtime_service.dart';
+import '../providers/qa_data_provider.dart';
 
 class RoleDashboardScreen extends ConsumerStatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -2597,22 +2598,21 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             Row(
               children: [
                 _buildMetricCard(
-                  title: 'Sprint Progress',
-                  value: () {
+                  'Sprint Progress',
+                  () {
                     final s = _selectCurrentSprint();
                     final planned = _parseInt(s?['planned_points']) ?? _parseInt(s?['committed_points']) ?? _parseInt(s?['committedPoints']) ?? 0;
                     final completed = _parseInt(s?['completed_points']) ?? _parseInt(s?['completedPoints']) ?? 0;
                     final pct = planned > 0 ? ((completed / planned) * 100).toStringAsFixed(0) : '0';
                     return '$pct%';
                   }(),
-                  icon: Icons.timeline,
-                  color: Colors.blue,
-                  trend: '',
+                  Icons.timeline,
+                  Colors.blue,
                 ),
                 const SizedBox(width: 12),
                 _buildMetricCard(
-                  title: 'Team Velocity',
-                  value: () {
+                  'Team Velocity',
+                  () {
                     final List<dynamic> rawMembers = (_analyticsData['team_performance'] ?? _analyticsData['members'] ?? _analyticsData['team'] ?? []) as List<dynamic>;
                     final velocities = rawMembers.map((m) {
                       final mm = (m is Map) ? m : <String, dynamic>{};
@@ -2621,27 +2621,25 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     final avg = velocities.isNotEmpty ? (velocities.reduce((a,b)=>a+b) / velocities.length).toStringAsFixed(1) : '0.0';
                     return '$avg pts';
                   }(),
-                  icon: Icons.speed,
-                  color: Colors.green,
-                  trend: '',
+                  Icons.speed,
+                  Colors.green,
                 ),
                 const SizedBox(width: 12),
                 _buildMetricCard(
-                  title: 'Work Completed',
-                  value: () {
+                  'Work Completed',
+                  () {
                     final s = _selectCurrentSprint();
                     final planned = _parseInt(s?['planned_points']) ?? _parseInt(s?['committed_points']) ?? _parseInt(s?['committedPoints']) ?? 0;
                     final completed = _parseInt(s?['completed_points']) ?? _parseInt(s?['completedPoints']) ?? 0;
                     return '$completed/$planned';
                   }(),
-                  icon: Icons.check_circle,
-                  color: Colors.orange,
-                  trend: '',
+                  Icons.check_circle,
+                  Colors.orange,
                 ),
                 const SizedBox(width: 12),
                 _buildMetricCard(
-                  title: 'Blocked Items',
-                  value: () {
+                  'Blocked Items',
+                  () {
                     final List<dynamic> rawMembers = (_analyticsData['team_performance'] ?? _analyticsData['members'] ?? _analyticsData['team'] ?? []) as List<dynamic>;
                     final blocked = rawMembers.map((m) {
                       final mm = (m is Map) ? m : <String, dynamic>{};
@@ -2650,9 +2648,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     final sum = blocked.isNotEmpty ? blocked.reduce((a,b)=>a+b) : 0;
                     return sum.toString();
                   }(),
-                  icon: Icons.block,
-                  color: Colors.red,
-                  trend: '',
+                  Icons.block,
+                  Colors.red,
                 ),
               ],
             ),
@@ -3088,7 +3085,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 .map((d) => _buildRecentSubmissionItem(
                       title: d['title']?.toString() ?? 'Untitled',
                       submittedBy: d['submitted_by']?.toString() ?? d['submittedBy']?.toString() ?? 'Unknown',
-                      submittedDate: _parseDate(d['submitted_at'] ?? d['submittedAt']) ?? DateTime.now(),
+                      submittedAt: _parseDate(d['submitted_at'] ?? d['submittedAt']) ?? DateTime.now(),
                       status: d['status']?.toString() ?? 'submitted',
                       type: 'Deliverable',
                     ),
@@ -3274,7 +3271,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             const Divider(),
             
             // Team member performance list
-            ..._teamPerformanceData.map((member) => _buildTeamPerformanceRow(member)),
+            ...teamPerformanceData.map((member) => _buildTeamPerformanceRow(member)),
             
             const SizedBox(height: 16),
             
@@ -3393,42 +3390,34 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 child: Row(
                   children: [
         _buildMetricCard(
-          title: 'Active Users',
-          value: (_users.isNotEmpty
+          'Active Users',
+          (_users.isNotEmpty
                   ? _users.length
                   : (_analyticsData['active_users'] ?? _systemMetrics!.userActivity.activeUsers))
               .toString(),
-          icon: Icons.people,
-          color: Colors.blue,
-          trend: (_analyticsData['active_users_trend'] != null)
-              ? '${_analyticsData['active_users_trend'] > 0 ? '+' : ''}${(_analyticsData['active_users_trend']).toString()}%'
-              : '—',
+          Icons.people,
+          Colors.blue,
         ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      title: 'API Requests',
-                      value: (_analyticsData['api_requests'] ?? _systemMetrics!.database.queryCount).toString(),
-                      icon: Icons.api,
-                      color: Colors.green,
-                      trend: (_analyticsData['api_requests_trend'] != null)
-                          ? '${_analyticsData['api_requests_trend'] > 0 ? '+' : ''}${(_analyticsData['api_requests_trend']).toString()} today'
-                          : '—',
+                      'API Requests',
+                      (_analyticsData['api_requests'] ?? _systemMetrics!.database.queryCount).toString(),
+                      Icons.api,
+                      Colors.green,
                     ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      title: 'Response Time',
-                      value: '${_systemMetrics!.performance.responseTime}ms',
-                      icon: Icons.speed,
-                      color: Colors.orange,
-                      trend: '—',
+                      'Response Time',
+                      '${_systemMetrics!.performance.responseTime}ms',
+                      Icons.speed,
+                      Colors.orange,
                     ),
                     const SizedBox(width: 12),
                     _buildMetricCard(
-                      title: 'Uptime',
-                      value: '${_systemMetrics!.performance.uptime.toStringAsFixed(1)}%',
-                      icon: Icons.timer,
-                      color: Colors.purple,
-                      trend: '—',
+                      'Uptime',
+                      '${_systemMetrics!.performance.uptime.toStringAsFixed(1)}%',
+                      Icons.timer,
+                      Colors.purple,
                     ),
                   ],
                 ),
@@ -4374,20 +4363,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   void _viewSubmission(String title) {
-    // Find the submission data from recent submissions
-    final submission = _recentSubmissions.firstWhere(
-      (sub) => sub.title == title,
-      orElse: () => RecentSubmissionItem(
-        id: 'unknown_$title',
-        title: title,
-        type: 'Unknown',
-        status: 'Unknown',
-        submittedAt: DateTime.now(),
-        submittedBy: 'Unknown',
-        score: 0.0,
-      ),
-    );
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -4397,10 +4372,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetailRow('Submitted by:', submission.submittedBy),
-              _buildDetailRow('Type:', submission.type),
-              _buildDetailRow('Status:', submission.status),
-              _buildDetailRow('Date:', _formatDate(submission.submittedAt)),
+              _buildDetailRow('Title:', title),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 16),
@@ -4425,7 +4397,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   OutlinedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      // TODO: Navigate to revision details
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Revision details view coming soon')),
                       );
@@ -6847,8 +6818,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
-                        if (index >= 0 && index < _burnDownData.length) {
-                          final dayData = _burnDownData[index];
+                        if (index >= 0 && index < burnDownData.length) {
+                          final dayData = burnDownData[index];
                           final dayLabel = dayData['day'] ?? dayData['label'] ?? dayData['date'] ?? 'Day \${index + 1}';
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
@@ -6877,7 +6848,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 borderData: FlBorderData(show: true),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: _burnDownData.asMap().entries.map((entry) {
+                    spots: burnDownData.asMap().entries.map((entry) {
                       final remaining = entry.value['remaining'] ?? entry.value['actual'] ?? entry.value['points_remaining'] ?? 0;
                       return FlSpot(entry.key.toDouble(), (remaining as num).toDouble());
                     }).toList(),
@@ -6888,7 +6859,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     dotData: const FlDotData(show: true),
                   ),
                   LineChartBarData(
-                    spots: _burnDownData.asMap().entries.map((entry) {
+                    spots: burnDownData.asMap().entries.map((entry) {
                       final ideal = entry.value['ideal'] ?? entry.value['planned'] ?? entry.value['points_planned'] ?? 0;
                       return FlSpot(entry.key.toDouble(), (ideal as num).toDouble());
                     }).toList(),
