@@ -18,17 +18,18 @@ import 'screens/enhanced_client_review_screen.dart';
 import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
 import 'screens/approvals_screen.dart';
-import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
-import 'screens/real_notifications_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
 import 'screens/performance_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
+import 'screens/user_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
 import 'screens/system_metrics_screen.dart';
+// Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'providers/service_providers.dart';
@@ -88,15 +89,6 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/verify-email',
-      builder: (context, state) {
-        final email = state.extra as Map<String, dynamic>?;
-        return EmailVerificationScreen(
-          email: email?['email'] ?? '',
-        );
-      },
-    ),
-    GoRoute(
-      path: '/email-verification',
       builder: (context, state) {
         final email = state.extra as Map<String, dynamic>?;
         return EmailVerificationScreen(
@@ -206,6 +198,7 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
+    
     GoRoute(
       path: '/sprint-console',
             builder: (context, state) => const RouteGuard(
@@ -241,16 +234,16 @@ final GoRouter _router = GoRouter(
       ),
     ),
     GoRoute(
-      path: '/approval-requests',
+      path: '/repository',
       builder: (context, state) => const RouteGuard(
-        route: '/approval-requests',
+        route: '/repository',
         child: SidebarScaffold(
-          child: ApprovalRequestsScreen(),
+          child: RepositoryScreen(),
         ),
       ),
     ),
     GoRoute(
-      path: '/repository',
+      path: '/repository/:projectKey',
       builder: (context, state) => const RouteGuard(
         route: '/repository',
         child: SidebarScaffold(
@@ -263,7 +256,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RouteGuard(
         route: '/notifications',
         child: SidebarScaffold(
-          child: RealNotificationsScreen(),
+          child: NotificationsScreen(),
         ),
       ),
     ),
@@ -277,6 +270,15 @@ final GoRouter _router = GoRouter(
         route: '/role-management',
         child: SidebarScaffold(
           child: RoleManagementScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/user-management',
+      builder: (context, state) => const RouteGuard(
+        route: '/user-management',
+        child: SidebarScaffold(
+          child: UserManagementScreen(),
         ),
       ),
     ),
@@ -307,6 +309,7 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
+    // Removed routes for non-existent screens to resolve analyzer errors
     GoRoute(
       path: '/account',
       redirect: (context, state) => '/profile',

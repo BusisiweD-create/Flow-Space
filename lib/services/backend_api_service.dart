@@ -83,6 +83,20 @@ class BackendApiService {
     return await _apiClient.put('/users/$userId/role', body: {'role': newRole.name});
   }
 
+  Future<ApiResponse> createUser({
+    required String email,
+    required String name,
+    required String role,
+    required String password,
+  }) async {
+    return await _apiClient.post('/users', body: {
+      'email': email,
+      'name': name,
+      'role': role,
+      'password': password,
+    },);
+  }
+
   // Deliverable endpoints
   Future<ApiResponse> getDeliverables({int page = 1, int limit = 20, String? status, String? search}) async {
     final queryParams = <String, String>{

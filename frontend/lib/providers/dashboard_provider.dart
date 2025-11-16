@@ -4,12 +4,11 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/mock_data_service.dart';
-import '../models/deliverable.dart';
-import '../models/sprint.dart';
+// Models replaced with simple maps for compatibility with API responses
 
 class DashboardState {
-  final List<Deliverable> deliverables;
-  final List<Sprint> sprints;
+  final List<Map<String, dynamic>> deliverables;
+  final List<Map<String, dynamic>> sprints;
   final Map<String, dynamic> analyticsData;
   final bool isLoading;
   final String? error;
@@ -23,8 +22,8 @@ class DashboardState {
   });
 
   DashboardState copyWith({
-    List<Deliverable>? deliverables,
-    List<Sprint>? sprints,
+    List<Map<String, dynamic>>? deliverables,
+    List<Map<String, dynamic>>? sprints,
     Map<String, dynamic>? analyticsData,
     bool? isLoading,
     String? error,
@@ -91,10 +90,10 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       
       // Convert API data to model objects with null safety
       final deliverables = (deliverablesData is List ? deliverablesData : [])
-          .map((data) => Deliverable.fromJson(data))
+          .map((data) => Map<String, dynamic>.from(data as Map))
           .toList();
       final sprints = (sprintsData is List ? sprintsData : [])
-          .map((data) => Sprint.fromJson(data))
+          .map((data) => Map<String, dynamic>.from(data as Map))
           .toList();
       
       state = state.copyWith(
@@ -133,9 +132,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   }
 }
 
-extension on Object {
-  map(Sprint Function(dynamic data) param0) {}
-}
+// Removed unused extension
 
 final dashboardProvider = StateNotifierProvider<DashboardNotifier, DashboardState>(
   (ref) => DashboardNotifier(),

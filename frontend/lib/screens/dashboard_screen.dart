@@ -14,7 +14,7 @@ import '../services/notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dashboard_provider.dart';
-import '../models/deliverable.dart';
+// Using Map-based data for deliverables and sprints
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -204,10 +204,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildMetricsRow() {
     final dashboardState = ref.watch(dashboardProvider);
     final deliverables = dashboardState.deliverables;
-    
     final totalDeliverables = deliverables.length;
-    final approvedDeliverables = deliverables.where((d) => d.status == DeliverableStatus.approved).length;
-    final pendingDeliverables = deliverables.where((d) => d.status == DeliverableStatus.submitted).length;
+    final approvedDeliverables = deliverables
+        .where((d) => (d['status']?.toString().toLowerCase() ?? '') == 'approved')
+        .length;
+    final pendingDeliverables = deliverables
+        .where((d) => (d['status']?.toString().toLowerCase() ?? '') == 'submitted')
+        .length;
 
     return Row(
       children: [
@@ -290,15 +293,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                       ),
                     )
-                  : SprintPerformanceChart(sprints: sprints.map((sprint) => {
-                      'id': sprint.id,
-                      'name': sprint.name,
-                      'start_date': sprint.startDate,
-                      'end_date': sprint.endDate,
-                      'planned_points': sprint.committedPoints,
-                      'completed_points': sprint.completedPoints,
-                      'status': sprint.endDate.isBefore(DateTime.now()) ? 'completed' : 'active',
-                    },).toList(),),
+                  : SprintPerformanceChart(sprints: sprints),
             ),
           ],
         ),
@@ -309,10 +304,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildRemindersSection() {
     final dashboardState = ref.watch(dashboardProvider);
     final deliverables = dashboardState.deliverables;
-    
-    // Get pending approvals (deliverables that are submitted but not approved)
-    final pendingApprovals = deliverables.where((d) => 
-        d.status == DeliverableStatus.submitted,).toList();
+    // Pending approvals where status == submitted
+    final pendingApprovals = deliverables
+        .where((d) => (d['status']?.toString().toLowerCase() ?? '') == 'submitted')
+        .toList();
     
     if (pendingApprovals.isEmpty) {
       return const SizedBox.shrink(); // Hide section if no reminders
@@ -359,7 +354,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      deliverable.title,
+                      deliverable['title']?.toString() ?? 'Untitled',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
@@ -1032,7 +1027,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         subtitle: Text('Due: November 30, 2023'),
         trailing: Chip(
           label: Text(status),
-          backgroundColor: statusColor.withOpacity(0.2),
+          backgroundColor: statusColor.withValues(alpha: 0.2),
           labelStyle: TextStyle(color: statusColor),
         ),
         onTap: () {
@@ -1042,12 +1037,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  void _showDeliverableDetailsDialog(Deliverable deliverable) {
+  void _showDeliverableDetailsDialog(Map<String, dynamic> deliverable) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(deliverable.title),
-        content: Text(deliverable.description),
+        title: Text(deliverable['title']?.toString() ?? 'Deliverable'),
+        content: Text(deliverable['description']?.toString() ?? ''),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

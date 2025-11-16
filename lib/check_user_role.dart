@@ -1,10 +1,8 @@
 // ignore_for_file: avoid_print
 
-import 'package:flutter/material.dart';
 import 'services/auth_service.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
   
   final authService = AuthService();
   await authService.initialize();

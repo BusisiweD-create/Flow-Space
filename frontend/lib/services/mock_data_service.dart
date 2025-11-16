@@ -1,8 +1,7 @@
 // ignore_for_file: unused_import, unused_local_variable, require_trailing_commas
 
 import 'package:flutter/material.dart';
-import '../models/deliverable.dart';
-import '../models/sprint.dart';
+// Using simple map structures to avoid model dependencies
 
 class MockDataService {
   static final MockDataService _instance = MockDataService._internal();
@@ -14,150 +13,153 @@ class MockDataService {
   MockDataService._internal();
   
   // Mock deliverables data
-  List<Deliverable> getMockDeliverables() {
+  List<Map<String, dynamic>> getMockDeliverables() {
     final now = DateTime.now();
     return [
-      Deliverable(
-        id: '1',
-        title: 'User Authentication Module',
-        description: 'Implement JWT-based authentication system with refresh tokens',
-        status: DeliverableStatus.approved,
-        createdAt: DateTime(2024, 1, 15),
-        dueDate: DateTime(2024, 2, 1),
-        sprintIds: ['1'],
-        definitionOfDone: [
+      {
+        'id': '1',
+        'title': 'User Authentication Module',
+        'description': 'Implement JWT-based authentication system with refresh tokens',
+        'status': 'approved',
+        'created_at': DateTime(2024, 1, 15).toIso8601String(),
+        'due_date': DateTime(2024, 2, 1).toIso8601String(),
+        'sprint_ids': ['1'],
+        'definition_of_done': [
           'JWT token generation and validation',
           'Refresh token rotation',
           'Password hashing with bcrypt',
           'Rate limiting on auth endpoints'
         ],
-        evidenceLinks: ['https://github.com/project/auth-module'],
-        approvedAt: DateTime(2024, 2, 1),
-        approvedBy: 'client@example.com',
-      ),
-      Deliverable(
-        id: '2',
-        title: 'Dashboard Analytics',
-        description: 'Create performance metrics dashboard with charts and visualizations',
-        status: DeliverableStatus.submitted,
-        createdAt: DateTime(2024, 1, 20),
-        dueDate: DateTime(2024, 2, 10),
-        sprintIds: ['1', '2'],
-        definitionOfDone: [
+        'evidence_links': ['https://github.com/project/auth-module'],
+        'approved_at': DateTime(2024, 2, 1).toIso8601String(),
+        'approved_by': 'client@example.com',
+      },
+      {
+        'id': '2',
+        'title': 'Dashboard Analytics',
+        'description': 'Create performance metrics dashboard with charts and visualizations',
+        'status': 'submitted',
+        'created_at': DateTime(2024, 1, 20).toIso8601String(),
+        'due_date': DateTime(2024, 2, 10).toIso8601String(),
+        'sprint_ids': ['1', '2'],
+        'definition_of_done': [
           'Real-time data visualization',
           'Performance metrics calculation',
           'Responsive design for mobile',
           'Export functionality'
         ],
-        evidenceLinks: ['https://github.com/project/dashboard'],
-        submittedAt: DateTime(2024, 2, 5),
-        submittedBy: 'dev@example.com',
-      ),
-      Deliverable(
-        id: '3',
-        title: 'API Documentation',
-        description: 'Generate comprehensive API documentation with examples',
-        status: DeliverableStatus.draft,
-        createdAt: DateTime(2024, 1, 25),
-        dueDate: DateTime(2024, 2, 15),
-        sprintIds: ['2'],
-        definitionOfDone: [
+        'evidence_links': ['https://github.com/project/dashboard'],
+        'submitted_at': DateTime(2024, 2, 5).toIso8601String(),
+        'submitted_by': 'dev@example.com',
+      },
+      {
+        'id': '3',
+        'title': 'API Documentation',
+        'description': 'Generate comprehensive API documentation with examples',
+        'status': 'draft',
+        'created_at': DateTime(2024, 1, 25).toIso8601String(),
+        'due_date': DateTime(2024, 2, 15).toIso8601String(),
+        'sprint_ids': ['2'],
+        'definition_of_done': [
           'OpenAPI/Swagger specification',
           'Interactive API playground',
           'Code examples in multiple languages',
           'Authentication guide'
         ],
-        evidenceLinks: [],
-      ),
-      Deliverable(
-        id: '4',
-        title: 'Mobile App UI',
-        description: 'Design and implement mobile application user interface',
-        status: DeliverableStatus.changeRequested,
-        createdAt: DateTime(2024, 2, 1),
-        dueDate: DateTime(2024, 2, 20),
-        sprintIds: ['2'],
-        definitionOfDone: [
+        'evidence_links': [],
+      },
+      {
+        'id': '4',
+        'title': 'Mobile App UI',
+        'description': 'Design and implement mobile application user interface',
+        'status': 'change_requested',
+        'created_at': DateTime(2024, 2, 1).toIso8601String(),
+        'due_date': DateTime(2024, 2, 20).toIso8601String(),
+        'sprint_ids': ['2'],
+        'definition_of_done': [
           'Cross-platform compatibility',
           'Touch-optimized interface',
           'Offline functionality',
           'Push notifications'
         ],
-        evidenceLinks: ['https://github.com/project/mobile-ui'],
-        clientComment: 'Please improve the navigation flow and add dark mode support',
-        submittedAt: DateTime(2024, 2, 12),
-        submittedBy: 'designer@example.com',
-      ),
-      Deliverable(
-        id: '5',
-        title: 'Database Migration',
-        description: 'Migrate from SQLite to PostgreSQL with data preservation',
-        status: DeliverableStatus.approved,
-        createdAt: DateTime(2024, 1, 10),
-        dueDate: DateTime(2024, 1, 30),
-        sprintIds: ['1'],
-        definitionOfDone: [
+        'evidence_links': ['https://github.com/project/mobile-ui'],
+        'client_comment': 'Please improve the navigation flow and add dark mode support',
+        'submitted_at': DateTime(2024, 2, 12).toIso8601String(),
+        'submitted_by': 'designer@example.com',
+      },
+      {
+        'id': '5',
+        'title': 'Database Migration',
+        'description': 'Migrate from SQLite to PostgreSQL with data preservation',
+        'status': 'approved',
+        'created_at': DateTime(2024, 1, 10).toIso8601String(),
+        'due_date': DateTime(2024, 1, 30).toIso8601String(),
+        'sprint_ids': ['1'],
+        'definition_of_done': [
           'Schema migration scripts',
           'Data validation and integrity checks',
           'Performance benchmarking',
           'Rollback procedure'
         ],
-        evidenceLinks: ['https://github.com/project/db-migration'],
-        approvedAt: DateTime(2024, 1, 28),
-        approvedBy: 'dba@example.com',
-      ),
+        'evidence_links': ['https://github.com/project/db-migration'],
+        'approved_at': DateTime(2024, 1, 28).toIso8601String(),
+        'approved_by': 'dba@example.com',
+      },
     ];
   }
   
   // Mock sprints data
-  List<Sprint> getMockSprints() {
+  List<Map<String, dynamic>> getMockSprints() {
     final now = DateTime.now();
     return [
-      Sprint(
-        id: '1',
-        name: 'Sprint 1 - Foundation',
-        startDate: DateTime(2024, 1, 1),
-        endDate: DateTime(2024, 1, 31),
-        committedPoints: 40,
-        completedPoints: 38,
-        velocity: 35,
-        testPassRate: 95.5,
-        defectCount: 2,
-        carriedOverPoints: 2,
-        scopeChanges: ['Added user profile feature'],
-        notes: 'Strong start with good velocity. Minor scope changes handled well.',
-        isActive: false,
-      ),
-      Sprint(
-        id: '2',
-        name: 'Sprint 2 - Features',
-        startDate: DateTime(2024, 2, 1),
-        endDate: DateTime(2024, 2, 29),
-        committedPoints: 45,
-        completedPoints: 32,
-        velocity: 40,
-        testPassRate: 92.0,
-        defectCount: 5,
-        carriedOverPoints: 13,
-        scopeChanges: ['Enhanced dashboard requirements'],
-        notes: 'Focused on core feature development. Some carryover expected.',
-        isActive: true,
-      ),
-      Sprint(
-        id: '3',
-        name: 'Sprint 3 - Polish',
-        startDate: DateTime(2024, 3, 1),
-        endDate: DateTime(2024, 3, 31),
-        committedPoints: 35,
-        completedPoints: 0,
-        velocity: 0,
-        testPassRate: 0.0,
-        defectCount: 0,
-        carriedOverPoints: 0,
-        scopeChanges: [],
-        notes: 'Upcoming sprint focused on polishing and bug fixes.',
-        isActive: false,
-      ),
+      {
+        'id': '1',
+        'name': 'Sprint 1 - Foundation',
+        'start_date': DateTime(2024, 1, 1).toIso8601String(),
+        'end_date': DateTime(2024, 1, 31).toIso8601String(),
+        'committed_points': 40,
+        'completed_points': 38,
+        'velocity': 35,
+        'test_pass_rate': 95.5,
+        'defect_count': 2,
+        'carried_over_points': 2,
+        'scope_changes': ['Added user profile feature'],
+        'notes': 'Strong start with good velocity. Minor scope changes handled well.',
+        'is_active': false,
+        'status': 'completed',
+      },
+      {
+        'id': '2',
+        'name': 'Sprint 2 - Features',
+        'start_date': DateTime(2024, 2, 1).toIso8601String(),
+        'end_date': DateTime(2024, 2, 29).toIso8601String(),
+        'committed_points': 45,
+        'completed_points': 32,
+        'velocity': 40,
+        'test_pass_rate': 92.0,
+        'defect_count': 5,
+        'carried_over_points': 13,
+        'scope_changes': ['Enhanced dashboard requirements'],
+        'notes': 'Focused on core feature development. Some carryover expected.',
+        'is_active': true,
+        'status': 'in_progress',
+      },
+      {
+        'id': '3',
+        'name': 'Sprint 3 - Polish',
+        'start_date': DateTime(2024, 3, 1).toIso8601String(),
+        'end_date': DateTime(2024, 3, 31).toIso8601String(),
+        'committed_points': 35,
+        'completed_points': 0,
+        'velocity': 0,
+        'test_pass_rate': 0.0,
+        'defect_count': 0,
+        'carried_over_points': 0,
+        'scope_changes': [],
+        'notes': 'Upcoming sprint focused on polishing and bug fixes.',
+        'is_active': false,
+        'status': 'planning',
+      },
     ];
   }
   

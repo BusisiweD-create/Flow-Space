@@ -1,16 +1,24 @@
 // ignore_for_file: avoid_print
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 import 'dart:convert';
 
 void main() async {
   print('=== Checking Current User Status ===');
   
-  final prefs = await SharedPreferences.getInstance();
-  
-  // Check if user is authenticated
-  final accessToken = prefs.getString('access_token');
-  final userId = prefs.getString('user_id');
+  final prefsDir = Directory('frontend/.dart_tool/flutter_build/shared_preferences');
+  String? accessToken;
+  String? userId;
+  if (await prefsDir.exists()) {
+    final tokenFile = File('${prefsDir.path}/access_token.json');
+    if (await tokenFile.exists()) {
+      accessToken = await tokenFile.readAsString();
+    }
+    final userIdFile = File('${prefsDir.path}/user_id.json');
+    if (await userIdFile.exists()) {
+      userId = await userIdFile.readAsString();
+    }
+  }
   
   print('Access Token Present: ${accessToken != null}');
   print('User ID Present: ${userId != null}');

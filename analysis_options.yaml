@@ -7,6 +7,14 @@
 
 # The following line activates a set of recommended lints for Flutter apps,
 # packages, and plugins designed to encourage good coding practices.
+analyzer:
+  exclude:
+    - frontend/**
+    - Flow-Space/**
+    - build/**
+    - .dart_tool/**
+  errors:
+    require_trailing_commas: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:
