@@ -33,7 +33,12 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
       final response = await backendService.getNotifications();
       
       if (response.isSuccess && response.data != null) {
-        final notificationsData = response.data as List<dynamic>;
+        final raw = response.data;
+        final List<dynamic> notificationsData = raw is List
+            ? raw
+            : (raw is Map
+                ? (raw['data'] ?? raw['notifications'] ?? raw['items'] ?? [])
+                : []);
         
         final notifications = notificationsData.map((notificationData) {
           return NotificationItem(
@@ -74,6 +79,8 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
       });
     }
   }
+
+
 
   List<NotificationItem> get _filteredNotifications {
     var filtered = _notifications;
@@ -294,6 +301,23 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: FlownetColors.charcoalBlack,
+        appBar: AppBar(
+          title: const FlownetLogo(showText: true),
+          backgroundColor: FlownetColors.charcoalBlack,
+          foregroundColor: FlownetColors.pureWhite,
+          centerTitle: false,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: FlownetColors.electricBlue,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
@@ -606,6 +630,57 @@ class NotificationItem {
     this.sprintId,
     this.dueDate,
   });
+
+  factory NotificationItem.fromJson(Map<String, dynamic> json) {
+    return NotificationItem(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      type: NotificationItem._parseNotificationType(json['type']?.toString()),
+      priority: NotificationItem._parseNotificationPriority(json['priority']?.toString()),
+      isRead: json['is_read'] ?? json['isRead'] ?? false,
+      createdAt: DateTime.parse(json['created_at'] ?? json['createdAt'] ?? DateTime.now().toIso8601String()),
+      deliverableId: json['deliverable_id']?.toString(),
+      reportId: json['report_id']?.toString(),
+      sprintId: json['sprint_id']?.toString(),
+      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
+    );
+  }
+
+  static NotificationType _parseNotificationType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'review':
+        return NotificationType.review;
+      case 'change_request':
+      case 'changerequest':
+        return NotificationType.changeRequest;
+      case 'report':
+        return NotificationType.report;
+      case 'metrics':
+        return NotificationType.metrics;
+      case 'reminder':
+        return NotificationType.reminder;
+      case 'approval':
+        return NotificationType.approval;
+      default:
+        return NotificationType.review;
+    }
+  }
+
+  static NotificationPriority _parseNotificationPriority(String? priority) {
+    switch (priority?.toLowerCase()) {
+      case 'urgent':
+        return NotificationPriority.urgent;
+      case 'high':
+        return NotificationPriority.high;
+      case 'medium':
+        return NotificationPriority.medium;
+      case 'low':
+        return NotificationPriority.low;
+      default:
+        return NotificationPriority.medium;
+    }
+  }
 }
 
 enum NotificationType {

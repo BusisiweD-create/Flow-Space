@@ -33,6 +33,7 @@ import 'screens/detailed_reports_screen.dart';
 import 'screens/skill_assessment_screen.dart';
 import 'screens/deadlines_screen.dart';
 import 'screens/team_chat_screen.dart';
+import 'screens/deadlines_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'providers/service_providers.dart';
@@ -202,6 +203,15 @@ final GoRouter _router = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/deadlines',
+      builder: (context, state) => const RouteGuard(
+        route: '/deadlines',
+        child: SidebarScaffold(
+          child: DeadlinesScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
       path: '/sprint-console',
             builder: (context, state) => const RouteGuard(
               route: '/sprint-console',
@@ -241,6 +251,15 @@ final GoRouter _router = GoRouter(
         route: '/repository',
         child: SidebarScaffold(
           child: RepositoryScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/repository/:projectKey',
+      builder: (context, state) => RouteGuard(
+        route: '/repository',
+        child: SidebarScaffold(
+          child: RepositoryScreen(projectKey: state.pathParameters['projectKey']),
         ),
       ),
     ),

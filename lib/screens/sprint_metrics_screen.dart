@@ -83,8 +83,11 @@ class _SprintMetricsScreenState extends ConsumerState<SprintMetricsScreen> {
         recordedBy: 'Current User', // This would come from auth
       );
 
-      final backend = ref.read(backendApiServiceProvider);
-      final response = await backend.createSprintMetrics(widget.sprintId, metrics.toJson());
+      final api = ref.read(backendApiServiceProvider);
+      final response = await api.createSprintMetrics(widget.sprintId, metrics.toJson());
+      if (!response.isSuccess) {
+        throw Exception(response.error ?? 'Failed to save sprint metrics');
+      }
       
       if (mounted) {
         if (response.isSuccess) {

@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/deliverable.dart';
 import '../models/sign_off_report.dart';
 import '../models/sprint_metrics.dart';
-import '../services/api_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/api_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -160,10 +160,9 @@ Future<void> _submitApproval() async {
       await Future.delayed(const Duration(seconds: 2));
       
       if (mounted) {
-        final message = _selectedAction == 'approve' 
+        final message = _selectedAction == 'approve'
             ? 'Deliverable approved successfully!'
             : 'Change request submitted successfully!';
-            
         _showSuccessDialog(message);
       }
     } catch (e) {

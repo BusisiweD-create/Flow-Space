@@ -332,8 +332,63 @@ class UserDataService {
           throw Exception('No data received from API');
         }
         
-        if (responseData is List) {
-          debugPrint('Received ${responseData.length} users via direct API call');
+        // Handle the structured response from backend
+        // Backend returns: {"users": [...], "pagination": {...}}
+        if (responseData is Map<String, dynamic>) {
+          debugPrint('Received structured response from API');
+          
+          // Extract users array from the response
+          final usersData = responseData['users'];
+          
+          if (usersData == null) {
+            debugPrint('No users array found in response');
+            throw Exception('Invalid API response format: missing users array');
+          }
+          
+          if (usersData is List) {
+            debugPrint('Processing ${usersData.length} users from API response');
+            
+            // Convert each user data to proper format with robust error handling
+            final users = <User>[];
+            
+            for (var userData in usersData) {
+              try {
+                // Handle different data types that might come from JavaScript
+                Map<String, dynamic> userMap;
+                
+                if (userData is Map<String, dynamic>) {
+                  userMap = userData;
+                } else if (userData is Map) {
+                  // Convert any Map type to Map<String, dynamic>
+                  userMap = Map<String, dynamic>.from(userData);
+                } else if (userData is String) {
+                  // Handle string JSON representation
+                  userMap = Map<String, dynamic>.from(jsonDecode(userData));
+                } else {
+                  debugPrint('Skipping invalid user data format: ${userData.runtimeType}');
+                  continue;
+                }
+                
+                final user = _parseUserFromApi(userMap);
+                users.add(user);
+              } catch (e) {
+                debugPrint('Error parsing individual user: $e');
+                debugPrint('Problematic user data: $userData');
+              }
+            }
+            
+            if (users.isNotEmpty) {
+              return users;
+            } else {
+              throw Exception('No valid users found in response');
+            }
+          } else {
+            debugPrint('Users data is not a list: ${usersData.runtimeType}');
+            throw Exception('Invalid API response format: users should be an array');
+          }
+        } else if (responseData is List) {
+          // Fallback for legacy API format (direct list of users)
+          debugPrint('Received legacy list format - ${responseData.length} users via direct API call');
           
           // Convert each user data to proper format with robust error handling
           final users = <User>[];

@@ -73,8 +73,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
           _isLoading = false;
         });
         
-        // Auto-generate report content
-        _generateReportContent();
+        generateReportContent();
       } else {
         // Handle API error gracefully
         if (mounted) {
@@ -109,16 +108,16 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     }
   }
 
-  void _generateReportContent() {
+  void generateReportContent() {
     if (_deliverable == null) return;
 
     _reportTitleController.text = 'Sign-Off Report: ${_deliverable!.title}';
     
-    final content = _buildReportContent();
+    final content = buildReportContent();
     _reportContentController.text = content;
   }
 
-  String _buildReportContent() {
+  String buildReportContent() {
     if (_deliverable == null) return '';
 
     final buffer = StringBuffer();
@@ -134,7 +133,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     buffer.writeln();
     buffer.writeln('**Title:** ${_deliverable!.title}');
     buffer.writeln('**Description:** ${_deliverable!.description}');
-    buffer.writeln('**Due Date:** ${_formatDate(_deliverable!.dueDate)}');
+    buffer.writeln('**Due Date:** ${formatDate(_deliverable!.dueDate)}');
     buffer.writeln('**Status:** ${_deliverable!.statusDisplayName}');
     buffer.writeln();
     
@@ -198,11 +197,11 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     return buffer.toString();
   }
 
-  String _formatDate(DateTime date) {
+  String formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  Future<void> _generateReport() async {
+  Future<void> generateReport() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -258,7 +257,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     }
   }
 
-  void _togglePreview() {
+  void togglePreview() {
     setState(() {
       _isPreviewMode = !_isPreviewMode;
     });
@@ -282,16 +281,16 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
         actions: [
           IconButton(
             icon: Icon(_isPreviewMode ? Icons.edit : Icons.preview),
-            onPressed: _togglePreview,
+            onPressed: togglePreview,
             tooltip: _isPreviewMode ? 'Edit Mode' : 'Preview Mode',
           ),
         ],
       ),
-      body: _isPreviewMode ? _buildPreviewMode() : _buildEditMode(),
+      body: _isPreviewMode ? buildPreviewMode() : buildEditMode(),
     );
   }
 
-  Widget _buildEditMode() {
+  Widget buildEditMode() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Form(
@@ -368,7 +367,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             const SizedBox(height: 24),
 
             // Sprint Performance Chart
-            _buildSprintPerformanceSection(),
+            buildSprintPerformanceSection(),
             const SizedBox(height: 24),
 
             // Action Buttons
@@ -376,7 +375,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isGenerating ? null : _generateReport,
+                    onPressed: _isGenerating ? null : generateReport,
                     icon: _isGenerating 
                         ? const SizedBox(
                             width: 16,
@@ -394,7 +393,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _togglePreview,
+                    onPressed: togglePreview,
                     icon: const Icon(Icons.preview),
                     label: const Text('Preview'),
                     style: ElevatedButton.styleFrom(
@@ -411,7 +410,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     );
   }
 
-  Widget _buildPreviewMode() {
+  Widget buildPreviewMode() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -421,7 +420,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
           Row(
             children: [
               IconButton(
-                onPressed: _togglePreview,
+                onPressed: togglePreview,
                 icon: const Icon(Icons.edit),
                 tooltip: 'Edit Mode',
               ),
@@ -465,7 +464,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Generated on ${_formatDate(DateTime.now())}',
+                  'Generated on ${formatDate(DateTime.now())}',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
@@ -538,7 +537,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _isGenerating ? null : _generateReport,
+                  onPressed: _isGenerating ? null : generateReport,
                   icon: _isGenerating 
                       ? const SizedBox(
                           width: 16,
@@ -580,7 +579,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     );
   }
 
-  Widget _buildSprintPerformanceSection() {
+  Widget buildSprintPerformanceSection() {
     return Card(
       color: FlownetColors.graphiteGray,
       child: Padding(
@@ -614,7 +613,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildMetricCard(
+                  child: buildMetricCard(
                     'Avg Test Pass Rate',
                     '${_sprintMetrics.fold(0.0, (sum, m) => sum + m.testPassRate) / _sprintMetrics.length}%',
                     Icons.science,
@@ -623,7 +622,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildMetricCard(
+                  child: buildMetricCard(
                     'Total Defects',
                     '${_sprintMetrics.fold(0, (sum, m) => sum + m.totalDefects)}',
                     Icons.bug_report,
@@ -632,7 +631,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildMetricCard(
+                  child: buildMetricCard(
                     'Resolution Rate',
                     '${_sprintMetrics.fold(0.0, (sum, m) => sum + m.defectResolutionRate) / _sprintMetrics.length}%',
                     Icons.check_circle,
@@ -647,7 +646,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     );
   }
 
-  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+  Widget buildMetricCard(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

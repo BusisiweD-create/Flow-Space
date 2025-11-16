@@ -75,8 +75,8 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         description: _descriptionController.text,
         definitionOfDone: _dodController.text,
         status: _status,
-        assignedTo: '00000000-0000-0000-0000-000000000002', // Default to Jane Smith
-        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
+        assignedTo: '00000000-0000-0000-0000-000000000002',
+        createdBy: '00000000-0000-0000-0000-000000000001',
         sprintIds: _selectedSprints,
       );
 
@@ -289,7 +289,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                     final idStr = (sprint['id'] ?? '').toString();
                     final isSelected = _selectedSprints.contains(idStr);
                     return CheckboxListTile(
-                      title: Text((sprint['name'] ?? '').toString()),
+                      title: Text(sprint['name']?.toString() ?? ''),
                       subtitle: Text('${sprint['start_date']} - ${sprint['end_date']}'),
                       value: isSelected,
                       onChanged: (value) {

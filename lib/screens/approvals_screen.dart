@@ -19,6 +19,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   bool _autoRemindersTriggered = false;
+  int _autoReminderCount = 0;
 
   @override
   void initState() {
@@ -72,15 +73,21 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
     if (!(auth.isSystemAdmin || auth.isDeliveryLead || auth.isClientReviewer)) return;
     if (_autoRemindersTriggered) return;
     final now = DateTime.now();
-    final toRemind = _approvalRequests.where((r) => r.status == ApprovalStatus.pending && now.difference(r.requestedAt).inDays >= 3).toList();
+    final toRemind = _approvalRequests.where((r) => r.status == ApprovalStatus.pending && now.difference(r.requestedAt).inDays >= 2).toList();
     if (toRemind.isEmpty) {
       _autoRemindersTriggered = true;
+      setState(() {
+        _autoReminderCount = 0;
+      });
       return;
     }
     for (final r in toRemind) {
       await _sendReminder(r.id, silent: true);
     }
-    _autoRemindersTriggered = true;
+    setState(() {
+      _autoRemindersTriggered = true;
+      _autoReminderCount = toRemind.length;
+    });
   }
 
   @override
@@ -107,6 +114,32 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       ),
       body: Column(
         children: [
+          if (AuthService().isSystemAdmin || AuthService().isDeliveryLead || AuthService().isClientReviewer)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: FlownetColors.electricBlue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: FlownetColors.electricBlue.withValues(alpha: 0.35)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schedule_send, color: FlownetColors.electricBlue),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _autoRemindersTriggered
+                            ? 'Automated reminders active. Last run reminded $_autoReminderCount request(s).'
+                            : 'Automated reminders active for pending approvals aged ≥ 2 days.',
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // Search bar
           Padding(
             padding: const EdgeInsets.all(16.0),

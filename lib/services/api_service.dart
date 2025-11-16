@@ -114,6 +114,23 @@ class ApiService {
       return [];
     }
   }
+
+  static Future<Map<String, dynamic>?> getDeliverable(String deliverableId) async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getDeliverable(deliverableId);
+      
+      if (response.isSuccess && response.data != null) {
+        return response.data!['data'] ?? response.data!['deliverable'];
+      } else {
+        debugPrint('Failed to fetch deliverable: ${response.statusCode} - ${response.error}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error fetching deliverable: $e');
+      return null;
+    }
+  }
   
   static Future<Map<String, dynamic>?> createDeliverable({
     required String title,
@@ -126,18 +143,18 @@ class ApiService {
   }) async {
     try {
       final backendService = BackendApiService();
-      final payload = {
+      final response = await backendService.createDeliverable({
         'title': title,
         'description': description,
-        'definitionOfDone': definitionOfDone,
+        'definition_of_done': definitionOfDone,
         'status': status,
-        'assignedTo': assignedTo,
-        'createdBy': createdBy,
+        'assigned_to': assignedTo,
+        'created_by': createdBy,
         if (sprintIds != null) 'sprintIds': sprintIds,
-      };
-      final response = await backendService.createDeliverable(payload);
+      });
+
       if (response.isSuccess && response.data != null) {
-        return Map<String, dynamic>.from(response.data!);
+        return response.data!['data'] ?? response.data!['deliverable'] ?? response.data!;
       } else {
         debugPrint('Failed to create deliverable: ${response.statusCode} - ${response.error}');
         return null;
@@ -761,6 +778,77 @@ class ApiService {
     } catch (e) {
       debugPrint('Error loading sprint tickets: $e');
       return [];
+    }
+  }
+
+  // QA-specific methods
+  static Future<List<Map<String, dynamic>>> getTestQueue() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getTestQueue();
+
+      if (response.isSuccess && response.data != null) {
+        final List<dynamic> items = response.data!['data'] ?? response.data!['testQueue'] ?? [];
+        return items.cast<Map<String, dynamic>>();
+      } else {
+        debugPrint('Failed to load test queue: ${response.statusCode} - ${response.error}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error loading test queue: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getQualityMetrics() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getQualityMetrics();
+
+      if (response.isSuccess && response.data != null) {
+        return response.data! as Map<String, dynamic>;
+      } else {
+        debugPrint('Failed to load quality metrics: ${response.statusCode} - ${response.error}');
+        return {};
+      }
+    } catch (e) {
+      debugPrint('Error loading quality metrics: $e');
+      return {};
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getBugReports({int limit = 10}) async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getBugReports(limit: limit);
+
+      if (response.isSuccess && response.data != null) {
+        final List<dynamic> items = response.data!['data'] ?? response.data!['bugReports'] ?? [];
+        return items.cast<Map<String, dynamic>>();
+      } else {
+        debugPrint('Failed to load bug reports: ${response.statusCode} - ${response.error}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error loading bug reports: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getTestCoverage() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getTestCoverage();
+
+      if (response.isSuccess && response.data != null) {
+        return response.data! as Map<String, dynamic>;
+      } else {
+        debugPrint('Failed to load test coverage: ${response.statusCode} - ${response.error}');
+        return {};
+      }
+    } catch (e) {
+      debugPrint('Error loading test coverage: $e');
+      return {};
     }
   }
 }

@@ -610,10 +610,15 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   void _selectProject(Map<String, dynamic> project) {
     setState(() {
       _selectedProjectKey = project['key'];
-      _selectedSprintId = null; // Reset sprint selection
-      _tickets.clear(); // Clear tickets
+      _selectedSprintId = null;
+      _tickets.clear();
     });
     debugPrint('🎯 Project selected: ${project['name']} (${project['key']})');
+    try {
+      GoRouter.of(context).go('/repository/${project['key']}');
+    } catch (_) {
+      Navigator.of(context).pushNamed('/repository/${project['key']}');
+    }
   }
 
   void _selectSprint(Map<String, dynamic> sprint) {

@@ -10,7 +10,8 @@ import '../widgets/flownet_logo.dart';
 import '../services/api_service.dart';
 
 class RepositoryScreen extends ConsumerStatefulWidget {
-  const RepositoryScreen({super.key});
+  final String? projectKey;
+  const RepositoryScreen({super.key, this.projectKey});
 
   @override
   ConsumerState<RepositoryScreen> createState() => _RepositoryScreenState();
@@ -34,9 +35,7 @@ class _RepositoryScreenState extends ConsumerState<RepositoryScreen> {
     });
 
     try {
-      // Use actual API call to get project files
-      // For demo purposes, we'll use a default project ID
-      final filesData = await ApiService.getProjectFiles('default-project-id');
+      final filesData = await ApiService.getProjectFiles(widget.projectKey ?? 'default-project-id');
       
       if (filesData.isEmpty) {
         // No files available - show empty state instead of mock data

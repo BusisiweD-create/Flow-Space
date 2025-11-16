@@ -5,6 +5,7 @@ enum UserRole {
   deliveryLead,
   clientReviewer,
   systemAdmin,
+  qaEngineer,
 }
 
 extension UserRoleExtension on UserRole {
@@ -18,6 +19,8 @@ extension UserRoleExtension on UserRole {
         return 'Client Reviewer';
       case UserRole.systemAdmin:
         return 'System Admin';
+      case UserRole.qaEngineer:
+        return 'QA Engineer';
     }
   }
 
@@ -31,6 +34,8 @@ extension UserRoleExtension on UserRole {
         return 'Can review and approve deliverables';
       case UserRole.systemAdmin:
         return 'Full system access and administration';
+      case UserRole.qaEngineer:
+        return 'Can test, report bugs, and monitor quality metrics';
     }
   }
 
@@ -44,6 +49,8 @@ extension UserRoleExtension on UserRole {
         return Colors.green;
       case UserRole.systemAdmin:
         return Colors.purple;
+      case UserRole.qaEngineer:
+        return Colors.red;
     }
   }
 
@@ -57,6 +64,8 @@ extension UserRoleExtension on UserRole {
         return Icons.verified_user;
       case UserRole.systemAdmin:
         return Icons.admin_panel_settings;
+      case UserRole.qaEngineer:
+        return Icons.bug_report;
     }
   }
 }

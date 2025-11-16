@@ -215,9 +215,8 @@ class SprintPerformanceChart extends StatelessWidget {
     final spots = <FlSpot>[];
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      // Use actual defect data from sprint
-      final defectCount = (sprint['defects_opened'] ?? 0).toDouble();
-      spots.add(FlSpot(i.toDouble(), defectCount));
+      final defectCount = (sprint['defects_opened'] ?? sprint['defect_count'] ?? 0) as num;
+      spots.add(FlSpot(i.toDouble(), defectCount.toDouble()));
     }
 
     return LineChart(
@@ -259,8 +258,7 @@ class SprintPerformanceChart extends StatelessWidget {
     final spots = <FlSpot>[];
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      // Use actual test pass rate data from sprint
-      final passRate = (sprint['test_pass_rate'] ?? 0.0).toDouble();
+      final passRate = ((sprint['test_pass_rate'] ?? 0) as num).clamp(0, 100).toDouble();
       spots.add(FlSpot(i.toDouble(), passRate));
     }
 

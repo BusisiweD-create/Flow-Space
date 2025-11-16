@@ -448,19 +448,6 @@ class ApiService {
     final dynamic item = responseData is Map ? (responseData['data'] ?? responseData['deliverable'] ?? responseData) : responseData;
     return Deliverable.fromJson(item);
   }
-
-  static Future<bool> updateSprintStatus(String sprintId, String status) async {
-    final response = await http.put(
-      Uri.parse('${Environment.apiBaseUrl}/sprints/$sprintId'),
-      headers: _getHeaders(),
-      body: jsonEncode({'status': status}),
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data is Map && (data['success'] == true);
-    }
-    return false;
-  }
   
   static Future<Deliverable> updateDeliverable(int id, DeliverableUpdate deliverable) async {
     final response = await http.put(

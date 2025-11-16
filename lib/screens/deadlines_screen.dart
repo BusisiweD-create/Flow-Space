@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/flownet_theme.dart';
 import '../services/api_service.dart';
+import '../models/deliverable.dart';
 
 class DeadlinesScreen extends ConsumerStatefulWidget {
   const DeadlinesScreen({super.key});
@@ -11,16 +12,23 @@ class DeadlinesScreen extends ConsumerStatefulWidget {
 }
 
 class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final List<Deliverable> _deliverables = [];
   bool _isLoading = false;
   String? _error;
   String _filter = 'all';
-  String _search = '';
-  List<Map<String, dynamic>> _deliverables = [];
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadDeliverables();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadDeliverables() async {
@@ -31,94 +39,198 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
     });
     try {
       final items = await ApiService.getDeliverables();
-      setState(() {
-        _deliverables = items;
-      });
+      _deliverables
+        ..clear()
+        ..addAll(items.map((m) => Deliverable.fromJson(m)).toList());
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load deadlines';
-      });
+      _error = 'Failed to load deliverables';
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  DateTime? _parseDate(dynamic value) {
-    if (value == null) return null;
-    try {
-      return DateTime.parse(value.toString());
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = date.difference(now).inDays;
-    if (difference == 0) return 'Today';
-    if (difference == 1) return 'Tomorrow';
-    if (difference > 0) return 'In $difference days';
-    return 'Overdue';
-  }
-
-  Color _priorityColor(String priority) {
-    switch (priority.toLowerCase()) {
-      case 'high':
-        return Colors.red;
-      case 'medium':
-        return Colors.orange;
-      case 'low':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  List<Map<String, dynamic>> _filteredDeadlines() {
-    final now = DateTime.now();
-    final items = _deliverables.map((d) {
-      final due = _parseDate(d['due_date']) ?? _parseDate(d['dueDate']) ?? _parseDate(d['deadline']);
-      final title = (d['title'] ?? '').toString();
-      final project = (d['project'] ?? d['project_name'] ?? '').toString();
-      final priority = (d['priority'] ?? 'medium').toString();
-      final status = (d['status'] ?? '').toString();
-      return {
-        'title': title,
-        'project': project,
-        'priority': priority,
-        'status': status,
-        'due': due,
-      };
-    }).where((m) {
-      final due = m['due'] as DateTime?;
-      if (due == null) return false;
-      if (_search.isNotEmpty) {
-        final s = _search.toLowerCase();
-        final t = (m['title'] as String).toLowerCase();
-        final p = (m['project'] as String).toLowerCase();
-        if (!(t.contains(s) || p.contains(s))) return false;
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
-      if (_filter == 'overdue') return due.isBefore(now);
-      if (_filter == 'today') {
-        final diff = due.difference(now).inDays;
-        return diff == 0;
+    }
+  }
+
+  List<Deliverable> get _visibleDeliverables {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+
+    final q = _searchQuery.trim().toLowerCase();
+    final List<Deliverable> list = _deliverables.where((d) {
+      final matchesSearch = q.isEmpty ||
+          d.title.toLowerCase().contains(q) ||
+          d.description.toLowerCase().contains(q);
+      final due = DateTime(d.dueDate.year, d.dueDate.month, d.dueDate.day);
+      final diffDays = due.difference(todayStart).inDays;
+      bool matchesFilter;
+      switch (_filter) {
+        case 'overdue':
+          matchesFilter = d.isOverdue;
+          break;
+        case 'today':
+          matchesFilter = diffDays == 0;
+          break;
+        case 'upcoming':
+          matchesFilter = diffDays > 0;
+          break;
+        case 'completed':
+          matchesFilter = d.status == DeliverableStatus.approved;
+          break;
+        default:
+          matchesFilter = true;
       }
-      if (_filter == 'upcoming') return due.isAfter(now);
-      return true;
+      return matchesSearch && matchesFilter;
     }).toList();
-    items.sort((a, b) {
-      final da = a['due'] as DateTime;
-      final db = b['due'] as DateTime;
-      return da.compareTo(db);
-    });
-    return items;
+
+    list.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return list;
+  }
+
+  Widget _buildFilterChip(String value, String label) {
+    final isSelected = _filter == value;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _filter = value;
+        });
+      },
+      backgroundColor: FlownetColors.slate,
+      selectedColor: FlownetColors.electricBlue,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Colors.grey,
+      ),
+    );
+  }
+
+  String _formatDue(DateTime d) {
+    final now = DateTime.now();
+    final diff = DateTime(d.year, d.month, d.day)
+        .difference(DateTime(now.year, now.month, now.day))
+        .inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    if (diff < 0) return '${-diff}d overdue';
+    return 'In $diff days';
+  }
+
+  Widget _buildDeliverableTile(Deliverable d) {
+    final dueText = _formatDue(d.dueDate);
+    final statusColor = d.statusColor;
+    final isOverdue = d.isOverdue;
+    return Card(
+      child: ListTile(
+        title: Text(d.title),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              d.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Chip(
+                  label: Text(d.statusDisplayName),
+                  // ignore: deprecated_member_use
+                  backgroundColor: statusColor.withOpacity(0.15),
+                  labelStyle: TextStyle(color: statusColor),
+                  side: BorderSide(color: statusColor),
+                ),
+                const SizedBox(width: 8),
+                Chip(
+                  label: Text(dueText),
+                  backgroundColor:
+                      // ignore: deprecated_member_use
+                      (isOverdue ? Colors.red : Colors.orange).withOpacity(0.1),
+                  labelStyle:
+                      TextStyle(color: isOverdue ? Colors.red : Colors.orange),
+                  side:
+                      BorderSide(color: isOverdue ? Colors.red : Colors.orange),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.chevron_right),
+      ),
+    );
+  }
+
+  List<Widget> _buildGroupedSections(List<Deliverable> list) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final overdue = list.where((d) => d.isOverdue).toList();
+    final today = list
+        .where((d) =>
+            DateTime(d.dueDate.year, d.dueDate.month, d.dueDate.day)
+                .difference(todayStart)
+                .inDays == 0,)
+        .toList();
+    final upcoming = list
+        .where((d) =>
+            DateTime(d.dueDate.year, d.dueDate.month, d.dueDate.day)
+                .difference(todayStart)
+                .inDays > 0,)
+        .toList();
+
+    final sections = [
+      {'label': 'Overdue', 'items': overdue, 'color': Colors.red},
+      {'label': 'Today', 'items': today, 'color': Colors.orange},
+      {'label': 'Upcoming', 'items': upcoming, 'color': Colors.green},
+    ];
+
+    final children = <Widget>[];
+    for (final s in sections) {
+      final secItems = (s['items'] as List<Deliverable>);
+      if (secItems.isEmpty) continue;
+      children.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              s['label'] as String,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: FlownetColors.pureWhite,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                // ignore: deprecated_member_use
+                color: (s['color'] as Color).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: s['color'] as Color),
+              ),
+              child: Text(
+                secItems.length.toString(),
+                style: TextStyle(
+                    color: s['color'] as Color, fontWeight: FontWeight.bold,),
+              ),
+            ),
+          ],
+        ),
+      );
+      children.add(const SizedBox(height: 8));
+      for (final d in secItems) {
+        children.add(_buildDeliverableTile(d));
+        children.add(const SizedBox(height: 8));
+      }
+      children.add(const SizedBox(height: 12));
+    }
+    return children;
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = _filteredDeadlines();
+    final visible = _visibleDeliverables;
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
@@ -133,292 +245,83 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadDeliverables,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search deliverables...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                ),
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                },
+              ),
+            ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search deadlines',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (v) {
-                        setState(() {
-                          _search = v;
-                        });
-                      },
-                    ),
-                  ),
+                  _buildFilterChip('all', 'All'),
                   const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: _filter,
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All')),
-                      DropdownMenuItem(value: 'today', child: Text('Today')),
-                      DropdownMenuItem(value: 'upcoming', child: Text('Upcoming')),
-                      DropdownMenuItem(value: 'overdue', child: Text('Overdue')),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() {
-                        _filter = v;
-                      });
-                    },
-                  ),
+                  _buildFilterChip('overdue', 'Overdue'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('today', 'Today'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('upcoming', 'Upcoming'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('completed', 'Completed'),
                 ],
               ),
-              const SizedBox(height: 16),
-              if (_isLoading)
-                const Expanded(child: Center(child: CircularProgressIndicator()))
-              else if (_error != null)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: FlownetColors.pureWhite),
-                    ),
-                  ),
-                )
-              else if (items.isEmpty)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'No deadlines found',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(color: FlownetColors.pureWhite),
-                    ),
-                  ),
-                )
-              else if (_filter == 'all')
-                Expanded(
-                  child: ListView(
-                    children: () {
-                      final now = DateTime.now();
-                      final overdue = items.where((i) => (i['due'] as DateTime).isBefore(now)).toList();
-                      final today = items.where((i) => (i['due'] as DateTime).difference(now).inDays == 0).toList();
-                      final upcoming = items.where((i) {
-                        final d = i['due'] as DateTime;
-                        final diff = d.difference(now).inDays;
-                        return diff > 0;
-                      }).toList();
-                      final sections = [
-                        {'label': 'Overdue', 'items': overdue, 'color': Colors.red},
-                        {'label': 'Today', 'items': today, 'color': Colors.orange},
-                        {'label': 'Upcoming', 'items': upcoming, 'color': Colors.green},
-                      ];
-                      final children = <Widget>[];
-                      for (final s in sections) {
-                        final list = (s['items'] as List).cast<Map<String, dynamic>>();
-                        if (list.isEmpty) continue;
-                        children.add(
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                s['label'] as String,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      color: FlownetColors.pureWhite,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: (s['color'] as Color).withAlpha(25),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: s['color'] as Color),
-                                ),
-                                child: Text(
-                                  list.length.toString(),
-                                  style: TextStyle(color: s['color'] as Color, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : _error != null
+                      ? Center(
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(color: Colors.red),
                           ),
-                        );
-                        children.add(const SizedBox(height: 8));
-                        for (final item in list) {
-                          final due = item['due'] as DateTime;
-                          final pr = item['priority'] as String;
-                          final status = (item['status'] as String).toLowerCase();
-                          final statusColor = () {
-                            if (status.contains('completed') || status.contains('approved') || status == 'done') return Colors.green;
-                            if (status.contains('in') && status.contains('progress')) return Colors.blue;
-                            if (status.contains('review') || status.contains('pending')) return Colors.orange;
-                            return Colors.grey;
-                          }();
-                          children.add(
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              margin: const EdgeInsets.only(bottom: 12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: _priorityColor(pr),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item['title'] as String,
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.w500,
-                                                color: FlownetColors.pureWhite,
-                                              ),
-                                        ),
-                                        Text(
-                                          (item['project'] as String).isNotEmpty ? item['project'] as String : 'Project',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                color: Colors.grey[600],
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        _formatDate(due),
-                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: _priorityColor(pr),
-                                            ),
-                                      ),
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 4),
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: statusColor.withAlpha(25),
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: statusColor),
-                                        ),
-                                        child: Text(
-                                          (item['status'] as String).isNotEmpty ? item['status'] as String : 'Pending',
-                                          style: TextStyle(
-                                            color: statusColor,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }
-                      }
-                      return children;
-                    }(),
-                  ),
-                )
-              else
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      final due = item['due'] as DateTime;
-                      final pr = item['priority'] as String;
-                      final status = (item['status'] as String).toLowerCase();
-                      final statusColor = () {
-                        if (status.contains('completed') || status.contains('approved') || status == 'done') return Colors.green;
-                        if (status.contains('in') && status.contains('progress')) return Colors.blue;
-                        if (status.contains('review') || status.contains('pending')) return Colors.orange;
-                        return Colors.grey;
-                      }();
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: _priorityColor(pr),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item['title'] as String,
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          fontWeight: FontWeight.w500,
-                                          color: FlownetColors.pureWhite,
-                                        ),
-                                  ),
-                                  Text(
-                                    (item['project'] as String).isNotEmpty ? item['project'] as String : 'Project',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Colors.grey[600],
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  _formatDate(due),
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: _priorityColor(pr),
-                                      ),
-                                ),
-                                Container(
-                                  margin: const EdgeInsets.only(top: 4),
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: statusColor.withAlpha(25),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: statusColor),
-                                  ),
+                        )
+                      : (_filter == 'all'
+                          ? ListView(
+                              padding: const EdgeInsets.all(16),
+                              children: _buildGroupedSections(visible),
+                            )
+                          : visible.isEmpty
+                              ? const Center(
                                   child: Text(
-                                    (item['status'] as String).isNotEmpty ? item['status'] as String : 'Pending',
-                                    style: TextStyle(
-                                      color: statusColor,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                    'No deadlines found',
+                                    style: TextStyle(color: Colors.grey),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.all(16),
+                                  itemCount: visible.length,
+                                  itemBuilder: (context, index) {
+                                    return _buildDeliverableTile(
+                                        visible[index],);
+                                  },
+                                )),
+            ),
+          ],
         ),
       ),
     );

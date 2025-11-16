@@ -172,9 +172,3 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
 final authStateProvider = NotifierProvider<SimpleAuthNotifier, AuthState>(() {
   return SimpleAuthNotifier();
 });
-
-// Mock current user provider
-final currentUserProvider = StreamProvider<String?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return Stream.value(authState.userEmail);
-});

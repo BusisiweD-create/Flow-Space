@@ -489,9 +489,6 @@ class BackendApiService {
     return await _apiClient.get('/approvals/$id');
   }
 
-  Future<ApiResponse> createApprovalRequest(Map<String, dynamic> requestData) async {
-    return await _apiClient.post('/approvals', body: requestData);
-  }
 
   Future<ApiResponse> approveRequest(String id, Map<String, dynamic> approvalData) async {
     return await _apiClient.put('/approvals/$id/approve', body: approvalData);
@@ -629,4 +626,33 @@ class BackendApiService {
       return [];
     }
   }
+
+  // QA-specific endpoints
+  Future<ApiResponse> getTestQueue() async {
+    return await _apiClient.get('/qa/test-queue');
+  }
+
+  Future<ApiResponse> getQualityMetrics() async {
+    return await _apiClient.get('/qa/quality-metrics');
+  }
+
+  Future<ApiResponse> getBugReports({int limit = 10}) async {
+    final queryParams = {'limit': limit.toString()};
+    return await _apiClient.get('/qa/bug-reports', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> getTestCoverage() async {
+    return await _apiClient.get('/qa/test-coverage');
+  }
+
+  // Approval endpoints
+
+
+  Future<ApiResponse> createApprovalRequest(Map<String, dynamic> requestData) async {
+    return await _apiClient.post('/approvals', body: requestData);
+  }
+
+
+
+
 }
