@@ -189,7 +189,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
   }
 
   Future<void> _checkVerificationStatus() async {
-    final email = ApiService.currentUserEmail;
+    final email = await ApiService.currentUserEmail;
     if (email == null || email.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

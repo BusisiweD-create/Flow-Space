@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -10,6 +9,8 @@ import '../services/sprint_database_service.dart';
 import '../services/deliverable_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/document_preview_widget.dart';
+import '../widgets/audit_history_widget.dart';
 
 class RepositoryScreen extends StatefulWidget {
   const RepositoryScreen({super.key});
@@ -31,11 +32,20 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   bool _isLoading = false;
   String _selectedFileType = 'all';
   String _searchQuery = '';
+  List<Map<String, dynamic>> _projects = [];
+  List<Map<String, dynamic>> _sprints = [];
+  List<dynamic> _deliverables = [];
+  String? _selectedProjectId;
+  String? _selectedSprintId;
+  String? _selectedDeliverableId;
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
 
   @override
   void initState() {
     super.initState();
     _loadDocuments();
+    _loadFilters();
   }
 
   Future<void> _loadFilters() async {
@@ -98,8 +108,8 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
           // On web, we can't create a File from path, so we'll handle it differently
           _showWebUploadDialog(pickedFile);
         } else {
-          final file = File(pickedFile.path!);
-          _showUploadDialog(file);
+          final filePath = pickedFile.path!;
+          _showUploadDialog(filePath);
         }
       }
     } catch (e) {
@@ -107,7 +117,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     }
   }
 
-  void _showUploadDialog(File file) {
+  void _showUploadDialog(String filePath) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -118,7 +128,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('File: ${file.path.split('/').last}', 
+              Text('File: ${filePath.split('/').last}', 
                    style: const TextStyle(color: FlownetColors.coolGray),),
               const SizedBox(height: 16),
               TextField(
@@ -154,7 +164,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
             child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
           ),
           ElevatedButton(
-            onPressed: () => _performUpload(file),
+            onPressed: () => _performUpload(filePath),
             style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
             child: const Text('Upload', style: TextStyle(color: FlownetColors.pureWhite)),
           ),
@@ -163,14 +173,14 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     );
   }
 
-  Future<void> _performUpload(File file) async {
+  Future<void> _performUpload(String filePath) async {
     Navigator.pop(context);
     
     setState(() => _isLoading = true);
     
     try {
       final response = await _documentService.uploadDocument(
-        filePath: file.path,
+        filePath: filePath,
         description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
         tags: _tagsController.text.isNotEmpty ? _tagsController.text : null,
       );
@@ -299,14 +309,9 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         } else {
           final filePath = response.data!['filePath'];
           _showSuccessSnackBar('Document downloaded to: $filePath');
-          
-          // Try to open the file
-          final file = File(filePath);
-          if (await file.exists()) {
-            final uri = Uri.file(file.path);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri);
-            }
+          final uri = Uri.file(filePath);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri);
           }
         }
       } else {

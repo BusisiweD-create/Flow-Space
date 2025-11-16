@@ -6,7 +6,7 @@ import '../models/system_metrics.dart';
 
 class ApiService {
   // Base URL for your backend API (you'll need to create this)
-  static const String baseUrl = 'http://localhost:3001/api';
+  static const String baseUrl = 'http://localhost:8000/api';
   
   // Get auth headers with token
   static Future<Map<String, String>> _getHeaders() async {

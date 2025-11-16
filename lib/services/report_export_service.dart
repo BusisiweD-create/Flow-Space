@@ -6,10 +6,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../models/sign_off_report.dart';
 
-// Platform-specific imports (only import when not on web)
-import 'dart:io' if (dart.library.html) 'dart:html';
-import 'package:path_provider/path_provider.dart' if (dart.library.html) '../services/path_provider_stub.dart';
-
 class ReportExportService {
   /// Export report as PDF
   Future<void> exportReportAsPDF(SignOffReport report, {String? filePath}) async {
@@ -150,39 +146,26 @@ class ReportExportService {
       final bytes = await pdf.save();
       
       if (kIsWeb) {
-        // Web platform - use base64 data URI for sharing
         final base64Pdf = base64Encode(bytes);
         await Share.share(
           'data:application/pdf;base64,$base64Pdf',
           subject: 'Sign-Off Report: ${report.reportTitle}',
         );
       } else {
-        // Mobile/Desktop platforms - use File and path_provider
-        if (filePath != null) {
-          // Save to specific path
-          final file = File(filePath);
-          await file.writeAsBytes(bytes);
-        } else {
-          // Try to save to temp directory and share
+        final xFile = XFile.fromData(
+          bytes,
+          name: 'report_${report.id}.pdf',
+          mimeType: 'application/pdf',
+        );
+        if (filePath != null && filePath.isNotEmpty) {
           try {
-            final tempDir = await getTemporaryDirectory();
-            final file = File('${tempDir.path}/report_${report.id}.pdf');
-            await file.writeAsBytes(bytes);
-            
-            await Share.shareXFiles(
-              [XFile(file.path)],
-              text: 'Sign-Off Report: ${report.reportTitle}',
-            );
-          } catch (e) {
-            // Fallback: share as base64 if path_provider fails
-            debugPrint('⚠️ Path provider not available, using base64 share: $e');
-            final base64Pdf = base64Encode(bytes);
-            await Share.share(
-              'data:application/pdf;base64,$base64Pdf',
-              subject: 'Sign-Off Report: ${report.reportTitle}',
-            );
-          }
+            await xFile.saveTo(filePath);
+          } catch (_) {}
         }
+        await Share.shareXFiles(
+          [xFile],
+          text: 'Sign-Off Report: ${report.reportTitle}',
+        );
       }
     } catch (e) {
       debugPrint('Error exporting PDF: $e');

@@ -81,8 +81,6 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         priority: _priority,
         dueDate: _dueDate,
         status: _status,
-        priority: _priority,
-        dueDate: _dueDate,
         evidenceLinks: evidenceLinks,
         contributingSprints: contributingSprints,
         demoLink: _demoLinkController.text.isEmpty ? null : _demoLinkController.text,

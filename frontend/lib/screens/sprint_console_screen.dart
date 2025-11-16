@@ -188,6 +188,23 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
   final _plannedPointsController = TextEditingController();
   final _committedPointsController = TextEditingController();
   final _completedPointsController = TextEditingController();
+  final _carriedOverPointsController = TextEditingController();
+  final _addedDuringSprintController = TextEditingController();
+  final _removedDuringSprintController = TextEditingController();
+  final _testPassRateController = TextEditingController();
+  final _codeCoverageController = TextEditingController();
+  final _escapedDefectsController = TextEditingController();
+  final _defectsOpenedController = TextEditingController();
+  final _defectsClosedController = TextEditingController();
+  final _defectSeverityMixController = TextEditingController();
+  final _codeReviewCompletionController = TextEditingController();
+  final _documentationStatusController = TextEditingController();
+  final _uatNotesController = TextEditingController();
+  final _uatPassRateController = TextEditingController();
+  final _risksIdentifiedController = TextEditingController();
+  final _risksMitigatedController = TextEditingController();
+  final _blockersController = TextEditingController();
+  final _decisionsController = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
 

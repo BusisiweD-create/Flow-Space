@@ -28,11 +28,9 @@ import 'screens/user_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
-import 'screens/system_metrics_screen.dart';
 // Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
-import 'screens/profile_screen.dart';
-import 'screens/settings_screen.dart';
+//
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
 
@@ -278,15 +276,7 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
-    GoRoute(
-      path: '/settings',
-      builder: (context, state) => const RouteGuard(
-        route: '/settings',
-        child: SidebarScaffold(
-          child: SettingsScreen(),
-        ),
-      ),
-    ),
+    
     GoRoute(
       path: '/profile',
       builder: (context, state) => const RouteGuard(
