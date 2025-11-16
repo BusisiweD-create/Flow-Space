@@ -549,6 +549,23 @@ class ApiService {
     final responseData = jsonDecode(response.body);
     return Sprint.fromJson(responseData);
   }
+
+  static Future<bool> updateSprintStatus(String sprintId, String status) async {
+    final response = await http.put(
+      Uri.parse('${Environment.apiBaseUrl}/sprints/$sprintId'),
+      headers: _getHeaders(),
+      body: jsonEncode({'status': status}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map) {
+        final success = data['success'];
+        if (success is bool) return success;
+      }
+      return true;
+    }
+    return false;
+  }
   
   static Future<void> deleteSprint(int id) async {
     await http.delete(

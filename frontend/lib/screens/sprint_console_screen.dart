@@ -757,8 +757,7 @@ class SprintDetailScreen extends StatelessWidget {
                     _buildDetailRow('Created By', sprint.createdByName ?? 'Unknown'),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      // ignore: deprecated_member_use
-                      value: initialStatusValue(sprint.statusText),
+                      initialValue: initialStatusValue(sprint.statusText),
                       items: const [
                         DropdownMenuItem(value: 'planning', child: Text('Planning')),
                         DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
@@ -769,7 +768,7 @@ class SprintDetailScreen extends StatelessWidget {
                         if (val == null) return;
                         final ok = await ApiService.updateSprintStatus(sprint.id, val);
                         final msg = ok ? 'Sprint status updated' : 'Failed to update status';
-                        // ignore: use_build_context_synchronously
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
                       },
                       decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Update Status'),
