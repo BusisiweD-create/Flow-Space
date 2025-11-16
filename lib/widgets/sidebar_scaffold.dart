@@ -49,7 +49,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Approvals',
         icon: Icons.check_box_outlined,
         route: '/approvals',
-        requiredPermission: 'approve_deliverable',
+        requiredPermission: 'view_approvals',
       ),
       const _NavItem(
         label: 'Repository', 

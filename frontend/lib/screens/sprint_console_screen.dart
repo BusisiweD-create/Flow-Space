@@ -5,6 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../models/sprint.dart';
 
+String initialStatusValue(String display) {
+  final d = display.toLowerCase();
+  if (d.contains('progress')) return 'in_progress';
+  if (d.contains('complete')) return 'completed';
+  if (d.contains('cancel')) return 'cancelled';
+  return 'planning';
+}
+
 class SprintConsoleScreen extends ConsumerStatefulWidget {
   const SprintConsoleScreen({super.key});
 
@@ -747,6 +755,25 @@ class SprintDetailScreen extends StatelessWidget {
                     _buildDetailRow('Planned Points', sprint.plannedPoints.toString()),
                     _buildDetailRow('Completed Points', sprint.completedPoints.toString()),
                     _buildDetailRow('Created By', sprint.createdByName ?? 'Unknown'),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
+                      value: initialStatusValue(sprint.statusText),
+                      items: const [
+                        DropdownMenuItem(value: 'planning', child: Text('Planning')),
+                        DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+                        DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                        DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                      ],
+                      onChanged: (val) async {
+                        if (val == null) return;
+                        final ok = await ApiService.updateSprintStatus(sprint.id, val);
+                        final msg = ok ? 'Sprint status updated' : 'Failed to update status';
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                      },
+                      decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Update Status'),
+                    ),
                   ],
                 ),
               ),

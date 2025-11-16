@@ -122,6 +122,7 @@ class ApiService {
     required String status,
     required String assignedTo,
     required String createdBy,
+    List<String>? sprintIds,
   }) async {
     try {
       final backendService = BackendApiService();
@@ -132,6 +133,7 @@ class ApiService {
         'status': status,
         'assignedTo': assignedTo,
         'createdBy': createdBy,
+        if (sprintIds != null) 'sprintIds': sprintIds,
       };
       final response = await backendService.createDeliverable(payload);
       if (response.isSuccess && response.data != null) {

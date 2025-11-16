@@ -31,6 +31,7 @@ import 'screens/sprint_board_screen.dart';
 import 'screens/system_metrics_screen.dart';
 import 'screens/detailed_reports_screen.dart';
 import 'screens/skill_assessment_screen.dart';
+import 'screens/deadlines_screen.dart';
 import 'screens/team_chat_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
@@ -325,6 +326,24 @@ final GoRouter _router = GoRouter(
         route: '/team-chat',
         child: SidebarScaffold(
           child: TeamChatScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/deadlines',
+      builder: (context, state) => const RouteGuard(
+        route: '/deadlines',
+        child: SidebarScaffold(
+          child: DeadlinesScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/assessment/:skill',
+      builder: (context, state) => RouteGuard(
+        route: '/skill-assessment',
+        child: SidebarScaffold(
+          child: SkillAssessmentScreen(selectedSkill: state.pathParameters['skill']),
         ),
       ),
     ),

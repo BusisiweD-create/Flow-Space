@@ -77,6 +77,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         status: _status,
         assignedTo: '00000000-0000-0000-0000-000000000002', // Default to Jane Smith
         createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
+        sprintIds: _selectedSprints,
       );
 
       if (mounted) {
@@ -285,17 +286,20 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 ),
                 child: Column(
                   children: _availableSprints.map((sprint) {
-                    final isSelected = _selectedSprints.contains(sprint['id']);
+                    final idStr = (sprint['id'] ?? '').toString();
+                    final isSelected = _selectedSprints.contains(idStr);
                     return CheckboxListTile(
-                      title: Text(sprint['name']),
+                      title: Text((sprint['name'] ?? '').toString()),
                       subtitle: Text('${sprint['start_date']} - ${sprint['end_date']}'),
                       value: isSelected,
                       onChanged: (value) {
                         setState(() {
                           if (value == true) {
-                            _selectedSprints.add(sprint['id']);
+                            if (!_selectedSprints.contains(idStr)) {
+                              _selectedSprints.add(idStr);
+                            }
                           } else {
-                            _selectedSprints.remove(sprint['id']);
+                            _selectedSprints.remove(idStr);
                           }
                         });
                       },

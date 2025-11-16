@@ -11,7 +11,8 @@ final repositoryProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>
 });
 
 class RepositoryScreen extends ConsumerStatefulWidget {
-  const RepositoryScreen({super.key});
+  final String? projectKey;
+  const RepositoryScreen({super.key, this.projectKey});
 
   @override
   ConsumerState<RepositoryScreen> createState() => _RepositoryScreenState();

@@ -86,6 +86,25 @@ app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/approvals', approvalsRoutes);
+app.use('/api/v1/audit-logs', auditRoutes);
+
+// Tickets routes
+const ticketsRoutes = require('./routes/tickets');
+const { Ticket } = require('./models');
+app.use('/api/v1/tickets', ticketsRoutes);
+app.get('/api/v1/sprints/:sprintId/tickets', async (req, res) => {
+  try {
+    const { sprintId } = req.params;
+    const tickets = await Ticket.findAll({
+      where: { sprint_id: parseInt(sprintId) },
+      order: [['created_at', 'DESC']],
+    });
+    res.json({ success: true, data: tickets });
+  } catch (error) {
+    console.error('Error fetching sprint tickets:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Public alias for system routes
 app.use('/system', systemRoutes);
@@ -120,6 +139,7 @@ async function startServer() {
   try {
     // Test database connection
     await sequelize.authenticate();
+    await syncDatabase({ alter: true });
     console.log('✅ Database connection established successfully');
     
     // Sync database (use with caution in production)

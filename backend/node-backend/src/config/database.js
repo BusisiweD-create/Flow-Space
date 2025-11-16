@@ -43,9 +43,9 @@ async function testConnection() {
 }
 
 // Sync database tables
-async function syncDatabase(force = false) {
+async function syncDatabase({ force = false, alter = true } = {}) {
   try {
-    await sequelize.sync({ force });
+    await sequelize.sync({ force, alter });
     console.log('Database synchronized successfully.');
     return true;
   } catch (error) {

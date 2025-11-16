@@ -63,6 +63,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   bool _isLoadingDashboardApprovals = false;
   List<Map<String, dynamic>> _dashboardDeliverables = [];
   bool _isLoadingDashboardDeliverables = false;
+  List<Map<String, dynamic>> _dashboardProjects = [];
+  bool _isLoadingDashboardProjects = false;
   List<SignOffReport> _reviewHistoryReports = [];
 
   // User data state
@@ -88,6 +90,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     _loadDashboardSprints();
     _loadDashboardApprovals();
     _loadDashboardDeliverables();
+    _loadDashboardProjects();
     _loadReviewHistoryReports();
     _setupRealtimeListeners();
   }
@@ -408,6 +411,27 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     } finally {
       setState(() {
         _isLoadingDashboardDeliverables = false;
+      });
+    }
+  }
+
+  Future<void> _loadDashboardProjects() async {
+    if (_isLoadingDashboardProjects) return;
+    setState(() {
+      _isLoadingDashboardProjects = true;
+    });
+    try {
+      final response = await _backendApiService.getProjects(page: 1, limit: 100);
+      final dynamic raw = response.isSuccess ? response.data : null;
+      final List<dynamic> items = raw is List ? raw : (raw is Map ? (raw['data'] ?? raw['projects'] ?? raw['items'] ?? []) : []);
+      setState(() {
+        _dashboardProjects = items.cast<Map<String, dynamic>>();
+      });
+    } catch (e) {
+      debugPrint('Failed to load dashboard projects: $e');
+    } finally {
+      setState(() {
+        _isLoadingDashboardProjects = false;
       });
     }
   }
@@ -970,19 +994,53 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildProgressBar('In Progress Tasks', 0.65, Colors.blue),
-            const SizedBox(height: 12),
-            _buildProgressBar('Completed Tasks', 0.85, Colors.green),
-            const SizedBox(height: 12),
-            _buildProgressBar('Pending Review', 0.25, Colors.orange),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildProgressMetric('Total Tasks', '24', Icons.list_alt),
-                _buildProgressMetric('Overdue', '3', Icons.warning, Colors.red),
-                _buildProgressMetric('Due Today', '2', Icons.today, Colors.amber),
-              ],
+            Builder(
+              builder: (context) {
+                final total = _dashboardDeliverables.length;
+                int inProgress = 0;
+                int completed = 0;
+                int pendingReview = 0;
+                int overdue = 0;
+                int dueToday = 0;
+                final now = DateTime.now();
+                for (final d in _dashboardDeliverables) {
+                  final s = (d['status'] ?? '').toString().toLowerCase();
+                  if (s.contains('in') && s.contains('progress')) {
+                    inProgress++;
+                  } else if (s.contains('completed') || s.contains('approved') || s == 'done') {
+                    completed++;
+                  } else if (s.contains('review') || s.contains('pending')) {
+                    pendingReview++;
+                  }
+                  final due = _parseDate(d['due_date']) ?? _parseDate(d['dueDate']) ?? _parseDate(d['deadline']);
+                  if (due != null) {
+                    final diffDays = due.difference(now).inDays;
+                    if (diffDays < 0) overdue++;
+                    if (diffDays == 0) dueToday++;
+                  }
+                }
+                final ipPct = total > 0 ? inProgress / total : 0.0;
+                final cPct = total > 0 ? completed / total : 0.0;
+                final prPct = total > 0 ? pendingReview / total : 0.0;
+                return Column(
+                  children: [
+                    _buildProgressBar('In Progress Tasks', ipPct, Colors.blue),
+                    const SizedBox(height: 12),
+                    _buildProgressBar('Completed Tasks', cPct, Colors.green),
+                    const SizedBox(height: 12),
+                    _buildProgressBar('Pending Review', prPct, Colors.orange),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildProgressMetric('Total Tasks', '$total', Icons.list_alt),
+                        _buildProgressMetric('Overdue', '$overdue', Icons.warning, Colors.red),
+                        _buildProgressMetric('Due Today', '$dueToday', Icons.today, Colors.amber),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -1067,41 +1125,79 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                 ),
-                Badge(
-                  label: const Text('3'),
-                  backgroundColor: Colors.red,
-                  child: IconButton(
-                    icon: const Icon(Icons.calendar_today),
-                    onPressed: () => context.go('/calendar'),
-                    tooltip: 'View Calendar',
-                  ),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.calendar_today),
+                      onPressed: () => context.go('/deadlines'),
+                      tooltip: 'View Deadlines',
+                    ),
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                        child: Text(
+                          (_dashboardDeliverables.where((d){
+                            final due = _parseDate(d['due_date']) ?? _parseDate(d['dueDate']) ?? _parseDate(d['deadline']);
+                            return due != null && due.isAfter(DateTime.now());
+                          }).length).toString(),
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            _buildDeadlineItem(
-              title: 'User Authentication API',
-              dueDate: 'Today',
-              priority: 'High',
-              project: 'Mobile App Development',
-            ),
-            const SizedBox(height: 12),
-            _buildDeadlineItem(
-              title: 'Payment Integration Testing',
-              dueDate: 'Tomorrow',
-              priority: 'Medium',
-              project: 'E-commerce Platform',
-            ),
-            const SizedBox(height: 12),
-            _buildDeadlineItem(
-              title: 'UI Design Review',
-              dueDate: 'Dec 15',
-              priority: 'Low',
-              project: 'Dashboard Redesign',
+            Builder(
+              builder: (context) {
+                final items = _dashboardDeliverables.map((d) {
+                  final due = _parseDate(d['due_date']) ?? _parseDate(d['dueDate']) ?? _parseDate(d['deadline']);
+                  return {
+                    'title': d['title']?.toString() ?? 'Untitled',
+                    'due': due,
+                    'priority': (d['priority'] ?? 'medium').toString(),
+                    'project': d['project']?.toString() ?? (d['project_name']?.toString() ?? 'Project'),
+                  };
+                }).where((m) => m['due'] != null).toList();
+                items.sort((a,b){
+                  final da = a['due'] as DateTime;
+                  final db = b['due'] as DateTime;
+                  return da.compareTo(db);
+                });
+                final take = items.take(3).toList();
+                if (take.isEmpty) {
+                  return Text(
+                    'No upcoming deadlines',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (int i=0;i<take.length;i++) ...[
+                      _buildDeadlineItem(
+                        title: take[i]['title'] as String,
+                        dueDate: _formatDate(take[i]['due'] as DateTime),
+                        priority: take[i]['priority'] as String,
+                        project: take[i]['project'] as String,
+                      ),
+                      if (i < take.length-1) const SizedBox(height: 12),
+                    ],
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: () => context.go('/my-deliverables'),
+              onPressed: () => context.go('/deadlines'),
               child: const Text('View All Deadlines'),
             ),
           ],
@@ -1250,19 +1346,22 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               children: [
                 _buildCollaborationMetric(
                   title: 'Team Members',
-                  value: '8',
+                  value: (_users.length).toString(),
                   icon: Icons.people,
                   color: Colors.blue,
                 ),
                 _buildCollaborationMetric(
                   title: 'Active Projects',
-                  value: '3',
+                  value: (_dashboardProjects.length).toString(),
                   icon: Icons.work,
                   color: Colors.green,
                 ),
                 _buildCollaborationMetric(
                   title: 'Open Tasks',
-                  value: '12',
+                  value: (_dashboardDeliverables.where((d){
+                    final s = (d['status'] ?? '').toString().toLowerCase();
+                    return !(s.contains('completed') || s.contains('approved') || s == 'done');
+                  }).length).toString(),
                   icon: Icons.task,
                   color: Colors.orange,
                 ),
@@ -1597,55 +1696,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildSkillProgress(
-              skill: 'Flutter Development',
-              progress: 0.75,
-              level: 'Intermediate',
-              nextLevel: 'Advanced',
-            ),
-            const SizedBox(height: 12),
-            _buildSkillProgress(
-              skill: 'Dart Programming',
-              progress: 0.85,
-              level: 'Advanced',
-              nextLevel: 'Expert',
-            ),
-            const SizedBox(height: 12),
-            _buildSkillProgress(
-              skill: 'UI/UX Design',
-              progress: 0.60,
-              level: 'Intermediate',
-              nextLevel: 'Advanced',
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recommended Learning',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                TextButton(
-                  onPressed: () => context.go('/recommended-courses'),
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _buildLearningItem(
-              title: 'Advanced State Management',
-              type: 'Course',
-              duration: '2h 30m',
-            ),
-            const SizedBox(height: 8),
-            _buildLearningItem(
-              title: 'Flutter Animations Masterclass',
-              type: 'Workshop',
-              duration: '1h 45m',
-            ),
-            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => context.go('/skill-assessment'),
               style: ElevatedButton.styleFrom(
@@ -1659,107 +1709,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildSkillProgress({
-    required String skill,
-    required double progress,
-    required String level,
-    required String nextLevel,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              skill,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            Text(
-              '$level → $nextLevel',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: progress,
-          backgroundColor: Colors.grey[300],
-          color: _getProgressColor(progress),
-          minHeight: 6,
-          borderRadius: BorderRadius.circular(3),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${(progress * 100).toInt()}% complete',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildLearningItem({
-    required String title,
-    required String type,
-    required String duration,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            type == 'Course' ? Icons.menu_book : Icons.workspaces,
-            size: 16,
-            color: Colors.blue,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-                Text(
-                  '$type • $duration',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.play_arrow, size: 20),
-            onPressed: () {},
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getProgressColor(double progress) {
-    if (progress >= 0.8) return Colors.green;
-    if (progress >= 0.6) return Colors.blue;
-    if (progress >= 0.4) return Colors.orange;
-    return Colors.red;
-  }
+  
 
   Widget _buildMyDeliverables() {
     return Card(
@@ -1784,19 +1735,40 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildDeliverableItem(
-              title: 'User Authentication System',
-              status: 'In Progress',
-              progress: 0.75,
-              dueDate: DateTime.now().add(const Duration(days: 2)),
-            ),
-            const SizedBox(height: 12),
-            _buildDeliverableItem(
-              title: 'Payment Integration',
-              status: 'Draft',
-              progress: 0.25,
-              dueDate: DateTime.now().add(const Duration(days: 7)),
-            ),
+            if (_isLoadingDashboardDeliverables)
+              const Center(child: CircularProgressIndicator())
+            else ...[
+              Builder(
+                builder: (context) {
+                  final items = _dashboardDeliverables.take(3).toList();
+                  if (items.isEmpty) {
+                    return Text(
+                      'No deliverables found',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      for (int i=0;i<items.length;i++) ...[
+                        _buildDeliverableItem(
+                          title: (items[i]['title'] ?? 'Untitled').toString(),
+                          status: (items[i]['status'] ?? 'draft').toString(),
+                          progress: () {
+                            final s = (items[i]['status'] ?? '').toString().toLowerCase();
+                            if (s.contains('completed') || s == 'done' || s.contains('approved')) return 1.0;
+                            if (s.contains('in') && s.contains('progress')) return 0.6;
+                            if (s.contains('review') || s.contains('pending')) return 0.8;
+                            return 0.3;
+                          }(),
+                          dueDate: _parseDate(items[i]['due_date']) ?? _parseDate(items[i]['dueDate']) ?? DateTime.now(),
+                        ),
+                        if (i < items.length-1) const SizedBox(height: 12),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -1876,25 +1848,37 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   ),
             ),
             const SizedBox(height: 16),
-            _buildActivityItem(
-              icon: Icons.check_circle,
-              title: 'Deliverable approved',
-              subtitle: 'User Authentication System',
-              time: '2 hours ago',
-            ),
-            const SizedBox(height: 12),
-            _buildActivityItem(
-              icon: Icons.edit,
-              title: 'Deliverable updated',
-              subtitle: 'Payment Integration',
-              time: '1 day ago',
-            ),
-            const SizedBox(height: 12),
-            _buildActivityItem(
-              icon: Icons.add,
-              title: 'New deliverable created',
-              subtitle: 'Mobile App Release',
-              time: '3 days ago',
+            Builder(
+              builder: (context) {
+                final items = (_filteredAuditLogs.isNotEmpty ? _filteredAuditLogs : _auditLogs).take(3).toList();
+                if (items.isEmpty) {
+                  return Text(
+                    'No recent activity',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+                  );
+                }
+                IconData iconForAction(String a) {
+                  final s = a.toLowerCase();
+                  if (s.contains('approve')) return Icons.check_circle;
+                  if (s.contains('create') || s.contains('add')) return Icons.add;
+                  if (s.contains('update') || s.contains('edit')) return Icons.edit;
+                  if (s.contains('delete') || s.contains('remove')) return Icons.delete;
+                  return Icons.event_note;
+                }
+                return Column(
+                  children: [
+                    for (int i=0;i<items.length;i++) ...[
+                      _buildActivityItem(
+                        icon: iconForAction((items[i]['action'] ?? '').toString()),
+                        title: (items[i]['action'] ?? 'Activity').toString(),
+                        subtitle: (items[i]['entity_name'] ?? items[i]['entity_type'] ?? '').toString(),
+                        time: _relativeTime(items[i]['created_at']?.toString()),
+                      ),
+                      if (i < items.length-1) const SizedBox(height: 12),
+                    ],
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -1950,6 +1934,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         ),
       ],
     );
+  }
+
+  String _relativeTime(String? ts) {
+    if (ts == null) return '';
+    try {
+      final dt = DateTime.parse(ts);
+      final d = DateTime.now().difference(dt);
+      if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+      if (d.inHours < 24) return '${d.inHours} hours ago';
+      return '${d.inDays} days ago';
+    } catch (_) {
+      return ts;
+    }
   }
 
   // Delivery Lead Dashboard Methods
@@ -2099,6 +2096,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     );
                   },
                   child: const Text('View Details'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final sprint = _selectCurrentSprint();
+                    final id = (sprint?['id'] ?? '').toString();
+                    if (id.isNotEmpty) {
+                      context.go('/sprint-metrics/$id');
+                    }
+                  },
+                  child: const Text('Update Metrics'),
                 ),
               ],
             ),
@@ -3414,7 +3421,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             // Results count
             if (_searchQuery.isNotEmpty)
               Text(
-                'Found \${_filteredAuditLogs.length} results for "\$_searchQuery"',
+                'Found ${_filteredAuditLogs.length} results for "$_searchQuery"',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
               ),
             const SizedBox(height: 16),
@@ -3670,7 +3677,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Review Approval'),
-        content: const Text('Review details for: \$title'),
+        content: Text('Review details for: $title'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -3680,7 +3687,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             onPressed: () {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Approval reviewed: \$title')),
+                SnackBar(content: Text('Approval reviewed: $title')),
               );
             },
             child: const Text('Complete Review'),
@@ -3962,6 +3969,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
+  String _formatUptime(double uptimePercent) {
+    return '${uptimePercent.toStringAsFixed(1)}%';
+  }
+
   void _showAddUserDialog() {
     _createNewUser();
   }
@@ -4105,31 +4116,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             children: [
               _buildMetricCard(
                 title: 'Active Users',
-                value: '\${_systemMetrics!.userActivity.activeUsers}',
+                value: '${_systemMetrics!.userActivity.activeUsers}',
                 icon: Icons.people,
                 color: Colors.blue,
-                trend: '+\${_systemMetrics!.userActivity.newRegistrations} today',
+                trend: '+${_systemMetrics!.userActivity.newRegistrations} today',
               ),
               _buildMetricCard(
                 title: 'Database Size',
-                value: '\${_systemMetrics!.database.sizeMB.toStringAsFixed(1)} MB',
+                value: '${_systemMetrics!.database.totalRecords} records',
                 icon: Icons.data_usage,
                 color: Colors.purple,
-                trend: '+\${_systemMetrics!.database.growthRate.toStringAsFixed(1)} MB',
+                trend: '${(_systemMetrics!.database.cacheHitRatio * 100).toStringAsFixed(1)}% cache hit',
               ),
               _buildMetricCard(
                 title: 'Uptime',
-                value: '\${_formatUptime(_systemMetrics!.performance.uptime)}',
+                value: _formatUptime(_systemMetrics!.performance.uptime),
                 icon: Icons.timer,
                 color: Colors.orange,
-                trend: '\${_systemMetrics!.systemHealth.uptimePercentage.toStringAsFixed(1)}%',
+                trend: '—',
               ),
               _buildMetricCard(
                 title: 'API Requests',
-                value: '\${_systemMetrics!.database.queryCount}',
+                value: '${_systemMetrics!.database.queryCount}',
                 icon: Icons.api,
                 color: Colors.green,
-                trend: '+\${_systemMetrics!.database.queryRate.toStringAsFixed(0)} today',
+                trend: '—',
               ),
             ],
           ),
@@ -4426,9 +4437,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error updating maintenance mode: \$e')),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating maintenance mode: $e')),
+        );
     }
   }
 
@@ -4823,14 +4834,14 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('User \${updatedUser.name} updated successfully')),
+                        SnackBar(content: Text('User ${updatedUser.name} updated successfully')),
                       );
                       
                       // Refresh users list
                       _loadUsers();
                     } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Failed to update user: \${e.toString()}')),
+                        SnackBar(content: Text('Failed to update user: ${e.toString()}')),
                       );
                     } finally {
                       setState(() => isLoading = false);
@@ -4857,13 +4868,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         builder: (context, setState) {
           return AlertDialog(
             title: const Text('Delete User'),
-            content: const Column(
+            content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Are you sure you want to delete \${user.name}? This action cannot be undone.'),
-                SizedBox(height: 8),
-                Text('⚠️ Warning: This will permanently remove the user account and all associated data.'),
+                Text('Are you sure you want to delete ${user.name}? This action cannot be undone.'),
+                const SizedBox(height: 8),
+                const Text('⚠️ Warning: This will permanently remove the user account and all associated data.'),
               ],
             ),
             actions: [
@@ -4885,14 +4896,14 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('User \${user.name} deleted successfully')),
+                      SnackBar(content: Text('User ${user.name} deleted successfully')),
                     );
                     
                     // Refresh users list
                     _loadUsers();
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Failed to delete user: \${e.toString()}')),
+                      SnackBar(content: Text('Failed to delete user: ${e.toString()}')),
                     );
                   } finally {
                     setState(() => isLoading = false);
@@ -4917,10 +4928,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           children: [
             Icon(user.roleIcon, color: user.roleColor, size: 24),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Text(
-                'User Details: \${user.name}',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                'User Details: ${user.name}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -5056,9 +5067,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
-          '\${permissions.length} permissions granted',
-          style: TextStyle(fontSize: 14, color: Colors.grey),
+        Text(
+          '${permissions.length} permissions granted',
+          style: const TextStyle(fontSize: 14, color: Colors.grey),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -5075,9 +5086,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           }).toList(),
         ),
         if (permissions.length > 5)
-          const Text(
-            '+\${permissions.length - 5} more permissions...',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+          Text(
+            '+${permissions.length - 5} more permissions...',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
       ],
     );
@@ -5101,9 +5112,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Assigned to \${user.projectIds.length} projects',
-                style: TextStyle(fontSize: 14),
+              Text(
+                'Assigned to ${user.projectIds.length} projects',
+                style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 4),
               Text(
@@ -5124,11 +5135,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 100,
             child: Text(
-              '\$label:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
           const SizedBox(width: 8),
@@ -5753,7 +5764,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Showing filtered results (\${displayLogs.length} logs)',
+                    'Showing filtered results (${displayLogs.length} logs)',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.blue),
                   ),
                 ),
@@ -5779,7 +5790,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
-              'All \${_auditLogs.length} logs loaded',
+              'All ${_auditLogs.length} logs loaded',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
           ),
@@ -5796,14 +5807,14 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       try {
         timestamp = DateTime.parse(createdAt);
       } catch (e) {
-        debugPrint('Error parsing timestamp: \$e');
+        debugPrint('Error parsing timestamp: $e');
       }
     }
     
     // Build details text from available fields
     final details = StringBuffer();
     if (entityName != null) {
-      details.write('Entity: \$entityName');
+      details.write('Entity: $entityName');
     }
     if (log['entity_type'] != null) {
       if (details.isNotEmpty) details.write(', ');
@@ -5867,11 +5878,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     if (difference.inMinutes < 1) {
       return 'Just now';
     } else if (difference.inHours < 1) {
-      return '\${difference.inMinutes}m ago';
+      return '${difference.inMinutes}m ago';
     } else if (difference.inDays < 1) {
-      return '\${difference.inHours}h ago';
+      return '${difference.inHours}h ago';
     } else {
-      return '\${difference.inDays}d ago';
+      return '${difference.inDays}d ago';
     }
   }
 
@@ -5887,16 +5898,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to clear cache: \${response.error}'),
+          SnackBar(
+            content: Text('Failed to clear cache: ${response.error}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error clearing cache: \$e'),
+        SnackBar(
+          content: Text('Error clearing cache: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -5915,16 +5926,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to optimize database: \${response.error}'),
+          SnackBar(
+            content: Text('Failed to optimize database: ${response.error}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error optimizing database: \$e'),
+        SnackBar(
+          content: Text('Error optimizing database: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -5938,23 +5949,23 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         final data = response.data;
         final status = data != null && data['status'] != null ? data['status'].toString() : 'Success';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Diagnostics completed: \$status'),
+          SnackBar(
+            content: Text('Diagnostics completed: $status'),
             backgroundColor: Colors.green,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Diagnostics failed: \${response.error}'),
+          SnackBar(
+            content: Text('Diagnostics failed: ${response.error}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Error running diagnostics: \$e'),
+        SnackBar(
+            content: Text('Error running diagnostics: $e'),
             backgroundColor: Colors.red,
           ),
       );
@@ -6024,7 +6035,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       // Get directory for saving
       final directory = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      const filePath = '\${directory.path}/audit_logs_\$timestamp.csv';
+      final filePath = '${directory.path}/audit_logs_$timestamp.csv';
 
       // Write to file
       final file = File(filePath);
@@ -6034,18 +6045,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       // ignore: duplicate_ignore
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CSV exported successfully to \$filePath')),
+        SnackBar(content: Text('CSV exported successfully to $filePath')),
       );
 
-      debugPrint('✅ CSV exported to: \$filePath');
+      debugPrint('✅ CSV exported to: $filePath');
 
     } catch (e) {
       // ignore: duplicate_ignore
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to export CSV: \$e')),
+        SnackBar(content: Text('Failed to export CSV: $e')),
       );
-      debugPrint('❌ Error exporting CSV: \$e');
+      debugPrint('❌ Error exporting CSV: $e');
     }
   }
 
@@ -6078,9 +6089,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               children: [
                 pw.Text('Audit Logs Report', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 20),
-                pw.Text('Generated on: \${DateTime.now().toString()}'),
+                pw.Text('Generated on: ${DateTime.now().toString()}'),
                 pw.SizedBox(height: 10),
-                pw.Text('Total logs: \${logsToExport.length}'),
+                pw.Text('Total logs: ${logsToExport.length}'),
                 if (hasActiveFilters) pw.Text('Filtered results'),
               ],
             );
@@ -6112,7 +6123,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       // Save PDF to file
       final directory = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      const filePath = '\${directory.path}/audit_logs_\$timestamp.pdf';
+      final filePath = '${directory.path}/audit_logs_$timestamp.pdf';
 
       final file = File(filePath);
       await file.writeAsBytes(await pdf.save());
@@ -6121,18 +6132,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       // ignore: duplicate_ignore
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF exported successfully to \$filePath')),
+        SnackBar(content: Text('PDF exported successfully to $filePath')),
       );
 
-      debugPrint('✅ PDF exported to: \$filePath');
+      debugPrint('✅ PDF exported to: $filePath');
 
     } catch (e) {
       // ignore: duplicate_ignore
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to export PDF: \$e')),
+        SnackBar(content: Text('Failed to export PDF: $e')),
       );
-      debugPrint('❌ Error exporting PDF: \$e');
+      debugPrint('❌ Error exporting PDF: $e');
     }
   }
 
