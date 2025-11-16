@@ -117,6 +117,13 @@ class KhonoApp extends ConsumerWidget {
           builder: (context, state) => wrapWithLayout(const RepositoryScreen(), '/repository'),
         ),
         GoRoute(
+          path: '/repository/:projectKey',
+          builder: (context, state) {
+            final key = state.pathParameters['projectKey'];
+            return wrapWithLayout(RepositoryScreen(projectKey: key), '/repository');
+          },
+        ),
+        GoRoute(
           path: '/profile',
           builder: (context, state) => wrapWithLayout(const ProfileScreen(), '/profile'),
         ),

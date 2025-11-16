@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
       order: [['created_at', 'DESC']]
     });
     
-    res.json(deliverables);
+    res.json({ success: true, data: deliverables });
   } catch (error) {
     console.error('Error fetching deliverables:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -41,7 +41,7 @@ router.get('/sprint/:sprintId', async (req, res) => {
       order: [['created_at', 'DESC']]
     });
     
-    res.json(deliverables);
+    res.json({ success: true, data: deliverables });
   } catch (error) {
     console.error('Error fetching sprint deliverables:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -69,7 +69,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Deliverable not found' });
     }
     
-    res.json(deliverable);
+    res.json({ success: true, data: deliverable });
   } catch (error) {
     console.error('Error fetching deliverable:', error);
     res.status(500).json({ error: 'Internal server error' });

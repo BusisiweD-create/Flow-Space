@@ -429,10 +429,19 @@ class ApiService {
   }
   
   static Future<Deliverable> createDeliverable(DeliverableCreate deliverable) async {
+    final payload = {
+      'title': deliverable.title,
+      'description': deliverable.description,
+      'due_date': deliverable.dueDate.toIso8601String(),
+      'definition_of_done': deliverable.definitionOfDone.join('\n'),
+      'evidence_links': deliverable.evidenceLinks,
+      'sprintIds': deliverable.sprintIds,
+      'status': 'draft',
+    };
     final response = await http.post(
       Uri.parse('${Environment.apiBaseUrl}/deliverables'),
       headers: _getHeaders(),
-      body: jsonEncode(deliverable.toJson()),
+      body: jsonEncode(payload),
     );
     
     final dynamic responseData = jsonDecode(response.body);
@@ -464,8 +473,10 @@ class ApiService {
       headers: _getHeaders(),
     );
     
-    final responseData = jsonDecode(response.body);
-    final List<dynamic> data = responseData['data'] as List<dynamic>;
+    final dynamic responseData = jsonDecode(response.body);
+    final List<dynamic> data = responseData is List
+        ? responseData
+        : (responseData['data'] ?? responseData['items'] ?? responseData['deliverables'] ?? []);
     return data.map((json) => Deliverable.fromJson(json)).toList();
   }
   
@@ -537,6 +548,23 @@ class ApiService {
     
     final responseData = jsonDecode(response.body);
     return Sprint.fromJson(responseData);
+  }
+
+  static Future<bool> updateSprintStatus(String sprintId, String status) async {
+    final response = await http.put(
+      Uri.parse('${Environment.apiBaseUrl}/sprints/$sprintId'),
+      headers: _getHeaders(),
+      body: jsonEncode({'status': status}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map) {
+        final success = data['success'];
+        if (success is bool) return success;
+      }
+      return true;
+    }
+    return false;
   }
   
   static Future<void> deleteSprint(int id) async {

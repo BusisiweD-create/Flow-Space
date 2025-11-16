@@ -96,6 +96,21 @@ class Deliverable {
   }
 
   factory Deliverable.fromJson(Map<String, dynamic> json) {
+    final createdAtStr = json['createdAt'] ?? json['created_at'];
+    final dueDateStr = json['dueDate'] ?? json['due_date'];
+    final evidence = json['evidenceLinks'] ?? json['evidence_links'] ?? [];
+    final dod = json['definitionOfDone'] ?? json['definition_of_done'] ?? [];
+    final sprints = json['sprintIds'] ?? json['contributing_sprints'] ?? [];
+    final sprintIds = sprints is List
+        ? sprints.map((e) => e is Map<String, dynamic> ? toStr(e['id']) : toStr(e)).where((v) => v.isNotEmpty).toList()
+        : <String>[];
+    final dodList = dod is List
+        ? dod.map((e) => toStr(e)).where((v) => v.isNotEmpty).toList()
+        : (dod is String ? dod.split(RegExp('[\n;]')).map((e) => e.trim()).where((v) => v.isNotEmpty).toList() : <String>[]);
+    final evidenceList = evidence is List
+        ? evidence.map((e) => toStr(e)).where((v) => v.isNotEmpty).toList()
+        : <String>[];
+
     return Deliverable(
       id: toStr(json['id']),
       title: toStr(json['title']),
@@ -104,11 +119,11 @@ class Deliverable {
         (e) => e.name == json['status'],
         orElse: () => DeliverableStatus.draft,
       ),
-      createdAt: DateTime.parse(json['createdAt']),
-      dueDate: DateTime.parse(json['dueDate']),
-      sprintIds: toStrList(json['sprintIds']),
-      definitionOfDone: toStrList(json['definitionOfDone']),
-      evidenceLinks: toStrList(json['evidenceLinks']),
+      createdAt: createdAtStr != null ? DateTime.parse(createdAtStr) : DateTime.now(),
+      dueDate: dueDateStr != null ? DateTime.parse(dueDateStr) : DateTime.now(),
+      sprintIds: sprintIds,
+      definitionOfDone: dodList,
+      evidenceLinks: evidenceList,
       clientComment: toStr(json['clientComment']),
       approvedAt: json['approvedAt'] != null ? DateTime.parse(json['approvedAt']) : null,
       approvedBy: toStr(json['approvedBy']),

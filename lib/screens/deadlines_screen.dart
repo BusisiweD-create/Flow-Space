@@ -236,6 +236,12 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
       appBar: AppBar(
         title: const Text('All Deadlines'),
         backgroundColor: FlownetColors.graphiteGray,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadDeliverables,
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadDeliverables,

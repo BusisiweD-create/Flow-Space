@@ -108,7 +108,7 @@ router.put('/:id', async (req, res) => {
     
     await sprint.update(updateData);
     
-    res.json(sprint);
+    res.json({ success: true, data: sprint });
   } catch (error) {
     console.error('Error updating sprint:', error);
     res.status(500).json({ error: 'Internal server error' });
