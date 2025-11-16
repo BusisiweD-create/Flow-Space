@@ -1,15 +1,33 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'auth_service.dart';
 import '../models/system_metrics.dart';
 
 class ApiService {
   // Base URL for your backend API (you'll need to create this)
-  static const String baseUrl = 'http://localhost:8000/api';
+  static const String baseUrl = 'http://localhost:3001/api';
+  
+  // Get auth headers with token
+  static Future<Map<String, String>> _getHeaders() async {
+    final authService = AuthService();
+    await authService.initialize();
+    final token = authService.accessToken;
+    
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+    };
+    
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    
+    return headers;
+  }
   
   // Initialize the service
   static Future<void> initialize() async {
-    debugPrint('API Service initialized (mock mode - no backend required)');
+    debugPrint('API Service initialized');
   }
   
   // Authentication methods
@@ -118,23 +136,37 @@ class ApiService {
     required String assignedTo,
     required String createdBy,
   }) async {
-    // Mock implementation - no real API call
-    debugPrint('Creating deliverable: $title (mock mode)');
-    
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // Return mock success response
-    return {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'title': title,
-      'description': description,
-      'definitionOfDone': definitionOfDone,
-      'status': status,
-      'assignedTo': assignedTo,
-      'createdBy': createdBy,
-      'createdAt': DateTime.now().toIso8601String(),
-    };
+    try {
+      debugPrint('Creating deliverable: $title');
+      
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/v1/deliverables'),
+        headers: headers,
+        body: jsonEncode({
+          'title': title,
+          'description': description,
+          'definition_of_done': definitionOfDone,
+          'status': status,
+          'assigned_to': assignedTo,
+          'created_by': createdBy,
+        }),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          debugPrint('✅ Deliverable created successfully');
+          return data['data'];
+        }
+      }
+      
+      debugPrint('❌ Failed to create deliverable: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      debugPrint('Error creating deliverable: $e');
+      return null;
+    }
   }
   
   static Future<void> updateDeliverableStatus({
@@ -152,38 +184,121 @@ class ApiService {
     }
   }
   
+  // Database methods for projects
+  static Future<List<Map<String, dynamic>>> getProjects() async {
+    try {
+      debugPrint('Fetching projects from database');
+      
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/v1/projects'),
+        headers: headers,
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          debugPrint('✅ Fetched ${data['data'].length} projects from database');
+          return List<Map<String, dynamic>>.from(data['data']);
+        }
+      }
+      
+      debugPrint('❌ Failed to fetch projects: ${response.statusCode}');
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching projects: $e');
+      return [];
+    }
+  }
+  
   // Database methods for sprints
   static Future<List<Map<String, dynamic>>> getSprints() async {
-    // Mock implementation - no real API call
-    debugPrint('Fetching sprints (mock mode)');
-    
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    // Return mock sprint data
-    return [
-      {
-        'id': 'sprint-1',
-        'name': 'Sprint 1 - Foundation',
-        'start_date': '2024-01-01',
-        'end_date': '2024-01-14',
-        'status': 'completed',
-      },
-      {
-        'id': 'sprint-2', 
-        'name': 'Sprint 2 - Core Features',
-        'start_date': '2024-01-15',
-        'end_date': '2024-01-28',
-        'status': 'active',
-      },
-      {
-        'id': 'sprint-3',
-        'name': 'Sprint 3 - Integration',
-        'start_date': '2024-01-29',
-        'end_date': '2024-02-11',
-        'status': 'planned',
-      },
-    ];
+    try {
+      debugPrint('Fetching sprints from database');
+      
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/v1/sprints'),
+        headers: headers,
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          debugPrint('✅ Fetched ${data['data'].length} sprints from database');
+          return List<Map<String, dynamic>>.from(data['data']);
+        }
+      }
+      
+      debugPrint('❌ Failed to fetch sprints: ${response.statusCode}');
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching sprints: $e');
+      return [];
+    }
+  }
+
+  // Update sprint status
+  static Future<bool> updateSprintStatus(String sprintId, String newStatus) async {
+    try {
+      debugPrint('Updating sprint $sprintId status to $newStatus');
+      
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/v1/sprints/$sprintId'),
+        headers: headers,
+        body: jsonEncode({'status': newStatus}),
+      );
+      
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        debugPrint('✅ Sprint status updated successfully');
+        return true;
+      }
+      
+      debugPrint('❌ Failed to update sprint status: ${response.statusCode}');
+      debugPrint('Error response: ${response.body}');
+      return false;
+    } catch (e) {
+      debugPrint('Error updating sprint status: $e');
+      return false;
+    }
+  }
+
+  // Create a new project
+  static Future<Map<String, dynamic>?> createProject({
+    required String name,
+    required String key,
+    String? description,
+  }) async {
+    try {
+      debugPrint('Creating project: $name ($key)');
+      
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/v1/projects'),
+        headers: headers,
+        body: jsonEncode({
+          'name': name,
+          'key': key,
+          'description': description ?? '',
+        }),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        debugPrint('✅ Project created successfully');
+        return data['data'] ?? data;
+      }
+      
+      debugPrint('❌ Failed to create project: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      debugPrint('Error creating project: $e');
+      return null;
+    }
   }
   
   static Future<Map<String, dynamic>?> createSprint({

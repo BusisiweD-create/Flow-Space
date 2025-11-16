@@ -17,13 +17,12 @@ async function createTestUsers() {
     console.log('📝 Creating admin user...');
     const adminPassword = await bcrypt.hash('admin123', 10);
     await client.query(`
-      INSERT INTO users (email, hashed_password, first_name, last_name, role, is_active, created_at)
+      INSERT INTO users (email, password_hash, name, role, is_active, created_at)
       VALUES (
         'admin@flowspace.com', 
         $1,
-        'Admin',
-        'User',
-        'admin',
+        'Admin User',
+        'systemAdmin',
         true,
         NOW()
       ) ON CONFLICT (email) DO NOTHING
@@ -33,12 +32,11 @@ async function createTestUsers() {
     console.log('📝 Creating client reviewer user...');
     const clientPassword = await bcrypt.hash('password123', 10);
     await client.query(`
-      INSERT INTO users (email, hashed_password, first_name, last_name, role, is_active, created_at)
+      INSERT INTO users (email, password_hash, name, role, is_active, created_at)
       VALUES (
         'clientreviewer@example.com', 
         $1,
-        'Client',
-        'Reviewer',
+        'Client Reviewer',
         'clientReviewer',
         true,
         NOW()
@@ -49,23 +47,52 @@ async function createTestUsers() {
     console.log('📝 Creating team member user...');
     const teamPassword = await bcrypt.hash('password123', 10);
     await client.query(`
-      INSERT INTO users (email, hashed_password, first_name, last_name, role, is_active, created_at)
+      INSERT INTO users (email, password_hash, name, role, is_active, created_at)
       VALUES (
         'teammember@example.com', 
         $1,
-        'Team',
-        'Member',
+        'Team Member',
         'teamMember',
         true,
         NOW()
       ) ON CONFLICT (email) DO NOTHING
     `, [teamPassword]);
+
+    // Create QA Engineer test user
+    const qaPassword = await bcrypt.hash('qa123', 10);
+    await client.query(`
+      INSERT INTO users (email, password_hash, name, role, is_active, created_at)
+      VALUES (
+        'qaengineer@example.com', 
+        $1,
+        'QA Engineer',
+        'qaEngineer',
+        true,
+        NOW()
+      ) ON CONFLICT (email) DO NOTHING
+    `, [qaPassword]);
+
+    // Create Scrum Master test user
+    const scrumPassword = await bcrypt.hash('scrum123', 10);
+    await client.query(`
+      INSERT INTO users (email, password_hash, name, role, is_active, created_at)
+      VALUES (
+        'scrummaster@example.com', 
+        $1,
+        'Scrum Master',
+        'scrumMaster',
+        true,
+        NOW()
+      ) ON CONFLICT (email) DO NOTHING
+    `, [scrumPassword]);
     
     console.log('✅ Test users created successfully!');
     console.log('\n📋 Test user credentials:');
     console.log('   Admin: admin@flowspace.com / admin123');
     console.log('   Client Reviewer: clientreviewer@example.com / password123');
     console.log('   Team Member: teammember@example.com / password123');
+    console.log('   QA Engineer: qaengineer@example.com / qa123');
+    console.log('   Scrum Master: scrummaster@example.com / scrum123');
     
     await client.release();
     

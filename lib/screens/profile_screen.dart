@@ -1,317 +1,341 @@
-import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../services/backend_api_service.dart';
-import '../models/user.dart';
+// ignore_for_file: use_build_context_synchronously, prefer_const_constructors
 
-class ProfileScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:io';
+import 'package:go_router/go_router.dart';
+import '../services/profile_service.dart';
+
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  final AuthService _authService = AuthService();
-  final BackendApiService _backendApiService = BackendApiService();
-  User? _currentUser;
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
+
+  File? _profileImage;
   bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    try {
+      final profile = await ProfileService.getUserProfile();
+      setState(() {
+        _firstNameController.text = profile['first_name'] ?? '';
+        _lastNameController.text = profile['last_name'] ?? '';
+        _emailController.text = profile['email'] ?? '';
+        _phoneController.text = profile['phone_number'] ?? '';
+        _titleController.text = profile['job_title'] ?? '';
+        _departmentController.text = profile['company'] ?? '';
+        _bioController.text = profile['bio'] ?? '';
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load profile: \$e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final pickedFile = await ImagePicker().pickImage(source: source);
+      if (pickedFile != null) {
+        setState(() {
+          _profileImage = File(pickedFile.path);
+        });
+        // Upload image to backend
+        final imageBytes = await _profileImage!.readAsBytes();
+        await ProfileService.uploadProfilePicture(imageBytes, 'profile_picture.jpg');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to pick image: \$e')),
+      );
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final profileData = {
+        'first_name': _firstNameController.text,
+        'last_name': _lastNameController.text,
+        'email': _emailController.text,
+        'phone_number': _phoneController.text,
+        'job_title': _titleController.text,
+        'company': _departmentController.text,
+        'bio': _bioController.text,
+      };
+
+      await ProfileService.saveUserProfile(profileData);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile saved successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save profile: \$e')),
+      );
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _titleController.dispose();
+    _departmentController.dispose();
+    _bioController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: _showEditProfileDialog,
-            tooltip: 'Edit Profile',
-          ),
-          IconButton(
-            icon: const Icon(Icons.description),
-            onPressed: _showReportOptionsDialog,
-            tooltip: 'Generate Report',
-          ),
-        ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
       ),
-      body: _currentUser != null
-          ? _buildProfileContent()
-          : const Center(
-              child: Text('No user data available'),
-            ),
-    );
-  }
-
-  Widget _buildProfileContent() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Name: ${_currentUser!.name}', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text('Email: ${_currentUser!.email}', style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          Text('Role: ${_currentUser!.roleDisplayName}', style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          Text('User ID: ${_currentUser!.id}', style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
-    );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    try {
-      final currentUser = _authService.currentUser;
-      
-      setState(() {
-        _currentUser = currentUser;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-
-  // Removed unused _resendVerificationEmail method
-
-  void _showEditProfileDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Profile'),
-        content: SingleChildScrollView(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Profile Picture Section
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundImage: _profileImage != null
+                         ? FileImage(_profileImage!)
+                         : null,
+                    child: _profileImage == null
+                        ? SvgPicture.asset(
+                            'assets/images/google_logo.svg',
+                            width: 60,
+                            height: 60,
+                            placeholderBuilder: (context) => const Icon(Icons.person, size: 50),
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            builder: (context) => Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  leading: const Icon(Icons.photo_library),
+                                  title: const Text('Choose from Gallery'),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _pickImage(ImageSource.gallery);
+                                  },
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.camera_alt),
+                                  title: const Text('Take Photo'),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _pickImage(ImageSource.camera);
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Personal Information Section
+              const Text(
+                'Personal Information',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _firstNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'First Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your first name';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _lastNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Last Name',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your last name';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
               TextFormField(
-                initialValue: _currentUser?.name ?? '',
-                decoration: const InputDecoration(labelText: 'Name'),
-                onChanged: (value) {
-                  // Handle name change
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your email';
+                  }
+                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                    return 'Please enter a valid email';
+                  }
+                  return null;
                 },
               ),
               const SizedBox(height: 16),
+
               TextFormField(
-                initialValue: _currentUser?.email ?? '',
-                decoration: const InputDecoration(labelText: 'Email'),
-                onChanged: (value) {
-                  // Handle email change
-                },
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 24),
+
+              // Professional Information Section
+              const Text(
+                'Professional Information',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Job Title',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _departmentController,
+                decoration: const InputDecoration(
+                  labelText: 'Department',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _bioController,
+                decoration: const InputDecoration(
+                  labelText: 'Bio',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 4,
+                maxLength: 500,
+              ),
+              const SizedBox(height: 32),
+
+              // Save Button
+              ElevatedButton(
+                onPressed: _isSaving ? null : _saveProfile,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save Profile'),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // Save profile changes
-              Navigator.pop(context);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Profile updated successfully')),
-                );
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
-  }
-
-  void _showReportOptionsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Generate Report'),
-        content: const Text('Select the type of report to generate:'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _generateSignOffReport();
-            },
-            child: const Text('Sign-off Report'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _generateAuditTrailReport();
-            },
-            child: const Text('Audit Trail'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _generateSignOffReport() async {
-    if (!mounted) return;
-    final currentContext = context;
-    
-    try {
-      // Show loading indicator
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        const SnackBar(content: Text('Generating sign-off report...')),
-      );
-
-      // Get sign-off reports data
-      final response = await _backendApiService.getSignOffReports(limit: 10);
-      
-      if (!mounted) return;
-      
-      if (response.isSuccess) {
-        final reports = response.data?['reports'] ?? response.data?['items'] ?? [];
-        
-        // Create a comprehensive sign-off report (in a real implementation)
-        // final reportData = {
-        //   'generated_at': DateTime.now().toIso8601String(),
-        //   'generated_by': _currentUser?.email ?? 'Unknown',
-        //   'total_reports': reports.length,
-        //   'reports_summary': reports.map((report) => {
-        //     'id': report['id'],
-        //     'title': report['report_title'] ?? report['title'],
-        //     'status': report['status'],
-        //     'created_at': report['created_at'],
-        //     'deliverable_id': report['deliverable_id'],
-        //   }).toList(),
-        //   'user_context': {
-        //     'user_id': _currentUser?.id,
-        //     'user_role': _currentUser?.roleDisplayName,
-        //     'generation_time': DateTime.now().toIso8601String(),
-        //   },
-        // };
-
-        // Show success message with report details
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(
-            content: Text('Sign-off report generated successfully! ${reports.length} reports found.'),
-            duration: const Duration(seconds: 4),
-          ),
-        );
-
-        // In a real implementation, this would:
-        // 1. Generate PDF/HTML report from the data
-        // 2. Offer download or email options
-        // 3. Save the report to user's report repository
-        
-        // print('Sign-off Report Data: $reportData');
-        
-      } else {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          const SnackBar(content: Text('Failed to generate sign-off report')),
-        );
-      }
-      
-    } catch (e) {
-      if (!mounted) return;
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        SnackBar(content: Text('Error generating sign-off report: $e')),
-      );
-    }
-  }
-
-  Future<void> _generateAuditTrailReport() async {
-    if (!mounted) return;
-    final currentContext = context;
-    
-    try {
-      // Show loading indicator
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        const SnackBar(content: Text('Generating audit trail report...')),
-      );
-
-      // Get audit logs data
-      final response = await _backendApiService.getAuditLogs(limit: 20);
-      
-      if (!mounted) return;
-      
-      if (response.isSuccess) {
-        final auditLogs = response.data?['audit_logs'] ?? response.data?['items'] ?? response.data?['logs'] ?? [];
-        
-        // Create a comprehensive audit trail report (in a real implementation)
-        // final reportData = {
-        //   'generated_at': DateTime.now().toIso8601String(),
-        //   'generated_by': _currentUser?.email ?? 'Unknown',
-        //   'total_logs': auditLogs.length,
-        //   'time_period': {
-        //     'start': auditLogs.isNotEmpty ? auditLogs.last['created_at'] : null,
-        //     'end': auditLogs.isNotEmpty ? auditLogs.first['created_at'] : null,
-        //   },
-        //   'logs_summary': auditLogs.map((log) => {
-        //     'id': log['id'],
-        //     'action': log['action'],
-        //     'entity_type': log['entity_type'],
-        //     'entity_id': log['entity_id'],
-        //     'user_id': log['user_id'],
-        //     'created_at': log['created_at'],
-        //     'details': log['details'],
-        //   }).toList(),
-        //   'user_context': {
-        //     'user_id': _currentUser?.id,
-        //     'user_role': _currentUser?.roleDisplayName,
-        //     'generation_time': DateTime.now().toIso8601String(),
-        //   },
-        // };
-
-        // Show success message with report details
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(
-            content: Text('Audit trail report generated successfully! ${auditLogs.length} logs found.'),
-            duration: const Duration(seconds: 4),
-          ),
-        );
-
-        // In a real implementation, this would:
-        // 1. Generate PDF/HTML report from the data
-        // 2. Offer download or email options
-        // 3. Save the report to audit repository
-        
-        // print('Audit Trail Report Data: $reportData');
-        
-      } else {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          const SnackBar(content: Text('Failed to generate audit trail report')),
-        );
-      }
-      
-    } catch (e) {
-      if (!mounted) return;
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        SnackBar(content: Text('Error generating audit trail report: $e')),
-      );
-    }
   }
 }

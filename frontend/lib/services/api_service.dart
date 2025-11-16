@@ -27,6 +27,8 @@ class ApiService {
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userIdKey = 'user_id';
+  static const String _userFirstNameKey = 'user_first_name';
+  static const String _userLastNameKey = 'user_last_name';
   
   // Current tokens
   static String? _accessToken;
@@ -43,16 +45,23 @@ class ApiService {
   static Future<void> _loadTokens() async {
     final prefs = await SharedPreferences.getInstance();
     _accessToken = prefs.getString(_accessTokenKey);
-
     _userId = prefs.getString(_userIdKey);
   }
   
   // Save tokens to shared preferences
-  static Future<void> _saveTokens(String accessToken, String refreshToken, String userId) async {
+  static Future<void> _saveTokens(String accessToken, String refreshToken, String userId, {String? firstName, String? lastName}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_accessTokenKey, accessToken);
 
     await prefs.setString(_userIdKey, userId);
+    
+    // Save user profile data if provided
+    if (firstName != null) {
+      await prefs.setString(_userFirstNameKey, firstName);
+    }
+    if (lastName != null) {
+      await prefs.setString(_userLastNameKey, lastName);
+    }
     
     _accessToken = accessToken;
 
@@ -65,6 +74,8 @@ class ApiService {
     await prefs.remove(_accessTokenKey);
 
     await prefs.remove(_userIdKey);
+    await prefs.remove(_userFirstNameKey);
+    await prefs.remove(_userLastNameKey);
     
     _accessToken = null;
 
@@ -77,8 +88,30 @@ class ApiService {
   // Get current user ID
   static String? get userId => _userId;
   
+  // Get current user first name
+  static Future<String?> get currentUserFirstName async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userFirstNameKey);
+  }
+  
+  // Get current user last name
+  static Future<String?> get currentUserLastName async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userLastNameKey);
+  }
+  
+  // Get current user full name
+  static Future<String?> get currentUserFullName async {
+    final firstName = await currentUserFirstName;
+    final lastName = await currentUserLastName;
+    if (firstName != null && lastName != null) {
+      return '$firstName $lastName';
+    }
+    return firstName ?? lastName;
+  }
+  
   // Get current user email
-  static String? get currentUserEmail {
+  static Future<String?> get currentUserEmail async {
     // Decode the JWT access token to extract the email claim
     if (_accessToken == null) return null;
     try {
@@ -90,8 +123,6 @@ class ApiService {
     } catch (_) {
       return null;
     }
-    // For now, return a placeholder or implement proper storage
-    return 'authenticated@user.com';
   }
   
   // Check if user is authenticated
@@ -275,6 +306,8 @@ class ApiService {
       tokenResponse.accessToken,
       tokenResponse.refreshToken,
       tokenResponse.user.id.toString(),
+      firstName: tokenResponse.user.firstName,
+      lastName: tokenResponse.user.lastName,
     );
     
     return tokenResponse;
@@ -861,8 +894,8 @@ class ApiService {
     return converted;
   }
 
-  static String? getCurrentUserEmail() {
-    return currentUserEmail;
+  static Future<String?> getCurrentUserEmail() async {
+    return await currentUserEmail;
   }
 
   static String? getCurrentUserRole() {

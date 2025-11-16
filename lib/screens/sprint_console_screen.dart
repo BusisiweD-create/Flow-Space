@@ -20,7 +20,7 @@ class SprintConsoleScreen extends StatefulWidget {
 class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   
   // Data
-  final List<Map<String, dynamic>> _projects = [];
+  List<Map<String, dynamic>> _projects = [];
   List<Map<String, dynamic>> _sprints = [];
   List<Map<String, dynamic>> _tickets = [];
   
@@ -47,9 +47,12 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     });
 
     try {
-      // Load sprints using API service
+      // Load projects and sprints using API service
+      final projects = await ApiService.getProjects();
       final sprints = await ApiService.getSprints();
+      
       setState(() {
+        _projects = projects;
         _sprints = sprints;
       });
 
@@ -133,12 +136,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           _buildHeader(),
           const SizedBox(height: 24),
           
-          // Projects Section
-          _buildProjectsSection(),
+          // Sprints Section - Show directly without project requirement
+          _buildSprintsSection(),
           const SizedBox(height: 24),
           
-          // Sprints Section
-          if (_selectedProjectKey != null) _buildSprintsSection(),
+          // Projects Section - Always show for creating projects
+          _buildProjectsSection(),
+          const SizedBox(height: 24),
           
           // Tickets Section
           if (_selectedSprintId != null) _buildTicketsSection(),
@@ -437,7 +441,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                     ),
                   ),
                   child: DropdownButton<String>(
-                    value: sprint['status'] ?? 'in_progress',
+                    value: _normalizeStatus(sprint['status']),
                     underline: const SizedBox.shrink(),
                     dropdownColor: FlownetColors.charcoalBlack,
                     style: TextStyle(
@@ -620,11 +624,33 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       case 'completed':
         return FlownetColors.electricBlue;
       case 'in_progress':
+      case 'active':
         return FlownetColors.crimsonRed;
       case 'planning':
+      case 'planned':
         return Colors.orange;
+      case 'cancelled':
+        return Colors.grey;
       default:
         return FlownetColors.pureWhite;
+    }
+  }
+
+  // Normalize status to valid dropdown values
+  String _normalizeStatus(String? status) {
+    final normalized = status?.toLowerCase() ?? 'planning';
+    switch (normalized) {
+      case 'planned':
+        return 'planning';
+      case 'active':
+        return 'in_progress';
+      case 'planning':
+      case 'in_progress':
+      case 'completed':
+      case 'cancelled':
+        return normalized;
+      default:
+        return 'planning';
     }
   }
 
@@ -733,21 +759,8 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         _isLoading = true;
       });
 
-      // Find the sprint to get its name and current status
-      final sprint = _sprints.firstWhere(
-        (s) => s['id'] == sprintId,
-        orElse: () => {},
-      );
-      
-      final sprintName = sprint['name'] ?? 'Unknown Sprint';
-      final oldStatus = sprint['status'] ?? 'planning';
-
-      final success = await _databaseService.updateSprintStatus(
-        sprintId: sprintId,
-        status: newStatus,
-        oldStatus: oldStatus,
-        sprintName: sprintName,
-      );
+      // Call the API to update sprint status
+      final success = await ApiService.updateSprintStatus(sprintId, newStatus);
 
       if (success) {
         _showSnackBar('Sprint status updated to $newStatus');
@@ -971,7 +984,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       });
 
       // Create project via backend API
-      final result = await _databaseService.createProject(
+      final result = await ApiService.createProject(
         name: name,
         key: key,
         description: description,

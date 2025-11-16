@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
 import 'screens/welcome_screen.dart';
@@ -22,7 +23,6 @@ import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
-import 'screens/performance_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
 import 'screens/user_management_screen.dart';
 import 'screens/settings_screen.dart';
@@ -31,11 +31,18 @@ import 'screens/sprint_board_screen.dart';
 import 'screens/system_metrics_screen.dart';
 // Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
+import 'screens/profile_screen.dart';
+import 'screens/settings_screen.dart';
 import 'widgets/role_guard.dart';
-import 'providers/service_providers.dart';
+import 'theme/flownet_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   try {
     // Initialize API Services
@@ -56,16 +63,14 @@ void main() async {
   runApp(const ProviderScope(child: KhonoApp()));
 }
 
-class KhonoApp extends ConsumerWidget {
+class KhonoApp extends StatelessWidget {
   const KhonoApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = ref.watch(themeProvider);
-    
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Flownet Workspaces - Project Management Hub',
-      theme: theme,
+      theme: FlownetTheme.darkTheme, // Dark mode as default
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
@@ -102,15 +107,6 @@ final GoRouter _router = GoRouter(
         route: '/dashboard',
         child: SidebarScaffold(
           child: RoleDashboardScreen(),
-        ),
-      ),
-    ),
-    GoRoute(
-      path: '/performance-dashboard',
-      builder: (context, state) => const RouteGuard(
-        route: '/performance-dashboard',
-        child: SidebarScaffold(
-          child: PerformanceDashboardScreen(),
         ),
       ),
     ),
@@ -301,11 +297,11 @@ final GoRouter _router = GoRouter(
       ),
     ),
     GoRoute(
-      path: '/system-metrics',
+      path: '/settings',
       builder: (context, state) => const RouteGuard(
-        route: '/system-metrics',
+        route: '/settings',
         child: SidebarScaffold(
-          child: SystemMetricsScreen(),
+          child: SettingsScreen(),
         ),
       ),
     ),

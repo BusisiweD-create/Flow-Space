@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison, unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
@@ -184,6 +186,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _plannedPointsController = TextEditingController();
+  final _committedPointsController = TextEditingController();
   final _completedPointsController = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
@@ -393,6 +396,186 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              Text(
+                'Quality Metrics',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _testPassRateController,
+                      decoration: const InputDecoration(
+                        labelText: 'Test Pass Rate (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.verified),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _codeCoverageController,
+                      decoration: const InputDecoration(
+                        labelText: 'Code Coverage (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.code),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _escapedDefectsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Escaped Defects',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.bug_report),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _defectsOpenedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Defects Opened',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.warning),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _defectsClosedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Defects Closed',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.check_circle_outline),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _codeReviewCompletionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Code Review (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.reviews),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _defectSeverityMixController,
+                decoration: const InputDecoration(
+                  labelText: 'Defect Severity Mix',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.priority_high),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _documentationStatusController,
+                decoration: const InputDecoration(
+                  labelText: 'Documentation Status',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _uatNotesController,
+                decoration: const InputDecoration(
+                  labelText: 'UAT Notes',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.note),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _uatPassRateController,
+                decoration: const InputDecoration(
+                  labelText: 'UAT Pass Rate (%)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.verified_user),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Risk & Decision Tracking',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _risksIdentifiedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Risks Identified',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.warning),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _risksMitigatedController,
+                      decoration: const InputDecoration(
+                        labelText: 'Risks Mitigated',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.shield),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _blockersController,
+                decoration: const InputDecoration(
+                  labelText: 'Blockers',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.block),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _decisionsController,
+                decoration: const InputDecoration(
+                  labelText: 'Key Decisions',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.assignment_turned_in),
+                ),
+                maxLines: 2,
+              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -421,7 +604,25 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _plannedPointsController.dispose();
+    _committedPointsController.dispose();
     _completedPointsController.dispose();
+    _carriedOverPointsController.dispose();
+    _addedDuringSprintController.dispose();
+    _removedDuringSprintController.dispose();
+    _testPassRateController.dispose();
+    _codeCoverageController.dispose();
+    _escapedDefectsController.dispose();
+    _defectsOpenedController.dispose();
+    _defectsClosedController.dispose();
+    _defectSeverityMixController.dispose();
+    _codeReviewCompletionController.dispose();
+    _documentationStatusController.dispose();
+    _uatNotesController.dispose();
+    _uatPassRateController.dispose();
+    _risksIdentifiedController.dispose();
+    _risksMitigatedController.dispose();
+    _blockersController.dispose();
+    _decisionsController.dispose();
     super.dispose();
   }
 }

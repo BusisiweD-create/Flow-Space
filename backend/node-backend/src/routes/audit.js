@@ -10,13 +10,28 @@ const { AuditLog } = require('../models');
 router.get('/', async (req, res) => {
   try {
     const { skip = 0, limit = 100 } = req.query;
+    const offset = parseInt(skip);
+    const parsedLimit = parseInt(limit);
+    
     const auditLogs = await AuditLog.findAll({
-      offset: parseInt(skip),
-      limit: parseInt(limit),
+      offset: offset,
+      limit: parsedLimit,
       order: [['created_at', 'DESC']]
     });
     
-    res.json(auditLogs);
+    // Get total count for pagination
+    const totalCount = await AuditLog.count();
+    
+    res.json({
+      audit_logs: auditLogs,
+      items: auditLogs, // For backward compatibility
+      logs: auditLogs,  // For backward compatibility
+      total: totalCount,
+      total_count: totalCount,
+      skip: offset,
+      limit: parsedLimit,
+      has_more: offset + auditLogs.length < totalCount
+    });
   } catch (error) {
     console.error('Error fetching audit logs:', error);
     res.status(500).json({ error: 'Internal server error' });

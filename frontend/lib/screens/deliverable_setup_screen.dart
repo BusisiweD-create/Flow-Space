@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison, unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
@@ -76,6 +78,8 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         title: _titleController.text,
         description: _descriptionController.text,
         definitionOfDone: _dodController.text,
+        priority: _priority,
+        dueDate: _dueDate,
         status: _status,
         priority: _priority,
         dueDate: _dueDate,

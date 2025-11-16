@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -7,6 +8,10 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/repository_file.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+
+// Conditional imports for web download
+import 'document_service_stub.dart'
+    if (dart.library.html) 'document_service_web.dart' as web_impl;
 
 class DocumentService {
   final AuthService _authService;
@@ -19,6 +24,9 @@ class DocumentService {
     String? search,
     String? fileType,
     String? uploader,
+    String? projectId,
+    String? from,
+    String? to,
   }) async {
     try {
       final token = _authService.accessToken;
@@ -31,6 +39,9 @@ class DocumentService {
           if (search != null && search.isNotEmpty) 'search': search,
           if (fileType != null && fileType.isNotEmpty) 'fileType': fileType,
           if (uploader != null && uploader.isNotEmpty) 'uploader': uploader,
+          if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
+          if (from != null && from.isNotEmpty) 'from': from,
+          if (to != null && to.isNotEmpty) 'to': to,
         },
       );
 
@@ -57,6 +68,70 @@ class DocumentService {
       }
     } catch (e) {
       return ApiResponse.error('Error fetching documents: $e');
+    }
+  }
+
+  // Get document audit
+  Future<ApiResponse> getDocumentAudit(String documentId) async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null) return ApiResponse.error('No access token available');
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/documents/$documentId/audit'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return ApiResponse.success({'audit': data['data']}, response.statusCode);
+        }
+        return ApiResponse.error(data['error'] ?? 'Failed to load audit');
+      }
+      return ApiResponse.error('Failed to load audit: ${response.statusCode}');
+    } catch (e) {
+      return ApiResponse.error('Error loading audit: $e');
+    }
+  }
+
+  // Get repository audit with filters
+  Future<ApiResponse> getRepositoryAudit({ String? projectId, String? sprintId, String? deliverableId, String? from, String? to }) async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null) return ApiResponse.error('No access token available');
+
+      final uri = Uri.parse('$_baseUrl/repository/audit').replace(
+        queryParameters: {
+          if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
+          if (sprintId != null && sprintId.isNotEmpty) 'sprintId': sprintId,
+          if (deliverableId != null && deliverableId.isNotEmpty) 'deliverableId': deliverableId,
+          if (from != null && from.isNotEmpty) 'from': from,
+          if (to != null && to.isNotEmpty) 'to': to,
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return ApiResponse.success({'audit': data['data']}, response.statusCode);
+        }
+        return ApiResponse.error(data['error'] ?? 'Failed to load repository audit');
+      }
+      return ApiResponse.error('Failed to load repository audit: ${response.statusCode}');
+    } catch (e) {
+      return ApiResponse.error('Error loading repository audit: $e');
     }
   }
 
@@ -95,7 +170,7 @@ class DocumentService {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
           final document = RepositoryFile.fromJson(data['data']);
@@ -104,7 +179,13 @@ class DocumentService {
           return ApiResponse.error(data['error'] ?? 'Failed to upload document');
         }
       } else {
-        return ApiResponse.error('Failed to upload document: ${response.statusCode}');
+        final errorBody = response.body;
+        try {
+          final errorData = jsonDecode(errorBody);
+          return ApiResponse.error(errorData['error'] ?? 'Failed to upload document: ${response.statusCode}');
+        } catch (_) {
+          return ApiResponse.error('Failed to upload document: ${response.statusCode}');
+        }
       }
     } catch (e) {
       return ApiResponse.error('Error uploading document: $e');
@@ -130,7 +211,7 @@ class DocumentService {
       );
 
       request.headers['Authorization'] = 'Bearer $token';
-      request.headers['Content-Type'] = 'multipart/form-data';
+      // Don't set Content-Type manually - let http library set it with boundary
 
       // Add file bytes
       request.files.add(http.MultipartFile.fromBytes(
@@ -150,7 +231,7 @@ class DocumentService {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
           final document = RepositoryFile.fromJson(data['data']);
@@ -159,7 +240,13 @@ class DocumentService {
           return ApiResponse.error(data['error'] ?? 'Failed to upload document');
         }
       } else {
-        return ApiResponse.error('Failed to upload document: ${response.statusCode}');
+        final errorBody = response.body;
+        try {
+          final errorData = jsonDecode(errorBody);
+          return ApiResponse.error(errorData['error'] ?? 'Failed to upload document: ${response.statusCode}');
+        } catch (_) {
+          return ApiResponse.error('Failed to upload document: ${response.statusCode}');
+        }
       }
     } catch (e) {
       return ApiResponse.error('Error uploading document: $e');
@@ -231,6 +318,20 @@ class DocumentService {
   // Web-specific download method
   Future<ApiResponse> _downloadDocumentWeb(String documentId, String token) async {
     try {
+      // Get document details first to get the filename
+      final detailsResponse = await http.get(
+        Uri.parse('$_baseUrl/documents/$documentId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      String fileName = 'document_$documentId';
+      if (detailsResponse.statusCode == 200) {
+        final detailsData = jsonDecode(detailsResponse.body);
+        if (detailsData['success'] && detailsData['data']['name'] != null) {
+          fileName = detailsData['data']['name'];
+        }
+      }
+
       final uri = Uri.parse('$_baseUrl/documents/$documentId/download');
       final response = await http.get(
         uri,
@@ -240,26 +341,28 @@ class DocumentService {
       );
 
       if (response.statusCode == 200) {
-        // For web, we'll trigger a browser download
-        final bytes = response.bodyBytes;
-        final fileName = 'document_$documentId';
-
-        // For web, we'll return success and let the browser handle the download
+        // For web, create a blob and trigger download
         if (kIsWeb) {
-          // Web download is handled by the browser automatically
-          // The response will trigger a download in the browser
+          _triggerWebDownload(response.bodyBytes, fileName);
         }
 
         return ApiResponse.success({
           'filePath': 'Downloaded to browser',
           'fileName': fileName,
-          'size': bytes.length,
+          'size': response.bodyBytes.length,
         }, response.statusCode,);
       } else {
         return ApiResponse.error('Failed to download document: ${response.statusCode}');
       }
     } catch (e) {
       return ApiResponse.error('Error downloading document: $e');
+    }
+  }
+
+  // Web-specific download helper (uses dart:html only on web)
+  void _triggerWebDownload(List<int> bytes, String fileName) {
+    if (kIsWeb) {
+      web_impl.triggerWebDownloadImpl(bytes, fileName);
     }
   }
 
@@ -291,6 +394,33 @@ class DocumentService {
       }
     } catch (e) {
       return ApiResponse.error('Error deleting document: $e');
+    }
+  }
+
+  // Track document view
+  Future<ApiResponse> trackDocumentView(String documentId) async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null) {
+        return ApiResponse.error('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/documents/$documentId/view'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return ApiResponse.success(<String, dynamic>{}, response.statusCode);
+      } else {
+        final data = jsonDecode(response.body);
+        return ApiResponse.error(data['error'] ?? 'Failed to track view');
+      }
+    } catch (e) {
+      return ApiResponse.error('Error tracking view: $e');
     }
   }
 
