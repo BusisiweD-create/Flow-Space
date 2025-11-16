@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/service_providers.dart';
+import '../models/user_role.dart';
 
 // Simple auth state for demo purposes
 class AuthState {
@@ -34,20 +36,24 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
     required String password,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Simple validation for demo
-    if (email.isNotEmpty && password.length >= 6) {
+    try {
+      final auth = ref.read(authServiceProvider);
+      final ok = await auth.signIn(email, password);
+      if (ok) {
+        state = state.copyWith(
+          isLoading: false,
+          userEmail: auth.currentUser?.email ?? email,
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Invalid email or password',
+        );
+      }
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        userEmail: email,
-      );
-    } else {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Invalid email or password',
+        error: 'Sign in failed: $e',
       );
     }
   }
@@ -61,64 +67,101 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
     required String role,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Simple validation for demo
-    if (email.isNotEmpty && password.length >= 8) {
-      state = state.copyWith(
-        isLoading: false,
-        userEmail: email,
+    try {
+      final auth = ref.read(authServiceProvider);
+      final roleEnum = UserRole.values.firstWhere(
+        (e) => e.name.toLowerCase() == role.toLowerCase(),
+        orElse: () => UserRole.teamMember,
       );
-    } else {
+      final result = await auth.signUp(email, password, '$firstName $lastName', roleEnum);
+      if (result['success'] == true) {
+        state = state.copyWith(
+          isLoading: false,
+          userEmail: auth.currentUser?.email ?? email,
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: (result['error']?.toString() ?? 'Registration failed. Please check your details.'),
+        );
+      }
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Registration failed. Please check your details.',
+        error: 'Registration failed: $e',
       );
     }
   }
 
   Future<void> signInWithGoogle() async {
     state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    state = state.copyWith(
-      isLoading: false,
-      userEmail: 'demo@google.com',
-    );
+    try {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Google sign-in is not available',
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Google sign-in failed: $e',
+      );
+    }
   }
 
   Future<void> sendPasswordResetEmail(String email) async {
     state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-    
-    state = state.copyWith(isLoading: false);
+    try {
+      final auth = ref.read(authServiceProvider);
+      final ok = await auth.forgotPassword(email);
+      state = state.copyWith(
+        isLoading: false,
+        error: ok ? null : 'Failed to send password reset email',
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to send password reset email: $e',
+      );
+    }
   }
 
   Future<void> resendEmailVerification() async {
     state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-    
-    state = state.copyWith(isLoading: false);
+    try {
+      final email = state.userEmail;
+      if (email == null || email.isEmpty) {
+        state = state.copyWith(isLoading: false, error: 'No email available');
+        return;
+      }
+      final auth = ref.read(authServiceProvider);
+      final response = await auth.resendVerificationEmail(email);
+      state = state.copyWith(
+        isLoading: false,
+        error: response.isSuccess ? null : (response.error ?? 'Failed to resend verification email'),
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to resend verification email: $e',
+      );
+    }
   }
 
   Future<void> signOut() async {
     state = state.copyWith(isLoading: true, error: null);
-    
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-    
-    state = state.copyWith(
-      isLoading: false,
-      userEmail: null,
-    );
+    try {
+      final auth = ref.read(authServiceProvider);
+      await auth.signOut();
+      state = state.copyWith(
+        isLoading: false,
+        userEmail: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Sign out failed: $e',
+      );
+    }
   }
 
   void clearError() {
@@ -128,10 +171,4 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
 
 final authStateProvider = NotifierProvider<SimpleAuthNotifier, AuthState>(() {
   return SimpleAuthNotifier();
-});
-
-// Mock current user provider
-final currentUserProvider = StreamProvider<String?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return Stream.value(authState.userEmail);
 });

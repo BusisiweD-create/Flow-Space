@@ -13,17 +13,40 @@ const { authenticateToken } = require('../middleware/auth');
  */
 router.post('/register', async (req, res) => {
   try {
-    // Support both camelCase and snake_case field names
+    // Support multiple field name formats
     const { 
       email, 
       password, 
-      firstName = req.body.first_name, 
-      lastName = req.body.last_name, 
+      fullName,
+      firstName: reqFirstName,
+      lastName: reqLastName,
+      first_name: reqFirstNameSnake,
+      last_name: reqLastNameSnake,
       role = 'user' 
     } = req.body;
 
+    // Determine first name and last name from various input formats
+    let firstName, lastName;
+    
+    console.log('Registration request body:', req.body);
+    console.log('Extracted fields:', { email, password, fullName, reqFirstName, reqLastName, reqFirstNameSnake, reqLastNameSnake, role });
+    
+    if (fullName) {
+      // If fullName is provided, split it
+      const nameParts = fullName.split(' ');
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(' ');
+    } else if (reqFirstName || reqFirstNameSnake) {
+      // If separate firstName/lastName fields are provided (camelCase or snake_case)
+      firstName = reqFirstName || reqFirstNameSnake || '';
+      lastName = reqLastName || reqLastNameSnake || '';
+    }
+    
+    console.log('Determined firstName:', firstName);
+    console.log('Determined lastName:', lastName);
+
     // Validate input
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !password || !firstName) {
       return res.status(400).json({
         error: 'Missing required fields',
         message: 'Email, password, first name, and last name are required'
@@ -58,8 +81,8 @@ router.post('/register', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.SECRET_KEY || 'fallback-secret-key',
+      { sub: user.id, email: user.email, role: user.role, type: 'access' },
+      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
       { expiresIn: '24h' }
     );
 
@@ -140,8 +163,8 @@ router.post('/login', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.SECRET_KEY || 'fallback-secret-key',
+      { sub: user.id, email: user.email, role: user.role, type: 'access' },
+      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
       { expiresIn: '24h' }
     );
 
@@ -226,8 +249,8 @@ router.post('/refresh', authenticateToken, async (req, res) => {
 
     // Generate new JWT token
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
-      process.env.SECRET_KEY || 'fallback-secret-key',
+      { sub: user.id, username: user.username, role: user.role, type: 'access' },
+      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
       { expiresIn: '24h' }
     );
 

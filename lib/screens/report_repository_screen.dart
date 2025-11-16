@@ -683,6 +683,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: FlownetColors.charcoalBlack,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
@@ -690,6 +697,14 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
+      ),
+      floatingActionButton: RoleBuilder(
+        allowedRoles: const ['deliveryLead', 'systemAdmin'],
+        builder: (context) => FloatingActionButton.extended(
+          onPressed: _showCreateReportDialog,
+          icon: const Icon(Icons.add),
+          label: const Text('New Sign-Off'),
+        ),
       ),
       body: Column(
         children: [
@@ -1015,6 +1030,20 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<String>(
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete'),
+                      ),
+                    ],
+                    onSelected: (value) async {
+                      if (value == 'delete') {
+                        await _confirmDeleteReport(report);
+                      }
+                    },
                   ),
                 ],
               ),

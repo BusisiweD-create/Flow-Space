@@ -175,6 +175,11 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showSendForApprovalDialog,
+        label: const Text('Send For Approval'),
+        icon: const Icon(Icons.send),
+      ),
       body: Column(
         children: [
           // Search and filter bar
@@ -325,6 +330,85 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showSendForApprovalDialog() async {
+    final deliverables = await ApiService.getDeliverables();
+    String? selectedDeliverableId = deliverables.isNotEmpty ? (deliverables.first['id']?.toString()) : null;
+    String sendTo = 'client';
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: FlownetColors.graphiteGray,
+          title: const Text('Send For Approval'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedDeliverableId,
+                items: deliverables.map((d) {
+                  final id = d['id']?.toString() ?? '';
+                  final title = d['title']?.toString() ?? 'Untitled';
+                  return DropdownMenuItem<String>(
+                    value: id,
+                    child: Text(title),
+                  );
+                }).toList(),
+                onChanged: (v) {
+                  selectedDeliverableId = v;
+                },
+                decoration: const InputDecoration(labelText: 'Deliverable'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: sendTo,
+                items: const [
+                  DropdownMenuItem(value: 'client', child: Text('Client')),
+                  DropdownMenuItem(value: 'system_admin', child: Text('System Admin')),
+                ],
+                onChanged: (v) {
+                  sendTo = v ?? 'client';
+                },
+                decoration: const InputDecoration(labelText: 'Send To'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (selectedDeliverableId == null || selectedDeliverableId!.isEmpty) return;
+                final api = BackendApiService();
+                final navigator = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                final response = await api.createApprovalRequest({
+                  'deliverable_id': selectedDeliverableId,
+                  'send_to': sendTo,
+                });
+                navigator.pop();
+                if (response.isSuccess) {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Approval request sent')),
+                  );
+                  _loadApprovalRequests();
+                } else {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Failed to send: ${response.error ?? 'Unknown error'}')),
+                  );
+                }
+              },
+              child: const Text('Send'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

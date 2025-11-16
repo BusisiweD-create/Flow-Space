@@ -29,9 +29,16 @@ class BackendSettingsService {
   // Get user settings from backend
   static Future<Map<String, dynamic>> getUserSettings() async {
     try {
+      final headers = await ApiService.getAuthHeaders();
+      if (headers == null) {
+        // Not authenticated, return default settings
+        final userId = await _getUserId();
+        return _getDefaultSettings(userId ?? 'anonymous');
+      }
+      
       final response = await http.get(
         Uri.parse('${Environment.apiBaseUrl}/settings/me'),
-        headers: await ApiService.getAuthHeaders(),
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -46,7 +53,7 @@ class BackendSettingsService {
         return _getDefaultSettings(userId);
       }
     } catch (e) {
-      print('Error fetching settings from backend: $e');
+      // print('Error fetching settings from backend: $e');
       // Fallback to local storage if backend is unavailable
       return _getLocalSettings();
     }
@@ -55,9 +62,16 @@ class BackendSettingsService {
   // Update user settings in backend
   static Future<Map<String, dynamic>> updateUserSettings(Map<String, dynamic> settings) async {
     try {
+      final headers = await ApiService.getAuthHeaders();
+      if (headers == null) {
+        // Not authenticated, just save to local storage
+        await _saveLocalSettings(settings);
+        return settings;
+      }
+      
       final response = await http.put(
         Uri.parse('${Environment.apiBaseUrl}/settings/me'),
-        headers: await ApiService.getAuthHeaders(),
+        headers: headers,
         body: json.encode(settings),
       );
 
@@ -70,7 +84,7 @@ class BackendSettingsService {
         throw Exception('Failed to update settings: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error updating settings in backend: $e');
+      // print('Error updating settings in backend: $e');
       // Fallback to local storage if backend is unavailable
       await _saveLocalSettings(settings);
       return settings;

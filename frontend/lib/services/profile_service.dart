@@ -32,7 +32,7 @@ class ProfileService {
         throw Exception('Failed to load profile: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching profile: $e');
+      // print('Error fetching profile: $e');
       rethrow;
     }
   }
@@ -63,7 +63,7 @@ class ProfileService {
         throw Exception('Failed to save profile: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error saving profile: $e');
+      // print('Error saving profile: $e');
       await _saveLocalProfile(profile);
       return profile;
     }
@@ -75,6 +75,7 @@ class ProfileService {
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
         headers: {'Content-Type': 'application/json'},
       );
+
       return response.statusCode == 200;
     } catch (e) {
       return false;
@@ -105,7 +106,7 @@ class ProfileService {
         throw Exception('Failed to upload picture: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error uploading picture: $e');
+      // print('Error uploading picture: $e');
       rethrow;
     }
   }

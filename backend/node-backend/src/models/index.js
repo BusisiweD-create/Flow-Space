@@ -12,6 +12,9 @@ const UserProfile = require('./UserProfile');
 const RefreshToken = require('./RefreshToken');
 const UserSettings = require('./UserSettings');
 const Notification = require('./Notification');
+const Project = require('./Project');
+const ApprovalRequest = require('./ApprovalRequest');
+const Ticket = require('./Ticket');
 
 // Function to initialize models with the database connection
 function initializeModels(sequelize) {
@@ -25,7 +28,10 @@ function initializeModels(sequelize) {
     UserProfile: UserProfile(sequelize, DataTypes),
     RefreshToken: RefreshToken(sequelize, DataTypes),
     UserSettings: UserSettings(sequelize, DataTypes),
-    Notification: Notification(sequelize, DataTypes)
+    Notification: Notification(sequelize, DataTypes),
+    Project: Project(sequelize, DataTypes),
+    ApprovalRequest: ApprovalRequest(sequelize, DataTypes),
+    Ticket: Ticket(sequelize, DataTypes)
   };
 
   // Set up associations

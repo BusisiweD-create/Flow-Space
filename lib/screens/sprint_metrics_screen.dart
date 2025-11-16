@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sprint_metrics.dart';
+import '../providers/service_providers.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -82,18 +83,29 @@ class _SprintMetricsScreenState extends ConsumerState<SprintMetricsScreen> {
         recordedBy: 'Current User', // This would come from auth
       );
 
-      // Simulate API call (metrics would be saved here)
-      debugPrint('Saving metrics for sprint ${metrics.sprintId}: ${metrics.velocity} velocity');
-      await Future.delayed(const Duration(seconds: 2));
+      final api = ref.read(backendApiServiceProvider);
+      final response = await api.createSprintMetrics(widget.sprintId, metrics.toJson());
+      if (!response.isSuccess) {
+        throw Exception(response.error ?? 'Failed to save sprint metrics');
+      }
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sprint metrics saved successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context);
+        if (response.isSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sprint metrics saved successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error saving metrics: ${response.error ?? 'Unknown error'}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

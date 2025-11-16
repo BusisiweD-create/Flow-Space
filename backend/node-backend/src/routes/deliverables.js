@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Deliverable } = require('../models');
+const { Deliverable, DeliverableSprint } = require('../models');
 
 /**
  * @route GET /api/deliverables
@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
       order: [['created_at', 'DESC']]
     });
     
-    res.json(deliverables);
+    res.json({ success: true, data: deliverables });
   } catch (error) {
     console.error('Error fetching deliverables:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -41,7 +41,7 @@ router.get('/sprint/:sprintId', async (req, res) => {
       order: [['created_at', 'DESC']]
     });
     
-    res.json(deliverables);
+    res.json({ success: true, data: deliverables });
   } catch (error) {
     console.error('Error fetching sprint deliverables:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -69,7 +69,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Deliverable not found' });
     }
     
-    res.json(deliverable);
+    res.json({ success: true, data: deliverable });
   } catch (error) {
     console.error('Error fetching deliverable:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -83,10 +83,20 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const deliverableData = req.body;
-    
+    const { sprintIds, ...deliverableData } = req.body || {};
     const deliverable = await Deliverable.create(deliverableData);
-    
+
+    if (Array.isArray(sprintIds) && sprintIds.length > 0) {
+      const ids = sprintIds
+        .map((id) => parseInt(id))
+        .filter((n) => Number.isFinite(n));
+      await Promise.all(
+        ids.map((sprintId) =>
+          DeliverableSprint.create({ deliverable_id: deliverable.id, sprint_id: sprintId })
+        )
+      );
+    }
+
     res.status(201).json(deliverable);
   } catch (error) {
     console.error('Error creating deliverable:', error);

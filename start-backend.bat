@@ -4,14 +4,14 @@ echo    Flow-Space Backend Server Startup
 echo ========================================
 echo.
 
-cd /d "%~dp0\backend"
+cd /d "%~dp0\backend\node-backend"
 
 echo Starting server on http://localhost:3001...
 echo.
 echo Press Ctrl+C to stop the server
 echo.
 
-node server.js
+npm start
 
 echo.
 echo Server stopped.

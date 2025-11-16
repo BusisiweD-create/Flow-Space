@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+// ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 import '../models/system_metrics.dart';
+import 'backend_api_service.dart';
 
 class ApiService {
-  // Base URL for your backend API (you'll need to create this)
-  static const String baseUrl = 'http://localhost:8000/api';
+  static const String baseUrl = 'http://localhost:8000/api/v1';
   
   // Get auth headers with token
   static Future<Map<String, String>> _getHeaders() async {
@@ -41,7 +42,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/signup'),
+        Uri.parse('$baseUrl/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -87,7 +88,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/signin'),
+        Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -110,21 +111,42 @@ class ApiService {
   // Database methods for deliverables
   static Future<List<Map<String, dynamic>>> getDeliverables() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/deliverables'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.getDeliverables();
       
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data);
+      if (response.isSuccess && response.data != null) {
+        final dynamic raw = response.data;
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        final List<dynamic> items = (raw is Map)
+            ? (raw['data'] ?? raw['deliverables'] ?? raw['items'] ?? [])
+            : [];
+        return items.cast<Map<String, dynamic>>();
       } else {
-        debugPrint('Failed to fetch deliverables: ${response.statusCode}');
+        debugPrint('Failed to fetch deliverables: ${response.statusCode} - ${response.error}');
         return [];
       }
     } catch (e) {
       debugPrint('Error fetching deliverables: $e');
       return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getDeliverable(String deliverableId) async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getDeliverable(deliverableId);
+      
+      if (response.isSuccess && response.data != null) {
+        return response.data!['data'] ?? response.data!['deliverable'];
+      } else {
+        debugPrint('Failed to fetch deliverable: ${response.statusCode} - ${response.error}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error fetching deliverable: $e');
+      return null;
     }
   }
   
@@ -135,6 +157,7 @@ class ApiService {
     required String status,
     required String assignedTo,
     required String createdBy,
+    List<String>? sprintIds,
   }) async {
     try {
       debugPrint('Creating deliverable: $title');
@@ -310,23 +333,39 @@ class ApiService {
     required String createdBy, required String description, int? committedPoints, int? carriedOverPoints, int? addedDuringSprint, int? removedDuringSprint, int? testPassRate, int? codeCoverage, int? escapedDefects, int? defectsOpened, int? defectsClosed, required String defectSeverityMix, int? codeReviewCompletion, required String documentationStatus, required String uatNotes, int? uatPassRate, int? risksIdentified, int? risksMitigated, required String blockers, required String decisions,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/sprints'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': name,
-          'startDate': startDate.toIso8601String(),
-          'endDate': endDate.toIso8601String(),
-          'plannedPoints': plannedPoints,
-          'completedPoints': completedPoints,
-          'createdBy': createdBy,
-        }),
-      );
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
+      final backendService = BackendApiService();
+      final payload = {
+        'name': name,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        'plannedPoints': plannedPoints,
+        'completedPoints': completedPoints,
+        'createdBy': createdBy,
+        'description': description,
+        'committedPoints': committedPoints,
+        'carriedOverPoints': carriedOverPoints,
+        'addedDuringSprint': addedDuringSprint,
+        'removedDuringSprint': removedDuringSprint,
+        'testPassRate': testPassRate,
+        'codeCoverage': codeCoverage,
+        'escapedDefects': escapedDefects,
+        'defectsOpened': defectsOpened,
+        'defectsClosed': defectsClosed,
+        'defectSeverityMix': defectSeverityMix,
+        'codeReviewCompletion': codeReviewCompletion,
+        'documentationStatus': documentationStatus,
+        'uatNotes': uatNotes,
+        'uatPassRate': uatPassRate,
+        'risksIdentified': risksIdentified,
+        'risksMitigated': risksMitigated,
+        'blockers': blockers,
+        'decisions': decisions,
+      }..removeWhere((key, value) => value == null);
+      final response = await backendService.createSprint(payload);
+      if (response.isSuccess && response.data != null) {
+        return Map<String, dynamic>.from(response.data!);
       } else {
-        debugPrint('Failed to create sprint: ${response.statusCode}');
+        debugPrint('Failed to create sprint: ${response.statusCode} - ${response.error}');
         return null;
       }
     } catch (e) {
@@ -338,16 +377,20 @@ class ApiService {
   // Sprint metrics methods
   static Future<List<Map<String, dynamic>>> getSprintMetrics(String sprintId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sprints/$sprintId/metrics'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.getSprintMetrics(sprintId);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['metrics']);
+      if (response.isSuccess && response.data != null) {
+        final dynamic raw = response.data;
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        final List<dynamic> items = (raw is Map)
+            ? (raw['data'] ?? raw['metrics'] ?? [])
+            : [];
+        return items.cast<Map<String, dynamic>>();
       } else {
-        debugPrint('Failed to load sprint metrics: ${response.statusCode}');
+        debugPrint('Failed to load sprint metrics: ${response.statusCode} - ${response.error}');
         return [];
       }
     } catch (e) {
@@ -399,8 +442,14 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['reports']);
+        final dynamic data = jsonDecode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+        final List<dynamic> items = (data is Map)
+            ? (data['reports'] ?? data['data'] ?? [])
+            : [];
+        return items.cast<Map<String, dynamic>>();
       } else {
         debugPrint('Failed to load sign-off reports: ${response.statusCode}');
         return [];
@@ -490,21 +539,147 @@ class ApiService {
     }
   }
 
-  static Future getDashboardData() async {}
+  static Future<Map<String, dynamic>> getDashboardData() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getDashboardData();
+      if (response.isSuccess && response.data != null) {
+        final dynamic raw = response.data!;
+        if (raw is Map<String, dynamic>) return raw;
+        if (raw is List && raw.isNotEmpty) return {'items': raw};
+      }
+      final sprintsResp = await backendService.getSprints(page: 1, limit: 100);
+      final dynamic sprintsRaw = sprintsResp.isSuccess ? sprintsResp.data : null;
+      final List<dynamic> sprintsList = sprintsRaw is List
+          ? sprintsRaw
+          : (sprintsRaw is Map ? (sprintsRaw['data'] ?? sprintsRaw['sprints'] ?? []) : []);
+      final List<Map<String, dynamic>> sprints = sprintsList
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      final sprintStats = sprints
+          .map(
+            (s) => {
+              'completed_points': (s['completed_points'] ?? 0) as num,
+              'committed_points': (s['committed_points'] ?? 0) as num,
+              'test_pass_rate': (s['test_pass_rate'] ?? 0) as num,
+            },
+          )
+          .toList();
+      final double avgVelocity = sprintStats.isNotEmpty
+          ? sprintStats.map((m) => (m['completed_points'] as num).toDouble()).reduce((a, b) => a + b) / sprintStats.length
+          : 0.0;
+      final double avgTestPassRate = sprints.isNotEmpty
+          ? sprints.map((s) => ((s['test_pass_rate'] ?? 0) as num).toDouble()).reduce((a, b) => a + b) / sprints.length
+          : 0.0;
+      final trends = sprints.asMap().entries.map((e) {
+        final m = e.value;
+        final num points = (m['completed_points'] ?? 0) as num;
+        final num quality = (m['test_pass_rate'] ?? 0) as num;
+        return {
+          'week': 'S${e.key + 1}',
+          'points': points,
+          'quality': quality,
+        };
+      }).toList();
+      int activeUsers = 0;
+      try {
+        final usersResp = await backendService.getUsers(page: 1, limit: 200);
+        final dynamic usersRaw = usersResp.isSuccess ? usersResp.data : null;
+        final List<dynamic> usersList = usersRaw is List
+            ? usersRaw
+            : (usersRaw is Map ? (usersRaw['data'] ?? usersRaw['users'] ?? []) : []);
+        activeUsers = usersList.length;
+      } catch (_) {}
+      int dailyActions = 0;
+      try {
+        final logsResp = await backendService.getAuditLogs(limit: 100);
+        final dynamic logsRaw = logsResp.isSuccess ? logsResp.data : null;
+        final List<dynamic> logsList = logsRaw is List
+            ? logsRaw
+            : (logsRaw is Map ? (logsRaw['audit_logs'] ?? logsRaw['items'] ?? logsRaw['logs'] ?? []) : []);
+        dailyActions = logsList.length;
+      } catch (_) {}
+      return {
+        'sprints': sprints,
+        'sprint_stats': sprintStats,
+        'team_performance': sprints.map(
+          (s) => {
+            'name': s['name'] ?? 'Sprint',
+            'velocity': (s['completed_points'] ?? 0) as num,
+            'qualityScore': (s['test_pass_rate'] ?? 0) as num,
+            'efficiency': ((s['completed_points'] ?? 0) as num) == 0
+                ? 0
+                : (((s['completed_points'] ?? 0) as num).toDouble() /
+                    (((s['committed_points'] ?? 1) as num).toDouble())) * 100,
+          },
+        ).toList(),
+        'performance_trends': trends,
+        'user_activity': {
+          'active_users': activeUsers,
+          'daily_actions': dailyActions,
+          'defect_rate': 0,
+          'avg_review_time': 0,
+        },
+        'metrics': {
+          'avg_velocity': avgVelocity,
+          'avg_test_pass_rate': avgTestPassRate,
+        },
+      };
+    } catch (e) {
+      debugPrint('Error assembling dashboard data: $e');
+      return {
+        'sprints': [],
+        'sprint_stats': [],
+        'team_performance': [],
+        'performance_trends': [],
+        'user_activity': {
+          'active_users': 0,
+          'daily_actions': 0,
+          'defect_rate': 0,
+          'avg_review_time': 0,
+        },
+        'metrics': {
+          'avg_velocity': 0,
+          'avg_test_pass_rate': 0,
+        },
+      };
+    }
+  }
 
   // Repository file methods
   static Future<List<Map<String, dynamic>>> getProjectFiles(String projectId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/projects/$projectId/files'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.listFiles(prefix: projectId);
       
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['files'] ?? []);
+      if (response.isSuccess && response.data != null) {
+        final dynamic raw = response.data!;
+        final List<dynamic> items = raw is List
+            ? raw
+            : (raw is Map<String, dynamic>
+                ? (raw['data'] ?? raw['files'] ?? raw['items'] ?? [])
+                : []);
+        final List<Map<String, dynamic>> normalized = [];
+        for (final item in items) {
+          if (item is Map<String, dynamic>) {
+            final map = Map<String, dynamic>.from(item);
+            final v = map['sizeInMB'];
+            double parsed;
+            if (v is num) {
+              parsed = v.toDouble();
+            } else if (v is String) {
+              parsed = double.tryParse(v) ?? 0.0;
+            } else {
+              parsed = 0.0;
+            }
+            map['sizeInMB'] = parsed;
+            normalized.add(map);
+          }
+        }
+        return normalized;
       } else {
-        debugPrint('Failed to fetch project files: \${response.statusCode}');
+        debugPrint('Failed to fetch project files: ${response.statusCode} - ${response.error}');
         return [];
       }
     } catch (e) {
@@ -522,21 +697,13 @@ class ApiService {
     Uint8List? fileBytes,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/projects/$projectId/files'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'fileName': fileName,
-          'filePath': filePath,
-          'fileType': fileType,
-          'description': description,
-        }),
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.uploadFile(filePath, fileName, fileType);
       
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
+      if (response.isSuccess && response.data != null) {
+        return response.data!;
       } else {
-        debugPrint('Failed to upload file: \${response.statusCode}');
+        debugPrint('Failed to upload file: ${response.statusCode} - ${response.error}');
         return null;
       }
     } catch (e) {
@@ -548,63 +715,95 @@ class ApiService {
   // System metrics methods
   static Future<SystemMetrics> getSystemMetrics() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/system-metrics'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.getSystemStats();
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return SystemMetrics.fromJson(data);
+      if (response.isSuccess && response.data != null) {
+        final data = response.data!;
+        // Extract system metrics from the stats response with proper type conversion
+        final systemMetrics = SystemMetrics(
+          systemHealth: SystemHealthStatus.healthy,
+          performance: PerformanceMetrics(
+            cpuUsage: _parseDouble(data['system']?['cpuUsage']) ?? 0.0,
+            memoryUsage: _parseDouble(data['system']?['memoryUsage']) ?? 0.0,
+            diskUsage: _parseDouble(data['system']?['diskUsage']) ?? 0.0,
+            responseTime: _parseInt(data['system']?['responseTime']) ?? 0,
+            uptime: _parseDouble(data['system']?['uptime']) ?? 0.0,
+          ),
+          database: DatabaseMetrics(
+            totalRecords: _parseInt(data['statistics']?['totalEntities']) ?? 0,
+            activeConnections: _parseInt(data['system']?['activeConnections']) ?? 0,
+            cacheHitRatio: _parseDouble(data['system']?['cacheHitRatio']) ?? 0.0,
+            queryCount: _parseInt(data['system']?['queryCount']) ?? 0,
+            slowQueries: _parseInt(data['system']?['slowQueries']) ?? 0,
+          ),
+          userActivity: UserActivityMetrics(
+            activeUsers: _parseInt(data['statistics']?['users']) ?? await _fallbackActiveUsers(),
+            totalSessions: _parseInt(data['system']?['totalSessions']) ?? 0,
+            newRegistrations: _parseInt(data['system']?['newRegistrations']) ?? 0,
+            failedLogins: _parseInt(data['system']?['failedLogins']) ?? 0,
+            avgSessionDuration: _parseDouble(data['system']?['avgSessionDuration']) ?? 0.0,
+          ),
+          lastUpdated: DateTime.now(),
+        );
+        return systemMetrics;
       } else {
-        debugPrint('Failed to load system metrics: ${response.statusCode}');
-        // Return mock data for development
-        return _getMockSystemMetrics();
+        debugPrint('Failed to load system metrics: ${response.statusCode} - ${response.error}');
+        throw Exception('Failed to load system metrics: ${response.statusCode} - ${response.error}');
       }
     } catch (e) {
       debugPrint('Error loading system metrics: $e');
-      // Return mock data for development
-      return _getMockSystemMetrics();
+      throw Exception('Error loading system metrics: $e');
     }
   }
 
-  // Mock system metrics for development
-  static SystemMetrics _getMockSystemMetrics() {
-    return SystemMetrics(
-      systemHealth: SystemHealthStatus.healthy,
-      performance: PerformanceMetrics(
-        cpuUsage: 23.4,
-        memoryUsage: 512.3,
-        diskUsage: 32.1,
-        responseTime: 45,
-        uptime: 99.8,
-      ),
-      database: DatabaseMetrics(
-        totalRecords: 156,
-        activeConnections: 8,
-        cacheHitRatio: 0.95,
-        queryCount: 12543,
-        slowQueries: 63,
-      ),
-      userActivity: UserActivityMetrics(
-        activeUsers: 18,
-        totalSessions: 342,
-        newRegistrations: 5,
-        failedLogins: 2,
-        avgSessionDuration: 12.5,
-      ),
-      lastUpdated: DateTime.now(),
-    );
+  static Future<int> _fallbackActiveUsers() async {
+    try {
+      final backendService = BackendApiService();
+      final resp = await backendService.getUsers(page: 1, limit: 500);
+      final dynamic raw = resp.isSuccess ? resp.data : null;
+      final List<dynamic> items = raw is List
+          ? raw
+          : (raw is Map ? (raw['users'] ?? raw['data'] ?? raw['items'] ?? []) : []);
+      int count = 0;
+      for (final u in items) {
+        if (u is Map) {
+          final m = Map<String, dynamic>.from(u);
+          final active = m['is_active'];
+          if (active == true || active == 'true' || active == 1) {
+            count++;
+          }
+        }
+      }
+      return count > 0 ? count : items.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  // Helper methods for type conversion
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   static Future<bool> deleteFile(String fileId) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/files/$fileId'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.deleteFile(fileId);
       
-      return response.statusCode == 200 || response.statusCode == 204;
+      return response.isSuccess;
     } catch (e) {
       debugPrint('Error deleting file: $e');
       return false;
@@ -614,15 +813,13 @@ class ApiService {
   // Settings methods
   static Future<Map<String, dynamic>?> getUserSettings() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/user/settings'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.getUserSettings();
       
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      if (response.isSuccess && response.data != null) {
+        return response.data!;
       } else {
-        debugPrint('Failed to fetch user settings: ${response.statusCode}');
+        debugPrint('Failed to fetch user settings: ${response.statusCode} - ${response.error}');
         return null;
       }
     } catch (e) {
@@ -633,13 +830,10 @@ class ApiService {
 
   static Future<bool> updateUserSettings(Map<String, dynamic> settings) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/user/settings'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(settings),
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.updateUserSettings(settings);
       
-      return response.statusCode == 200 || response.statusCode == 204;
+      return response.isSuccess;
     } catch (e) {
       debugPrint('Error updating user settings: $e');
       return false;
@@ -648,12 +842,10 @@ class ApiService {
 
   static Future<bool> resetUserSettings() async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/user/settings/reset'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.resetUserSettings();
       
-      return response.statusCode == 200 || response.statusCode == 204;
+      return response.isSuccess;
     } catch (e) {
       debugPrint('Error resetting user settings: $e');
       return false;
@@ -662,12 +854,10 @@ class ApiService {
 
   static Future<bool> exportUserData() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/user/data/export'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.exportUserData();
       
-      return response.statusCode == 200;
+      return response.isSuccess;
     } catch (e) {
       debugPrint('Error exporting user data: $e');
       return false;
@@ -676,12 +866,10 @@ class ApiService {
 
   static Future<bool> clearUserCache() async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/user/cache'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.clearUserCache();
       
-      return response.statusCode == 200 || response.statusCode == 204;
+      return response.isSuccess;
     } catch (e) {
       debugPrint('Error clearing user cache: $e');
       return false;
@@ -690,21 +878,96 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> getSprintTickets(String sprintId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sprints/$sprintId/tickets'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final backendService = BackendApiService();
+      final response = await backendService.getSprintTickets(sprintId);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return List<Map<String, dynamic>>.from(data['tickets'] ?? []);
+      if (response.isSuccess && response.data != null) {
+        final dynamic raw = response.data;
+        if (raw is List) {
+          return raw.cast<Map<String, dynamic>>();
+        }
+        final List<dynamic> items = (raw is Map)
+            ? (raw['data'] ?? raw['tickets'] ?? raw['items'] ?? [])
+            : [];
+        return items.cast<Map<String, dynamic>>();
       } else {
-        debugPrint('Failed to load sprint tickets: ${response.statusCode}');
+        debugPrint('Failed to load sprint tickets: ${response.statusCode} - ${response.error}');
         return [];
       }
     } catch (e) {
       debugPrint('Error loading sprint tickets: $e');
       return [];
+    }
+  }
+
+  // QA-specific methods
+  static Future<List<Map<String, dynamic>>> getTestQueue() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getTestQueue();
+
+      if (response.isSuccess && response.data != null) {
+        final List<dynamic> items = response.data!['data'] ?? response.data!['testQueue'] ?? [];
+        return items.cast<Map<String, dynamic>>();
+      } else {
+        debugPrint('Failed to load test queue: ${response.statusCode} - ${response.error}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error loading test queue: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getQualityMetrics() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getQualityMetrics();
+
+      if (response.isSuccess && response.data != null) {
+        return response.data! as Map<String, dynamic>;
+      } else {
+        debugPrint('Failed to load quality metrics: ${response.statusCode} - ${response.error}');
+        return {};
+      }
+    } catch (e) {
+      debugPrint('Error loading quality metrics: $e');
+      return {};
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getBugReports({int limit = 10}) async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getBugReports(limit: limit);
+
+      if (response.isSuccess && response.data != null) {
+        final List<dynamic> items = response.data!['data'] ?? response.data!['bugReports'] ?? [];
+        return items.cast<Map<String, dynamic>>();
+      } else {
+        debugPrint('Failed to load bug reports: ${response.statusCode} - ${response.error}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error loading bug reports: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getTestCoverage() async {
+    try {
+      final backendService = BackendApiService();
+      final response = await backendService.getTestCoverage();
+
+      if (response.isSuccess && response.data != null) {
+        return response.data! as Map<String, dynamic>;
+      } else {
+        debugPrint('Failed to load test coverage: ${response.statusCode} - ${response.error}');
+        return {};
+      }
+    } catch (e) {
+      debugPrint('Error loading test coverage: $e');
+      return {};
     }
   }
 }

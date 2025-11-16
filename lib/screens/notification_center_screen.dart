@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/service_providers.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -14,6 +15,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   List<NotificationItem> _notifications = [];
   String _selectedFilter = 'all';
   bool _showReadOnly = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -21,78 +23,64 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     _loadNotifications();
   }
 
-  void _loadNotifications() {
-    // Mock data - in real app this would come from API
+  Future<void> _loadNotifications() async {
     setState(() {
-      _notifications = [
-        NotificationItem(
-          id: '1',
-          title: 'Deliverable Review Required',
-          message: 'User Authentication System is ready for your review and approval.',
-          type: NotificationType.review,
-          priority: NotificationPriority.high,
-          isRead: false,
-          createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-          deliverableId: 'deliverable-1',
-          reportId: 'report-1',
-        ),
-        NotificationItem(
-          id: '2',
-          title: 'Sprint Metrics Updated',
-          message: 'Sprint 3 metrics have been updated with latest performance data.',
-          type: NotificationType.metrics,
-          priority: NotificationPriority.medium,
-          isRead: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          sprintId: 'sprint-3',
-        ),
-        NotificationItem(
-          id: '3',
-          title: 'Change Request Submitted',
-          message: 'Payment Integration deliverable has a new change request from client.',
-          type: NotificationType.changeRequest,
-          priority: NotificationPriority.high,
-          isRead: false,
-          createdAt: DateTime.now().subtract(const Duration(hours: 4)),
-          deliverableId: 'deliverable-2',
-          reportId: 'report-2',
-        ),
-        NotificationItem(
-          id: '4',
-          title: 'Report Generated',
-          message: 'Sign-off report for Dashboard Analytics has been generated and is ready for review.',
-          type: NotificationType.report,
-          priority: NotificationPriority.medium,
-          isRead: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 2)),
-          deliverableId: 'deliverable-3',
-          reportId: 'report-3',
-        ),
-        NotificationItem(
-          id: '5',
-          title: 'Reminder: Review Due Soon',
-          message: 'Mobile App Features deliverable review is due in 24 hours.',
-          type: NotificationType.reminder,
-          priority: NotificationPriority.urgent,
-          isRead: false,
-          createdAt: DateTime.now().subtract(const Duration(hours: 6)),
-          deliverableId: 'deliverable-4',
-          dueDate: DateTime.now().add(const Duration(hours: 24)),
-        ),
-        NotificationItem(
-          id: '6',
-          title: 'Deliverable Approved',
-          message: 'User Authentication System has been approved by client.',
-          type: NotificationType.approval,
-          priority: NotificationPriority.medium,
-          isRead: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 3)),
-          deliverableId: 'deliverable-1',
-          reportId: 'report-1',
-        ),
-      ];
+      _isLoading = true;
     });
+
+    try {
+      final backendService = ref.read(backendApiServiceProvider);
+      final response = await backendService.getNotifications();
+      
+      if (response.isSuccess && response.data != null) {
+        final raw = response.data;
+        final List<dynamic> notificationsData = raw is List
+            ? raw
+            : (raw is Map
+                ? (raw['data'] ?? raw['notifications'] ?? raw['items'] ?? [])
+                : []);
+        
+        final notifications = notificationsData.map((notificationData) {
+          return NotificationItem(
+            id: notificationData['id']?.toString() ?? '',
+            title: notificationData['title']?.toString() ?? 'Notification',
+            message: notificationData['message']?.toString() ?? '',
+            type: _parseNotificationType(notificationData['type']?.toString()),
+            priority: _parseNotificationPriority(notificationData['priority']?.toString()),
+            isRead: notificationData['isRead'] ?? false,
+            createdAt: notificationData['createdAt'] != null
+                ? DateTime.parse(notificationData['createdAt'])
+                : DateTime.now(),
+            deliverableId: notificationData['deliverableId']?.toString(),
+            reportId: notificationData['reportId']?.toString(),
+            sprintId: notificationData['sprintId']?.toString(),
+            dueDate: notificationData['dueDate'] != null
+                ? DateTime.parse(notificationData['dueDate'])
+                : null,
+          );
+        }).toList();
+
+        setState(() {
+          _notifications = notifications;
+          _isLoading = false;
+        });
+      } else {
+        // No notifications available
+        setState(() {
+          _notifications = [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading notifications: $e');
+      setState(() {
+        _notifications = [];
+        _isLoading = false;
+      });
+    }
   }
+
+
 
   List<NotificationItem> get _filteredNotifications {
     var filtered = _notifications;
@@ -278,8 +266,58 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     );
   }
 
+  // Helper methods for parsing notification data from API
+  NotificationType _parseNotificationType(String? typeString) {
+    switch (typeString?.toLowerCase()) {
+      case 'review':
+        return NotificationType.review;
+      case 'metrics':
+        return NotificationType.metrics;
+      case 'change_request':
+        return NotificationType.changeRequest;
+      case 'report':
+        return NotificationType.report;
+      case 'reminder':
+        return NotificationType.reminder;
+      case 'approval':
+        return NotificationType.approval;
+      default:
+        return NotificationType.review; // Default to review
+    }
+  }
+
+  NotificationPriority _parseNotificationPriority(String? priorityString) {
+    switch (priorityString?.toLowerCase()) {
+      case 'high':
+        return NotificationPriority.high;
+      case 'medium':
+        return NotificationPriority.medium;
+      case 'low':
+        return NotificationPriority.low;
+      default:
+        return NotificationPriority.medium; // Default to medium
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: FlownetColors.charcoalBlack,
+        appBar: AppBar(
+          title: const FlownetLogo(showText: true),
+          backgroundColor: FlownetColors.charcoalBlack,
+          foregroundColor: FlownetColors.pureWhite,
+          centerTitle: false,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: FlownetColors.electricBlue,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
@@ -344,21 +382,27 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
 
           // Notifications List
           Expanded(
-            child: _filteredNotifications.isEmpty
+            child: _isLoading
                 ? const Center(
-                    child: Text(
-                      'No notifications found',
-                      style: TextStyle(color: Colors.grey),
+                    child: CircularProgressIndicator(
+                      color: FlownetColors.electricBlue,
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _filteredNotifications.length,
-                    itemBuilder: (context, index) {
-                      final notification = _filteredNotifications[index];
-                      return _buildNotificationCard(notification);
-                    },
-                  ),
+                : _filteredNotifications.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No notifications found',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _filteredNotifications.length,
+                        itemBuilder: (context, index) {
+                          final notification = _filteredNotifications[index];
+                          return _buildNotificationCard(notification);
+                        },
+                      ),
           ),
         ],
       ),
@@ -586,6 +630,57 @@ class NotificationItem {
     this.sprintId,
     this.dueDate,
   });
+
+  factory NotificationItem.fromJson(Map<String, dynamic> json) {
+    return NotificationItem(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      type: NotificationItem._parseNotificationType(json['type']?.toString()),
+      priority: NotificationItem._parseNotificationPriority(json['priority']?.toString()),
+      isRead: json['is_read'] ?? json['isRead'] ?? false,
+      createdAt: DateTime.parse(json['created_at'] ?? json['createdAt'] ?? DateTime.now().toIso8601String()),
+      deliverableId: json['deliverable_id']?.toString(),
+      reportId: json['report_id']?.toString(),
+      sprintId: json['sprint_id']?.toString(),
+      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
+    );
+  }
+
+  static NotificationType _parseNotificationType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'review':
+        return NotificationType.review;
+      case 'change_request':
+      case 'changerequest':
+        return NotificationType.changeRequest;
+      case 'report':
+        return NotificationType.report;
+      case 'metrics':
+        return NotificationType.metrics;
+      case 'reminder':
+        return NotificationType.reminder;
+      case 'approval':
+        return NotificationType.approval;
+      default:
+        return NotificationType.review;
+    }
+  }
+
+  static NotificationPriority _parseNotificationPriority(String? priority) {
+    switch (priority?.toLowerCase()) {
+      case 'urgent':
+        return NotificationPriority.urgent;
+      case 'high':
+        return NotificationPriority.high;
+      case 'medium':
+        return NotificationPriority.medium;
+      case 'low':
+        return NotificationPriority.low;
+      default:
+        return NotificationPriority.medium;
+    }
+  }
 }
 
 enum NotificationType {

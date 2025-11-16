@@ -19,7 +19,7 @@ start-backend.bat
 # Option 2: Manual start
 cd backend
 npm install
-node server.js
+cd backend\node-backend && npm start
 ```
 
 The server should start on `http://localhost:3001`
@@ -113,7 +113,7 @@ flutter test test_auth_integration.dart
 
 1. **"Database connection failed"**
    - Ensure PostgreSQL is running
-   - Check database credentials in `backend/server.js`
+   - Check database credentials in `backend/node-backend/src/config/database.js`
    - Verify database exists: `flow_space`
 
 2. **"Network error" in Flutter**
@@ -138,7 +138,7 @@ flutter test test_auth_integration.dart
 ```bash
 # Check backend logs
 cd backend
-node server.js
+cd backend\node-backend && npm start
 
 # Look for these log messages:
 # ✅ Connected to PostgreSQL database
@@ -169,14 +169,7 @@ SELECT email, is_active FROM users WHERE email = 'test@example.com';
 
 ## Test Data
 
-Use these test accounts for consistent testing:
-
-| Email | Password | Role | Status |
-|-------|----------|------|--------|
-| test@example.com | testpassword123 | teamMember | Active |
-| admin@example.com | admin123 | systemAdmin | Active |
-| lead@example.com | lead123 | deliveryLead | Active |
-| client@example.com | client123 | clientReviewer | Active |
+For testing purposes, create test accounts in your development environment with appropriate roles and permissions.
 
 ## Troubleshooting
 

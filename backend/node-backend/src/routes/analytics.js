@@ -48,6 +48,17 @@ router.get('/system-usage', authenticateToken, async (req, res) => {
   }
 });
 
+// Compatibility endpoint for performance metrics expected by frontend
+router.get('/performance', authenticateToken, async (req, res) => {
+  try {
+    const metrics = await analyticsService.getMetrics('system_usage');
+    res.json(metrics);
+  } catch (error) {
+    console.error('Error fetching performance metrics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 /**
  * @route GET /api/analytics/project-metrics
  * @desc Get project and deliverable metrics

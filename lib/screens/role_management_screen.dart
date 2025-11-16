@@ -1,6 +1,12 @@
+// ignore_for_file: use_build_context_synchronously, no_leading_underscores_for_local_identifiers
+
 import 'package:flutter/material.dart';
-import '../models/user_role.dart';
 import '../models/user.dart';
+import '../models/user_role.dart';
+import '../services/backend_api_service.dart';
+import '../services/error_handler.dart';
+import '../services/realtime_service.dart';
+import '../services/user_data_service.dart';
 
 class RoleManagementScreen extends StatefulWidget {
   const RoleManagementScreen({super.key});
@@ -10,14 +16,36 @@ class RoleManagementScreen extends StatefulWidget {
 }
 
 class _RoleManagementScreenState extends State<RoleManagementScreen> {
+  final BackendApiService _apiService = BackendApiService();
+  final ErrorHandler _errorHandler = ErrorHandler();
+  
   List<User> _users = [];
   bool _isLoading = true;
   String _searchQuery = '';
   UserRole? _filterRole;
+  final UserDataService _userDataService = UserDataService();
+  late final RealtimeService realtimeService;
 
   @override
   void initState() {
     super.initState();
+    realtimeService = RealtimeService();
+    _loadUsers();
+    _setupRealtimeListeners();
+  }
+
+  @override
+  void dispose() {
+    realtimeService.off('user_role_changed', _handleRoleChanged);
+    super.dispose();
+  }
+
+  void _setupRealtimeListeners() {
+    realtimeService.on('user_role_changed', _handleRoleChanged);
+  }
+
+  void _handleRoleChanged(dynamic data) {
+    // Reload users when a role change is detected from another session
     _loadUsers();
   }
 
@@ -27,57 +55,20 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
     });
 
     try {
-      // In a real app, this would fetch from your backend
-      // For now, we'll create some mock data
-      final users = await _getMockUsers();
+      // Fetch real users from backend API with search and filter support
+      final users = await _userDataService.getUsers(
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        filterRole: _filterRole,
+      );
+      
       setState(() {
         _users = users;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showErrorSnackBar('Failed to load users: $e');
+      _errorHandler.showErrorSnackBar(context, 'Error loading users: $e');
+      setState(() => _isLoading = false);
     }
-  }
-
-  Future<List<User>> _getMockUsers() async {
-    // Mock data - in a real app, this would come from your backend
-    return [
-      User(
-        id: '1',
-        email: 'john.doe@example.com',
-        name: 'John Doe',
-        role: UserRole.teamMember,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        isActive: true,
-      ),
-      User(
-        id: '2',
-        email: 'jane.smith@example.com',
-        name: 'Jane Smith',
-        role: UserRole.deliveryLead,
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        isActive: true,
-      ),
-      User(
-        id: '3',
-        email: 'client@company.com',
-        name: 'Client User',
-        role: UserRole.clientReviewer,
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        isActive: true,
-      ),
-      User(
-        id: '4',
-        email: 'admin@company.com',
-        name: 'System Admin',
-        role: UserRole.systemAdmin,
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        isActive: true,
-      ),
-    ];
   }
 
   @override
@@ -373,18 +364,129 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   }
 
   void _showAddUserDialog() {
+    final formKey = GlobalKey<FormState>();
+    final emailController = TextEditingController();
+    final _nameController = TextEditingController();
+    final _passwordController = TextEditingController();
+    String _selectedRole = 'user';
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New User'),
-        content: const Text('User creation functionality will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Add New User'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: emailController,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter email';
+                      }
+                      if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+\$').hasMatch(value)) {
+                        return 'Please enter a valid email';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(labelText: 'Full Name'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter full name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter password';
+                      }
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use
+                    value: _selectedRole,
+                    decoration: const InputDecoration(labelText: 'Role'),
+                    items: ['user', 'admin', 'systemAdmin']
+                        .map((role) => DropdownMenuItem(
+                              value: role,
+                              child: Text(role),
+                            ),)
+                        .toList(),
+                    onChanged: (value) {
+                      _selectedRole = value!;
+                    },
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Please select a role';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Add'),
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  try {
+                    final userRole = _convertStringToUserRole(_selectedRole);
+                    final response = await _apiService.signUp(
+                      emailController.text,
+                      _passwordController.text,
+                      _nameController.text,
+                      userRole,
+                    );
+                    
+                    if (response.isSuccess) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('User created successfully')),
+                      );
+                      _loadUsers(); // Refresh the user list
+                      Navigator.of(context).pop();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Error: \${response.error}')),
+                      );
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Error creating user: \$e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -459,34 +561,47 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   void _showDeleteUserDialog(User user) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete User'),
-        content: Text('Are you sure you want to delete ${user.name}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteUser(user);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete User'),
+          content: Text('Are you sure you want to delete ${user.name}? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                try {
+                  final response = await _apiService.deleteUser(user.id);
+                  if (response.isSuccess) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('User deleted successfully')),
+                    );
+                    _loadUsers(); // Refresh the user list
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Error deleting user: \${response.error}')),
+                    );
+                  }
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Error deleting user: \$e')),
+                  );
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
-  void _deleteUser(User user) {
-    setState(() {
-      _users.removeWhere((u) => u.id == user.id);
-    });
-    
-    _showSuccessSnackBar('${user.name} deleted successfully');
-  }
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -497,12 +612,31 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
     );
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+
+
+
+
+
+  UserRole _convertStringToUserRole(String roleString) {
+    switch (roleString.toLowerCase()) {
+      case 'systemadmin':
+      case 'system_admin':
+      case 'system admin':
+        return UserRole.systemAdmin;
+      case 'deliverylead':
+      case 'delivery_lead':
+      case 'delivery lead':
+        return UserRole.deliveryLead;
+      case 'clientreviewer':
+      case 'client_reviewer':
+      case 'client reviewer':
+        return UserRole.clientReviewer;
+      case 'teammember':
+      case 'team_member':
+      case 'team member':
+      case 'user':
+      default:
+        return UserRole.teamMember;
+    }
   }
 }

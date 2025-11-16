@@ -119,13 +119,13 @@ class ErrorHandler {
     
     try {
       final json = body.isNotEmpty ? Map<String, dynamic>.from(_jsonDecode(body)) : {};
-      final errorMessage = json['detail'] ?? json['message'] ?? json['error'] ?? 'Unknown error';
+      final errorMessage = (json['detail'] ?? json['message'] ?? json['error'] ?? 'Unknown error').toString();
       final errorCode = json['code']?.toString();
 
       switch (statusCode) {
         case 400:
           return AppError.validation(
-            errorMessage.toString(),
+            errorMessage,
             code: errorCode,
             statusCode: statusCode,
             originalError: originalError,
@@ -133,7 +133,7 @@ class ErrorHandler {
           );
         case 401:
           return AppError.authentication(
-            errorMessage.toString(),
+            errorMessage,
             code: errorCode,
             statusCode: statusCode,
             originalError: originalError,
@@ -168,7 +168,7 @@ class ErrorHandler {
         case 503:
         case 504:
           return AppError.server(
-            errorMessage.toString(),
+            errorMessage,
             statusCode: statusCode,
             code: errorCode,
             originalError: originalError,

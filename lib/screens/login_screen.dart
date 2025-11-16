@@ -43,8 +43,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (success && mounted) {
         ErrorHandler().showSuccessSnackBar(context, 'Login successful!');
-        // Small delay to show success message
-        await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) {
           context.go('/dashboard');
         }

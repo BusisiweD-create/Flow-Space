@@ -194,6 +194,15 @@ final GoRouter _router = GoRouter(
     ),
     
     GoRoute(
+      path: '/deadlines',
+      builder: (context, state) => const RouteGuard(
+        route: '/deadlines',
+        child: SidebarScaffold(
+          child: DeadlinesScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
       path: '/sprint-console',
             builder: (context, state) => const RouteGuard(
               route: '/sprint-console',
@@ -296,6 +305,24 @@ final GoRouter _router = GoRouter(
       ),
     ),
     // Removed routes for non-existent screens to resolve analyzer errors
+    GoRoute(
+      path: '/deadlines',
+      builder: (context, state) => const RouteGuard(
+        route: '/deadlines',
+        child: SidebarScaffold(
+          child: DeadlinesScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/assessment/:skill',
+      builder: (context, state) => RouteGuard(
+        route: '/skill-assessment',
+        child: SidebarScaffold(
+          child: SkillAssessmentScreen(selectedSkill: state.pathParameters['skill']),
+        ),
+      ),
+    ),
     GoRoute(
       path: '/account',
       redirect: (context, state) => '/profile',

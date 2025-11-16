@@ -134,5 +134,57 @@ module.exports = (sequelize, DataTypes) => {
     });
   };
 
+  // Real-time event hooks
+  Sprint.afterCreate(async (sprint, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('sprint_created', {
+          id: sprint.id,
+          name: sprint.name,
+          status: sprint.status,
+          created_by: sprint.created_by,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in sprint afterCreate hook:', error);
+    }
+  });
+
+  Sprint.afterUpdate(async (sprint, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('sprint_updated', {
+          id: sprint.id,
+          name: sprint.name,
+          status: sprint.status,
+          updated_by: options.updatedBy || sprint.updated_by,
+          changes: sprint.changed(),
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in sprint afterUpdate hook:', error);
+    }
+  });
+
+  Sprint.afterDestroy(async (sprint, options) => {
+    try {
+      // Use global event emitter to avoid circular dependencies
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('sprint_deleted', {
+          id: sprint.id,
+          name: sprint.name,
+          deleted_by: options.deletedBy,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error in sprint afterDestroy hook:', error);
+    }
+  });
+
   return Sprint;
 };

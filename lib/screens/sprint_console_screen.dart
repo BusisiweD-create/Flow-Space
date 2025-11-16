@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
+import '../services/sprint_database_service.dart';
 import '../services/jira_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -29,8 +30,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   String? _selectedProjectKey;
   String? _selectedSprintId;
   
-  // ignore: strict_top_level_inference
-  get _databaseService => SprintDatabaseService();
+  final SprintDatabaseService _databaseService = SprintDatabaseService();
   
   // ignore: strict_top_level_inference
   get id => null;
@@ -261,12 +261,21 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   }
 
   Widget _buildProjectsGrid() {
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width < 600
+        ? 1
+        : width < 900
+            ? 2
+            : width < 1200
+                ? 3
+                : 4;
+    final aspectRatio = width < 600 ? 1.3 : 1.5;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1.5,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: aspectRatio,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -382,7 +391,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   Widget _buildSprintsList() {
     return ListView.builder(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      primary: false,
       itemCount: _sprints.length,
       itemBuilder: (context, index) {
         final sprint = _sprints[index];
@@ -597,21 +606,37 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   void _selectProject(Map<String, dynamic> project) {
     setState(() {
       _selectedProjectKey = project['key'];
-      _selectedSprintId = null; // Reset sprint selection
-      _tickets.clear(); // Clear tickets
+      _selectedSprintId = null;
+      _tickets.clear();
     });
     debugPrint('🎯 Project selected: ${project['name']} (${project['key']})');
+    try {
+      GoRouter.of(context).go('/repository/${project['key']}');
+    } catch (_) {
+      Navigator.of(context).pushNamed('/repository/${project['key']}');
+    }
   }
 
   void _selectSprint(Map<String, dynamic> sprint) {
     _navigateToSprintBoard(sprint);
   }
 
+  String _normalizeSprintStatus(dynamic status) {
+    final s = (status ?? '').toString().trim().toLowerCase();
+    const allowed = {'planning', 'in_progress', 'completed', 'cancelled'};
+    if (allowed.contains(s)) return s;
+    if (s == 'inprogress' || s == 'in progress' || s == 'started' || s == 'active') return 'in_progress';
+    if (s == 'done' || s == 'complete' || s == 'finished') return 'completed';
+    if (s == 'canceled' || s == 'terminated' || s == 'abandoned') return 'cancelled';
+    if (s == 'planned' || s == 'planning_phase') return 'planning';
+    return 'in_progress';
+  }
+
   void _navigateToSprintBoard(Map<String, dynamic> sprint) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => SprintBoardScreen(
-          sprintId: sprint['id'],
+          sprintId: sprint['id']?.toString() ?? '',
           sprintName: sprint['name'] ?? 'Unknown Sprint',
           projectKey: _selectedProjectKey,
         ),
@@ -992,6 +1017,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
 
       if (result != null) {
         _showSnackBar('Project created successfully!');
+        setState(() {
+          _selectedProjectKey = key;
+        });
         await _loadData(); // Reload projects
       } else {
         _showSnackBar('Failed to create project', isError: true);
@@ -1053,6 +1081,5 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     );
   }
   
-  // ignore: non_constant_identifier_names
-  SprintDatabaseService() {}
+  
 }

@@ -8,6 +8,19 @@ enum NotificationType {
   file,
 }
 
+enum NotificationAction {
+  approvalRequest,
+  approvalReminder,
+  approvalApproved,
+  approvalRejected,
+  deliverableCreated,
+  deliverableUpdated,
+  sprintStarted,
+  sprintCompleted,
+  systemError,
+  general,
+}
+
 class NotificationItem {
   final String id;
   final String title;
@@ -17,6 +30,8 @@ class NotificationItem {
   final NotificationType type;
   final String message;
   final DateTime timestamp;
+  final NotificationAction action;
+  final String? relatedId;
 
   const NotificationItem({
     required this.id,
@@ -27,6 +42,8 @@ class NotificationItem {
     required this.type,
     required this.message,
     required this.timestamp,
+    this.action = NotificationAction.general,
+    this.relatedId,
   });
 
   NotificationItem copyWith({
@@ -38,6 +55,8 @@ class NotificationItem {
     NotificationType? type,
     String? message,
     DateTime? timestamp,
+    NotificationAction? action,
+    String? relatedId,
   }) {
     return NotificationItem(
       id: id ?? this.id,
@@ -48,6 +67,8 @@ class NotificationItem {
       type: type ?? this.type,
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
+      action: action ?? this.action,
+      relatedId: relatedId ?? this.relatedId,
     );
   }
 
@@ -61,6 +82,8 @@ class NotificationItem {
       'type': type.name,
       'message': message,
       'timestamp': timestamp.toIso8601String(),
+      'action': action.name,
+      'relatedId': relatedId,
     };
   }
 
@@ -77,6 +100,11 @@ class NotificationItem {
       ),
       message: json['message'] ?? '',
       timestamp: json['timestamp'] != null ? DateTime.parse(json['timestamp']) : DateTime.now(),
+      action: json['action'] != null ? NotificationAction.values.firstWhere(
+        (e) => e.name == json['action'],
+        orElse: () => NotificationAction.general,
+      ) : NotificationAction.general,
+      relatedId: json['relatedId'],
     );
   }
 }

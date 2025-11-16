@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/flownet_theme.dart';
 
 class SkillAssessmentScreen extends ConsumerStatefulWidget {
-  const SkillAssessmentScreen({super.key});
+  final String? selectedSkill;
+  const SkillAssessmentScreen({super.key, this.selectedSkill});
 
   @override
   ConsumerState<SkillAssessmentScreen> createState() => _SkillAssessmentScreenState();
@@ -45,6 +46,7 @@ class _SkillAssessmentScreenState extends ConsumerState<SkillAssessmentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final selected = widget.selectedSkill;
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       body: Padding(
@@ -68,6 +70,9 @@ class _SkillAssessmentScreenState extends ConsumerState<SkillAssessmentScreen> {
             ),
             const SizedBox(height: 24),
             
+            if (selected != null)
+              _AssessmentRunner(skillName: selected)
+            else
             // Skill Assessment Cards
             Expanded(
               child: ListView.builder(
@@ -133,7 +138,12 @@ class _SkillAssessmentScreenState extends ConsumerState<SkillAssessmentScreen> {
                               Expanded(
                                 child: ElevatedButton(
                                   onPressed: () {
-                                    _assessSkill(skill['name']);
+                                    final name = skill['name'] as String;
+                                    _assessSkill(name);
+                                    // ignore: deprecated_member_use
+                                    Navigator.of(context).push(MaterialPageRoute(
+                                      builder: (_) => _AssessmentRunner(skillName: name),
+                                    ),);
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: FlownetColors.crimsonRed,
@@ -164,7 +174,13 @@ class _SkillAssessmentScreenState extends ConsumerState<SkillAssessmentScreen> {
             
             // Quick Assessment Button
             ElevatedButton(
-              onPressed: _startQuickAssessment,
+              onPressed: () {
+                _startQuickAssessment();
+                // ignore: deprecated_member_use
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const _AssessmentRunner(skillName: 'Quick Assessment'),
+                ),);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: FlownetColors.amberOrange,
                 foregroundColor: FlownetColors.charcoalBlack,
@@ -202,6 +218,58 @@ class _SkillAssessmentScreenState extends ConsumerState<SkillAssessmentScreen> {
   void _startQuickAssessment() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Starting quick skill assessment')),
+    );
+  }
+
+}
+
+class _AssessmentRunner extends StatelessWidget {
+  final String skillName;
+  const _AssessmentRunner({required this.skillName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: FlownetColors.graphiteGray,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Assessment: $skillName',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: FlownetColors.pureWhite,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Loading $skillName questions')),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: FlownetColors.electricBlue,
+                    foregroundColor: FlownetColors.pureWhite,
+                  ),
+                  child: const Text('Start'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Includes multiple-choice questions and practical tasks',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: FlownetColors.coolGray,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

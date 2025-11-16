@@ -3,6 +3,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
+import '../models/sprint.dart';
+
+String initialStatusValue(String display) {
+  final d = display.toLowerCase();
+  if (d.contains('progress')) return 'in_progress';
+  if (d.contains('complete')) return 'completed';
+  if (d.contains('cancel')) return 'cancelled';
+  return 'planning';
+}
 
 class SprintConsoleScreen extends ConsumerStatefulWidget {
   const SprintConsoleScreen({super.key});
@@ -12,7 +21,7 @@ class SprintConsoleScreen extends ConsumerStatefulWidget {
 }
 
 class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
-  List<Map<String, dynamic>> _sprints = [];
+  List<Sprint> _sprints = [];
   bool _isLoading = true;
 
   @override
