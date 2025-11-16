@@ -1691,7 +1691,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: () => context.go('/my-deliverables'),
+              onPressed: () => context.go('/deadlines'),
               child: const Text('View All Deadlines'),
             ),
           ],

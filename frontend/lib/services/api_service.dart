@@ -421,8 +421,10 @@ class ApiService {
       headers: _getHeaders(),
     );
     
-    final responseData = jsonDecode(response.body);
-    final List<dynamic> data = responseData['data'] as List<dynamic>;
+    final dynamic responseData = jsonDecode(response.body);
+    final List<dynamic> data = responseData is List
+        ? responseData
+        : (responseData['data'] ?? responseData['items'] ?? responseData['deliverables'] ?? []);
     return data.map((json) => Deliverable.fromJson(json)).toList();
   }
   
@@ -433,8 +435,9 @@ class ApiService {
       body: jsonEncode(deliverable.toJson()),
     );
     
-    final responseData = jsonDecode(response.body);
-    return Deliverable.fromJson(responseData);
+    final dynamic responseData = jsonDecode(response.body);
+    final dynamic item = responseData is Map ? (responseData['data'] ?? responseData['deliverable'] ?? responseData) : responseData;
+    return Deliverable.fromJson(item);
   }
   
   static Future<Deliverable> updateDeliverable(int id, DeliverableUpdate deliverable) async {

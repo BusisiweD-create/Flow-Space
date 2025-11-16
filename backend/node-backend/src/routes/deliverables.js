@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Deliverable } = require('../models');
+const { Deliverable, DeliverableSprint } = require('../models');
 
 /**
  * @route GET /api/deliverables
@@ -83,10 +83,20 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const deliverableData = req.body;
-    
+    const { sprintIds, ...deliverableData } = req.body || {};
     const deliverable = await Deliverable.create(deliverableData);
-    
+
+    if (Array.isArray(sprintIds) && sprintIds.length > 0) {
+      const ids = sprintIds
+        .map((id) => parseInt(id))
+        .filter((n) => Number.isFinite(n));
+      await Promise.all(
+        ids.map((sprintId) =>
+          DeliverableSprint.create({ deliverable_id: deliverable.id, sprint_id: sprintId })
+        )
+      );
+    }
+
     res.status(201).json(deliverable);
   } catch (error) {
     console.error('Error creating deliverable:', error);

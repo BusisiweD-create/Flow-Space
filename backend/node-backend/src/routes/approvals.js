@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { ApprovalRequest, Deliverable, User } = require('../models');
+const { ApprovalRequest, Deliverable, User, Notification } = require('../models');
 const { Op } = require('sequelize');
 
 /**
@@ -246,9 +246,41 @@ router.put('/:id/remind', async (req, res) => {
     }
     
     await approvalRequest.update({
-      reminder_sent_at: new Date()
+      reminder_sent_at: new Date(),
+      status: 'reminder_sent'
     });
-    
+
+    try {
+      const deliverable = await Deliverable.findByPk(approvalRequest.deliverable_id);
+      const title = deliverable?.title || `Deliverable #${approvalRequest.deliverable_id}`;
+
+      // Notify all clients in the system about the pending approval
+      const { Op } = require('sequelize');
+      const clients = await User.findAll({
+        where: { role: { [Op.in]: ['client', 'Client', 'CLIENT'] } }
+      });
+
+      if (clients && clients.length > 0) {
+        const notifications = clients.map((client) => ({
+          recipient_id: client.id,
+          sender_id: approvalRequest.requested_by,
+          type: 'approval',
+          message: `Reminder: Approval pending for ${title}`,
+          payload: {
+            approval_request_id: approvalRequest.id,
+            deliverable_id: approvalRequest.deliverable_id,
+            deliverable_title: title,
+          },
+          is_read: false,
+          created_at: new Date(),
+        }));
+        await Notification.bulkCreate(notifications);
+      }
+    } catch (notifyErr) {
+      console.error('Error creating client notifications for reminder:', notifyErr);
+      // Continue without failing the reminder response
+    }
+
     res.json(approvalRequest);
   } catch (error) {
     console.error('Error sending reminder:', error);

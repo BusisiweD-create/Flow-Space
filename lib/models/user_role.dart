@@ -104,6 +104,11 @@ class PermissionManager {
       description: 'Approve or reject deliverables',
       allowedRoles: [UserRole.clientReviewer, UserRole.systemAdmin],
     ),
+    'view_approvals': Permission(
+      name: 'View Approvals',
+      description: 'View approval requests and reminder status',
+      allowedRoles: [UserRole.deliveryLead, UserRole.clientReviewer, UserRole.systemAdmin],
+    ),
     'view_team_dashboard': Permission(
       name: 'View Team Dashboard',
       description: 'View team performance dashboard',

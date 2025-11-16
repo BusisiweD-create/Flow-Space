@@ -281,14 +281,13 @@ class BackendApiService {
 
   // Notification endpoints
   Future<ApiResponse> getNotifications({int page = 1, int limit = 20, bool? unreadOnly}) async {
+    final skip = (page <= 1) ? 0 : (page - 1) * limit;
     final queryParams = <String, String>{
-      'page': page.toString(),
+      'skip': skip.toString(),
       'limit': limit.toString(),
+      if (unreadOnly != null) 'unread_only': unreadOnly.toString(),
     };
-    if (unreadOnly != null) {
-      queryParams['unread_only'] = unreadOnly.toString();
-    }
-    return await _apiClient.get('/notifications', queryParams: queryParams);
+    return await _apiClient.get('/notifications/me', queryParams: queryParams);
   }
 
   Future<ApiResponse> markNotificationAsRead(String notificationId) async {

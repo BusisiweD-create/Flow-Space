@@ -454,7 +454,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                     ),
                   ),
                   child: DropdownButton<String>(
-                    value: sprint['status'] ?? 'in_progress',
+                    value: _normalizeSprintStatus(sprint['status']),
                     underline: const SizedBox.shrink(),
                     dropdownColor: FlownetColors.charcoalBlack,
                     style: TextStyle(
@@ -610,14 +610,30 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   void _selectProject(Map<String, dynamic> project) {
     setState(() {
       _selectedProjectKey = project['key'];
-      _selectedSprintId = null; // Reset sprint selection
-      _tickets.clear(); // Clear tickets
+      _selectedSprintId = null;
+      _tickets.clear();
     });
     debugPrint('🎯 Project selected: ${project['name']} (${project['key']})');
+    try {
+      GoRouter.of(context).go('/repository/${project['key']}');
+    } catch (_) {
+      Navigator.of(context).pushNamed('/repository/${project['key']}');
+    }
   }
 
   void _selectSprint(Map<String, dynamic> sprint) {
     _navigateToSprintBoard(sprint);
+  }
+
+  String _normalizeSprintStatus(dynamic status) {
+    final s = (status ?? '').toString().trim().toLowerCase();
+    const allowed = {'planning', 'in_progress', 'completed', 'cancelled'};
+    if (allowed.contains(s)) return s;
+    if (s == 'inprogress' || s == 'in progress' || s == 'started' || s == 'active') return 'in_progress';
+    if (s == 'done' || s == 'complete' || s == 'finished') return 'completed';
+    if (s == 'canceled' || s == 'terminated' || s == 'abandoned') return 'cancelled';
+    if (s == 'planned' || s == 'planning_phase') return 'planning';
+    return 'in_progress';
   }
 
   void _navigateToSprintBoard(Map<String, dynamic> sprint) {

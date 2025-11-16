@@ -86,6 +86,43 @@ app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/approvals', approvalsRoutes);
+app.use('/api/v1/audit-logs', auditRoutes);
+
+// Sprint tickets compatibility endpoints (minimal implementation to unblock UI)
+app.get('/api/v1/sprints/:id/tickets', async (req, res) => {
+  try {
+    res.json({ success: true, data: [] });
+  } catch (error) {
+    console.error('Error fetching sprint tickets:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/v1/tickets', async (req, res) => {
+  try {
+    const { sprintId, title, description, assignee, priority, type } = req.body || {};
+    if (!sprintId || !title || !description) {
+      return res.status(400).json({ success: false, error: 'Sprint ID, title, and description are required' });
+    }
+    const now = new Date().toISOString();
+    const ticket = {
+      id: `T-${Date.now()}`,
+      sprint_id: sprintId,
+      summary: title,
+      description,
+      status: 'To Do',
+      assignee: assignee || null,
+      priority: priority || 'medium',
+      issue_type: type || 'task',
+      created_at: now,
+      updated_at: now,
+    };
+    res.status(201).json({ success: true, data: ticket });
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
 
 // Public alias for system routes
 app.use('/system', systemRoutes);

@@ -288,10 +288,10 @@ class SprintDatabaseService {
       final response = await _post('/tickets', body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
+        final dynamic raw = jsonDecode(response.body);
+        if (raw is Map && (raw['success'] == true || raw.containsKey('data'))) {
           debugPrint('✅ Ticket "$title" created successfully');
-          return data['data'];
+          return Map<String, dynamic>.from(raw['data'] ?? raw);
         }
       }
       
@@ -419,9 +419,12 @@ class SprintDatabaseService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data is Map && (data['success'] == true || data['status'] == 'ok' || data.containsKey('data'))) {
-          debugPrint('✅ Sprint $sprintId status updated to $status');
-          return true;
+        if (data is Map) {
+          final dynamic body = data['data'] ?? data;
+          if ((data['success'] == true) || (data['status'] == 'ok') || (data.containsKey('data')) || (body is Map && (body['status'] != null))) {
+            debugPrint('✅ Sprint $sprintId status updated to $status');
+            return true;
+          }
         }
       }
 
