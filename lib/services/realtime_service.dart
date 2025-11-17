@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'dart:developer' as developer;
 import '../config/environment.dart';
 import 'dart:async';
 
@@ -34,7 +35,7 @@ class RealtimeService {
 
     final token = authToken;
     if (token == null) {
-      print('No authentication token provided');
+      developer.log('No authentication token provided');
       return;
     }
 
@@ -57,7 +58,7 @@ class RealtimeService {
       _socket!.connect();
 
     } catch (e) {
-      print('Failed to initialize real-time service: $e');
+      developer.log('Failed to initialize real-time service: $e');
       _scheduleReconnect();
     }
   }
@@ -66,30 +67,30 @@ class RealtimeService {
   void _setupSocketEvents() {
     _socket!
       ..onConnect((_) {
-        print('✅ Connected to real-time server');
+        developer.log('✅ Connected to real-time server');
         _isConnected = true;
         _reconnectAttempts = 0;
         _connectionController.add(true);
         _authenticate();
       })
       ..onDisconnect((_) {
-        print('❌ Disconnected from real-time server');
+        developer.log('❌ Disconnected from real-time server');
         _isConnected = false;
         _connectionController.add(false);
         _scheduleReconnect();
       })
       ..onError((data) {
-        print('⚠️ Socket error: $data');
+        developer.log('⚠️ Socket error: $data');
         _isConnected = false;
         _connectionController.add(false);
       })
       ..on('connect_error', (data) {
-        print('⚠️ Connection error: $data');
+        developer.log('⚠️ Connection error: $data');
         _isConnected = false;
         _connectionController.add(false);
       })
       ..on('connected', (data) {
-        print('✅ Socket connection confirmed: $data');
+        developer.log('✅ Socket connection confirmed: $data');
         _joinUserRooms();
       });
 
@@ -103,7 +104,7 @@ class RealtimeService {
   void _authenticate() {
     // Authentication is handled automatically via the auth object
     // No need to emit a separate authenticate event
-    print('✅ Socket authentication handled automatically during connection');
+    developer.log('✅ Socket authentication handled automatically during connection');
   }
 
   /// Join user-specific rooms
@@ -130,7 +131,7 @@ class RealtimeService {
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(_reconnectDelay, () {
       _reconnectAttempts++;
-      print('Attempting to reconnect (attempt $_reconnectAttempts/$_maxReconnectAttempts)...');
+      developer.log('Attempting to reconnect (attempt $_reconnectAttempts/$_maxReconnectAttempts)...');
       initialize();
     });
   }

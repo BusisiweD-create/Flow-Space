@@ -332,61 +332,7 @@ class UserDataService {
           throw Exception('No data received from API');
         }
         
-        // Handle the structured response from backend
-        // Backend returns: {"users": [...], "pagination": {...}}
-        if (responseData is Map<String, dynamic>) {
-          debugPrint('Received structured response from API');
-          
-          // Extract users array from the response
-          final usersData = responseData['users'];
-          
-          if (usersData == null) {
-            debugPrint('No users array found in response');
-            throw Exception('Invalid API response format: missing users array');
-          }
-          
-          if (usersData is List) {
-            debugPrint('Processing ${usersData.length} users from API response');
-            
-            // Convert each user data to proper format with robust error handling
-            final users = <User>[];
-            
-            for (var userData in usersData) {
-              try {
-                // Handle different data types that might come from JavaScript
-                Map<String, dynamic> userMap;
-                
-                if (userData is Map<String, dynamic>) {
-                  userMap = userData;
-                } else if (userData is Map) {
-                  // Convert any Map type to Map<String, dynamic>
-                  userMap = Map<String, dynamic>.from(userData);
-                } else if (userData is String) {
-                  // Handle string JSON representation
-                  userMap = Map<String, dynamic>.from(jsonDecode(userData));
-                } else {
-                  debugPrint('Skipping invalid user data format: ${userData.runtimeType}');
-                  continue;
-                }
-                
-                final user = _parseUserFromApi(userMap);
-                users.add(user);
-              } catch (e) {
-                debugPrint('Error parsing individual user: $e');
-                debugPrint('Problematic user data: $userData');
-              }
-            }
-            
-            if (users.isNotEmpty) {
-              return users;
-            } else {
-              throw Exception('No valid users found in response');
-            }
-          } else {
-            debugPrint('Users data is not a list: ${usersData.runtimeType}');
-            throw Exception('Invalid API response format: users should be an array');
-          }
-        } else if (responseData is List) {
+        if (responseData is List) {
           // Fallback for legacy API format (direct list of users)
           debugPrint('Received legacy list format - ${responseData.length} users via direct API call');
           
@@ -426,7 +372,32 @@ class UserDataService {
           }
         } else if (responseData is Map) {
           final map = Map<String, dynamic>.from(responseData);
-          final items = map['users'] ?? map['data'] ?? map['items'] ?? [];
+          final usersData = map['users'];
+          if (usersData is List) {
+            final users = <User>[];
+            for (var userData in usersData) {
+              try {
+                Map<String, dynamic> userMap;
+                if (userData is Map<String, dynamic>) {
+                  userMap = userData;
+                } else if (userData is Map) {
+                  userMap = Map<String, dynamic>.from(userData);
+                } else if (userData is String) {
+                  userMap = Map<String, dynamic>.from(jsonDecode(userData));
+                } else {
+                  continue;
+                }
+                final user = _parseUserFromApi(userMap);
+                users.add(user);
+              } catch (e) {
+                debugPrint('Error parsing individual user: $e');
+              }
+            }
+            if (users.isNotEmpty) {
+              return users;
+            }
+          }
+          final items = map['data'] ?? map['items'] ?? [];
           if (items is List) {
             final users = <User>[];
             for (var userData in items) {
@@ -451,8 +422,7 @@ class UserDataService {
               return users;
             }
           }
-          final userMap = Map<String, dynamic>.from(map);
-          final user = _parseUserFromApi(userMap);
+          final user = _parseUserFromApi(map);
           return [user];
         } else {
           throw Exception('Unsupported users response format');
