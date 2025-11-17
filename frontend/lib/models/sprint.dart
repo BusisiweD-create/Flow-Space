@@ -83,20 +83,29 @@ class Sprint {
   }
 
   factory Sprint.fromJson(Map<String, dynamic> json) {
+    final startDateStr = json['startDate'] ?? json['start_date'];
+    final endDateStr = json['endDate'] ?? json['end_date'];
+    final status = toStr(json['status']);
+    final committed = json['committedPoints'] ?? json['committed_points'] ?? json['planned_points'];
+    final completed = json['completedPoints'] ?? json['completed_points'];
+    final testRate = json['testPassRate'] ?? json['test_pass_rate'];
+    final defects = json['defectCount'] ?? json['defects_opened'] ?? json['defects_closed'];
+    final carried = json['carriedOverPoints'] ?? json['carried_over_points'];
+
     return Sprint(
       id: toStr(json['id']),
       name: toStr(json['name']),
-      startDate: DateTime.parse(json['startDate']),
-      endDate: DateTime.parse(json['endDate']),
-      committedPoints: toInt(json['committedPoints']),
-      completedPoints: toInt(json['completedPoints']),
+      startDate: startDateStr != null ? DateTime.parse(startDateStr) : DateTime.now(),
+      endDate: endDateStr != null ? DateTime.parse(endDateStr) : DateTime.now(),
+      committedPoints: toInt(committed),
+      completedPoints: toInt(completed),
       velocity: toInt(json['velocity']),
-      testPassRate: (json['testPassRate'] is String) ? double.tryParse(json['testPassRate']) ?? 0.0 : json['testPassRate'].toDouble(),
-      defectCount: toInt(json['defectCount']),
-      carriedOverPoints: toInt(json['carriedOverPoints']),
+      testPassRate: (testRate is String) ? double.tryParse(testRate) ?? 0.0 : (testRate is num ? testRate.toDouble() : 0.0),
+      defectCount: toInt(defects),
+      carriedOverPoints: toInt(carried),
       scopeChanges: List<String>.from(json['scopeChanges'] ?? []),
-      notes: toStr(json['notes']),
-      isActive: toBool(json['isActive']),
+      notes: toStr(json['notes'] ?? json['description']),
+      isActive: status.isNotEmpty ? status == 'active' : toBool(json['isActive']),
     );
   }
 
