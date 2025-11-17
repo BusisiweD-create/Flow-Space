@@ -33,7 +33,6 @@ import 'screens/detailed_reports_screen.dart';
 import 'screens/skill_assessment_screen.dart';
 import 'screens/deadlines_screen.dart';
 import 'screens/team_chat_screen.dart';
-import 'screens/deadlines_screen.dart';
 import 'widgets/sidebar_scaffold.dart';
 import 'widgets/role_guard.dart';
 import 'providers/service_providers.dart';

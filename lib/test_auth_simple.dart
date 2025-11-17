@@ -1,7 +1,6 @@
 // ignore_for_file: empty_catches
 
 import 'dart:convert';
-// ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 
 void main() async {

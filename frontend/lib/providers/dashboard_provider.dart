@@ -76,19 +76,14 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         }
       }
       
-      // Only use real API data
-      if (!ApiService.isAuthenticated) {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Authentication required. Please log in to view dashboard data.',
-        );
-        return;
-      }
+      
       
       // Fetch deliverables, sprints, and analytics data concurrently
       final deliverablesFuture = ApiService.getDeliverables(limit: 10);
       final sprintsFuture = ApiService.getSprints(limit: 10);
-      final analyticsFuture = ApiService.getDashboardData();
+      final analyticsFuture = ApiService.getDashboardData()
+          .then((value) => value)
+          .catchError((_) => <String, dynamic>{});
       
       final results = await Future.wait([deliverablesFuture, sprintsFuture, analyticsFuture]);
       
@@ -96,13 +91,20 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       final sprintsData = results[1];
       final analyticsData = results[2];
       
-      // Convert API data to model objects with null safety
-      final deliverables = (deliverablesData is List ? deliverablesData : [])
-          .map((data) => Deliverable.fromJson(data))
-          .toList();
-      final sprints = (sprintsData is List ? sprintsData : [])
-          .map((data) => Sprint.fromJson(data))
-          .toList();
+      final deliverables = (deliverablesData is List<Deliverable>)
+          ? deliverablesData
+          : ((deliverablesData is List)
+              ? (deliverablesData)
+                  .map((data) => Deliverable.fromJson(data as Map<String, dynamic>))
+                  .toList()
+              : <Deliverable>[]);
+      final sprints = (sprintsData is List<Sprint>)
+          ? sprintsData
+          : ((sprintsData is List)
+              ? (sprintsData)
+                  .map((data) => Sprint.fromJson(data as Map<String, dynamic>))
+                  .toList()
+              : <Sprint>[]);
       
       state = state.copyWith(
         deliverables: deliverables,

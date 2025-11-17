@@ -1163,58 +1163,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _showAllDeliverablesDialog() {
+    final dashboardState = ref.read(dashboardProvider);
+    final items = dashboardState.deliverables;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('All Deliverables'),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              _buildDeliverableItem('Project Requirements Document', 'Completed', Colors.green),
-              _buildDeliverableItem('System Architecture Design', 'Completed', Colors.green),
-              _buildDeliverableItem('Database Schema', 'Completed', Colors.green),
-              _buildDeliverableItem('Frontend Prototype', 'In Progress', Colors.orange),
-              _buildDeliverableItem('API Documentation', 'In Progress', Colors.orange),
-              _buildDeliverableItem('User Testing Report', 'Not Started', Colors.grey),
-              _buildDeliverableItem('Deployment Guide', 'Not Started', Colors.grey),
-            ],
-          ),
+          child: items.isEmpty
+              ? const Center(child: Text('No deliverables found'))
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final d = items[index];
+                    return DeliverableCard(
+                      deliverable: d,
+                      onTap: () {
+                        _showDeliverableDetailsDialog(d);
+                      },
+                    );
+                  },
+                ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close'),
           ),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Deliverables exported to PDF')),
-              );
-              Navigator.of(context).pop();
-            },
-            child: const Text('Export to PDF'),
-          ),
         ],
-      ),
-    );
-  }
-  
-  Widget _buildDeliverableItem(String name, String status, Color statusColor) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text(name),
-        subtitle: Text('Due: November 30, 2023'),
-        trailing: Chip(
-          label: Text(status),
-          backgroundColor: statusColor.withOpacity(0.2),
-          labelStyle: TextStyle(color: statusColor),
-        ),
-        onTap: () {
-          // View deliverable details
-        },
       ),
     );
   }
