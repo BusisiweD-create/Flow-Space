@@ -8,11 +8,13 @@ import '../models/user_role.dart';
 import '../services/document_service.dart';
 import '../services/auth_service.dart';
 import '../services/sign_off_report_service.dart';
+import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/document_preview_widget.dart';
 import '../widgets/audit_history_widget.dart';
+import '../widgets/role_guard.dart';
 import 'report_editor_screen.dart';
 import 'client_review_workflow_screen.dart';
 
@@ -32,6 +34,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   final DocumentService _documentService = DocumentService(AuthService());
   final SignOffReportService _reportService = SignOffReportService(AuthService());
   final ReportExportService _exportService = ReportExportService();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -42,6 +45,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
 
   Future<void> _loadReportDocuments() async {
     try {
+      setState(() => _isLoading = true);
       final response = await _documentService.getDocuments(
         fileType: 'pdf', // Focus on PDF reports
         search: 'report', // Search for report-related documents
@@ -55,11 +59,14 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     } catch (e) {
       // Handle error silently for now
       // Error loading report documents: $e
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _loadReports() async {
     try {
+      setState(() => _isLoading = true);
       final response = await _reportService.getSignOffReports(
         status: _selectedFilter != 'all' ? _selectedFilter : null,
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
@@ -131,6 +138,8 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -700,10 +709,32 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       ),
       floatingActionButton: RoleBuilder(
         allowedRoles: const ['deliveryLead', 'systemAdmin'],
-        builder: (context) => FloatingActionButton.extended(
-          onPressed: _showCreateReportDialog,
-          icon: const Icon(Icons.add),
-          label: const Text('New Sign-Off'),
+        builder: (context) => Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              heroTag: 'createReportFAB',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReportEditorScreen(),
+                  ),
+                ).then((_) => _loadReports());
+              },
+              backgroundColor: FlownetColors.electricBlue,
+              tooltip: 'Create Report',
+              child: const Icon(Icons.add, color: FlownetColors.pureWhite),
+            ),
+            const SizedBox(height: 8),
+            FloatingActionButton(
+              heroTag: 'uploadDocumentFAB',
+              onPressed: _uploadReportDocument,
+              backgroundColor: FlownetColors.crimsonRed,
+              tooltip: 'Upload Document',
+              child: const Icon(Icons.upload, color: FlownetColors.pureWhite),
+            ),
+          ],
         ),
       ),
       body: Column(
@@ -822,33 +853,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           ),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'createReportFAB',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ReportEditorScreen(),
-                ),
-              ).then((_) => _loadReports());
-            },
-            backgroundColor: FlownetColors.electricBlue,
-            tooltip: 'Create Report',
-            child: const Icon(Icons.add, color: FlownetColors.pureWhite),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton(
-            heroTag: 'uploadDocumentFAB',
-            onPressed: _uploadReportDocument,
-            backgroundColor: FlownetColors.crimsonRed,
-            tooltip: 'Upload Document',
-            child: const Icon(Icons.upload, color: FlownetColors.pureWhite),
-          ),
-        ],
-      ),
+      
     );
   }
 
@@ -1186,7 +1191,70 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     );
   }
 
+  Future<void> _confirmDeleteReport(SignOffReport report) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Delete Report', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: Text(
+          'Are you sure you want to delete "${report.reportTitle}"?',
+          style: const TextStyle(color: FlownetColors.coolGray),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Delete', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        final api = BackendApiService();
+        final response = await api.deleteSignOffReport(report.id);
+        if (response.isSuccess) {
+          setState(() {
+            _reports.removeWhere((r) => r.id == report.id);
+          });
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Report deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadReports();
+        } else {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete report: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Error deleting report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _exportReport(SignOffReport report) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       // Show export options
       final format = await showDialog<String>(
@@ -1220,7 +1288,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       if (format == 'pdf') {
         await _exportService.exportReportAsPDF(report);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             const SnackBar(
               content: Text('Report exported successfully'),
               backgroundColor: Colors.green,
@@ -1232,7 +1300,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Error exporting report: $e'),
             backgroundColor: Colors.red,

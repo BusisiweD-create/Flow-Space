@@ -33,6 +33,8 @@ import 'widgets/sidebar_scaffold.dart';
 //
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
+import 'screens/deadlines_screen.dart';
+import 'screens/skill_assessment_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -301,16 +303,6 @@ final GoRouter _router = GoRouter(
         route: '/settings',
         child: SidebarScaffold(
           child: SettingsScreen(),
-        ),
-      ),
-    ),
-    // Removed routes for non-existent screens to resolve analyzer errors
-    GoRoute(
-      path: '/deadlines',
-      builder: (context, state) => const RouteGuard(
-        route: '/deadlines',
-        child: SidebarScaffold(
-          child: DeadlinesScreen(),
         ),
       ),
     ),

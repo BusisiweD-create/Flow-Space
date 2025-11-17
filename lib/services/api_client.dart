@@ -276,21 +276,21 @@ class ApiClient {
       final responseBody = jsonDecode(response.body);
       
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        if (raw == null) {
+        if (responseBody == null) {
           return ApiResponse.success(null, response.statusCode);
         }
 
         // Support top-level lists (e.g., files, users collections)
-        if (raw is List) {
-          return ApiResponse.success(raw, response.statusCode);
+        if (responseBody is List) {
+          return ApiResponse.success(responseBody, response.statusCode);
         }
 
         // From here on, raw must be a Map-like structure
-        if (raw is! Map) {
-          return ApiResponse.success(raw, response.statusCode);
+        if (responseBody is! Map) {
+          return ApiResponse.success(responseBody, response.statusCode);
         }
 
-        final Map<String, dynamic> body = raw as Map<String, dynamic>;
+        final Map<String, dynamic> body = responseBody as Map<String, dynamic>;
 
         // 1) Standard format: { success: true, data: ... }
         final bool isStandardFormat = body['success'] == true && body.containsKey('data');
@@ -309,8 +309,8 @@ class ApiClient {
         // 3) Fallback: return entire map as data
         return ApiResponse.success(body, response.statusCode);
       } else {
-        if (raw is Map) {
-          final Map<String, dynamic> body = raw as Map<String, dynamic>;
+        if (responseBody is Map) {
+          final Map<String, dynamic> body = responseBody as Map<String, dynamic>;
           final errorMessage = body['message']?.toString() ?? body['error']?.toString() ?? 'Request failed';
           return ApiResponse.error(errorMessage, response.statusCode);
         }

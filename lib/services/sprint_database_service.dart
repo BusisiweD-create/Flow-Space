@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
-import '../config/environment.dart';
 
 class SprintDatabaseService {
   static const String _baseUrl = 'http://localhost:8000/api/v1';

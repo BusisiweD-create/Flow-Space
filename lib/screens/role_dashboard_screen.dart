@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
-import '../models/system_metrics.dart';
-import '../models/approval_request.dart';
-import '../models/sign_off_report.dart';
 import '../services/auth_service.dart';
+import '../services/realtime_service.dart';
+import '../providers/qa_data_provider.dart';
 
 class RoleDashboardScreen extends ConsumerStatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -18,11 +18,38 @@ class RoleDashboardScreen extends ConsumerStatefulWidget {
 class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   User? _currentUser;
   final AuthService _authService = AuthService();
+  late RealtimeService realtimeService;
+  bool _isLoadingDashboardDeliverables = false;
+  bool _isLoadingDashboardSprints = false;
+  bool _isLoadingDashboardApprovals = false;
+  bool _isLoadingDashboardProjects = false;
+  List<Map<String, dynamic>> _dashboardDeliverables = [];
+  List<Map<String, dynamic>> _dashboardSprints = [];
+  List<Map<String, dynamic>> _dashboardApprovals = [];
+  List<Map<String, dynamic>> _dashboardProjects = [];
+  List<Map<String, dynamic>> _auditLogs = [];
+  List<Map<String, dynamic>> _filteredAuditLogs = [];
+  int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    try {
+      return DateTime.parse(value.toString());
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     realtimeService = RealtimeService();
+    realtimeService.initialize(authToken: _authService.accessToken);
     _loadCurrentUser();
     _loadUsers();
     _loadDashboardSprints();
@@ -43,6 +70,57 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     realtimeService.offAll('approval_created');
     realtimeService.offAll('approval_updated');
     super.dispose();
+  }
+
+  void _loadUsers() {}
+  Future<void> _loadDashboardSprints() async {
+    setState(() => _isLoadingDashboardSprints = true);
+    try {
+      _dashboardSprints = [];
+    } finally {
+      if (mounted) setState(() => _isLoadingDashboardSprints = false);
+    }
+  }
+  Future<void> _loadDashboardApprovals() async {
+    setState(() => _isLoadingDashboardApprovals = true);
+    try {
+      _dashboardApprovals = [];
+    } finally {
+      if (mounted) setState(() => _isLoadingDashboardApprovals = false);
+    }
+  }
+  Future<void> _loadDashboardDeliverables() async {
+    setState(() => _isLoadingDashboardDeliverables = true);
+    try {
+      _dashboardDeliverables = [];
+    } finally {
+      if (mounted) setState(() => _isLoadingDashboardDeliverables = false);
+    }
+  }
+  Future<void> _loadDashboardProjects() async {
+    setState(() => _isLoadingDashboardProjects = true);
+    try {
+      _dashboardProjects = [];
+    } finally {
+      if (mounted) setState(() => _isLoadingDashboardProjects = false);
+    }
+  }
+  Future<void> _loadReviewHistoryReports() async {
+    _auditLogs = [];
+    _filteredAuditLogs = _auditLogs;
+  }
+  String _relativeTime(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1) return 'just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
+    } catch (_) {
+      return '';
+    }
   }
 
   Future<void> _loadCurrentUser() async {
@@ -1179,13 +1257,135 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   // Placeholder methods for other role-specific content
   Widget _buildTeamMetrics() => _buildPlaceholderCard('Team Metrics');
-  Widget _buildSprintOverview() => _buildPlaceholderCard('Sprint Overview');
   Widget _buildPendingReviews() => _buildPlaceholderCard('Pending Reviews');
-  Widget _buildTeamPerformance() => _buildPlaceholderCard('Team Performance');
   Widget _buildReviewMetrics() => _buildPlaceholderCard('Review Metrics');
-  Widget _buildPendingApprovals() => _buildPlaceholderCard('Pending Approvals');
   Widget _buildRecentSubmissions() => _buildPlaceholderCard('Recent Submissions');
   Widget _buildReviewHistory() => _buildPlaceholderCard('Review History');
+
+  Widget _buildSprintOverview() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Sprint Overview',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                if (_isLoadingDashboardSprints)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildMetricCard(
+                  'Days Remaining',
+                  _computeDaysRemaining(),
+                  Icons.calendar_today,
+                  Colors.orange,
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: _buildMetricCard(
+                  'Points Burned',
+                  _computePointsBurned(),
+                  Icons.local_fire_department,
+                  Colors.red,
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: _buildMetricCard(
+                  'Avg Daily Burn',
+                  _computeAvgDailyBurn(),
+                  Icons.speed,
+                  Colors.blue,
+                )),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingApprovals() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Pending Approvals',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                if (_isLoadingDashboardApprovals)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Items: ${_dashboardApprovals.length}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamPerformance() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Team Performance',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                if (_isLoadingDashboardProjects)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Projects: ${_dashboardProjects.length}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   Widget _buildSystemMetrics() => _buildPlaceholderCard('System Metrics');
   Widget _buildUserManagement() => _buildPlaceholderCard('User Management');
   Widget _buildSystemHealth() => _buildPlaceholderCard('System Health');
@@ -1459,21 +1659,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildQAEngineerDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
-        ],
-      ),
+  void _createNewProject() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Project creation is not implemented yet')),
     );
   }
 

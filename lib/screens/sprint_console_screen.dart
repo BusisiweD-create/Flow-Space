@@ -621,16 +621,6 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     _navigateToSprintBoard(sprint);
   }
 
-  String _normalizeSprintStatus(dynamic status) {
-    final s = (status ?? '').toString().trim().toLowerCase();
-    const allowed = {'planning', 'in_progress', 'completed', 'cancelled'};
-    if (allowed.contains(s)) return s;
-    if (s == 'inprogress' || s == 'in progress' || s == 'started' || s == 'active') return 'in_progress';
-    if (s == 'done' || s == 'complete' || s == 'finished') return 'completed';
-    if (s == 'canceled' || s == 'terminated' || s == 'abandoned') return 'cancelled';
-    if (s == 'planned' || s == 'planning_phase') return 'planning';
-    return 'in_progress';
-  }
 
   void _navigateToSprintBoard(Map<String, dynamic> sprint) {
     Navigator.of(context).push(
