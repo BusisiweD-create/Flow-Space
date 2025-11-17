@@ -161,7 +161,23 @@ class ApiService {
         }
       }
       
-      debugPrint('❌ Failed to create deliverable: ${response.statusCode}');
+      // Parse error details from response
+      try {
+        final errorData = jsonDecode(response.body);
+        final errorMessage = errorData['details'] ?? errorData['error'] ?? 'Unknown error';
+        final errorCode = errorData['code'];
+        final errorDetail = errorData['detail'];
+        
+        debugPrint('❌ Failed to create deliverable: ${response.statusCode}');
+        debugPrint('   Error: $errorMessage');
+        if (errorCode != null) debugPrint('   Code: $errorCode');
+        if (errorDetail != null) debugPrint('   Detail: $errorDetail');
+        debugPrint('   Full response: ${response.body}');
+      } catch (e) {
+        debugPrint('❌ Failed to create deliverable: ${response.statusCode}');
+        debugPrint('   Response body: ${response.body}');
+      }
+      
       return null;
     } catch (e) {
       debugPrint('Error creating deliverable: $e');

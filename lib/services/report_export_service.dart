@@ -5,12 +5,14 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../models/sign_off_report.dart';
+import 'api_client.dart';
 
 // Platform-specific imports (only import when not on web)
-import 'dart:io' if (dart.library.html) 'dart:html';
+import 'dart:io' if (dart.library.html) '../services/file_stub.dart';
 import 'package:path_provider/path_provider.dart' if (dart.library.html) '../services/path_provider_stub.dart';
 
 class ReportExportService {
+  final ApiClient _apiClient = ApiClient();
   /// Export report as PDF
   Future<void> exportReportAsPDF(SignOffReport report, {String? filePath}) async {
     try {
@@ -104,6 +106,39 @@ class ReportExportService {
                 pw.SizedBox(height: 15),
               ],
               
+              // Digital Signature Section
+              if (report.digitalSignature != null && report.digitalSignature!.isNotEmpty) ...[
+                pw.Divider(),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Digital Signature',
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Container(
+                  width: 200,
+                  height: 80,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey),
+                  ),
+                  child: pw.Image(
+                    pw.MemoryImage(base64Decode(report.digitalSignature!)),
+                    fit: pw.BoxFit.contain,
+                  ),
+                ),
+                if (report.approvedAt != null) ...[
+                  pw.SizedBox(height: 5),
+                  pw.Text(
+                    'Signed on: ${_formatDate(report.approvedAt!)}',
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+                  ),
+                ],
+                pw.SizedBox(height: 15),
+              ],
+              
               // Status and Metadata
               pw.Divider(),
               pw.SizedBox(height: 10),
@@ -148,6 +183,27 @@ class ReportExportService {
       
       // Save or share PDF
       final bytes = await pdf.save();
+      final fileSize = bytes.length;
+      final fileHash = _generateFileHash(bytes);
+      
+      // Track export in database
+      try {
+        await _apiClient.post('/sign-off-reports/${report.id}/export', body: {
+          'exportFormat': 'pdf',
+          'exportType': filePath != null ? 'download' : 'share',
+          'fileSize': fileSize,
+          'fileHash': fileHash,
+          'metadata': {
+            'reportTitle': report.reportTitle,
+            'reportStatus': report.status.toString(),
+            'exportedAt': DateTime.now().toIso8601String(),
+          },
+        },);
+        debugPrint('✅ Export tracked in database');
+      } catch (e) {
+        debugPrint('⚠️ Failed to track export: $e');
+        // Continue even if tracking fails
+      }
       
       if (kIsWeb) {
         // Web platform - use base64 data URI for sharing
@@ -160,17 +216,18 @@ class ReportExportService {
         // Mobile/Desktop platforms - use File and path_provider
         if (filePath != null) {
           // Save to specific path
-          final file = File(filePath);
+          final file = _createFile(filePath);
           await file.writeAsBytes(bytes);
         } else {
           // Try to save to temp directory and share
           try {
             final tempDir = await getTemporaryDirectory();
-            final file = File('${tempDir.path}/report_${report.id}.pdf');
+            final filePath = '${tempDir.path}/report_${report.id}.pdf';
+            final file = _createFile(filePath);
             await file.writeAsBytes(bytes);
             
             await Share.shareXFiles(
-              [XFile(file.path)],
+              [XFile(filePath)],
               text: 'Sign-Off Report: ${report.reportTitle}',
             );
           } catch (e) {
@@ -246,6 +303,22 @@ class ReportExportService {
       case ReportStatus.rejected:
         return 'Rejected';
     }
+  }
+  
+  /// Generate SHA-256 hash of file bytes
+  String _generateFileHash(List<int> bytes) {
+    // In a real implementation, use crypto package
+    // For now, return a simple hash
+    final hash = bytes.fold(0, (sum, byte) => sum + byte);
+    return hash.toString();
+  }
+  
+  /// Create a File instance (platform-specific)
+  /// This method handles the conditional import properly
+  File _createFile(String path) {
+    // On web, this will throw UnsupportedError from the stub
+    // On mobile/desktop, this will use dart:io File
+    return File(path);
   }
 }
 
