@@ -1,0 +1,737 @@
+// Load environment variables first
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
+const jwt = require('jsonwebtoken');
+const dbConfig = require('./database-config');
+const EmailService = require('./emailService');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// Initialize email service
+const emailService = new EmailService();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// PostgreSQL connection
+const pool = new Pool({
+  ...dbConfig,
+  database: 'flow_space'
+});
+
+// Test database connection
+let dbConnected = false;
+
+async function testDatabaseConnection() {
+  try {
+    const client = await pool.connect();
+    console.log('✅ Connected to PostgreSQL database');
+    client.release();
+    dbConnected = true;
+    return true;
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+    dbConnected = false;
+    return false;
+  }
+}
+
+// JWT Authentication middleware
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Flow-Space Backend Server',
+    database: dbConnected ? 'Connected' : 'Disconnected',
+    timestamp: new Date().toISOString(),
+    version: '2.0.0'
+  });
+});
+
+// Auth routes
+app.post('/api/v1/auth/register', async (req, res) => {
+  try {
+    if (!dbConnected) {
+      return res.status(503).json({ error: 'Database not connected. Please try again in a moment.' });
+    }
+    
+    const { email, password, name, role } = req.body;
+    
+    // Validate input
+    if (!email || !password || !name || !role) {
+      return res.status(400).json({ error: 'Email, password, name, and role are required' });
+    }
+    
+    // Check if user already exists
+    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ error: 'User with this email already exists' });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = uuidv4();
+    
+    // Insert user into users table
+    const result = await pool.query(
+      `INSERT INTO users (id, email, password_hash, name, role, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, email, name, role, created_at, is_active`,
+      [userId, email, hashedPassword, name, role, new Date().toISOString()]
+    );
+    
+    const user = result.rows[0];
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user.id, 
+        email: user.email, 
+        role: user.role 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Send verification email
+    console.log(`📧 Sending verification email to: ${user.email}`);
+    
+    // Generate a 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    try {
+      const emailResult = await emailService.sendVerificationEmail(
+        user.email, 
+        user.name, 
+        verificationCode
+      );
+      
+      if (emailResult.success) {
+        console.log('✅ Verification email sent successfully:', emailResult.messageId);
+      } else {
+        console.log('❌ Failed to send verification email:', emailResult.error);
+      }
+    } catch (emailError) {
+      console.error('❌ Email sending error:', emailError.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          isActive: user.is_active,
+          createdAt: user.created_at
+        },
+        token
+      }
+    });
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/v1/auth/login', async (req, res) => {
+  try {
+    if (!dbConnected) {
+      return res.status(503).json({ error: 'Database not connected. Please try again in a moment.' });
+    }
+    
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    // Find user by email
+    const result = await pool.query(
+      'SELECT id, email, password_hash, name, role, is_active, last_login_at, created_at FROM users WHERE email = $1',
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    const user = result.rows[0];
+    
+    // Check if user is active
+    if (!user.is_active) {
+      return res.status(401).json({ error: 'Account is deactivated' });
+    }
+    
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    // Update last login
+    await pool.query(
+      'UPDATE users SET last_login_at = $1 WHERE id = $2',
+      [new Date().toISOString(), user.id]
+    );
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user.id, 
+        email: user.email, 
+        role: user.role 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          createdAt: user.created_at,
+          lastLoginAt: user.last_login_at,
+          isActive: user.is_active ?? true,
+          projectIds: [],
+          preferences: {},
+          emailVerified: true, // Assume verified since they can login
+          emailVerifiedAt: user.created_at // Use created_at as verification time
+        },
+        token
+      }
+    });
+    
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/v1/auth/me', async (req, res) => {
+  try {
+    if (!dbConnected) {
+      return res.status(503).json({ error: 'Database not connected. Please try again in a moment.' });
+    }
+    
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    // Verify JWT token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const { userId } = decoded;
+    
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.name, u.role, u.created_at, u.last_login_at, u.is_active,
+              ur.display_name, ur.description, ur.color, ur.icon
+       FROM users u
+       JOIN user_roles ur ON u.role = ur.name
+       WHERE u.id = $1`,
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.rows[0];
+    
+    res.json({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        roleDisplayName: user.display_name,
+        roleDescription: user.description,
+        roleColor: user.color,
+        roleIcon: user.icon,
+        createdAt: user.created_at,
+        lastLoginAt: user.last_login_at,
+        isActive: user.is_active
+      }
+    });
+    
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    console.error('Get current user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/v1/auth/logout', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Logout successful'
+  });
+});
+
+// Email verification endpoint
+app.post('/api/v1/auth/verify-email', async (req, res) => {
+  try {
+    if (!dbConnected) {
+      return res.status(503).json({ error: 'Database not connected. Please try again in a moment.' });
+    }
+    
+    const { email, verificationCode, verification_code } = req.body;
+    
+    // Accept both verificationCode and verification_code for compatibility
+    const code = verificationCode || verification_code;
+    
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and verification code are required' });
+    }
+    
+    // For now, we'll accept any 6-digit code as valid
+    // In a real implementation, you'd store and verify the code from the database
+    if (code.length === 6 && /^\d+$/.test(code)) {
+      console.log(`✅ Email verification successful for: ${email}`);
+      
+      res.json({
+        success: true,
+        message: 'Email verified successfully',
+        data: {
+          email: email,
+          verified: true
+        }
+      });
+    } else {
+      res.status(400).json({ 
+        success: false,
+        error: 'Invalid verification code. Please enter the 6-digit code sent to your email.' 
+      });
+    }
+    
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// User management routes (admin only)
+app.get('/api/v1/users', async (req, res) => {
+  try {
+    if (!dbConnected) {
+      return res.status(503).json({ error: 'Database not connected. Please try again in a moment.' });
+    }
+    
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    // Verify JWT token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const { role } = decoded;
+    
+    // Check if user is admin
+    if (role !== 'systemAdmin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.name, u.role, u.is_active, u.created_at, u.last_login_at,
+              ur.display_name, ur.color, ur.icon
+       FROM users u
+       JOIN user_roles ur ON u.role = ur.name
+       ORDER BY u.created_at DESC`
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+    
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Test endpoint
+app.get('/api/v1/test', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) as user_count FROM users');
+    res.json({
+      success: true,
+      message: 'Database connection working',
+      data: {
+        userCount: result.rows[0].user_count,
+        databaseConnected: dbConnected
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Start server
+async function startServer() {
+  console.log('🚀 Starting Flow-Space Backend Server...\n');
+  
+  // Test database connection
+  const dbTest = await testDatabaseConnection();
+  
+  if (!dbTest) {
+    console.log('⚠️  Starting server without database connection');
+  }
+  
+  app.listen(PORT, () => {
+    console.log(`🚀 Flow-Space Backend Server running on http://localhost:${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth/*`);
+    console.log(`👥 User management: http://localhost:${PORT}/api/v1/users`);
+    console.log(`🧪 Test endpoint: http://localhost:${PORT}/api/v1/test`);
+    console.log('\n✅ Server started successfully!');
+  });
+}
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down server...');
+  pool.end();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Shutting down server...');
+  pool.end();
+  process.exit(0);
+});
+
+// ===== SPRINT MANAGEMENT ENDPOINTS =====
+
+// Get all sprints for a user
+app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const result = await pool.query(`
+      SELECT id, name, description, start_date, end_date, status, created_by, created_at, updated_at
+      FROM sprints 
+      WHERE created_by = $1 
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching sprints:', error);
+    res.status(500).json({ error: 'Failed to fetch sprints' });
+  }
+});
+
+// Create a new sprint
+app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { name, goal, boardId, startDate, endDate } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO sprints (name, description, start_date, end_date, status, created_by, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      RETURNING id, name, description, start_date, end_date, status, created_by, created_at, updated_at
+    `, [name, goal, startDate, endDate, 'in_progress', userId]);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating sprint:', error);
+    res.status(500).json({ error: 'Failed to create sprint' });
+  }
+});
+
+// Update sprint
+app.put('/api/v1/sprints/:sprintId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const sprintId = req.params.sprintId;
+    const { name, goal, state, startDate, endDate } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE sprints 
+      SET name = $1, description = $2, status = $3, start_date = $4, end_date = $5, updated_at = NOW()
+      WHERE created_by = $6 AND id = $7
+      RETURNING id, name, description, start_date, end_date, status, created_by, created_at, updated_at
+    `, [name, goal, state, startDate, endDate, userId, sprintId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sprint not found' });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating sprint:', error);
+    res.status(500).json({ error: 'Failed to update sprint' });
+  }
+});
+
+// ===== TICKET MANAGEMENT ENDPOINTS =====
+
+// Get all tickets for a sprint
+app.get('/api/v1/sprints/:sprintId/tickets', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const sprintId = req.params.sprintId;
+    
+    const result = await pool.query(`
+      SELECT * FROM tickets 
+      WHERE user_id = $1 AND sprint_id = $2
+      ORDER BY created_at ASC
+    `, [userId, sprintId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching tickets:', error);
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+// Create a new ticket
+app.post('/api/v1/sprints/:sprintId/tickets', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sprintId = req.params.sprintId;
+    const { ticketKey, summary, description, issueType, priority, assignee, reporter, labels } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO tickets (user_id, ticket_id, ticket_key, summary, description, issue_type, priority, assignee, reporter, sprint_id, labels)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [userId, ticketKey, summary, description, issueType, priority, assignee, reporter, sprintId, labels]);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    res.status(500).json({ error: 'Failed to create ticket' });
+  }
+});
+
+// Update ticket status (for drag and drop)
+app.put('/api/v1/tickets/:ticketId/status', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const ticketId = req.params.ticketId;
+    const { status } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE tickets 
+      SET status = $1, updated_at = NOW()
+      WHERE user_id = $2 AND ticket_id = $3
+      RETURNING *
+    `, [status, userId, ticketId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating ticket status:', error);
+    res.status(500).json({ error: 'Failed to update ticket status' });
+  }
+});
+
+// Update ticket details
+app.put('/api/v1/tickets/:ticketId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const ticketId = req.params.ticketId;
+    const { summary, description, assignee, priority, labels } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE tickets 
+      SET summary = $1, description = $2, assignee = $3, priority = $4, labels = $5, updated_at = NOW()
+      WHERE user_id = $6 AND ticket_id = $7
+      RETURNING *
+    `, [summary, description, assignee, priority, labels, userId, ticketId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating ticket:', error);
+    res.status(500).json({ error: 'Failed to update ticket' });
+  }
+});
+
+// Create project
+app.post('/api/v1/projects', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { name, key, description, projectType } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO jira_projects (user_id, project_id, project_key, project_name, project_type, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      RETURNING id, project_id, project_key, project_name, project_type, created_at
+    `, [userId, Date.now().toString(), key, name, projectType || 'software']);
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating project:', error);
+    res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+// Get projects
+app.get('/api/v1/projects', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const result = await pool.query(`
+      SELECT id, project_id, project_key, project_name, project_type, created_at
+      FROM jira_projects 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+// Send collaborator invitation email
+app.post('/api/v1/collaborators/invite', authenticateToken, async (req, res) => {
+  try {
+    const { email, role, projectName } = req.body;
+    
+    if (!email || !role || !projectName) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Send invitation email
+    const emailSent = await emailService.sendCollaboratorInvitation({
+      to: email,
+      role: role,
+      projectName: projectName,
+      inviterName: req.user.email, // Use the current user's email as inviter
+    });
+
+    if (emailSent) {
+      console.log(`✅ Invitation sent to ${email} for project ${projectName}`);
+      res.json({
+        success: true,
+        message: 'Invitation sent successfully'
+      });
+    } else {
+      console.log(`❌ Failed to send invitation to ${email}`);
+      res.status(500).json({ error: 'Failed to send invitation email' });
+    }
+  } catch (error) {
+    console.error('Error sending invitation:', error);
+    res.status(500).json({ error: 'Failed to send invitation' });
+  }
+});
+
+// Create a new ticket
+app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
+  try {
+    const { sprintId, title, description, assignee, priority, type, status } = req.body;
+    const userId = req.user.userId;
+    
+    if (!sprintId || !title) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Generate ticket ID and key
+    const ticketId = Date.now().toString();
+    const ticketKey = `TICKET-${ticketId}`;
+    
+    // Create ticket in database
+    const result = await pool.query(`
+      INSERT INTO tickets (sprint_id, ticket_id, ticket_key, summary, description, assignee, priority, issue_type, status, user_id, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+      RETURNING id, ticket_id, ticket_key, summary, description, assignee, priority, issue_type, status, created_at
+    `, [sprintId, ticketId, ticketKey, title, description, assignee, priority, type, status || 'To Do', userId]);
+    
+    console.log(`✅ Ticket created: ${title} for sprint ${sprintId}`);
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    res.status(500).json({ error: 'Failed to create ticket' });
+  }
+});
+
+// Start the server
+startServer().catch(console.error);
