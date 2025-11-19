@@ -63,7 +63,7 @@
     },
     {
       "name": "build_daemon",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/build_daemon-4.1.1",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/build_daemon-4.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
@@ -153,13 +153,13 @@
     },
     {
       "name": "cross_file",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/cross_file-0.3.5+1",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/cross_file-0.3.5",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.7"
     },
     {
       "name": "crypto",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/crypto-3.0.7",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/crypto-3.0.6",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -225,13 +225,13 @@
     },
     {
       "name": "file_selector_linux",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/file_selector_linux-0.9.3+3",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/file_selector_linux-0.9.3+2",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.3"
     },
     {
       "name": "file_selector_macos",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/file_selector_macos-0.9.4+6",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/file_selector_macos-0.9.4+5",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -243,9 +243,9 @@
     },
     {
       "name": "file_selector_windows",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/file_selector_windows-0.9.3+5",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/file_selector_windows-0.9.3+4",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.4"
     },
     {
       "name": "firebase_core",
@@ -321,15 +321,15 @@
     },
     {
       "name": "flutter_plugin_android_lifecycle",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.32",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.31",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.7"
     },
     {
       "name": "flutter_riverpod",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_riverpod-3.0.3",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_riverpod-3.0.0",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.8"
     },
     {
       "name": "flutter_shaders",
@@ -339,7 +339,7 @@
     },
     {
       "name": "flutter_svg",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_svg-2.2.2",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_svg-2.2.1",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
@@ -381,13 +381,13 @@
     },
     {
       "name": "go_router",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/go_router-16.3.0",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/go_router-16.2.2",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
     {
       "name": "google_fonts",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/google_fonts-6.3.2",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/google_fonts-6.3.1",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
@@ -405,7 +405,7 @@
     },
     {
       "name": "http",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/http-1.6.0",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/http-1.5.0",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -429,25 +429,25 @@
     },
     {
       "name": "image_picker",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker-1.2.1",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker-1.2.0",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.6"
     },
     {
       "name": "image_picker_android",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_android-0.8.13+9",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_android-0.8.13+5",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
     {
       "name": "image_picker_for_web",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_for_web-3.1.1",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_for_web-3.1.0",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.6"
     },
     {
       "name": "image_picker_ios",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_ios-0.8.13+2",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_ios-0.8.13+1",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -465,9 +465,9 @@
     },
     {
       "name": "image_picker_platform_interface",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_platform_interface-2.11.1",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_platform_interface-2.11.0",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.6"
     },
     {
       "name": "image_picker_windows",
@@ -537,7 +537,7 @@
     },
     {
       "name": "mailer",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/mailer-6.6.0",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/mailer-6.5.0",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -657,15 +657,15 @@
     },
     {
       "name": "path_provider_android",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/path_provider_android-2.2.21",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/path_provider_android-2.2.18",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.7"
     },
     {
       "name": "path_provider_foundation",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/path_provider_foundation-2.4.4",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/path_provider_foundation-2.4.2",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.7"
     },
     {
       "name": "path_provider_linux",
@@ -795,9 +795,9 @@
     },
     {
       "name": "riverpod",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/riverpod-3.0.3",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/riverpod-3.0.0",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.8"
     },
     {
       "name": "share_plus",
@@ -819,15 +819,15 @@
     },
     {
       "name": "shared_preferences_android",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences_android-2.4.16",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences_android-2.4.12",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.7"
     },
     {
       "name": "shared_preferences_foundation",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences_foundation-2.5.6",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/shared_preferences_foundation-2.5.4",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.4"
     },
     {
       "name": "shared_preferences_linux",
@@ -926,6 +926,12 @@
       "languageVersion": "3.1"
     },
     {
+      "name": "sprintf",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/sprintf-7.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "stack_trace",
       "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/stack_trace-1.12.1",
       "packageUri": "lib/",
@@ -1017,27 +1023,27 @@
     },
     {
       "name": "url_launcher_android",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_android-6.3.26",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_android-6.3.22",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
     {
       "name": "url_launcher_ios",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_ios-6.3.6",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_ios-6.3.4",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.7"
     },
     {
       "name": "url_launcher_linux",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_linux-3.2.2",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_linux-3.2.1",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.3"
     },
     {
       "name": "url_launcher_macos",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_macos-3.2.5",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_macos-3.2.3",
       "packageUri": "lib/",
-      "languageVersion": "3.9"
+      "languageVersion": "3.7"
     },
     {
       "name": "url_launcher_platform_interface",
@@ -1053,13 +1059,13 @@
     },
     {
       "name": "url_launcher_windows",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_windows-3.1.5",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/url_launcher_windows-3.1.4",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.4"
     },
     {
       "name": "uuid",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/uuid-4.5.2",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/uuid-4.5.1",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
@@ -1095,7 +1101,7 @@
     },
     {
       "name": "watcher",
-      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/watcher-1.1.4",
+      "rootUri": "file:///C:/Users/Busisiwe%20Dhlamini/AppData/Local/Pub/Cache/hosted/pub.dev/watcher-1.1.3",
       "packageUri": "lib/",
       "languageVersion": "3.1"
     },
