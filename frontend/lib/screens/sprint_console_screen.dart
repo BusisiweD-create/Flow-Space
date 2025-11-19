@@ -100,10 +100,10 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                   itemCount: _sprints.length,
                   itemBuilder: (context, index) {
                     final sprint = _sprints[index];
-                    final name = sprint['name']?.toString() ?? 'Unnamed Sprint';
-                    final status = sprint['status']?.toString() ?? 'planning';
-                    final planned = _toInt(sprint['planned_points'] ?? sprint['plannedPoints']);
-                    final completed = _toInt(sprint['completed_points'] ?? sprint['completedPoints']);
+                    final name = sprint.name;
+                    final status = sprint.statusText.toLowerCase();
+                    final planned = sprint.plannedPoints;
+                    final completed = sprint.completedPoints;
                     return Card(
                       margin: const EdgeInsets.only(bottom: 16),
                       child: Padding(
@@ -151,13 +151,6 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                   },
                 ),
     );
-  }
-
-  int _toInt(dynamic v) {
-    if (v is int) return v;
-    if (v is double) return v.toInt();
-    if (v is String) return int.tryParse(v) ?? 0;
-    return 0;
   }
 
   Color _statusColor(String status) {
@@ -254,34 +247,35 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
       return;
     }
     try {
-      await ApiService.createSprint(
+      final create = SprintCreate(
         name: _nameController.text,
-        description: _descriptionController.text,
-        startDate: _startDate,
-        endDate: _endDate,
-        status: 'planning',
+        startDate: _startDate!,
+        endDate: _endDate!,
         plannedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
         committedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
         completedPoints: int.tryParse(_completedPointsController.text) ?? 0,
-        carriedOverPoints: 0,
-        addedDuringSprint: 0,
-        removedDuringSprint: 0,
-        testPassRate: 0,
-        codeCoverage: 0,
-        escapedDefects: 0,
-        defectsOpened: 0,
-        defectsClosed: 0,
-        defectSeverityMix: null,
-        codeReviewCompletion: 0,
-        documentationStatus: null,
-        uatNotes: null,
-        uatPassRate: 0,
-        risksIdentified: 0,
-        risksMitigated: 0,
-        blockers: null,
-        decisions: null,
-        createdBy: null,
+        velocity: 0,
+        testPassRate: double.tryParse(_testPassRateController.text) ?? 0.0,
+        codeCoverage: double.tryParse(_codeCoverageController.text) ?? 0.0,
+        defectCount: int.tryParse(_defectsOpenedController.text) ?? 0,
+        escapedDefects: int.tryParse(_escapedDefectsController.text) ?? 0,
+        defectsClosed: int.tryParse(_defectsClosedController.text) ?? 0,
+        carriedOverPoints: int.tryParse(_carriedOverPointsController.text) ?? 0,
+        addedDuringSprint: int.tryParse(_addedDuringSprintController.text) ?? 0,
+        removedDuringSprint: int.tryParse(_removedDuringSprintController.text) ?? 0,
+        scopeChanges: const [],
+        notes: _descriptionController.text.isEmpty ? null : _descriptionController.text,
+        codeReviewCompletion: double.tryParse(_codeReviewCompletionController.text) ?? 0.0,
+        documentationStatus: _documentationStatusController.text,
+        uatNotes: _uatNotesController.text,
+        uatPassRate: double.tryParse(_uatPassRateController.text) ?? 0.0,
+        risksIdentified: int.tryParse(_risksIdentifiedController.text) ?? 0,
+        risksMitigated: int.tryParse(_risksMitigatedController.text) ?? 0,
+        blockers: _blockersController.text,
+        decisions: _decisionsController.text,
+        isActive: true,
       );
+      await ApiService.createSprint(create);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sprint created successfully!')),

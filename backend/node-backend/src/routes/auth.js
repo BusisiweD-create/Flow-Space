@@ -3,7 +3,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const router = express.Router();
-const { User } = require('../models');
+const { User, UserProfile } = require('../models');
+const EmailService = require('../services/emailService');
+const emailService = new EmailService();
 const { authenticateToken } = require('../middleware/auth');
 
 /**
@@ -285,6 +287,79 @@ router.post('/logout', authenticateToken, (req, res) => {
     message: 'Logout successful',
     note: 'Client should remove the JWT token from storage'
   });
+});
+
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const enabled = (process.env.ENABLE_EMAIL_VERIFICATION === 'true') || (process.env.EMAIL_VERIFICATION_ENABLED === 'true') || (process.env.EMAIL_SERVICE_ENABLED === 'true');
+    if (!enabled) {
+      return res.status(200).json({ success: true, message: 'Email verification disabled' });
+    }
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    await user.update({ verification_token: code });
+    const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email;
+    const result = await emailService.sendVerificationEmail(user.email, name, code);
+    if (result && result.success === false) {
+      return res.status(500).json({ success: false, error: result.error || 'Failed to send email' });
+    }
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email, verificationCode, verification_code } = req.body || {};
+    const code = verificationCode || verification_code;
+    if (!email || !code) {
+      return res.status(400).json({ success: false, error: 'Email and verification code are required' });
+    }
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    if (user.verification_token !== code) {
+      return res.status(400).json({ success: false, error: 'Invalid verification code' });
+    }
+    await user.update({ is_verified: true, verification_token: null });
+    const profile = await UserProfile.findOne({ where: { user_id: user.id } });
+    if (profile) {
+      await profile.update({ is_email_verified: true });
+    }
+    return res.status(200).json({ success: true, data: { verified: true } });
+  } catch (error) {
+    console.error('Verify email error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+router.get('/verification-status', async (req, res) => {
+  try {
+    const email = req.query.email;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const profile = await UserProfile.findOne({ where: { user_id: user.id } });
+    const isVerified = (user.is_verified === true) || (profile && profile.is_email_verified === true);
+    return res.status(200).json({ success: true, data: { verified: isVerified } });
+  } catch (error) {
+    console.error('Verification status error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
 });
 
 /**

@@ -164,7 +164,7 @@ class ApiService {
       
       final headers = await _getHeaders();
       final response = await http.post(
-        Uri.parse('$baseUrl/v1/deliverables'),
+        Uri.parse('$baseUrl/deliverables'),
         headers: headers,
         body: jsonEncode({
           'title': title,
@@ -214,7 +214,7 @@ class ApiService {
       
       final headers = await _getHeaders();
       final response = await http.get(
-        Uri.parse('$baseUrl/v1/projects'),
+        Uri.parse('$baseUrl/projects'),
         headers: headers,
       );
       
@@ -241,7 +241,7 @@ class ApiService {
       
       final headers = await _getHeaders();
       final response = await http.get(
-        Uri.parse('$baseUrl/v1/sprints'),
+        Uri.parse('$baseUrl/sprints'),
         headers: headers,
       );
       
@@ -268,7 +268,7 @@ class ApiService {
       
       final headers = await _getHeaders();
       final response = await http.put(
-        Uri.parse('$baseUrl/v1/sprints/$sprintId'),
+        Uri.parse('$baseUrl/sprints/$sprintId'),
         headers: headers,
         body: jsonEncode({'status': newStatus}),
       );
@@ -301,7 +301,7 @@ class ApiService {
       
       final headers = await _getHeaders();
       final response = await http.post(
-        Uri.parse('$baseUrl/v1/projects'),
+        Uri.parse('$baseUrl/projects'),
         headers: headers,
         body: jsonEncode({
           'name': name,

@@ -39,23 +39,7 @@ class DashboardState {
 }
 
 class DashboardNotifier extends StateNotifier<DashboardState> {
-  DashboardNotifier() : super(DashboardState(deliverables: [], sprints: [])) {
-    _initializeRealtimeListeners();
-  }
-
-  void _initializeRealtimeListeners() {
-    // Set up real-time event listeners with dynamic parameter types
-    realtimeService.on('deliverable_created', (data) => _handleDeliverableCreated(Deliverable.fromJson(data)));
-    realtimeService.on('deliverable_updated', (data) => _handleDeliverableUpdated(Deliverable.fromJson(data)));
-    realtimeService.on('deliverable_deleted', (data) => _handleDeliverableDeleted(data as String));
-    realtimeService.on('deliverable_status_changed', _handleDeliverableStatusChanged);
-    
-    realtimeService.on('sprint_created', (data) => _handleSprintCreated(Sprint.fromJson(data)));
-    realtimeService.on('sprint_updated', (data) => _handleSprintUpdated(Sprint.fromJson(data)));
-    realtimeService.on('sprint_deleted', (data) => _handleSprintDeleted(data as String));
-    
-    realtimeService.on('analytics_updated', _handleAnalyticsUpdated);
-  }
+  DashboardNotifier() : super(DashboardState(deliverables: [], sprints: []));
 
   Future<void> loadDashboardData() async {
     try {
@@ -74,14 +58,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         }
       }
       
-      // Only use real API data
-      if (!ApiService.isAuthenticated) {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Authentication required. Please log in to view dashboard data.',
-        );
-        return;
-      }
+      
       
       // Fetch deliverables, sprints, and analytics data concurrently
       final deliverablesFuture = ApiService.getDeliverables(limit: 10);
@@ -94,18 +71,37 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       final sprintsData = results[1];
       final analyticsData = results[2];
       
-      // Convert API data to model objects with null safety
       final deliverables = (deliverablesData is List ? deliverablesData : [])
-          .map((data) => Map<String, dynamic>.from(data as Map))
+          .map((item) => item is Map
+              ? Map<String, dynamic>.from(item)
+              : (() {
+                  try {
+                    final m = (item as dynamic).toJson();
+                    return Map<String, dynamic>.from(m);
+                  } catch (_) {
+                    return <String, dynamic>{};
+                  }
+                })(),)
+          .where((m) => m.isNotEmpty)
           .toList();
       final sprints = (sprintsData is List ? sprintsData : [])
-          .map((data) => Map<String, dynamic>.from(data as Map))
+          .map((item) => item is Map
+              ? Map<String, dynamic>.from(item)
+              : (() {
+                  try {
+                    final m = (item as dynamic).toJson();
+                    return Map<String, dynamic>.from(m);
+                  } catch (_) {
+                    return <String, dynamic>{};
+                  }
+                })(),)
+          .where((m) => m.isNotEmpty)
           .toList();
       
       state = state.copyWith(
         deliverables: deliverables,
         sprints: sprints,
-        analyticsData: analyticsData as Map<String, dynamic>,
+        analyticsData: analyticsData is Map<String, dynamic> ? analyticsData : <String, dynamic>{},
         isLoading: false,
         error: null,
       );
@@ -133,79 +129,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     state = state.copyWith(error: null);
   }
 
-  // Real-time event handlers
-  void _handleDeliverableCreated(Deliverable deliverable) {
-    final currentDeliverables = List<Deliverable>.from(state.deliverables);
-    currentDeliverables.insert(0, deliverable);
-    state = state.copyWith(deliverables: currentDeliverables);
-  }
-
-  void _handleDeliverableUpdated(Deliverable updatedDeliverable) {
-    final currentDeliverables = List<Deliverable>.from(state.deliverables);
-    final index = currentDeliverables.indexWhere((d) => d.id == updatedDeliverable.id);
-    if (index != -1) {
-      currentDeliverables[index] = updatedDeliverable;
-      state = state.copyWith(deliverables: currentDeliverables);
-    }
-  }
-
-  void _handleDeliverableDeleted(String deliverableId) {
-    final currentDeliverables = List<Deliverable>.from(state.deliverables);
-    currentDeliverables.removeWhere((d) => d.id == deliverableId);
-    state = state.copyWith(deliverables: currentDeliverables);
-  }
-
-  void _handleDeliverableStatusChanged(dynamic data) {
-    final deliverableId = data['deliverableId'];
-    final newStatus = data['newStatus'];
-    
-    final currentDeliverables = List<Deliverable>.from(state.deliverables);
-    final index = currentDeliverables.indexWhere((d) => d.id == deliverableId);
-    if (index != -1) {
-      final updatedDeliverable = currentDeliverables[index].copyWith(status: newStatus);
-      currentDeliverables[index] = updatedDeliverable;
-      state = state.copyWith(deliverables: currentDeliverables);
-    }
-  }
-
-  void _handleSprintCreated(Sprint sprint) {
-    final currentSprints = List<Sprint>.from(state.sprints);
-    currentSprints.insert(0, sprint);
-    state = state.copyWith(sprints: currentSprints);
-  }
-
-  void _handleSprintUpdated(Sprint updatedSprint) {
-    final currentSprints = List<Sprint>.from(state.sprints);
-    final index = currentSprints.indexWhere((s) => s.id == updatedSprint.id);
-    if (index != -1) {
-      currentSprints[index] = updatedSprint;
-      state = state.copyWith(sprints: currentSprints);
-    }
-  }
-
-  void _handleSprintDeleted(String sprintId) {
-    final currentSprints = List<Sprint>.from(state.sprints);
-    currentSprints.removeWhere((s) => s.id == sprintId);
-    state = state.copyWith(sprints: currentSprints);
-  }
-
-  void _handleAnalyticsUpdated(dynamic analyticsData) {
-    state = state.copyWith(analyticsData: analyticsData);
-  }
-
-  @override
-  void dispose() {
-    // Clean up real-time listeners
-    realtimeService.offAll('deliverable_created');
-    realtimeService.offAll('deliverable_updated');
-    realtimeService.offAll('deliverable_deleted');
-    realtimeService.offAll('deliverable_status_changed');
-    realtimeService.offAll('sprint_created');
-    realtimeService.offAll('sprint_updated');
-    realtimeService.offAll('sprint_deleted');
-    realtimeService.offAll('analytics_updated');
-    super.dispose();
-  }
+  // Real-time handlers removed for now
 }
 
 // Removed unused extension

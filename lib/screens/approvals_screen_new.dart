@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/approval_request.dart';
+import '../models/approval_request.dart' as core;
 import '../services/approval_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
@@ -15,7 +15,7 @@ class ApprovalsScreen extends ConsumerStatefulWidget {
 
 class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   final ApprovalService _approvalService = ApprovalService(AuthService());
-  List<ApprovalRequest> _approvalRequests = [];
+  List<core.ApprovalRequest> _approvalRequests = [];
   bool _isLoading = true;
   String _searchQuery = '';
   String _selectedStatus = 'all';
@@ -34,7 +34,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       
       if (response.isSuccess) {
         setState(() {
-          _approvalRequests = response.data!['requests'].cast<ApprovalRequest>();
+          _approvalRequests = response.data!['requests'].cast<core.ApprovalRequest>();
         });
       } else {
         _showErrorSnackBar('Failed to load approval requests: ${response.error}');
@@ -46,7 +46,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
     }
   }
 
-  List<ApprovalRequest> get _filteredRequests {
+  List<core.ApprovalRequest> get _filteredRequests {
     return _approvalRequests.where((request) {
       final matchesSearch = _searchQuery.isEmpty ||
           request.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -76,7 +76,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
     );
   }
 
-  Future<void> _approveRequest(ApprovalRequest request) async {
+  Future<void> _approveRequest(core.ApprovalRequest request) async {
     final reason = await _showReasonDialog('Approve Request', 'Enter reason for approval:');
     if (reason != null && reason.isNotEmpty) {
       setState(() => _isLoading = true);
@@ -98,7 +98,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
     }
   }
 
-  Future<void> _rejectRequest(ApprovalRequest request) async {
+  Future<void> _rejectRequest(core.ApprovalRequest request) async {
     final reason = await _showReasonDialog('Reject Request', 'Enter reason for rejection:');
     if (reason != null && reason.isNotEmpty) {
       setState(() => _isLoading = true);

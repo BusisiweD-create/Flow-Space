@@ -514,10 +514,12 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                         hint: 'All Sprints',
                         items: [
                           const DropdownMenuItem<String?>(value: null, child: Text('All Sprints')),
-                          ..._sprints.where((s) => _selectedProjectId == null || s['project_id'] == _selectedProjectId).map((s) => DropdownMenuItem<String?>(
-                            value: s['id'] as String,
-                            child: Text(s['name'] as String? ?? 'Unknown'),
-                          ),),
+                          ..._sprints
+                              .where((s) => _selectedProjectId == null || (s['project_id']?.toString() == _selectedProjectId))
+                              .map((s) => DropdownMenuItem<String?>(
+                                value: s['id']?.toString(),
+                                child: Text((s['name'] ?? 'Unknown').toString()),
+                              ),),
                         ],
                         onChanged: (value) {
                           setState(() => _selectedSprintId = value);

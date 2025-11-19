@@ -430,6 +430,10 @@ class BackendApiService {
     return await _apiClient.get('/audit-logs', queryParams: queryParams);
   }
 
+  Future<ApiResponse> getSystemHealth() async {
+    return await _apiClient.get('/monitoring/health');
+  }
+
   // User settings endpoints
   Future<ApiResponse> getUserSettings() async {
     return await _apiClient.get('/settings/me');

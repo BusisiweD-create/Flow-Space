@@ -2,16 +2,18 @@ const nodemailer = require('nodemailer');
 
 class EmailService {
   constructor() {
-    // Gmail SMTP configuration - using environment variables for security
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true' || false,
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+        pass: (process.env.SMTP_PASS || '').replace(/\s+/g, '')
       }
     });
+    this.fromName = process.env.SMTP_FROM_NAME || process.env.EMAIL_FROM_NAME || 'Flownet Workspaces';
+    this.fromEmail = process.env.SMTP_FROM_EMAIL || process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER;
+    this.replyTo = process.env.EMAIL_REPLY_TO || this.fromEmail;
   }
 
   // Test SMTP connection
@@ -31,12 +33,13 @@ class EmailService {
     try {
       const mailOptions = {
         from: {
-          name: 'Flownet Workspaces',
-          address: 'dhlaminibusisiwe30@gmail.com'
+          name: this.fromName,
+          address: this.fromEmail
         },
         to: toEmail,
         subject: 'Verify Your Email - Flownet Workspaces',
-        html: this.buildVerificationEmailHtml(userName, verificationCode)
+        html: this.buildVerificationEmailHtml(userName, verificationCode),
+        replyTo: this.replyTo
       };
 
       const result = await this.transporter.sendMail(mailOptions);
@@ -53,12 +56,13 @@ class EmailService {
     try {
       const mailOptions = {
         from: {
-          name: 'Flownet Workspaces',
-          address: 'dhlaminibusisiwe30@gmail.com'
+          name: this.fromName,
+          address: this.fromEmail
         },
         to: toEmail,
         subject: 'Reset Your Password - Flownet Workspaces',
-        html: this.buildPasswordResetEmailHtml(userName, resetLink)
+        html: this.buildPasswordResetEmailHtml(userName, resetLink),
+        replyTo: this.replyTo
       };
 
       const result = await this.transporter.sendMail(mailOptions);

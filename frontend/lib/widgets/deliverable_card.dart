@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-class DeliverableCard extends StatelessWidget {
+class DeliverableMapCard extends StatelessWidget {
   final Map<String, dynamic> deliverable;
   final VoidCallback? onTap;
 
-  const DeliverableCard({super.key, required this.deliverable, this.onTap});
+  const DeliverableMapCard({super.key, required this.deliverable, this.onTap});
 
   @override
   Widget build(BuildContext context) {

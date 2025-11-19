@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:khono/models/sprint.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import '../utils/git_utils.dart';
 import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
@@ -13,7 +14,11 @@ import '../services/notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/notification_provider.dart';
+import '../models/deliverable.dart';
 import '../services/api_service.dart';
+import 'sprint_report_screen.dart';
+import 'user_management_screen.dart';
 // Using Map-based data for deliverables and sprints
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -485,7 +490,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         else
           ...deliverables.take(5).map((deliverable) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: DeliverableCard(
+                child: DeliverableMapCard(
                   deliverable: deliverable,
                   onTap: () {
                     _showDeliverableDetailsDialog(deliverable);
@@ -1154,38 +1159,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _showAllDeliverablesDialog() {
+    final dashboardState = ref.read(dashboardProvider);
+    final items = dashboardState.deliverables;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('All Deliverables'),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              _buildDeliverableItem('Project Requirements Document', 'Completed', Colors.green),
-              _buildDeliverableItem('System Architecture Design', 'Completed', Colors.green),
-              _buildDeliverableItem('Database Schema', 'Completed', Colors.green),
-              _buildDeliverableItem('Frontend Prototype', 'In Progress', Colors.orange),
-              _buildDeliverableItem('API Documentation', 'In Progress', Colors.orange),
-              _buildDeliverableItem('User Testing Report', 'Not Started', Colors.grey),
-              _buildDeliverableItem('Deployment Guide', 'Not Started', Colors.grey),
-            ],
-          ),
+          child: items.isEmpty
+              ? const Center(child: Text('No deliverables found'))
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final d = items[index];
+                    return DeliverableMapCard(
+                      deliverable: d,
+                      onTap: () {
+                        _showDeliverableDetailsDialog(d);
+                      },
+                    );
+                  },
+                ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Deliverables exported to PDF')),
-              );
-              Navigator.of(context).pop();
-            },
-            child: const Text('Export to PDF'),
           ),
         ],
       ),

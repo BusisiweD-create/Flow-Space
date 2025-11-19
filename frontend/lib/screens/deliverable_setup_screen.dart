@@ -29,7 +29,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   String _priority = 'medium';
   String _status = 'pending';
   DateTime? _dueDate;
-  List<Map<String, dynamic>> _availableSprints = [];
+  List<Sprint> _availableSprints = [];
   String? _selectedSprintId;
 
   @override
@@ -76,23 +76,20 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         .toList();
     final contributingSprints = _selectedSprintId != null ? [_selectedSprintId!] : <String>[];
     try {
-      await ApiService.createDeliverable(
+      final dodList = _dodController.text
+          .split(RegExp(r'[\n;]'))
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      final create = DeliverableCreate(
         title: _titleController.text,
         description: _descriptionController.text,
-        definitionOfDone: _dodController.text,
-        priority: _priority,
-        dueDate: _dueDate,
-        status: _status,
+        dueDate: _dueDate!,
+        sprintIds: contributingSprints,
+        definitionOfDone: dodList,
         evidenceLinks: evidenceLinks,
-        contributingSprints: contributingSprints,
-        demoLink: _demoLinkController.text.isEmpty ? null : _demoLinkController.text,
-        repoLink: _repoLinkController.text.isEmpty ? null : _repoLinkController.text,
-        testSummaryLink: _testSummaryLinkController.text.isEmpty ? null : _testSummaryLinkController.text,
-        userGuideLink: _userGuideLinkController.text.isEmpty ? null : _userGuideLinkController.text,
-        testPassRate: int.tryParse(_testPassRateController.text),
-        codeCoverage: int.tryParse(_codeCoverageController.text),
-        escapedDefects: int.tryParse(_escapedDefectsController.text),
       );
+      await ApiService.createDeliverable(create);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Deliverable created successfully!')),
@@ -244,8 +241,8 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 items: [
                   for (final s in _availableSprints)
                     DropdownMenuItem(
-                      value: s['id']?.toString(),
-                      child: Text(s['name']?.toString() ?? 'Unnamed'),
+                      value: s.id,
+                      child: Text(s.name),
                     ),
                 ],
                 onChanged: (value) {

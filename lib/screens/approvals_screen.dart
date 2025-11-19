@@ -53,9 +53,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       final matchesSearch = _searchQuery.isEmpty ||
           request.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           request.description.toLowerCase().contains(_searchQuery.toLowerCase());
-      
       final matchesStatus = _selectedStatus == 'all' || request.status == _selectedStatus;
-      
       return matchesSearch && matchesStatus;
     }).toList();
   }
@@ -274,7 +272,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                                     style: const TextStyle(color: FlownetColors.coolGray),
                                   ),
                                   Text(
-                                    'Date: ${request.requestedAt.day}/${request.requestedAt.month}/${request.requestedAt.year}',
+                                    'Date: ${_formatDate(request.requestedAt)}',
                                     style: const TextStyle(color: FlownetColors.coolGray),
                                   ),
                                   const SizedBox(height: 8),
@@ -293,11 +291,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: request.isPending
-                                          ? FlownetColors.amberOrange
-                                          : request.isApproved
-                                              ? FlownetColors.electricBlue
-                                              : FlownetColors.crimsonRed,
+                                      color: _getStatusColor(request.status),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: Text(
@@ -323,16 +317,35 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                                       tooltip: 'Reject',
                                     ),
                                   ],
-                                ],
-                              ),
+                              ],
                             ),
-                          );
+                          ),
+                        );
                         },
                       ),
           ),
         ],
       ),
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return FlownetColors.amberOrange;
+      case 'approved':
+        return FlownetColors.electricBlue;
+      case 'rejected':
+        return FlownetColors.crimsonRed;
+      case 'reminder_sent':
+        return FlownetColors.electricBlue;
+      default:
+        return FlownetColors.coolGray;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Future<void> _showSendForApprovalDialog() async {

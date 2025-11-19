@@ -27,16 +27,13 @@ class SocketService {
   async authenticateSocket(socket, next) {
     try {
       const token = socket.handshake.auth.token || socket.handshake.query.token;
-      
       if (!token) {
         return next(new Error('Authentication error: No token provided'));
       }
-
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-      socket.userId = decoded.userId;
-      socket.userRole = decoded.role;
-      socket.email = decoded.email;
-      
+      socket.userId = decoded.sub || decoded.userId;
+      socket.userRole = decoded.role || decoded.userRole;
+      socket.email = decoded.email || decoded.userEmail;
       next();
     } catch (error) {
       console.error('Socket authentication failed:', error.message);
