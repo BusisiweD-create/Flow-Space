@@ -12,7 +12,7 @@ import '../models/user.dart';
 
 class ApiService {
   // Base URL for the backend API
-  static const String baseUrl = Environment.apiBaseUrl;
+  static String baseUrl = Environment.apiBaseUrl;
   
   // Retry options for network requests
   static const RetryOptions _retryOptions = RetryOptions(
@@ -585,6 +585,23 @@ class ApiService {
     ));
 
     return _parseResponse(response);
+  }
+
+  static Future<bool> updateSprintStatus(int sprintId, String status) async {
+    final response = await _makeRequest(() => http.put(
+      Uri.parse('$baseUrl/sprints/$sprintId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'status': status}),
+    ));
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final data = _parseResponse(response);
+      if (data is Map && data.containsKey('success')) {
+        final success = data['success'];
+        if (success is bool) return success;
+      }
+      return true;
+    }
+    return false;
   }
 
   static Future<bool> deleteSprint(int id) async {

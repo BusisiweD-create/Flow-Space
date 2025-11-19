@@ -17,7 +17,6 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   final _descriptionController = TextEditingController();
   final _dodController = TextEditingController();
   final _evidenceLinksController = TextEditingController();
-  final _assignedToController = TextEditingController();
   final _demoLinkController = TextEditingController();
   final _repoLinkController = TextEditingController();
   final _testSummaryLinkController = TextEditingController();
@@ -25,12 +24,11 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   final _testPassRateController = TextEditingController();
   final _codeCoverageController = TextEditingController();
   final _escapedDefectsController = TextEditingController();
-  
   String _priority = 'medium';
-  String _status = 'draft';
+  String _status = 'pending';
   DateTime? _dueDate;
-  final List<String> _selectedSprints = [];
   List<Map<String, dynamic>> _availableSprints = [];
+  String? _selectedSprintId;
 
   @override
   void initState() {
@@ -40,13 +38,11 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
 
   Future<void> _loadSprints() async {
     try {
-      final sprints = await ApiService.getSprints();
+      final sprints = await ApiService.getSprints(limit: 50);
       setState(() {
         _availableSprints = sprints;
       });
-    } catch (e) {
-      debugPrint('Error loading sprints: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> _selectDueDate() async {
@@ -65,15 +61,19 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
 
   Future<void> _saveDeliverable() async {
     if (!_formKey.currentState!.validate()) return;
-
+    if (_dueDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a due date')),
+      );
+      return;
+    }
+    final evidenceLinks = _evidenceLinksController.text
+        .split(',')
+        .map((link) => link.trim())
+        .where((link) => link.isNotEmpty)
+        .toList();
+    final contributingSprints = _selectedSprintId != null ? [_selectedSprintId!] : <String>[];
     try {
-      // Parse evidence links from comma-separated text
-      final evidenceLinks = _evidenceLinksController.text
-          .split(',')
-          .map((link) => link.trim())
-          .where((link) => link.isNotEmpty)
-          .toList();
-
       await ApiService.createDeliverable(
         title: _titleController.text,
         description: _descriptionController.text,
@@ -81,19 +81,16 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         priority: _priority,
         dueDate: _dueDate,
         status: _status,
-        assignedTo: _assignedToController.text.isNotEmpty ? _assignedToController.text : null,
-        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
         evidenceLinks: evidenceLinks,
-        demoLink: _demoLinkController.text.isNotEmpty ? _demoLinkController.text : null,
-        repoLink: _repoLinkController.text.isNotEmpty ? _repoLinkController.text : null,
-        testSummaryLink: _testSummaryLinkController.text.isNotEmpty ? _testSummaryLinkController.text : null,
-        userGuideLink: _userGuideLinkController.text.isNotEmpty ? _userGuideLinkController.text : null,
-        testPassRate: _testPassRateController.text.isNotEmpty ? int.tryParse(_testPassRateController.text) : null,
-        codeCoverage: _codeCoverageController.text.isNotEmpty ? int.tryParse(_codeCoverageController.text) : null,
-        escapedDefects: _escapedDefectsController.text.isNotEmpty ? int.tryParse(_escapedDefectsController.text) : null,
-        contributingSprints: _selectedSprints,
+        contributingSprints: contributingSprints,
+        demoLink: _demoLinkController.text.isEmpty ? null : _demoLinkController.text,
+        repoLink: _repoLinkController.text.isEmpty ? null : _repoLinkController.text,
+        testSummaryLink: _testSummaryLinkController.text.isEmpty ? null : _testSummaryLinkController.text,
+        userGuideLink: _userGuideLinkController.text.isEmpty ? null : _userGuideLinkController.text,
+        testPassRate: int.tryParse(_testPassRateController.text),
+        codeCoverage: int.tryParse(_codeCoverageController.text),
+        escapedDefects: int.tryParse(_escapedDefectsController.text),
       );
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Deliverable created successfully!')),
@@ -124,7 +121,6 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(
@@ -140,8 +136,6 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 },
               ),
               const SizedBox(height: 16),
-
-              // Description
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
@@ -158,15 +152,12 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 },
               ),
               const SizedBox(height: 16),
-
-              // Definition of Done
               TextFormField(
                 controller: _dodController,
                 decoration: const InputDecoration(
                   labelText: 'Definition of Done',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.checklist),
-                  hintText: 'Enter the acceptance criteria...',
                 ),
                 maxLines: 4,
                 validator: (value) {
@@ -177,8 +168,6 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 },
               ),
               const SizedBox(height: 16),
-
-              // Priority and Status Row
               Row(
                 children: [
                   Expanded(
@@ -197,7 +186,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                       ],
                       onChanged: (value) {
                         setState(() {
-                          _priority = value!;
+                          _priority = value ?? 'medium';
                         });
                       },
                     ),
@@ -212,14 +201,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                         prefixIcon: Icon(Icons.flag),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'draft', child: Text('Draft')),
+                        DropdownMenuItem(value: 'pending', child: Text('Pending')),
                         DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
                         DropdownMenuItem(value: 'review', child: Text('Review')),
                         DropdownMenuItem(value: 'completed', child: Text('Completed')),
                       ],
                       onChanged: (value) {
                         setState(() {
-                          _status = value!;
+                          _status = value ?? 'pending';
                         });
                       },
                     ),
@@ -227,8 +216,6 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 ],
               ),
               const SizedBox(height: 16),
-
-              // Due Date
               InkWell(
                 onTap: _selectDueDate,
                 child: InputDecorator(
@@ -245,164 +232,110 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Evidence Links
+              DropdownButtonFormField<String>(
+                initialValue: _selectedSprintId,
+                decoration: const InputDecoration(
+                  labelText: 'Contributing Sprint',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.timeline),
+                ),
+                items: [
+                  for (final s in _availableSprints)
+                    DropdownMenuItem(
+                      value: s['id']?.toString(),
+                      child: Text(s['name']?.toString() ?? 'Unnamed'),
+                    ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedSprintId = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _evidenceLinksController,
                 decoration: const InputDecoration(
-                  labelText: 'Evidence Links',
+                  labelText: 'Evidence Links (comma-separated)',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.link),
-                  hintText: 'Comma-separated URLs: demo, repo, test summary, user guide...',
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-
-              // Assigned To
-              TextFormField(
-                controller: _assignedToController,
-                decoration: const InputDecoration(
-                  labelText: 'Assigned To (User ID)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                  hintText: 'Enter user ID (e.g., 00000000-0000-0000-0000-000000000002)',
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Demo Link
               TextFormField(
                 controller: _demoLinkController,
                 decoration: const InputDecoration(
                   labelText: 'Demo Link',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.video_library),
-                  hintText: 'URL to demo video or recording',
+                  prefixIcon: Icon(Icons.play_circle),
                 ),
-                keyboardType: TextInputType.url,
               ),
               const SizedBox(height: 16),
-
-              // Repository Link
               TextFormField(
                 controller: _repoLinkController,
                 decoration: const InputDecoration(
                   labelText: 'Repository Link',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.code),
-                  hintText: 'URL to source code repository',
                 ),
-                keyboardType: TextInputType.url,
               ),
               const SizedBox(height: 16),
-
-              // Test Summary Link
               TextFormField(
                 controller: _testSummaryLinkController,
                 decoration: const InputDecoration(
                   labelText: 'Test Summary Link',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.assessment),
-                  hintText: 'URL to test results or coverage report',
+                  prefixIcon: Icon(Icons.description),
                 ),
-                keyboardType: TextInputType.url,
               ),
               const SizedBox(height: 16),
-
-              // User Guide Link
               TextFormField(
                 controller: _userGuideLinkController,
                 decoration: const InputDecoration(
                   labelText: 'User Guide Link',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.menu_book),
-                  hintText: 'URL to documentation or user guide',
+                  prefixIcon: Icon(Icons.library_books),
                 ),
-                keyboardType: TextInputType.url,
               ),
               const SizedBox(height: 16),
-
-              // Quality Metrics Section
-              const Text(
-                'Quality Metrics',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
-              ),
-              const SizedBox(height: 8),
-
-              // Test Pass Rate
-              TextFormField(
-                controller: _testPassRateController,
-                decoration: const InputDecoration(
-                  labelText: 'Test Pass Rate (%)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.check_circle),
-                  hintText: '0-100',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-
-              // Code Coverage
-              TextFormField(
-                controller: _codeCoverageController,
-                decoration: const InputDecoration(
-                  labelText: 'Code Coverage (%)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.bar_chart),
-                  hintText: '0-100',
-                ),
-                keyboardType: TextInputType.number,
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _testPassRateController,
+                      decoration: const InputDecoration(
+                        labelText: 'Test Pass Rate (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.verified),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _codeCoverageController,
+                      decoration: const InputDecoration(
+                        labelText: 'Code Coverage (%)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.code),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
-
-              // Escaped Defects
               TextFormField(
                 controller: _escapedDefectsController,
                 decoration: const InputDecoration(
                   labelText: 'Escaped Defects',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.bug_report),
-                  hintText: 'Number of defects found after release',
                 ),
                 keyboardType: TextInputType.number,
               ),
-              const SizedBox(height: 16),
-
-              // Sprint Selection
-              const Text(
-                'Contributing Sprints',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Column(
-                  children: _availableSprints.map((sprint) {
-                    final isSelected = _selectedSprints.contains(sprint['id']);
-                    return CheckboxListTile(
-                      title: Text(sprint['name']),
-                      subtitle: Text('${sprint['start_date']} - ${sprint['end_date']}'),
-                      value: isSelected,
-                      onChanged: (value) {
-                        setState(() {
-                          if (value == true) {
-                            _selectedSprints.add(sprint['id']);
-                          } else {
-                            _selectedSprints.remove(sprint['id']);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
               const SizedBox(height: 24),
-
-              // Save Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -423,22 +356,5 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _dodController.dispose();
-    _evidenceLinksController.dispose();
-    _assignedToController.dispose();
-    _demoLinkController.dispose();
-    _repoLinkController.dispose();
-    _testSummaryLinkController.dispose();
-    _userGuideLinkController.dispose();
-    _testPassRateController.dispose();
-    _codeCoverageController.dispose();
-    _escapedDefectsController.dispose();
-    super.dispose();
   }
 }

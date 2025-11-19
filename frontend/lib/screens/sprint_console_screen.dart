@@ -23,13 +23,12 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
 
   Future<void> _loadSprints() async {
     try {
-      final sprints = await ApiService.getSprints();
+      final sprints = await ApiService.getSprints(limit: 100);
       setState(() {
         _sprints = sprints;
         _isLoading = false;
       });
-    } catch (e) {
-      debugPrint('Error loading sprints: $e');
+    } catch (_) {
       setState(() {
         _isLoading = false;
       });
@@ -92,6 +91,10 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                   itemCount: _sprints.length,
                   itemBuilder: (context, index) {
                     final sprint = _sprints[index];
+                    final name = sprint['name']?.toString() ?? 'Unnamed Sprint';
+                    final status = sprint['status']?.toString() ?? 'planning';
+                    final planned = _toInt(sprint['planned_points'] ?? sprint['plannedPoints']);
+                    final completed = _toInt(sprint['completed_points'] ?? sprint['completedPoints']);
                     return Card(
                       margin: const EdgeInsets.only(bottom: 16),
                       child: Padding(
@@ -104,101 +107,33 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    sprint['name'],
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    name,
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: _getStatusColor(sprint['status']),
+                                    color: _statusColor(status),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    sprint['status'].toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    status.toUpperCase(),
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
-                            ),
-                            const SizedBox(height: 8),
-                            if (sprint['description'] != null)
-                              Text(
-                                sprint['description'],
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${_formatDate(sprint['start_date'])} - ${_formatDate(sprint['end_date'])}',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  Icon(Icons.trending_up, size: 16, color: Colors.grey[600]),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${sprint['completed_points']}/${sprint['planned_points']} points',
-                                    style: TextStyle(color: Colors.grey[600]),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    sprint['created_by_name'] ?? 'Unknown',
-                                    style: TextStyle(color: Colors.grey[600]),
-                                  ),
-                                ],
-                              ),
                             ),
                             const SizedBox(height: 12),
                             LinearProgressIndicator(
-                              value: (sprint['planned_points'] ?? 0) > 0
-                                  ? (sprint['completed_points'] ?? 0) / (sprint['planned_points'] ?? 1)
-                                  : 0,
+                              value: planned > 0 ? completed / planned : 0,
                               backgroundColor: Colors.grey[300],
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                _getProgressColor(sprint['completed_points'] ?? 0, sprint['planned_points'] ?? 0),
-                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(_progressColor(completed, planned)),
                             ),
                             const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  '${(((sprint['completed_points'] ?? 0) / (sprint['planned_points'] ?? 1)) * 100).toStringAsFixed(1)}% Complete',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => SprintDetailScreen(sprint: sprint),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text('View Details'),
-                                ),
-                              ],
+                            Text(
+                              '${planned > 0 ? ((completed / planned) * 100).toStringAsFixed(1) : '0.0'}% Complete',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -209,7 +144,14 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
     );
   }
 
-  Color _getStatusColor(String status) {
+  int _toInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'completed':
         return Colors.green;
@@ -222,22 +164,13 @@ class _SprintConsoleScreenState extends ConsumerState<SprintConsoleScreen> {
     }
   }
 
-  Color _getProgressColor(int completed, int planned) {
+  Color _progressColor(int completed, int planned) {
     if (planned == 0) return Colors.grey;
     final percentage = completed / planned;
     if (percentage >= 1.0) return Colors.green;
     if (percentage >= 0.8) return Colors.blue;
     if (percentage >= 0.5) return Colors.orange;
     return Colors.red;
-  }
-
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateString;
-    }
   }
 }
 
@@ -311,36 +244,35 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
       );
       return;
     }
-
     try {
       await ApiService.createSprint(
         name: _nameController.text,
         description: _descriptionController.text,
         startDate: _startDate,
         endDate: _endDate,
-        plannedPoints: int.tryParse(_plannedPointsController.text),
-        committedPoints: int.tryParse(_committedPointsController.text),
-        completedPoints: int.tryParse(_completedPointsController.text),
-        carriedOverPoints: int.tryParse(_carriedOverPointsController.text),
-        addedDuringSprint: int.tryParse(_addedDuringSprintController.text),
-        removedDuringSprint: int.tryParse(_removedDuringSprintController.text),
-        testPassRate: int.tryParse(_testPassRateController.text),
-        codeCoverage: int.tryParse(_codeCoverageController.text),
-        escapedDefects: int.tryParse(_escapedDefectsController.text),
-        defectsOpened: int.tryParse(_defectsOpenedController.text),
-        defectsClosed: int.tryParse(_defectsClosedController.text),
-        defectSeverityMix: _defectSeverityMixController.text,
-        codeReviewCompletion: int.tryParse(_codeReviewCompletionController.text),
-        documentationStatus: _documentationStatusController.text,
-        uatNotes: _uatNotesController.text,
-        uatPassRate: int.tryParse(_uatPassRateController.text),
-        risksIdentified: int.tryParse(_risksIdentifiedController.text),
-        risksMitigated: int.tryParse(_risksMitigatedController.text),
-        blockers: _blockersController.text,
-        decisions: _decisionsController.text,
-        createdBy: '00000000-0000-0000-0000-000000000001', // Default to John Doe
+        status: 'planning',
+        plannedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
+        committedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
+        completedPoints: int.tryParse(_completedPointsController.text) ?? 0,
+        carriedOverPoints: 0,
+        addedDuringSprint: 0,
+        removedDuringSprint: 0,
+        testPassRate: 0,
+        codeCoverage: 0,
+        escapedDefects: 0,
+        defectsOpened: 0,
+        defectsClosed: 0,
+        defectSeverityMix: null,
+        codeReviewCompletion: 0,
+        documentationStatus: null,
+        uatNotes: null,
+        uatPassRate: 0,
+        risksIdentified: 0,
+        risksMitigated: 0,
+        blockers: null,
+        decisions: null,
+        createdBy: null,
       );
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sprint created successfully!')),
@@ -709,107 +641,5 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     _blockersController.dispose();
     _decisionsController.dispose();
     super.dispose();
-  }
-}
-
-class SprintDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> sprint;
-
-  const SprintDetailScreen({super.key, required this.sprint});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(sprint['name']),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Sprint Details',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildDetailRow('Description', sprint['description'] ?? 'No description'),
-                    _buildDetailRow('Status', sprint['status']),
-                    _buildDetailRow('Start Date', _formatDate(sprint['start_date'])),
-                    _buildDetailRow('End Date', _formatDate(sprint['end_date'])),
-                    _buildDetailRow('Planned Points', sprint['planned_points'].toString()),
-                    _buildDetailRow('Completed Points', sprint['completed_points'].toString()),
-                    _buildDetailRow('Created By', sprint['created_by_name'] ?? 'Unknown'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Progress',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    LinearProgressIndicator(
-                      value: sprint['planned_points'] > 0
-                          ? sprint['completed_points'] / sprint['planned_points']
-                          : 0,
-                      backgroundColor: Colors.grey[300],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${((sprint['completed_points'] / sprint['planned_points']) * 100).toStringAsFixed(1)}% Complete',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateString;
-    }
   }
 }

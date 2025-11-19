@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/api_auth_riverpod_provider.dart';
+import '../services/api_service.dart';
 
 class EmailVerificationScreen extends ConsumerStatefulWidget {
   const EmailVerificationScreen({super.key});
@@ -14,7 +15,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(apiAuthProvider);
-    final currentUser = ref.watch(apiCurrentUserProvider);
+    final currentUser = authState.user;
 
     return Scaffold(
       body: Container(
@@ -44,15 +45,12 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Email Icon
                         const Icon(
                           Icons.email_outlined,
                           size: 80,
                           color: Colors.orange,
                         ),
                         const SizedBox(height: 24),
-                        
-                        // Title
                         Text(
                           'Verify Your Email',
                           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -61,8 +59,6 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Description
                         Text(
                           'We\'ve sent a verification link to your email address. Please check your inbox and click the link to verify your account.',
                           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -71,8 +67,6 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-                        
-                        // Email Address
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -86,11 +80,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  currentUser.when(
-                                    data: (userEmail) => userEmail ?? 'Unknown email',
-                                    loading: () => 'Loading...',
-                                    error: (_, __) => 'Error loading email',
-                                  ) as String,
+                                  currentUser?.email ?? 'Unknown email',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -100,8 +90,6 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                           ),
                         ),
                         const SizedBox(height: 32),
-                        
-                        // Resend Button
                         SizedBox(
                           width: double.infinity,
                           height: 56,
@@ -135,8 +123,6 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                           ),
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Check Status Button
                         SizedBox(
                           width: double.infinity,
                           height: 56,
@@ -160,8 +146,6 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                           ),
                         ),
                         const SizedBox(height: 24),
-                        
-                        // Sign Out Link
                         TextButton(
                           onPressed: () async {
                             final router = GoRouter.of(context);
@@ -192,40 +176,31 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
   Future<void> _resendVerification() async {
     try {
       await ref.read(apiAuthProvider.notifier).resendVerificationEmail();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to resend email: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
+    } catch (_) {}
     if (mounted) {
+      final error = ref.read(apiAuthProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Email verification resend functionality coming soon!'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification email sent! Please check your inbox.'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(error ?? 'Verification email sent! Please check your inbox.'),
+          backgroundColor: error == null ? Colors.green : Colors.red,
         ),
       );
     }
   }
 
   Future<void> _checkVerificationStatus() async {
-    // Simulate email verification check
-    await Future.delayed(const Duration(seconds: 1));
-    
+    final email = await ApiService.currentUserEmail;
+    if (email == null || email.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No email found for current user'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

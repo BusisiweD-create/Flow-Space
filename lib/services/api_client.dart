@@ -9,7 +9,7 @@ class ApiClient {
   factory ApiClient() => _instance;
   ApiClient._internal();
 
-  static const String _baseUrl = 'http://localhost:3001/api'; // Local backend server
+  static const String _baseUrl = 'http://localhost:8000/api'; // Local backend server
   static const String _apiVersion = '/v1';
   static const Duration _timeout = Duration(seconds: 30);
 
@@ -45,7 +45,7 @@ class ApiClient {
     }
   }
 
-  Future<void> _saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
+  Future<void> saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', accessToken);
@@ -101,7 +101,7 @@ class ApiClient {
         final newRefreshToken = data['refresh_token'] ?? _refreshToken;
         final expiry = DateTime.now().add(Duration(seconds: data['expires_in'] ?? 3600));
         
-        await _saveTokens(newAccessToken, newRefreshToken, expiry);
+        await saveTokens(newAccessToken, newRefreshToken, expiry);
         return true;
       }
     } catch (e) {
@@ -200,6 +200,19 @@ class ApiClient {
 
   ApiResponse _handleResponse(http.Response response) {
     try {
+      // Check if response is HTML (error pages) instead of JSON
+      final contentType = response.headers['content-type'] ?? '';
+      if (contentType.contains('text/html') || response.body.trim().startsWith('<!DOCTYPE')) {
+        // Server returned HTML (likely a 404 or error page)
+        String errorMsg = 'Server returned HTML instead of JSON';
+        if (response.statusCode == 404) {
+          errorMsg = 'Endpoint not found (404). Check the API endpoint path.';
+        } else if (response.statusCode >= 500) {
+          errorMsg = 'Server error (${response.statusCode})';
+        }
+        return ApiResponse.error(errorMsg, response.statusCode);
+      }
+      
       final responseBody = jsonDecode(response.body);
       
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -212,7 +225,12 @@ class ApiClient {
         return ApiResponse.error(errorMessage, response.statusCode);
       }
     } catch (e) {
-      return ApiResponse.error('Invalid response format: $e', response.statusCode);
+      // If JSON parsing fails, provide a more helpful error message
+      String errorMsg = 'Invalid response format: $e';
+      if (response.body.trim().startsWith('<!DOCTYPE')) {
+        errorMsg = 'Server returned HTML instead of JSON. Check if the endpoint exists.';
+      }
+      return ApiResponse.error(errorMsg, response.statusCode);
     }
   }
 
@@ -231,7 +249,7 @@ class ApiClient {
       final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
       final expiry = DateTime.now().add(Duration(seconds: expiresIn));
       
-      await _saveTokens(accessToken, refreshToken, expiry);
+      await saveTokens(accessToken, refreshToken, expiry);
     }
 
     return response;
@@ -260,7 +278,7 @@ class ApiClient {
         final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
         final expiry = DateTime.now().add(Duration(seconds: expiresIn));
         
-        await _saveTokens(accessToken, refreshToken, expiry);
+        await saveTokens(accessToken, refreshToken, expiry);
       }
     }
 
@@ -306,7 +324,7 @@ class ApiClient {
 
 class ApiResponse {
   final bool isSuccess;
-  final Map<String, dynamic>? data;
+  final dynamic data; // Changed to dynamic to support both Map and List
   final String? error;
   final int statusCode;
 
@@ -317,7 +335,7 @@ class ApiResponse {
     required this.statusCode,
   });
 
-  factory ApiResponse.success(Map<String, dynamic> data, int statusCode) {
+  factory ApiResponse.success(dynamic data, int statusCode) {
     return ApiResponse._(
       isSuccess: true,
       data: data,

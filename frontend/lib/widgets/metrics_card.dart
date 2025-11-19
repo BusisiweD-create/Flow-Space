@@ -4,56 +4,47 @@ class MetricsCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-  final Color color;
+  final Color? color;
 
   const MetricsCard({
     super.key,
     required this.title,
     required this.value,
     required this.icon,
-    required this.color,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = color ?? Theme.of(context).colorScheme.primary;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(
-                  icon,
-                  color: color,
-                  size: 24,
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    value,
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-              ],
+            CircleAvatar(
+              backgroundColor: accent.withValues(alpha: 0.15),
+              child: Icon(icon, color: accent),
             ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: accent,
+                        ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

@@ -55,6 +55,11 @@ class BackendApiService {
     return await _apiClient.resetPassword(token, newPassword);
   }
 
+  // Token management
+  Future<void> saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
+    await _apiClient.saveTokens(accessToken, refreshToken, expiry);
+  }
+
   // User management endpoints
   Future<ApiResponse> getUsers({int page = 1, int limit = 20, String? search}) async {
     final queryParams = <String, String>{
@@ -81,6 +86,20 @@ class BackendApiService {
 
   Future<ApiResponse> updateUserRole(String userId, UserRole newRole) async {
     return await _apiClient.put('/users/$userId/role', body: {'role': newRole.name});
+  }
+
+  Future<ApiResponse> createUser({
+    required String email,
+    required String name,
+    required String role,
+    required String password,
+  }) async {
+    return await _apiClient.post('/users', body: {
+      'email': email,
+      'name': name,
+      'role': role,
+      'password': password,
+    },);
   }
 
   // Deliverable endpoints
@@ -191,27 +210,32 @@ class BackendApiService {
   }
 
   Future<ApiResponse> createSignOffReport(Map<String, dynamic> reportData) async {
+    debugPrint('🔵 Creating sign-off report: $reportData');
     return await _apiClient.post('/sign-off-reports', body: reportData);
   }
 
   Future<ApiResponse> updateSignOffReport(String reportId, Map<String, dynamic> updates) async {
+    debugPrint('🔵 Updating sign-off report $reportId: $updates');
     return await _apiClient.put('/sign-off-reports/$reportId', body: updates);
   }
 
   Future<ApiResponse> submitSignOffReport(String reportId) async {
+    debugPrint('🔵 Submitting sign-off report: $reportId');
     return await _apiClient.post('/sign-off-reports/$reportId/submit');
   }
 
   Future<ApiResponse> approveSignOffReport(String reportId, String? comment, String? digitalSignature) async {
+    debugPrint('🔵 Approving/adding feedback to report: $reportId');
     return await _apiClient.post('/sign-off-reports/$reportId/approve', body: {
       'comment': comment,
-      'digital_signature': digitalSignature,
+      'digitalSignature': digitalSignature,
     },);
   }
 
   Future<ApiResponse> requestSignOffChanges(String reportId, String changeRequest) async {
+    debugPrint('🔵 Requesting changes to report: $reportId');
     return await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: {
-      'change_request': changeRequest,
+      'changeRequestDetails': changeRequest,
     },);
   }
 

@@ -25,7 +25,6 @@ class WelcomeScreen extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                // Logo and App Name
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -63,8 +62,6 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 40),
-                
-                // Features
                 _buildFeatureCard(
                   context,
                   Icons.assignment,
@@ -85,10 +82,7 @@ class WelcomeScreen extends StatelessWidget {
                   'Client Approval',
                   'Streamlined sign-off process with digital approvals',
                 ),
-                
                 const SizedBox(height: 40),
-                
-                // Action Buttons
                 Column(
                   children: [
                     SizedBox(

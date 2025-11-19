@@ -1,5 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const router = express.Router();
@@ -291,7 +291,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     }
 
     // Verify current password
-    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    const isValidPassword = await bcrypt.compare(currentPassword, user.hashed_password);
 
     if (!isValidPassword) {
       return res.status(401).json({
@@ -305,7 +305,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password
-    await user.update({ password: hashedPassword });
+    await user.update({ hashed_password: hashedPassword });
 
     res.json({
       message: 'Password changed successfully'

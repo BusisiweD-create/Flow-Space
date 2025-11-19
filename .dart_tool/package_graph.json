@@ -36,8 +36,8 @@
         "provider",
         "share_plus",
         "shared_preferences",
+        "socket_io_client",
         "timezone",
-        "universal_html",
         "url_launcher"
       ],
       "devDependencies": [
@@ -271,21 +271,6 @@
       ]
     },
     {
-      "name": "universal_html",
-      "version": "2.3.0",
-      "dependencies": [
-        "async",
-        "charcode",
-        "collection",
-        "csslib",
-        "html",
-        "meta",
-        "source_span",
-        "typed_data",
-        "universal_io"
-      ]
-    },
-    {
       "name": "pdf",
       "version": "3.11.3",
       "dependencies": [
@@ -320,6 +305,15 @@
       "name": "csv",
       "version": "5.1.1",
       "dependencies": []
+    },
+    {
+      "name": "socket_io_client",
+      "version": "2.0.3+1",
+      "dependencies": [
+        "js",
+        "logging",
+        "socket_io_common"
+      ]
     },
     {
       "name": "crypto",
@@ -625,8 +619,10 @@
     },
     {
       "name": "js",
-      "version": "0.7.2",
-      "dependencies": []
+      "version": "0.6.7",
+      "dependencies": [
+        "meta"
+      ]
     },
     {
       "name": "io",
@@ -1036,7 +1032,7 @@
     },
     {
       "name": "cross_file",
-      "version": "0.3.4+2",
+      "version": "0.3.5",
       "dependencies": [
         "meta",
         "web"
@@ -1197,51 +1193,6 @@
       ]
     },
     {
-      "name": "universal_io",
-      "version": "2.3.1",
-      "dependencies": [
-        "collection",
-        "meta",
-        "typed_data"
-      ]
-    },
-    {
-      "name": "typed_data",
-      "version": "1.4.0",
-      "dependencies": [
-        "collection"
-      ]
-    },
-    {
-      "name": "source_span",
-      "version": "1.10.1",
-      "dependencies": [
-        "collection",
-        "path",
-        "term_glyph"
-      ]
-    },
-    {
-      "name": "html",
-      "version": "0.15.6",
-      "dependencies": [
-        "csslib",
-        "source_span"
-      ]
-    },
-    {
-      "name": "charcode",
-      "version": "1.4.0",
-      "dependencies": []
-    },
-    {
-      "name": "csslib",
-      "version": "1.0.2",
-      "dependencies": [
-        "source_span"
-      ]
-    },
-    {
       "name": "xml",
       "version": "6.6.1",
       "dependencies": [
@@ -1305,6 +1256,20 @@
       ]
     },
     {
+      "name": "socket_io_common",
+      "version": "2.0.3",
+      "dependencies": [
+        "logging"
+      ]
+    },
+    {
+      "name": "typed_data",
+      "version": "1.4.0",
+      "dependencies": [
+        "collection"
+      ]
+    },
+    {
       "name": "http_parser",
       "version": "4.1.2",
       "dependencies": [
@@ -1359,7 +1324,7 @@
     },
     {
       "name": "flutter_plugin_android_lifecycle",
-      "version": "2.0.32",
+      "version": "2.0.31",
       "dependencies": [
         "flutter"
       ]
@@ -1559,6 +1524,15 @@
       ]
     },
     {
+      "name": "source_span",
+      "version": "1.10.1",
+      "dependencies": [
+        "collection",
+        "path",
+        "term_glyph"
+      ]
+    },
+    {
       "name": "web_socket",
       "version": "1.0.1",
       "dependencies": [
@@ -1675,7 +1649,7 @@
     },
     {
       "name": "file_selector_platform_interface",
-      "version": "2.6.2",
+      "version": "2.7.0",
       "dependencies": [
         "cross_file",
         "flutter",

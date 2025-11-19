@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/api_auth_riverpod_provider.dart';
-import '../models/user.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -30,16 +29,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(apiAuthProvider);
 
-    // Listen to auth state changes
-    ref.listen<AsyncValue<User?>>(apiCurrentUserProvider, (previous, next) {
-      next.whenData((user) {
-        if (user != null) {
-          context.go('/dashboard');
-        }
-      });
+    ref.listen<ApiAuthState>(apiAuthProvider, (previous, next) {
+      if (next.user != null) {
+        context.go('/dashboard');
+      }
     });
 
-    // Show error if any
     if (authState.error != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +76,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Logo and Title
                           Icon(
                             Icons.dashboard,
                             size: 60,
@@ -102,8 +96,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                           ),
                           const SizedBox(height: 32),
-
-                          // Email Field
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
@@ -120,15 +112,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';
                               }
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                              if (!RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
                                 return 'Please enter a valid email';
                               }
                               return null;
                             },
                           ),
                           const SizedBox(height: 16),
-
-                          // Password Field
                           TextFormField(
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
@@ -137,9 +127,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               prefixIcon: const Icon(Icons.lock_outlined),
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _isPasswordVisible
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
+                                  _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -164,20 +152,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             },
                           ),
                           const SizedBox(height: 8),
-
-                          // Forgot Password
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {
-                                _showForgotPasswordDialog();
-                              },
+                              onPressed: () {},
                               child: const Text('Forgot Password?'),
                             ),
                           ),
                           const SizedBox(height: 24),
-
-                          // Sign In Button
                           SizedBox(
                             width: double.infinity,
                             height: 56,
@@ -210,8 +192,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
-
-                          // Divider
                           Row(
                             children: [
                               Expanded(child: Divider(color: Colors.grey[300])),
@@ -229,23 +209,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ],
                           ),
                           const SizedBox(height: 24),
-
-                          // Google Sign In Button
                           SizedBox(
                             width: double.infinity,
                             height: 56,
                             child: OutlinedButton.icon(
                               onPressed: authState.isLoading ? null : _handleGoogleSignIn,
-                              icon: Image.asset(
-                                'assets/images/google_logo.svg',
-                                height: 20,
-                                width: 20,
-                                errorBuilder: (context, error, stackTrace) => const Icon(
-                                  Icons.g_mobiledata,
-                                  size: 24,
-                                  color: Colors.red,
-                                ),
-                              ),
+                              icon: const Icon(Icons.g_mobiledata, size: 24, color: Colors.red),
                               label: const Text(
                                 'Continue with Google',
                                 style: TextStyle(
@@ -256,30 +225,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.black87,
                                 side: BorderSide(color: Colors.grey[300]!),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Create Account Link
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                "Don't have an account? ",
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                              TextButton(
-                                onPressed: () => context.go('/register'),
-                                child: const Text(
-                                  'Create Account',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
@@ -294,98 +241,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Future<void> _handleLogin() async {
+  void _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
-
     await ref.read(apiAuthProvider.notifier).signIn(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    try {
-      await ref.read(apiAuthProvider.notifier).signInWithGoogle();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Google sign-in failed: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-    // For now, show a message that Google sign-in is not implemented
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Google sign-in is not yet implemented'),
-      ),
-    );
-  }
-
-  void _showForgotPasswordDialog() {
-    final emailController = TextEditingController();
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Enter your email address and we\'ll send you a password reset link.'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (emailController.text.isNotEmpty) {
-                final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
-                navigator.pop();
-                try {
-                  await ref.read(apiAuthProvider.notifier).requestPasswordReset(emailController.text.trim());
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Password reset link sent! Please check your email.'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } catch (e) {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to send reset link: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-                // For now, show a message that password reset is not implemented
-                if (mounted) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Password reset functionality is not yet implemented'),
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Send Reset Link'),
-          ),
-        ],
-      ),
-    );
-  }
+  void _handleGoogleSignIn() async {}
 }

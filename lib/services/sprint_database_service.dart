@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
 class SprintDatabaseService {
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  static const String _baseUrl = 'http://localhost:8000/api/v1';
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   
@@ -164,16 +164,16 @@ class SprintDatabaseService {
   /// Create a new project
   Future<Map<String, dynamic>?> createProject({
     required String name,
-    required String key,
+    String? key,
     String? description,
     String? projectType,
   }) async {
     try {
       final body = {
         'name': name,
-        'key': key,
-        'description': description,
-        'projectType': projectType ?? 'software',
+        if (key != null) 'key': key,
+        if (description != null) 'description': description,
+        if (projectType != null) 'projectType': projectType,
       };
 
       final response = await http.post(

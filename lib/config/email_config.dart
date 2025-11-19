@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+// Pure Dart configuration without Flutter dependencies
 
 class EmailConfig {
   // SMTP Server Configuration
@@ -33,7 +33,7 @@ class EmailConfig {
   static const int maxEmailsPerDay = 50;
 
   // Development vs Production Settings
-  static bool get isProduction => !kDebugMode;
+  static bool get isProduction => const bool.fromEnvironment('dart.vm.product');
   
   // Enable real email sending (disable mock mode for testing)
   static bool get useMockEmailService => false;
