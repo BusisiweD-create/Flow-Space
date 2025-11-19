@@ -6,7 +6,7 @@ enum ApprovalStatus {
   reminder_sent,
 }
 
-class ApprovalRequest {
+class FlowSpaceApprovalRequest {
   final String id;
   final String deliverableTitle;
   final String requesterName;
@@ -14,7 +14,7 @@ class ApprovalRequest {
   final ApprovalStatus status;
   final String comments;
 
-  const ApprovalRequest({
+  const FlowSpaceApprovalRequest({
     required this.id,
     required this.deliverableTitle,
     required this.requesterName,
@@ -23,7 +23,7 @@ class ApprovalRequest {
     required this.comments,
   });
 
-  ApprovalRequest copyWith({
+  FlowSpaceApprovalRequest copyWith({
     String? id,
     String? deliverableTitle,
     String? requesterName,
@@ -31,7 +31,7 @@ class ApprovalRequest {
     ApprovalStatus? status,
     String? comments,
   }) {
-    return ApprovalRequest(
+    return FlowSpaceApprovalRequest(
       id: id ?? this.id,
       deliverableTitle: deliverableTitle ?? this.deliverableTitle,
       requesterName: requesterName ?? this.requesterName,
@@ -52,11 +52,11 @@ class ApprovalRequest {
     };
   }
 
-  factory ApprovalRequest.fromJson(Map<String, dynamic> json) {
+  factory FlowSpaceApprovalRequest.fromJson(Map<String, dynamic> json) {
     final deliverable = json['deliverable'] as Map<String, dynamic>?;
     final requester = json['requester'] as Map<String, dynamic>?;
     final statusString = (json['status'] ?? 'pending').toString();
-    return ApprovalRequest(
+    return FlowSpaceApprovalRequest(
       id: json['id'].toString(),
       deliverableTitle: (deliverable != null ? (deliverable['title'] ?? '') : '') as String,
       requesterName: (requester != null

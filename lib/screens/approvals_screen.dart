@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/approval_request.dart';
+import '../models/flow_space_approval_request.dart';
 import '../services/backend_api_service.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -15,7 +15,7 @@ class ApprovalsScreen extends ConsumerStatefulWidget {
 }
 
 class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
-  List<ApprovalRequest> _approvalRequests = [];
+  List<FlowSpaceApprovalRequest> _approvalRequests = [];
   bool _isLoading = false;
   String? _errorMessage;
   bool _autoRemindersTriggered = false;
@@ -44,9 +44,9 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
             : (raw is Map<String, dynamic>
                 ? (raw['data'] ?? raw['items'] ?? raw['approvals'] ?? [])
                 : []);
-        final List<ApprovalRequest> approvals = approvalData
+        final List<FlowSpaceApprovalRequest> approvals = approvalData
             .whereType<Map>()
-            .map((data) => ApprovalRequest.fromJson(Map<String, dynamic>.from(data)))
+            .map((data) => FlowSpaceApprovalRequest.fromJson(Map<String, dynamic>.from(data)))
             .toList();
 
         setState(() {

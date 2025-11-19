@@ -11,7 +11,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
 import '../models/system_metrics.dart';
-import '../models/approval_request.dart';
+import '../models/flow_space_approval_request.dart';
 import '../models/sign_off_report.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
@@ -60,7 +60,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Map<String, dynamic> _analyticsData = {};
   List<Map<String, dynamic>> _dashboardSprints = [];
   bool _isLoadingDashboardSprints = false;
-  List<ApprovalRequest> _dashboardApprovals = [];
+  List<FlowSpaceApprovalRequest> _dashboardApprovals = [];
   bool _isLoadingDashboardApprovals = false;
   List<Map<String, dynamic>> _dashboardDeliverables = [];
   bool _isLoadingDashboardDeliverables = false;
@@ -383,7 +383,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       final response = await _backendApiService.getApprovalRequests(page: 1, limit: 20);
       final dynamic raw = response.data;
       final List<dynamic> items = raw is List ? raw : (raw is Map ? (raw['data'] ?? raw['items'] ?? raw['approvals'] ?? []) : []);
-      final approvals = items.whereType<Map>().map((m) => ApprovalRequest.fromJson(Map<String, dynamic>.from(m))).toList();
+      final approvals = items.whereType<Map>().map((m) => FlowSpaceApprovalRequest.fromJson(Map<String, dynamic>.from(m))).toList();
       setState(() {
         _dashboardApprovals = approvals;
       });
