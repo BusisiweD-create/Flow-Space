@@ -61,7 +61,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Reports', 
         icon: Icons.assessment_outlined, 
         route: '/report-repository',
-        requiredPermission: 'view_team_dashboard',
+        requiredPermission: null, // Allow all authenticated users (especially client reviewers)
       ),
       const _NavItem(
         label: 'Role Management',

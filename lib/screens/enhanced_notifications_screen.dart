@@ -369,6 +369,12 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
         return Colors.blue;
       case NotificationType.file:
         return Colors.orange;
+      case NotificationType.reportSubmission:
+        return FlownetColors.electricBlue;
+      case NotificationType.reportApproved:
+        return Colors.green;
+      case NotificationType.reportChangesRequested:
+        return FlownetColors.amberOrange;
     }
   }
 
@@ -388,6 +394,12 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
         return Icons.group;
       case NotificationType.file:
         return Icons.attach_file;
+      case NotificationType.reportSubmission:
+        return Icons.assignment_turned_in;
+      case NotificationType.reportApproved:
+        return Icons.check_circle;
+      case NotificationType.reportChangesRequested:
+        return Icons.edit_note;
     }
   }
 

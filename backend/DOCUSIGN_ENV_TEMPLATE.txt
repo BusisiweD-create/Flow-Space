@@ -1,0 +1,73 @@
+# ============================================================================
+# SIGNATURE SYSTEM CONFIGURATION
+# ============================================================================
+# This file contains environment variables for the Hybrid E-Signature System
+# Copy relevant sections to your .env file
+
+# ============================================================================
+# DOCUSIGN E-SIGNATURE CONFIGURATION (OPTIONAL - For Premium Features)
+# ============================================================================
+# Get these credentials from DocuSign Developer Account:
+# https://developers.docusign.com/
+
+# Integration Key (Client ID) - From DocuSign Admin Console
+DOCUSIGN_INTEGRATION_KEY=
+
+# Secret Key - Generated in DocuSign Admin Console
+DOCUSIGN_SECRET_KEY=
+
+# Account ID (Account GUID) - Found in DocuSign Settings
+DOCUSIGN_ACCOUNT_ID=
+
+# User ID (User GUID) - Found in DocuSign Settings
+DOCUSIGN_USER_ID=
+
+# API Base URL
+# Demo: https://demo.docusign.net/restapi
+# Production: https://www.docusign.net/restapi
+DOCUSIGN_BASE_URL=https://demo.docusign.net/restapi
+
+# Auth Server URL
+# Demo: https://account-d.docusign.com
+# Production: https://account.docusign.com
+DOCUSIGN_AUTH_SERVER=https://account-d.docusign.com
+
+# Environment (true for production, false for demo)
+DOCUSIGN_PRODUCTION=false
+
+# Webhook Secret (for verifying DocuSign webhook signatures)
+# Generate a secure random string and add to DocuSign webhook configuration
+DOCUSIGN_WEBHOOK_SECRET=
+
+# ============================================================================
+# NOTES:
+# ============================================================================
+# 
+# 1. CUSTOM SIGNATURES (FREE)
+#    - No configuration needed
+#    - Works out of the box
+#    - Perfect for internal workflows
+# 
+# 2. DOCUSIGN INTEGRATION (PREMIUM)
+#    - Requires DocuSign Developer/Production account
+#    - Demo account is free for testing
+#    - Production account has per-envelope or per-user costs
+# 
+# 3. SETUP STEPS:
+#    a. Create account at https://developers.docusign.com/
+#    b. Get Integration Key and Secret from Admin Console
+#    c. Find Account ID and User ID in Settings
+#    d. Copy values above to your .env file
+#    e. Restart backend server
+#    f. DocuSign option will appear in signature selector
+# 
+# 4. COST INFORMATION:
+#    - Custom Signatures: FREE
+#    - DocuSign Demo: FREE (for development)
+#    - DocuSign Production: ~$10-40/user/month OR ~$0.50-1/envelope
+# 
+# 5. For detailed setup instructions, see:
+#    SIGNATURE_SYSTEM_GUIDE.md
+# 
+# ============================================================================
+

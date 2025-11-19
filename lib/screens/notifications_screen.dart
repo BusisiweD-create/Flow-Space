@@ -242,6 +242,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         return FlownetColors.red;
       case NotificationType.team:
         return FlownetColors.teal;
+      case NotificationType.reportSubmission:
+        return FlownetColors.electricBlue;
+      case NotificationType.reportApproved:
+        return FlownetColors.emeraldGreen;
+      case NotificationType.reportChangesRequested:
+        return FlownetColors.amberOrange;
     }
   }
 
@@ -261,6 +267,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         return Icons.settings;
       case NotificationType.team:
         return Icons.group;
+      case NotificationType.reportSubmission:
+        return Icons.assignment_turned_in;
+      case NotificationType.reportApproved:
+        return Icons.check_circle;
+      case NotificationType.reportChangesRequested:
+        return Icons.edit_note;
     }
   }
 

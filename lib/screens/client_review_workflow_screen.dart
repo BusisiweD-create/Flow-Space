@@ -9,7 +9,7 @@ import '../services/api_client.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/signature_capture_widget.dart';
-import 'dart:convert';
+import '../widgets/signature_display_widget.dart';
 
 class ClientReviewWorkflowScreen extends ConsumerStatefulWidget {
   final String reportId;
@@ -38,7 +38,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
   bool _isLoading = true;
   bool _isSubmitting = false;
   String? _selectedAction; // 'approve' or 'request_changes'
-  Map<String, dynamic>? _reportData; // Store full report data for signature info
+  List<Map<String, dynamic>> _signatures = []; // Store digital signatures
 
   @override
   void initState() {
@@ -68,7 +68,6 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
         final reviews = data['reviews'] as List? ?? [];
         
         setState(() {
-          _reportData = data;
           _report = SignOffReport(
             id: data['id'] as String,
             deliverableId: data['deliverableId'] as String? ?? data['deliverable_id'] as String? ?? '',
@@ -90,6 +89,9 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
             _loadDeliverable(_report!.deliverableId);
           }
         });
+        
+        // Load digital signatures
+        await _loadSignatures();
       }
     } catch (e) {
       if (mounted) {
@@ -101,6 +103,24 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _loadSignatures() async {
+    try {
+      final ApiClient apiClient = ApiClient();
+      final response = await apiClient.get('/sign-off-reports/${widget.reportId}/signatures');
+      
+      if (response.isSuccess && response.data != null) {
+        final signaturesData = response.data!['data'] as List? ?? [];
+        setState(() {
+          _signatures = signaturesData.cast<Map<String, dynamic>>();
+        });
+        debugPrint('✅ Loaded ${_signatures.length} signatures for report');
+      }
+    } catch (e) {
+      debugPrint('Error loading signatures: $e');
+      // Don't show error to user - signatures are optional display
     }
   }
 
@@ -163,10 +183,25 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       ApiResponse response;
       
       if (_selectedAction == 'approve') {
-        // Capture signature if widget exists
+        // Capture signature - MANDATORY for approval
         String? signature;
         if (_signatureKey.currentState != null) {
           signature = await _signatureKey.currentState!.getSignature();
+        }
+        
+        // Validate signature exists
+        if (signature == null || signature.isEmpty) {
+          if (mounted) {
+            setState(() => _isSubmitting = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Digital signature is required to approve this report. Please sign in the signature box above.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+          return;
         }
         
         response = await _reportService.approveReport(
@@ -184,11 +219,16 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       }
 
       if (response.isSuccess) {
+        // Reload signatures after approval to show the new signature
+        if (_selectedAction == 'approve') {
+          await _loadSignatures();
+        }
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(_selectedAction == 'approve' 
-                  ? 'Report approved successfully!' 
+                  ? '✅ Report approved successfully!' 
                   : 'Change request submitted successfully!',),
               backgroundColor: Colors.green,
             ),
@@ -198,14 +238,20 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${response.error}')),
+            SnackBar(
+              content: Text('Error: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting review: $e')),
+          SnackBar(
+            content: Text('Error submitting review: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -471,6 +517,19 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
     return '${date.day}/${date.month}/${date.year}';
   }
 
+  String _getSignatureTitle(String? role) {
+    switch (role?.toLowerCase()) {
+      case 'deliverylead':
+        return 'Delivery Lead Signature';
+      case 'clientreviewer':
+        return 'Client Approval Signature';
+      case 'systemadmin':
+        return 'System Admin Signature';
+      default:
+        return 'Digital Signature';
+    }
+  }
+
   @override
   void dispose() {
     _commentController.dispose();
@@ -535,6 +594,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                               ),
                             ],
                             selected: <String>{if (_selectedAction != null) _selectedAction!},
+                            emptySelectionAllowed: true,
                             onSelectionChanged: (Set<String> newSelection) {
                               setState(() {
                                 _selectedAction = newSelection.firstOrNull;
@@ -620,7 +680,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                     ),
                   ],
                   
-                  // Approved Status Banner with Signature
+                  // Approved Status Banner with Signatures
                   if (isApproved) ...[
                     const SizedBox(height: 32),
                     Container(
@@ -631,87 +691,49 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                         border: Border.all(color: Colors.green),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: const Row(
                         children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.green, size: 32),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'This report has been approved and sealed. No further changes are allowed.',
-                                  style: TextStyle(color: Colors.green, fontSize: 16),
-                                ),
-                              ),
-                            ],
+                          Icon(Icons.check_circle, color: Colors.green, size: 32),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'This report has been approved and sealed. No further changes are allowed.',
+                              style: TextStyle(color: Colors.green, fontSize: 16),
+                            ),
                           ),
-                          // Display digital signature if available
-                          if (_report?.digitalSignature != null) ...[
-                            const SizedBox(height: 16),
-                            const Divider(color: Colors.green),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Digital Signature:',
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.green, width: 2),
-                              ),
-                              child: Image.memory(
-                                base64Decode(_report!.digitalSignature!),
-                                height: 100,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Builder(
-                              builder: (context) {
-                                final signatureContent = _reportData != null 
-                                    ? (_reportData!['content'] as Map<String, dynamic>? ?? {})
-                                    : <String, dynamic>{};
-                                final reviewerName = _reviews.isNotEmpty && _reviews.first['reviewerName'] != null
-                                    ? _reviews.first['reviewerName'] as String
-                                    : AuthService().currentUser?.name ?? 'Unknown';
-                                final signatureDate = signatureContent['signatureDate'] as String?;
-                                
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Signed by: $reviewerName',
-                                      style: const TextStyle(
-                                        color: Colors.green,
-                                        fontSize: 12,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                    if (signatureDate != null)
-                                      Text(
-                                        'Signed on: ${_formatDate(DateTime.parse(signatureDate))}',
-                                        style: const TextStyle(
-                                          color: Colors.green,
-                                          fontSize: 11,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
                         ],
                       ),
                     ),
+                    
+                    // Display all digital signatures
+                    if (_signatures.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Digital Signatures',
+                        style: TextStyle(
+                          color: FlownetColors.pureWhite,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Display each signature
+                      ..._signatures.map((sig) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: SignatureDisplayWidget(
+                            signatureData: sig['signature_data'] as String?,
+                            signerName: sig['signer_name'] as String? ?? 'Unknown',
+                            signerRole: sig['signer_role'] as String? ?? 'unknown',
+                            signedDate: DateTime.parse(sig['signed_at'] as String),
+                            title: _getSignatureTitle(sig['signer_role'] as String?),
+                            isVerified: sig['is_valid'] as bool? ?? true,
+                            signatureType: sig['signature_type'] as String? ?? 'manual',
+                          ),
+                        );
+                      }),
+                    ],
                   ],
                   
                   // Change Requested Status
