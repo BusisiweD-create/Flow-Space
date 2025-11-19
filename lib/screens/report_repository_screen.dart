@@ -1095,9 +1095,10 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       ),
                     ),
                   ],
-                  // Review button for submitted reports
-                  if (report.status == ReportStatus.submitted || 
-                      report.status == ReportStatus.underReview) ...[
+                  // Review button for submitted reports (CLIENT REVIEWERS ONLY)
+                  if ((report.status == ReportStatus.submitted || 
+                      report.status == ReportStatus.underReview) &&
+                      AuthService().currentUser?.role == UserRole.clientReviewer) ...[
                     TextButton.icon(
                       onPressed: () {
                         Navigator.push(
