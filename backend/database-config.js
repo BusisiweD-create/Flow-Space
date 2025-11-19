@@ -2,21 +2,21 @@
 // Update these settings for your shared PostgreSQL database
 
 const config = {
-  // Your local PostgreSQL (for development)
+  // Your local PostgreSQL (for development/owner)
   local: {
     user: 'postgres',
-    host: 'localhost',
-    database: 'flow_space',
-    password: 'postgres',
+    host: 'localhost',           // ✅ Use localhost when running on same machine
+    database: 'flow_space',      // ✅ Your actual shared database
+    password: 'postgres',        // ✅ Your postgres password
     port: 5432,
   },
   
-  // Shared PostgreSQL (for collaborators)
+  // Shared PostgreSQL (for collaborators on same network)
   shared: {
-    user: 'postgres', // Use postgres user for local connections
-    host: 'localhost', // Connect to localhost when server is on same machine
-    database: 'flow_space',
-    password: 'postgres', // Use postgres password for local connections
+    user: 'flowspace_user',      // ✅ Collaborator user
+    host: '172.19.48.1',         // ✅ Your IP address for network sharing
+    database: 'flow_space',      // ✅ Shared database name
+    password: 'FlowSpace2024!',  // ✅ Collaborator password
     port: 5432,
   },
   
@@ -27,6 +27,7 @@ const config = {
     database: 'flow_space',
     password: 'your-cloud-password',
     port: 5432,
+    ssl: { rejectUnauthorized: false }
   }
 };
 

@@ -143,6 +143,7 @@ async function testDatabase() {
     }
     await pool.end();
   }
+
 }
 
 // Run test if this file is executed directly

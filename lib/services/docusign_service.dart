@@ -1,141 +1,66 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import '../models/docusign_config.dart';
+import 'api_client.dart';
 
-/// DocuSign Integration Service
-/// Note: This requires DocuSign API credentials to be configured
+/// Service for DocuSign e-signature integration
+/// Handles envelope creation, sending, and status tracking
 class DocuSignService {
-  static const String _baseUrl = 'https://demo.docusign.net/restapi'; // Use demo for testing
-  String? _accessToken;
-  String? _accountId;
-  
-  // These should be set from environment variables or config
-  String? _integrationKey;
-  String? _userId;
-  String? _rsaPrivateKey;
-  
-  /// Initialize DocuSign service with credentials
-  void initialize({
-    required String integrationKey,
-    required String userId,
-    required String rsaPrivateKey,
-    String? accountId,
-  }) {
-    _integrationKey = integrationKey;
-    _userId = userId;
-    _rsaPrivateKey = rsaPrivateKey;
-    _accountId = accountId;
-  }
-  
-  /// Authenticate with DocuSign (JWT OAuth)
-  Future<bool> authenticate() async {
-    if (_integrationKey == null || _userId == null || _rsaPrivateKey == null) {
-      debugPrint('❌ DocuSign credentials not configured');
-      return false;
-    }
-    
+  final ApiClient _apiClient;
+  DocuSignConfig? _config;
+
+  DocuSignService(this._apiClient);
+
+  /// Load DocuSign configuration from backend
+  Future<bool> loadConfiguration() async {
     try {
-      // Generate JWT token
-      final jwt = _generateJWT();
-      
-      // Request access token
-      final response = await http.post(
-        Uri.parse('https://account.docusign.com/oauth/token'),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: {
-          'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-          'assertion': jwt,
-        },
-      );
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _accessToken = data['access_token'];
-        _accountId = data['account_id'] ?? _accountId;
-        debugPrint('✅ DocuSign authenticated successfully');
-        return true;
-      } else {
-        debugPrint('❌ DocuSign authentication failed: ${response.body}');
-        return false;
+      final response = await _apiClient.get('/docusign/config');
+      if (response.isSuccess && response.data != null) {
+        _config = DocuSignConfig.fromJson(response.data!);
+        return _config!.isConfigured;
       }
+      return false;
     } catch (e) {
-      debugPrint('❌ DocuSign authentication error: $e');
+      debugPrint('Error loading DocuSign config: $e');
       return false;
     }
   }
-  
-  /// Create an envelope (document to sign) for a report
-  Future<String?> createEnvelope({
+
+  /// Check if DocuSign is configured and ready to use
+  bool get isConfigured => _config != null && _config!.isConfigured;
+
+  /// Create and send DocuSign envelope for report signing
+  /// Returns envelope ID if successful
+  Future<String?> createEnvelopeForReport({
     required String reportId,
-    required String reportTitle,
-    required String reportContent,
     required String signerEmail,
     required String signerName,
-    String? signerRole,
+    required String reportTitle,
+    required String reportContent,
   }) async {
-    if (_accessToken == null || _accountId == null) {
-      debugPrint('❌ DocuSign not authenticated');
-      return null;
-    }
-    
     try {
-      // Create document from report content
-      final documentBase64 = base64Encode(utf8.encode(_formatReportForDocuSign(reportTitle, reportContent)));
-      
-      // Create envelope definition
-      final envelopeDefinition = {
-        'emailSubject': 'Please sign: $reportTitle',
-        'documents': [
-          {
-            'documentBase64': documentBase64,
-            'name': '$reportTitle.pdf',
-            'fileExtension': 'pdf',
-            'documentId': '1',
-          },
-        ],
-        'recipients': {
-          'signers': [
-            {
-              'email': signerEmail,
-              'name': signerName,
-              'recipientId': '1',
-              'routingOrder': '1',
-              'tabs': {
-                'signHereTabs': [
-                  {
-                    'documentId': '1',
-                    'pageNumber': '1',
-                    'recipientId': '1',
-                    'xPosition': '100',
-                    'yPosition': '100',
-                  },
-                ],
-              },
-            },
-          ],
+      if (!isConfigured) {
+        throw Exception('DocuSign is not configured');
+      }
+
+      // Call backend to create envelope
+      // Backend will handle DocuSign API authentication and envelope creation
+      final response = await _apiClient.post(
+        '/docusign/envelopes/create',
+        body: {
+          'reportId': reportId,
+          'signerEmail': signerEmail,
+          'signerName': signerName,
+          'reportTitle': reportTitle,
+          'reportContent': reportContent,
         },
-        'status': 'sent',
-      };
-      
-      // Send envelope
-      final response = await http.post(
-        Uri.parse('$_baseUrl/v2.1/accounts/$_accountId/envelopes'),
-        headers: {
-          'Authorization': 'Bearer $_accessToken',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(envelopeDefinition),
       );
-      
-      if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        final envelopeId = data['envelopeId'] as String;
+
+      if (response.isSuccess && response.data != null) {
+        final envelopeId = response.data!['envelopeId'] as String?;
         debugPrint('✅ DocuSign envelope created: $envelopeId');
         return envelopeId;
       } else {
-        debugPrint('❌ Failed to create DocuSign envelope: ${response.body}');
+        debugPrint('❌ Failed to create DocuSign envelope: ${response.error}');
         return null;
       }
     } catch (e) {
@@ -143,53 +68,88 @@ class DocuSignService {
       return null;
     }
   }
-  
+
   /// Get envelope status
-  Future<Map<String, dynamic>?> getEnvelopeStatus(String envelopeId) async {
-    if (_accessToken == null || _accountId == null) {
-      return null;
-    }
-    
+  Future<DocuSignEnvelope?> getEnvelopeStatus(String reportId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/v2.1/accounts/$_accountId/envelopes/$envelopeId'),
-        headers: {
-          'Authorization': 'Bearer $_accessToken',
-        },
-      );
+      final response = await _apiClient.get('/docusign/envelopes/$reportId/status');
       
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.isSuccess && response.data != null) {
+        return DocuSignEnvelope.fromJson(response.data!);
       }
       return null;
     } catch (e) {
-      debugPrint('❌ Error getting envelope status: $e');
+      debugPrint('Error getting envelope status: $e');
       return null;
     }
   }
-  
-  /// Generate JWT token for DocuSign authentication
-  String _generateJWT() {
-    // This is a simplified version - in production, use a proper JWT library
-    // and implement RSA signing with the private key
-    // Note: In production, properly sign this with RSA private key
-    // This is a placeholder - you'll need to use a JWT library like 'dart_jsonwebtoken'
-    // For now, return a placeholder token
-    return 'placeholder_jwt_token';
+
+  /// Get all envelopes for a report
+  Future<List<DocuSignEnvelope>> getReportEnvelopes(String reportId) async {
+    try {
+      final response = await _apiClient.get('/docusign/envelopes/$reportId');
+      
+      if (response.isSuccess && response.data != null) {
+        final envelopes = response.data!['envelopes'] as List;
+        return envelopes.map((e) => DocuSignEnvelope.fromJson(e as Map<String, dynamic>)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting report envelopes: $e');
+      return [];
+    }
   }
-  
-  String _formatReportForDocuSign(String title, String content) {
-    return '''
-SIGN-OFF REPORT
 
-Title: $title
+  /// Resend envelope to signer
+  Future<bool> resendEnvelope(String envelopeId) async {
+    try {
+      final response = await _apiClient.post(
+        '/docusign/envelopes/$envelopeId/resend',
+        body: {},
+      );
+      return response.isSuccess;
+    } catch (e) {
+      debugPrint('Error resending envelope: $e');
+      return false;
+    }
+  }
 
-Content:
-$content
+  /// Void (cancel) an envelope
+  Future<bool> voidEnvelope(String envelopeId, String reason) async {
+    try {
+      final response = await _apiClient.post(
+        '/docusign/envelopes/$envelopeId/void',
+        body: {'reason': reason},
+      );
+      return response.isSuccess;
+    } catch (e) {
+      debugPrint('Error voiding envelope: $e');
+      return false;
+    }
+  }
 
----
-This document requires your signature.
-''';
+  /// Get signing URL for embedded signing (optional feature)
+  Future<String?> getEmbeddedSigningUrl({
+    required String envelopeId,
+    required String signerEmail,
+    required String returnUrl,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/docusign/envelopes/$envelopeId/signing-url',
+        body: {
+          'signerEmail': signerEmail,
+          'returnUrl': returnUrl,
+        },
+      );
+
+      if (response.isSuccess && response.data != null) {
+        return response.data!['url'] as String?;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error getting signing URL: $e');
+      return null;
+    }
   }
 }
-

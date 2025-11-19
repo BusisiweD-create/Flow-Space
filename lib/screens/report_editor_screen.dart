@@ -8,6 +8,7 @@ import '../services/sprint_database_service.dart';
 import '../services/api_client.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/signature_capture_widget.dart';
 
 class ReportEditorScreen extends ConsumerStatefulWidget {
   final String? reportId; // null for create, non-null for edit
@@ -33,6 +34,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   final BackendApiService _reportService = BackendApiService();
   final DeliverableService _deliverableService = DeliverableService();
   final SprintDatabaseService _sprintService = SprintDatabaseService();
+  final ApiClient _apiClient = ApiClient();
   
   List<dynamic> _deliverables = [];
   List<dynamic> _sprints = [];
@@ -42,6 +44,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   bool _isSaving = false;
   bool _isLoadingDeliverables = false;
   SignOffReport? _existingReport;
+  final GlobalKey<SignatureCaptureWidgetState> _signatureKey = GlobalKey<SignatureCaptureWidgetState>();
 
   @override
   void initState() {
@@ -336,10 +339,63 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
           }
         }
         
-        // If submitting, submit the report
+        // If submitting, show signing dialog first
         if (submit) {
           if (reportId == null) {
             throw Exception('Cannot submit: Report ID is missing from response');
+          }
+          
+          // Show signing dialog before submission
+          final signature = await _showSigningDialog();
+          if (signature == null) {
+            // User cancelled signing
+            if (mounted) {
+              setState(() => _isSaving = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Submission cancelled. Report saved as draft.'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+            return;
+          }
+          
+          // Store signature in database and update report
+          if (signature.isNotEmpty) {
+            debugPrint('✍️ Storing signature in database before submission');
+            try {
+              // Store signature using the dedicated endpoint
+              final signatureResponse = await _apiClient.post(
+                '/sign-off-reports/$reportId/signature',
+                body: {
+                  'signatureData': signature,
+                  'signatureType': 'manual',
+                },
+              );
+              
+              if (signatureResponse.isSuccess) {
+                debugPrint('✅ Signature stored in database');
+              }
+            } catch (e) {
+              debugPrint('⚠️ Failed to store signature separately: $e');
+              // Continue with update anyway
+            }
+            
+            // Also update report with signature in content
+            debugPrint('✍️ Updating report with signature before submission');
+            final updateWithSignature = {
+              'reportTitle': _titleController.text,
+              'reportContent': _contentController.text,
+              if (_selectedSprintIds.isNotEmpty) 'sprintIds': _selectedSprintIds,
+              if (_knownLimitationsController.text.isNotEmpty) 
+                'knownLimitations': _knownLimitationsController.text,
+              if (_nextStepsController.text.isNotEmpty) 
+                'nextSteps': _nextStepsController.text,
+              'digitalSignature': signature,
+              'signatureDate': DateTime.now().toIso8601String(),
+            };
+            await _reportService.updateSignOffReport(reportId, updateWithSignature);
           }
           
           debugPrint('📤 Submitting report: $reportId');
@@ -454,6 +510,89 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
         debugPrint('🏁 Save operation completed');
       }
     }
+  }
+
+  /// Show signing dialog before submission
+  Future<String?> _showSigningDialog() async {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Sign Report Before Submission',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: FlownetColors.pureWhite,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: FlownetColors.pureWhite),
+                    onPressed: () => Navigator.pop(context, null),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Please sign this report to confirm its accuracy before submission.',
+                style: TextStyle(
+                  color: FlownetColors.coolGray,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SignatureCaptureWidget(
+                key: _signatureKey,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, null),
+                    child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final signature = await _signatureKey.currentState?.getSignature();
+                      if (!context.mounted) return;
+                      if (signature != null && signature.isNotEmpty) {
+                        Navigator.pop(context, signature);
+                      } else {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please provide a signature'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: FlownetColors.electricBlue,
+                      foregroundColor: FlownetColors.pureWhite,
+                    ),
+                    child: const Text('Sign & Submit'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
