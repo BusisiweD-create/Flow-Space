@@ -91,53 +91,55 @@ class NotificationItem {
   }
 
   factory NotificationItem.fromJson(Map<String, dynamic> json) {
-    // Map backend type names to frontend enum
     NotificationType parseType(String? typeString) {
       if (typeString == null) return NotificationType.system;
-      
-      // Handle backend type names (with underscores)
       final typeMap = {
         'report_submission': NotificationType.reportSubmission,
         'report_approved': NotificationType.reportApproved,
         'report_changes_requested': NotificationType.reportChangesRequested,
       };
-      
-      // Check if it's a backend type
       if (typeMap.containsKey(typeString)) {
         return typeMap[typeString]!;
       }
-      
-      // Otherwise, try to match frontend enum directly
       try {
         return NotificationType.values.firstWhere(
           (e) => e.name == typeString,
           orElse: () => NotificationType.system,
         );
-      } catch (e) {
+      } catch (_) {
         return NotificationType.system;
       }
     }
-    
+    NotificationAction parseAction(String? actionString) {
+      if (actionString == null) return NotificationAction.general;
+      try {
+        return NotificationAction.values.firstWhere(
+          (e) => e.name == actionString,
+          orElse: () => NotificationAction.general,
+        );
+      } catch (_) {
+        return NotificationAction.general;
+      }
+    }
+    final createdAt = json['createdAt'] ?? json['created_at'] ?? json['date'] ?? json['timestamp'];
+    DateTime parseDate(dynamic v) {
+      try {
+        return v is String ? DateTime.parse(v) : (v is DateTime ? v : DateTime.now());
+      } catch (_) {
+        return DateTime.now();
+      }
+    }
     return NotificationItem(
       id: json['id']?.toString() ?? '',
-      title: json['title'] ?? 'Notification',
-      description: json['message'] ?? json['description'] ?? '',
-      date: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : 
-            (json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now()),
-      isRead: json['isRead'] ?? json['is_read'] ?? false,
-      type: parseType(json['type']),
-      message: json['message'] ?? '',
-<<<<<<< HEAD
-      timestamp: json['timestamp'] != null ? DateTime.parse(json['timestamp']) : DateTime.now(),
-      action: json['action'] != null ? NotificationAction.values.firstWhere(
-        (e) => e.name == json['action'],
-        orElse: () => NotificationAction.general,
-      ) : NotificationAction.general,
-      relatedId: json['relatedId'],
-=======
-      timestamp: json['createdAt'] != null ? DateTime.parse(json['createdAt']) :
-                 (json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now()),
->>>>>>> origin/Busisiwe
+      title: (json['title'] ?? 'Notification').toString(),
+      description: (json['description'] ?? json['message'] ?? '').toString(),
+      date: parseDate(createdAt),
+      isRead: (json['isRead'] ?? json['is_read'] ?? false) == true,
+      type: parseType(json['type']?.toString()),
+      message: (json['message'] ?? '').toString(),
+      timestamp: parseDate(createdAt),
+      action: parseAction(json['action']?.toString()),
+      relatedId: json['relatedId']?.toString(),
     );
   }
 }
