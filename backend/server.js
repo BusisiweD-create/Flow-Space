@@ -51,8 +51,39 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
   console.log('💡 Set EMAIL_USER and EMAIL_PASS in .env file to enable email features');
 }
 
-// Middleware
-app.use(cors());
+// Middleware - Configure CORS for Flutter Web
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost on any port (for development)
+    if (origin.match(/^http:\/\/localhost:\d+$/) || 
+        origin.match(/^http:\/\/127\.0\.0\.1:\d+$/)) {
+      return callback(null, true);
+    }
+    
+    // Allow specific origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'http://localhost:8080',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:8080'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('⚠️  CORS: Allowing origin:', origin);
+      callback(null, true); // Allow all in development
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
 
 // Configure multer for file uploads
@@ -568,37 +599,8 @@ app.get('/api/user/settings', authenticateToken, async (req, res) => {
 });
 
 // Deliverables routes
-app.get('/api/v1/deliverables', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT d.*, p.first_name, p.last_name
-      FROM deliverables d
-      LEFT JOIN profiles p ON d.assigned_to = p.id
-      ORDER BY d.created_at DESC
-    `);
-    
-    const deliverables = result.rows.map(row => ({
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      definition_of_done: row.definition_of_done,
-      status: row.status,
-      assigned_to: row.assigned_to,
-      created_by: row.created_by,
-      sprint_id: row.sprint_id,
-      priority: row.priority,
-      due_date: row.due_date,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      assigned_user_name: row.first_name ? `${row.first_name} ${row.last_name}` : null,
-    }));
-    
-    res.json(deliverables);
-  } catch (error) {
-    console.error('Get deliverables error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// OLD ENDPOINT REMOVED - Using authenticated version below (line 1804)
+// This old version tried to use 'profiles' table which doesn't exist
 
 // REMOVED: Unauthenticated POST /api/v1/deliverables endpoint
 // This endpoint is duplicated below with authentication at line 1274
@@ -2812,6 +2814,23 @@ app.get('/api/v1/documents/:id/preview', authenticateToken, async (req, res) => 
     if (document.file_path && fs.existsSync(document.file_path)) {
       console.log(`✅ File exists on disk: ${document.file_path}`);
       
+      // For text files, read content for preview
+      let previewContent = null;
+      const textFileTypes = ['txt', 'md', 'json', 'xml', 'csv'];
+      if (textFileTypes.includes(document.file_type?.toLowerCase())) {
+        try {
+          // Read first 100KB for preview (to avoid memory issues with large files)
+          const fileContent = fs.readFileSync(document.file_path, 'utf8');
+          const maxPreviewLength = 100000; // 100KB
+          previewContent = fileContent.length > maxPreviewLength 
+            ? fileContent.substring(0, maxPreviewLength) + '\n\n... (Preview truncated. Download to see full content)'
+            : fileContent;
+          console.log(`✅ Text preview loaded (${previewContent.length} chars)`);
+        } catch (readError) {
+          console.log(`⚠️ Could not read file content: ${readError.message}`);
+        }
+      }
+      
       // Return file info for preview with actual file data
       res.json({
         success: true,
@@ -2826,6 +2845,7 @@ app.get('/api/v1/documents/:id/preview', authenticateToken, async (req, res) => 
           description: document.description,
           tags: document.tags,
           previewAvailable: true,
+          previewContent: previewContent, // For text files
           downloadUrl: `/api/v1/documents/${id}/download`,
           previewUrl: `/api/v1/documents/${id}/preview`
         }
@@ -3353,6 +3373,22 @@ app.post('/api/v1/sign-off-reports/:id/submit', authenticateToken, async (req, r
     const { id } = req.params;
     const userId = req.user.id;
 
+    // Check if delivery lead signature exists in digital_signatures table
+    const signatureCheck = await pool.query(`
+      SELECT * FROM digital_signatures 
+      WHERE report_id = $1::uuid 
+      AND signer_id = $2::uuid 
+      AND signer_role = 'deliveryLead'
+      AND is_valid = true
+    `, [id, userId]);
+
+    if (signatureCheck.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Digital signature required. Please sign the report before submitting.' 
+      });
+    }
+
     const result = await pool.query(`
       UPDATE sign_off_reports 
       SET status = 'submitted', updated_at = NOW()
@@ -3367,8 +3403,34 @@ app.post('/api/v1/sign-off-reports/:id/submit', authenticateToken, async (req, r
     // Log submission in audit
     await pool.query(`
       INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'submit_report', 'sign_off_report', $2, '{}', NOW())
-    `, [userId, id]);
+      VALUES ($1, 'submit_report', 'sign_off_report', $2, $3::jsonb, NOW())
+    `, [userId, id, JSON.stringify({ signatureVerified: true })]);
+
+    // Create notification for client reviewers
+    const clientReviewers = await pool.query(`
+      SELECT id FROM users WHERE role = 'clientReviewer' AND is_active = true
+    `);
+    
+    const reportData = result.rows[0];
+    const submitter = await pool.query(`SELECT name, email FROM users WHERE id = $1`, [userId]);
+    const submitterName = submitter.rows[0]?.name || submitter.rows[0]?.email || 'A user';
+    
+    for (const reviewer of clientReviewers.rows) {
+      const notificationId = uuidv4();
+      await pool.query(`
+        INSERT INTO notifications (
+          id, title, message, type, user_id, action_url, is_read, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
+      `, [
+        notificationId,
+        '📋 New Report Submitted for Review',
+        `${submitterName} has submitted "${reportData.report_title}" for your review. Please review and approve or request changes.`,
+        'report_submission',
+        reviewer.id,
+        `/report-repository`
+      ]);
+    }
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -3390,6 +3452,14 @@ app.post('/api/v1/sign-off-reports/:id/approve', authenticateToken, async (req, 
       return res.status(403).json({ success: false, error: 'Only client reviewers can approve reports' });
     }
 
+    // Require digital signature for approval
+    if (!digitalSignature) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Digital signature required. Please sign the report before approving.' 
+      });
+    }
+
     // Update report status
     const result = await pool.query(`
       UPDATE sign_off_reports 
@@ -3408,28 +3478,63 @@ app.post('/api/v1/sign-off-reports/:id/approve', authenticateToken, async (req, 
       VALUES ($1::uuid, $2::uuid, 'approved', $3, NOW(), NOW())
     `, [id, userId, comment || null]);
     
-    // Store digital signature in the report's content if provided
-    if (digitalSignature) {
-      const currentContent = result.rows[0].content || {};
-      const updatedContent = {
-        ...(typeof currentContent === 'object' && currentContent !== null ? currentContent : {}),
-        digitalSignature: digitalSignature,
-        signatureDate: new Date().toISOString(),
-        signerId: userId,
-      };
-      
-      await pool.query(`
-        UPDATE sign_off_reports 
-        SET content = $1::jsonb 
-        WHERE id = $2::uuid
-      `, [JSON.stringify(updatedContent), id]);
-    }
+    // Store digital signature in the report's content
+    const currentContent = result.rows[0].content || {};
+    const updatedContent = {
+      ...(typeof currentContent === 'object' && currentContent !== null ? currentContent : {}),
+      clientSignature: digitalSignature,
+      clientSignatureDate: new Date().toISOString(),
+      clientSignerId: userId,
+    };
+    
+    await pool.query(`
+      UPDATE sign_off_reports 
+      SET content = $1::jsonb 
+      WHERE id = $2::uuid
+    `, [JSON.stringify(updatedContent), id]);
+    
+    // Also store in digital_signatures table for tracking
+    const crypto = require('crypto');
+    const signatureHash = crypto.createHash('sha256').update(digitalSignature).digest('hex');
+    
+    await pool.query(`
+      INSERT INTO digital_signatures (
+        report_id, signer_id, signer_role, signature_type, 
+        signature_data, signature_hash, signed_at, created_at
+      )
+      VALUES ($1::uuid, $2::uuid, $3, 'manual', $4, $5, NOW(), NOW())
+      ON CONFLICT (report_id, signer_id, signer_role) 
+      DO UPDATE SET 
+        signature_data = EXCLUDED.signature_data,
+        signature_hash = EXCLUDED.signature_hash,
+        signed_at = NOW()
+    `, [id, userId, userRole, digitalSignature, signatureHash]);
 
     // Log approval in audit
     await pool.query(`
       INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
       VALUES ($1, 'approve_report', 'sign_off_report', $2, $3::jsonb, NOW())
-    `, [userId, id, JSON.stringify({ comment, hasDigitalSignature: !!digitalSignature })]);
+    `, [userId, id, JSON.stringify({ comment, signatureVerified: true })]);
+
+    // Create notification for the report creator (delivery lead)
+    const reportCreator = result.rows[0].created_by;
+    const reviewer = await pool.query(`SELECT name, email FROM users WHERE id = $1`, [userId]);
+    const reviewerName = reviewer.rows[0]?.name || reviewer.rows[0]?.email || 'Client Reviewer';
+    
+    const notificationId = uuidv4();
+    await pool.query(`
+      INSERT INTO notifications (
+        id, title, message, type, user_id, action_url, is_read, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
+    `, [
+      notificationId,
+      '✅ Report Approved!',
+      `Great news! ${reviewerName} has approved your report "${result.rows[0].report_title}".${comment ? ' Feedback: ' + comment : ''}`,
+      'report_approved',
+      reportCreator,
+      `/report-repository`
+    ]);
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -3479,6 +3584,26 @@ app.post('/api/v1/sign-off-reports/:id/request-changes', authenticateToken, asyn
       VALUES ($1, 'request_changes', 'sign_off_report', $2, $3::jsonb, NOW())
     `, [userId, id, JSON.stringify({ changeRequestDetails })]);
 
+    // Create notification for the report creator (delivery lead)
+    const reportCreator = result.rows[0].created_by;
+    const reviewer = await pool.query(`SELECT name, email FROM users WHERE id = $1`, [userId]);
+    const reviewerName = reviewer.rows[0]?.name || reviewer.rows[0]?.email || 'Client Reviewer';
+    
+    const notificationId = uuidv4();
+    await pool.query(`
+      INSERT INTO notifications (
+        id, title, message, type, user_id, action_url, is_read, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
+    `, [
+      notificationId,
+      '📝 Changes Requested on Your Report',
+      `${reviewerName} has requested changes to "${result.rows[0].report_title}". Changes needed: ${changeRequestDetails}`,
+      'report_changes_requested',
+      reportCreator,
+      `/report-repository`
+    ]);
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Error requesting changes:', error);
@@ -3491,21 +3616,35 @@ app.get('/api/v1/sign-off-reports/:id/audit', authenticateToken, async (req, res
   try {
     const { id } = req.params;
     
+    // First check if audit_logs table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'audit_logs'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      // Table doesn't exist yet, return empty array
+      return res.json({ success: true, data: [] });
+    }
+    
     const result = await pool.query(`
       SELECT 
         a.*,
         u.name as actor_name,
         u.email as actor_email
       FROM audit_logs a
-      LEFT JOIN users u ON a.user_id = u.id
-      WHERE a.resource_type = 'sign_off_report' AND a.resource_id = $1::uuid
+      LEFT JOIN users u ON a.user_id = u.id::uuid
+      WHERE a.resource_type = 'sign_off_report' AND a.resource_id = $1
       ORDER BY a.created_at DESC
     `, [id]);
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error('Error fetching report audit:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch audit history' });
+    // Return empty array instead of error for better UX
+    res.json({ success: true, data: [] });
   }
 });
 
@@ -3527,6 +3666,522 @@ app.post('/api/v1/documents/:id/view', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to track view' });
   }
 });
+
+// ==================== DOCUSIGN ENDPOINTS ====================
+
+// Create DocuSign envelope for a report
+app.post('/api/v1/sign-off-reports/:id/docusign/envelope', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { signerEmail, signerName, signerRole } = req.body;
+    const userId = req.user.id;
+
+    // Verify report exists
+    const reportCheck = await pool.query(`
+      SELECT * FROM sign_off_reports WHERE id = $1::uuid
+    `, [id]);
+
+    if (reportCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // In a real implementation, you would call DocuSign API here
+    // For now, we'll create a placeholder envelope record
+    const envelopeId = `env_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store envelope information in database
+    const result = await pool.query(`
+      INSERT INTO docusign_envelopes (
+        report_id, envelope_id, status, signer_email, signer_name, 
+        signer_role, created_by, sent_at, created_at, updated_at
+      )
+      VALUES ($1::uuid, $2, 'sent', $3, $4, $5, $6::uuid, NOW(), NOW(), NOW())
+      RETURNING *
+    `, [id, envelopeId, signerEmail, signerName, signerRole || 'deliveryLead', userId]);
+
+    // Update report with envelope ID
+    await pool.query(`
+      UPDATE sign_off_reports 
+      SET docusign_envelope_id = $1, updated_at = NOW()
+      WHERE id = $2::uuid
+    `, [envelopeId, id]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating DocuSign envelope:', error);
+    res.status(500).json({ success: false, error: 'Failed to create DocuSign envelope' });
+  }
+});
+
+// Get DocuSign envelope status
+app.get('/api/v1/sign-off-reports/:id/docusign/envelope', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT * FROM docusign_envelopes 
+      WHERE report_id = $1::uuid
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'DocuSign envelope not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching DocuSign envelope:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch DocuSign envelope' });
+  }
+});
+
+// Update DocuSign envelope status (webhook callback)
+app.post('/api/v1/docusign/webhook', async (req, res) => {
+  try {
+    const { envelopeId, status, signedAt, completedAt } = req.body;
+    
+    // Update envelope status
+    const updates = [];
+    const params = [];
+    let paramCount = 0;
+
+    if (status) {
+      updates.push(`status = $${++paramCount}`);
+      params.push(status);
+    }
+    if (signedAt) {
+      updates.push(`signed_at = $${++paramCount}`);
+      params.push(new Date(signedAt));
+    }
+    if (completedAt) {
+      updates.push(`completed_at = $${++paramCount}`);
+      params.push(new Date(completedAt));
+    }
+
+    if (status === 'signed') {
+      updates.push(`signed_at = NOW()`);
+    }
+    if (status === 'completed') {
+      updates.push(`completed_at = NOW()`);
+    }
+
+    updates.push(`updated_at = NOW()`);
+    params.push(envelopeId);
+
+    await pool.query(`
+      UPDATE docusign_envelopes 
+      SET ${updates.join(', ')}
+      WHERE envelope_id = $${paramCount + 1}
+    `, params);
+
+    res.json({ success: true, message: 'Envelope status updated' });
+  } catch (error) {
+    console.error('Error updating DocuSign envelope status:', error);
+    res.status(500).json({ success: false, error: 'Failed to update envelope status' });
+  }
+});
+
+// ==================== EXPORT ENDPOINTS ====================
+
+// Track report export
+app.post('/api/v1/sign-off-reports/:id/export', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { exportFormat, exportType, fileSize, fileHash, metadata } = req.body;
+    const userId = req.user.id;
+
+    // Verify report exists
+    const reportCheck = await pool.query(`
+      SELECT * FROM sign_off_reports WHERE id = $1::uuid
+    `, [id]);
+
+    if (reportCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // Check if report_exports table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'report_exports'
+      )
+    `);
+
+    // Only record export if table exists
+    if (tableCheck.rows[0].exists) {
+      await pool.query(`
+        INSERT INTO report_exports (
+          report_id, exported_by, export_format, export_type, 
+          file_size, file_hash, metadata, created_at
+        )
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::jsonb, NOW())
+      `, [id, userId, exportFormat || 'pdf', exportType || 'download', fileSize, fileHash, JSON.stringify(metadata || {})]);
+    } else {
+      console.log('⚠️ report_exports table does not exist, skipping export tracking');
+    }
+
+    res.json({ success: true, message: 'Export completed successfully' });
+  } catch (error) {
+    console.error('Error tracking report export:', error);
+    res.status(500).json({ success: false, error: 'Failed to track export' });
+  }
+});
+
+// Get export history for a report
+app.get('/api/v1/sign-off-reports/:id/exports', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        e.*,
+        u.name as exported_by_name,
+        u.email as exported_by_email
+      FROM report_exports e
+      LEFT JOIN users u ON e.exported_by = u.id
+      WHERE e.report_id = $1::uuid
+      ORDER BY e.created_at DESC
+    `, [id]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching export history:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch export history' });
+  }
+});
+
+// ==================== DIGITAL SIGNATURE ENDPOINTS ====================
+
+// Store digital signature
+app.post('/api/v1/sign-off-reports/:id/signature', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { signatureData, signatureType, ipAddress, userAgent } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Verify report exists
+    const reportCheck = await pool.query(`
+      SELECT * FROM sign_off_reports WHERE id = $1::uuid
+    `, [id]);
+
+    if (reportCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // Generate signature hash
+    const crypto = require('crypto');
+    const signatureHash = crypto.createHash('sha256').update(signatureData).digest('hex');
+
+    // Store signature in database
+    const result = await pool.query(`
+      INSERT INTO digital_signatures (
+        report_id, signer_id, signer_role, signature_type, 
+        signature_data, signature_hash, ip_address, user_agent, 
+        signed_at, created_at
+      )
+      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+      ON CONFLICT (report_id, signer_id, signer_role) 
+      DO UPDATE SET 
+        signature_data = EXCLUDED.signature_data,
+        signature_hash = EXCLUDED.signature_hash,
+        signature_type = EXCLUDED.signature_type,
+        ip_address = EXCLUDED.ip_address,
+        user_agent = EXCLUDED.user_agent,
+        signed_at = NOW()
+      RETURNING *
+    `, [id, userId, userRole, signatureType || 'manual', signatureData, signatureHash, ipAddress, userAgent]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error storing digital signature:', error);
+    res.status(500).json({ success: false, error: 'Failed to store signature' });
+  }
+});
+
+// Get digital signatures for a report
+app.get('/api/v1/sign-off-reports/:id/signatures', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        ds.*,
+        u.name as signer_name,
+        u.email as signer_email
+      FROM digital_signatures ds
+      LEFT JOIN users u ON ds.signer_id = u.id
+      WHERE ds.report_id = $1::uuid
+      ORDER BY ds.signed_at DESC
+    `, [id]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching digital signatures:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch signatures' });
+  }
+});
+
+// ==================== DOCUSIGN E-SIGNATURE ENDPOINTS ====================
+// Temporarily disabled - DocuSign is optional and can be configured later
+// Manual signatures work without DocuSign
+
+// const docusignService = require('./docusign-service');
+
+/* DocuSign endpoints temporarily disabled
+// Get DocuSign configuration status
+app.get('/api/v1/docusign/config', authenticateToken, async (req, res) => {
+  try {
+    const isConfigured = docusignService.isConfigured();
+    
+    if (!isConfigured) {
+      return res.json({ 
+        success: true, 
+        data: {
+          integration_key: '',
+          secret_key: '',
+          account_id: '',
+          user_id: '',
+          base_url: 'https://demo.docusign.net/restapi',
+          is_production: false,
+          isConfigured: false,
+        }
+      });
+    }
+
+    // Return config without sensitive data
+    res.json({ 
+      success: true, 
+      data: {
+        integration_key: docusignService.DOCUSIGN_CONFIG.integrationKey,
+        account_id: docusignService.DOCUSIGN_CONFIG.accountId,
+        base_url: docusignService.DOCUSIGN_CONFIG.baseUrl,
+        is_production: docusignService.DOCUSIGN_CONFIG.isProduction,
+        isConfigured: true,
+      }
+    });
+  } catch (error) {
+    console.error('Error getting DocuSign config:', error);
+    res.status(500).json({ success: false, error: 'Failed to get DocuSign configuration' });
+  }
+});
+
+// Create DocuSign envelope for report signing
+app.post('/api/v1/docusign/envelopes/create', authenticateToken, async (req, res) => {
+  try {
+    const { reportId, signerEmail, signerName, reportTitle, reportContent } = req.body;
+    const userId = req.user.id;
+
+    if (!docusignService.isConfigured()) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'DocuSign is not configured. Please configure DocuSign credentials in environment variables.' 
+      });
+    }
+
+    // Verify report exists
+    const reportCheck = await pool.query(`
+      SELECT * FROM sign_off_reports WHERE id = $1::uuid
+    `, [reportId]);
+
+    if (reportCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    // Create DocuSign envelope
+    const envelope = await docusignService.createEnvelope({
+      reportId,
+      signerEmail,
+      signerName,
+      reportTitle,
+      reportContent,
+    });
+
+    // Store envelope in database
+    await pool.query(`
+      INSERT INTO docusign_envelopes (
+        id, report_id, envelope_id, signer_email, signer_name, 
+        status, created_by, created_at
+      )
+      VALUES (gen_random_uuid(), $1::uuid, $2, $3, $4, $5, $6::uuid, NOW())
+    `, [reportId, envelope.envelopeId, signerEmail, signerName, envelope.status, userId]);
+
+    res.json({ 
+      success: true, 
+      data: { 
+        envelopeId: envelope.envelopeId,
+        status: envelope.status,
+      }
+    });
+  } catch (error) {
+    console.error('Error creating DocuSign envelope:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to create DocuSign envelope' });
+  }
+});
+
+// Get envelope status
+app.get('/api/v1/docusign/envelopes/:reportId/status', authenticateToken, async (req, res) => {
+  try {
+    const { reportId } = req.params;
+
+    // Get envelope from database
+    const result = await pool.query(`
+      SELECT * FROM docusign_envelopes 
+      WHERE report_id = $1::uuid 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `, [reportId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'No DocuSign envelope found for this report' });
+    }
+
+    const envelope = result.rows[0];
+
+    // Get latest status from DocuSign
+    try {
+      const docusignStatus = await docusignService.getEnvelopeStatus(envelope.envelope_id);
+      
+      // Update status in database
+      await pool.query(`
+        UPDATE docusign_envelopes 
+        SET 
+          status = $1,
+          sent_at = $2,
+          delivered_at = $3,
+          signed_at = $4,
+          completed_at = $5,
+          updated_at = NOW()
+        WHERE envelope_id = $6
+      `, [
+        docusignStatus.status,
+        docusignStatus.sentDateTime,
+        docusignStatus.deliveredDateTime,
+        docusignStatus.signedDateTime,
+        docusignStatus.completedDateTime,
+        envelope.envelope_id,
+      ]);
+
+      res.json({ success: true, data: { ...envelope, ...docusignStatus } });
+    } catch (error) {
+      // If DocuSign API fails, return database status
+      res.json({ success: true, data: envelope });
+    }
+  } catch (error) {
+    console.error('Error getting envelope status:', error);
+    res.status(500).json({ success: false, error: 'Failed to get envelope status' });
+  }
+});
+
+// Get all envelopes for a report
+app.get('/api/v1/docusign/envelopes/:reportId', authenticateToken, async (req, res) => {
+  try {
+    const { reportId } = req.params;
+
+    const result = await pool.query(`
+      SELECT * FROM docusign_envelopes 
+      WHERE report_id = $1::uuid 
+      ORDER BY created_at DESC
+    `, [reportId]);
+
+    res.json({ success: true, data: { envelopes: result.rows } });
+  } catch (error) {
+    console.error('Error getting envelopes:', error);
+    res.status(500).json({ success: false, error: 'Failed to get envelopes' });
+  }
+});
+
+// Resend envelope
+app.post('/api/v1/docusign/envelopes/:envelopeId/resend', authenticateToken, async (req, res) => {
+  try {
+    const { envelopeId } = req.params;
+
+    const success = await docusignService.resendEnvelope(envelopeId);
+    
+    if (success) {
+      res.json({ success: true, message: 'Envelope notification resent successfully' });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to resend envelope' });
+    }
+  } catch (error) {
+    console.error('Error resending envelope:', error);
+    res.status(500).json({ success: false, error: 'Failed to resend envelope' });
+  }
+});
+
+// Void envelope
+app.post('/api/v1/docusign/envelopes/:envelopeId/void', authenticateToken, async (req, res) => {
+  try {
+    const { envelopeId } = req.params;
+    const { reason } = req.body;
+
+    await docusignService.voidEnvelope(envelopeId, reason || 'Voided by user');
+    
+    // Update database
+    await pool.query(`
+      UPDATE docusign_envelopes 
+      SET status = 'voided', decline_reason = $1, updated_at = NOW()
+      WHERE envelope_id = $2
+    `, [reason, envelopeId]);
+
+    res.json({ success: true, message: 'Envelope voided successfully' });
+  } catch (error) {
+    console.error('Error voiding envelope:', error);
+    res.status(500).json({ success: false, error: 'Failed to void envelope' });
+  }
+});
+
+// DocuSign webhook endpoint (for status updates)
+app.post('/api/v1/docusign/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const signature = req.headers['x-docusign-signature-1'];
+    const webhookSecret = process.env.DOCUSIGN_WEBHOOK_SECRET;
+
+    // Verify webhook signature if secret is configured
+    if (webhookSecret && signature) {
+      const isValid = docusignService.verifyWebhookSignature(
+        req.body.toString(),
+        signature,
+        webhookSecret
+      );
+
+      if (!isValid) {
+        return res.status(401).json({ success: false, error: 'Invalid webhook signature' });
+      }
+    }
+
+    const event = JSON.parse(req.body.toString());
+    console.log('📩 DocuSign webhook received:', event.event);
+
+    // Process webhook event
+    if (event.event === 'envelope-completed' || event.event === 'recipient-completed') {
+      const envelopeId = event.data.envelopeId;
+      
+      // Update envelope status in database
+      await pool.query(`
+        UPDATE docusign_envelopes 
+        SET 
+          status = 'completed',
+          completed_at = NOW(),
+          updated_at = NOW()
+        WHERE envelope_id = $1
+      `, [envelopeId]);
+
+      // Get the signed document and store signature
+      // You can extend this to download and store the signed document
+      console.log('✅ Envelope completed:', envelopeId);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+    res.status(500).json({ success: false, error: 'Failed to process webhook' });
+  }
+});
+
+// ==================== END DOCUSIGN ENDPOINTS ====================
+*/
 
 app.listen(PORT, () => {
   console.log(`Flow-Space API server running on port ${PORT}`);

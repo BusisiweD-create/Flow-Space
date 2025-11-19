@@ -143,7 +143,7 @@ class PermissionManager {
     'view_team_dashboard': Permission(
       name: 'View Team Dashboard',
       description: 'View team performance dashboard',
-      allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin, UserRole.projectManager, UserRole.scrumMaster],
+      allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin, UserRole.projectManager, UserRole.scrumMaster, UserRole.clientReviewer],
     ),
     'manage_sprints': Permission(
       name: 'Manage Sprints',

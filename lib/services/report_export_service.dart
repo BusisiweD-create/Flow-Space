@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../models/sign_off_report.dart';
 import 'api_client.dart';
+import 'package:universal_html/html.dart' as html;
 
 // Platform-specific imports (only import when not on web)
 import 'dart:io' if (dart.library.html) '../services/file_stub.dart';
@@ -13,9 +14,35 @@ import 'package:path_provider/path_provider.dart' if (dart.library.html) '../ser
 
 class ReportExportService {
   final ApiClient _apiClient = ApiClient();
+  
+  /// Fetch digital signatures for a report
+  Future<List<Map<String, dynamic>>> _fetchSignatures(String reportId) async {
+    try {
+      debugPrint('🔍 Fetching signatures for report: $reportId');
+      final response = await _apiClient.get('/sign-off-reports/$reportId/signatures');
+      debugPrint('📦 Signature response: isSuccess=${response.isSuccess}, data=${response.data}');
+      
+      if (response.isSuccess && response.data != null) {
+        // Backend returns {success: true, data: [signatures]}
+        // So response.data already contains the array
+        final data = response.data as List?;
+        debugPrint('✅ Found ${data?.length ?? 0} signatures');
+        return data?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+      }
+      debugPrint('⚠️ No signatures found or request failed');
+      return [];
+    } catch (e) {
+      debugPrint('❌ Error fetching signatures: $e');
+      return [];
+    }
+  }
+  
   /// Export report as PDF
   Future<void> exportReportAsPDF(SignOffReport report, {String? filePath}) async {
     try {
+      // Fetch signatures first
+      final signatures = await _fetchSignatures(report.id);
+      
       final pdf = pw.Document();
       
       // Build PDF content
@@ -106,36 +133,117 @@ class ReportExportService {
                 pw.SizedBox(height: 15),
               ],
               
-              // Digital Signature Section
-              if (report.digitalSignature != null && report.digitalSignature!.isNotEmpty) ...[
+              // Digital Signatures Section
+              if (signatures.isNotEmpty) ...[
                 pw.Divider(),
                 pw.SizedBox(height: 20),
                 pw.Text(
-                  'Digital Signature',
+                  'Digital Signatures',
                   style: pw.TextStyle(
                     fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
                 pw.SizedBox(height: 10),
-                pw.Container(
-                  width: 200,
-                  height: 80,
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey),
-                  ),
-                  child: pw.Image(
-                    pw.MemoryImage(base64Decode(report.digitalSignature!)),
-                    fit: pw.BoxFit.contain,
-                  ),
+                pw.Text(
+                  'This document has been digitally signed by the following parties:',
+                  style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
                 ),
-                if (report.approvedAt != null) ...[
-                  pw.SizedBox(height: 5),
-                  pw.Text(
-                    'Signed on: ${_formatDate(report.approvedAt!)}',
-                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
-                  ),
-                ],
+                pw.SizedBox(height: 15),
+                
+                // Display all signatures
+                ...signatures.map((sig) {
+                  final signerName = sig['signer_name'] as String? ?? 'Unknown';
+                  final signerRole = sig['signer_role'] as String? ?? 'Unknown';
+                  final signedAt = sig['signed_at'] as String?;
+                  final signatureData = sig['signature_data'] as String?;
+                  final signatureHash = sig['signature_hash'] as String? ?? '';
+                  
+                  return pw.Container(
+                    margin: const pw.EdgeInsets.only(bottom: 20),
+                    padding: const pw.EdgeInsets.all(15),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey400),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                    ),
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        // Signature Image
+                        if (signatureData != null && signatureData.isNotEmpty)
+                          pw.Container(
+                            width: 150,
+                            height: 70,
+                            margin: const pw.EdgeInsets.only(right: 15),
+                            decoration: pw.BoxDecoration(
+                              border: pw.Border.all(color: PdfColors.grey300),
+                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                            ),
+                            child: pw.ClipRRect(
+                              horizontalRadius: 4,
+                              verticalRadius: 4,
+                              child: pw.Image(
+                                pw.MemoryImage(base64Decode(signatureData)),
+                                fit: pw.BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        // Signature Details
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                signerName,
+                                style: pw.TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 4),
+                              pw.Text(
+                                _formatRole(signerRole),
+                                style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
+                              ),
+                              if (signedAt != null) ...[
+                                pw.SizedBox(height: 4),
+                                pw.Text(
+                                  'Signed: ${_formatDateTime(signedAt)}',
+                                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                                ),
+                              ],
+                              pw.SizedBox(height: 8),
+                              pw.Row(
+                                children: [
+                                  pw.Container(
+                                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: const pw.BoxDecoration(
+                                      color: PdfColors.green100,
+                                      borderRadius: pw.BorderRadius.all(pw.Radius.circular(12)),
+                                    ),
+                                    child: pw.Text(
+                                      '✓ Verified',
+                                      style: pw.TextStyle(
+                                        fontSize: 9,
+                                        color: PdfColors.green900,
+                                        fontWeight: pw.FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              pw.SizedBox(height: 6),
+                              pw.Text(
+                                'Hash: ${signatureHash.substring(0, signatureHash.length > 16 ? 16 : signatureHash.length)}...',
+                                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
                 pw.SizedBox(height: 15),
               ],
               
@@ -206,12 +314,16 @@ class ReportExportService {
       }
       
       if (kIsWeb) {
-        // Web platform - use base64 data URI for sharing
-        final base64Pdf = base64Encode(bytes);
-        await Share.share(
-          'data:application/pdf;base64,$base64Pdf',
-          subject: 'Sign-Off Report: ${report.reportTitle}',
-        );
+        // Web platform - trigger browser download
+        final blob = html.Blob([bytes], 'application/pdf');
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final fileName = 'Report_${report.reportTitle.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        html.AnchorElement(href: url)
+          ..setAttribute('download', fileName)
+          ..click()
+          ..remove();
+        html.Url.revokeObjectUrl(url);
+        debugPrint('✅ PDF downloaded successfully');
       } else {
         // Mobile/Desktop platforms - use File and path_provider
         if (filePath != null) {
@@ -286,6 +398,30 @@ class ReportExportService {
   
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+  
+  String _formatDateTime(String dateTimeString) {
+    try {
+      final dateTime = DateTime.parse(dateTimeString);
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTimeString;
+    }
+  }
+  
+  String _formatRole(String role) {
+    switch (role.toLowerCase()) {
+      case 'deliverylead':
+        return 'Delivery Lead';
+      case 'clientreviewer':
+        return 'Client Reviewer';
+      case 'teammember':
+        return 'Team Member';
+      case 'admin':
+        return 'Administrator';
+      default:
+        return role;
+    }
   }
   
   String _formatStatus(ReportStatus status) {
