@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
+import '../models/repository_file.dart';
+import '../services/document_service.dart';
 
 // Temporary stub for web / deadline
 // Accepts any parameters so screens won't crash
 class DocumentPreviewWidget extends StatelessWidget {
-  final dynamic document;
-  final dynamic documentService; // added to avoid parameter errors
+  final RepositoryFile document;
+  final DocumentService documentService;
 
-  const DocumentPreviewWidget({Key? key, this.document, this.documentService}) : super(key: key);
+  const DocumentPreviewWidget({
+    super.key,
+    required this.document,
+    required this.documentService,
+  });
 
   @override
   Widget build(BuildContext context) {

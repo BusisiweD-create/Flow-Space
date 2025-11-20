@@ -214,9 +214,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             leading: SizedBox(
                               width: 24,
                               height: 24,
-                              child: AppIcons.getIcon(
-                                item.iconName,
-                                fallbackIcon: item.icon,
+                              child: Icon(
+                                AppIcons.getIcon(
+                                  item.iconName,
+                                  fallbackIcon: item.icon,
+                                ),
                                 size: 20,
                                 color: active
                                     ? FlownetColors.crimsonRed
@@ -367,9 +369,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                               : null,
                         ),
                         child: ListTile(
-                          leading: AppIcons.getIcon(
-                            item.iconName,
-                            fallbackIcon: item.icon,
+                          leading: Icon(
+                            AppIcons.getIcon(
+                              item.iconName,
+                              fallbackIcon: item.icon,
+                            ),
                             size: 24,
                             color: active
                                 ? FlownetColors.crimsonRed
@@ -468,12 +472,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     switch (route) {
       case '/approvals':
         return 'Approvals';
+      case '/approval-requests':
+        return 'Approval Requests';
       case '/notifications':
         return 'Notifications';
       case '/repository':
         return 'Repository';
+      case '/report-repository':
+        return 'Report Repository';
       case '/sprint-console':
         return 'Sprint Console';
+      case '/role-management':
+        return 'Role Management';
       case '/settings':
         return 'Settings';
       case '/account':
