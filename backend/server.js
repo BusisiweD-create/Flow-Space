@@ -8,6 +8,24 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// OpenAI for AI-powered readiness analysis
+let OpenAI = null;
+let openai = null;
+try {
+  OpenAI = require('openai');
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    console.log('✅ OpenAI initialized (GPT-3.5-turbo)');
+  } else {
+    console.log('⚠️  OPENAI_API_KEY not set - AI features will use fallback analysis');
+  }
+} catch (error) {
+  console.log('⚠️  OpenAI package not installed - AI features will use fallback analysis');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1828,6 +1846,7 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
       title,
       description,
       definition_of_done,
+      evidence_links,
       priority = 'Medium',
       status = 'Draft',
       due_date,
@@ -1841,17 +1860,81 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Title is required' });
     }
     
-    const result = await pool.query(`
-      INSERT INTO deliverables (
-        title, description, definition_of_done, priority, status, 
-        due_date, created_by, assigned_to, sprint_id
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *
-    `, [
-      title, description, definition_of_done, priority, status,
-      due_date, userId, assigned_to, sprint_id
-    ]);
+    // Handle definition_of_done - can be string, array, or null
+    // Database column is JSON type, so we need valid JSON
+    let dodValue = null;
+    if (definition_of_done) {
+      if (Array.isArray(definition_of_done)) {
+        // Array: stringify to JSON array
+        dodValue = JSON.stringify(definition_of_done);
+      } else if (typeof definition_of_done === 'string') {
+        // String: check if it's already valid JSON, otherwise wrap in array
+        const trimmed = definition_of_done.trim();
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          // Already JSON format, use as-is
+          dodValue = trimmed;
+        } else {
+          // Plain string: convert to JSON array
+          dodValue = JSON.stringify([trimmed]);
+        }
+      }
+    }
+    
+    // Handle evidence_links - can be array or null
+    // Database column might be JSON type, so ensure valid JSON
+    let evidenceValue = null;
+    if (evidence_links) {
+      if (Array.isArray(evidence_links)) {
+        // Array: stringify to JSON array
+        evidenceValue = JSON.stringify(evidence_links);
+      } else if (typeof evidence_links === 'string') {
+        // String: check if it's already valid JSON, otherwise wrap in array
+        const trimmed = evidence_links.trim();
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          // Already JSON format, use as-is
+          evidenceValue = trimmed;
+        } else {
+          // Plain string: convert to JSON array
+          evidenceValue = JSON.stringify([trimmed]);
+        }
+      }
+    }
+    
+    console.log('📦 Creating deliverable:', { title, dodValue, evidenceValue });
+    
+    // Try to insert with evidence_links, fallback if column doesn't exist
+    let result;
+    try {
+      result = await pool.query(`
+        INSERT INTO deliverables (
+          title, description, definition_of_done, priority, status, 
+          due_date, created_by, assigned_to, sprint_id, evidence_links
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *
+      `, [
+        title, description, dodValue, priority, status,
+        due_date, userId, assigned_to, sprint_id, evidenceValue
+      ]);
+    } catch (columnError) {
+      // If evidence_links column doesn't exist, try without it
+      if (columnError.code === '42703' || columnError.message.includes('evidence_links')) {
+        console.log('⚠️  evidence_links column not found, inserting without it');
+        result = await pool.query(`
+          INSERT INTO deliverables (
+            title, description, definition_of_done, priority, status, 
+            due_date, created_by, assigned_to, sprint_id
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING *
+        `, [
+          title, description, dodValue, priority, status,
+          due_date, userId, assigned_to, sprint_id
+        ]);
+      } else {
+        throw columnError;
+      }
+    }
     
     // Create notification for assigned user
     if (assigned_to && assigned_to !== userId) {
@@ -1871,8 +1954,16 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('Error creating deliverable:', error);
-    res.status(500).json({ error: 'Failed to create deliverable' });
+    console.error('❌ Error creating deliverable:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('Error detail:', error.detail);
+    console.error('Error hint:', error.hint);
+    res.status(500).json({ 
+      error: 'Failed to create deliverable',
+      details: error.message,
+      code: error.code
+    });
   }
 });
 
@@ -4175,6 +4266,397 @@ app.post('/api/v1/docusign/webhook', express.raw({ type: 'application/json' }), 
 
 // ==================== END DOCUSIGN ENDPOINTS ====================
 */
+
+// ==================== AI RELEASE READINESS ENDPOINTS ====================
+
+// AI-powered release readiness analysis
+app.post('/api/v1/release-readiness/analyze', authenticateToken, async (req, res) => {
+  try {
+    const {
+      deliverableId,
+      deliverableTitle,
+      deliverableDescription,
+      definitionOfDone = [],
+      evidenceLinks = [],
+      sprintIds = [],
+      sprintMetrics = {},
+      knownLimitations,
+    } = req.body;
+
+    // Try OpenAI AI analysis first (if available)
+    if (openai) {
+      try {
+        const prompt = `You are an expert software delivery analyst. Analyze the release readiness of this deliverable and provide structured feedback.
+
+DELIVERABLE INFORMATION:
+Title: ${deliverableTitle || 'Untitled'}
+Description: ${deliverableDescription || 'No description provided'}
+
+DEFINITION OF DONE (${definitionOfDone.length} items):
+${definitionOfDone.length > 0 ? definitionOfDone.map((item, i) => `${i + 1}. ${item}`).join('\n') : 'None provided'}
+
+EVIDENCE LINKS (${evidenceLinks.length} links):
+${evidenceLinks.length > 0 ? evidenceLinks.map((link, i) => `${i + 1}. ${link}`).join('\n') : 'None provided'}
+
+SPRINT INFORMATION:
+- Sprints Linked: ${sprintIds.length}
+- Sprint Metrics: ${JSON.stringify(sprintMetrics, null, 2)}
+${knownLimitations ? `- Known Limitations: ${knownLimitations}` : ''}
+
+ANALYSIS REQUIREMENTS:
+Analyze this deliverable's readiness for client submission and provide:
+1. Overall status: "green" (ready), "amber" (ready with issues), or "red" (not ready)
+2. Confidence score (0.0 to 1.0)
+3. List of specific issues found
+4. Actionable recommendations
+5. Risk factors
+6. Missing items that should be added
+7. Top 3 priority actions
+8. A concise AI insights summary (1-2 sentences)
+
+Return ONLY valid JSON in this exact format:
+{
+  "status": "green|amber|red",
+  "confidence": 0.85,
+  "issues": ["issue 1", "issue 2"],
+  "recommendations": ["recommendation 1", "recommendation 2"],
+  "risks": ["risk 1"],
+  "missingItems": ["missing item 1"],
+  "priorityActions": ["action 1", "action 2", "action 3"],
+  "aiInsights": "Your concise summary here"
+}`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert software delivery analyst specializing in release readiness assessment. Provide accurate, actionable feedback in JSON format only."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 1000,
+          response_format: { type: "json_object" }
+        });
+
+        const aiResponse = JSON.parse(completion.choices[0].message.content);
+        
+        // Validate and return AI response
+        if (aiResponse.status && ['green', 'amber', 'red'].includes(aiResponse.status)) {
+          console.log('✅ AI analysis completed using GPT-3.5-turbo');
+          return res.json({
+            success: true,
+            data: {
+              status: aiResponse.status,
+              confidence: Math.min(1.0, Math.max(0.0, aiResponse.confidence || 0.8)),
+              issues: Array.isArray(aiResponse.issues) ? aiResponse.issues : [],
+              recommendations: Array.isArray(aiResponse.recommendations) ? aiResponse.recommendations : [],
+              risks: Array.isArray(aiResponse.risks) ? aiResponse.risks : [],
+              missingItems: Array.isArray(aiResponse.missingItems) ? aiResponse.missingItems : [],
+              priorityActions: Array.isArray(aiResponse.priorityActions) ? aiResponse.priorityActions.slice(0, 3) : [],
+              aiInsights: aiResponse.aiInsights || 'AI analysis completed',
+            },
+          });
+        }
+      } catch (aiError) {
+        console.error('⚠️  OpenAI API error, falling back to rule-based analysis:', aiError.message);
+        // Fall through to rule-based analysis
+      }
+    }
+
+    // Fallback: Rule-based analysis (if OpenAI not available or fails)
+    console.log('📊 Using rule-based analysis (fallback)');
+    const issues = [];
+    const recommendations = [];
+    const risks = [];
+    const missingItems = [];
+    let status = 'green';
+    let confidence = 0.9;
+
+    // Analyze Definition of Done
+    if (definitionOfDone.length === 0) {
+      issues.push('Definition of Done is empty');
+      recommendations.push('Add at least 3-5 Definition of Done criteria to ensure quality standards');
+      missingItems.push('Definition of Done items');
+      status = 'red';
+      confidence = 0.7;
+    } else if (definitionOfDone.length < 3) {
+      issues.push('Definition of Done has fewer than 3 items');
+      recommendations.push('Consider adding more DoD criteria for comprehensive quality assurance');
+      status = 'amber';
+      confidence = 0.8;
+    }
+
+    // Analyze Evidence Links
+    if (evidenceLinks.length === 0) {
+      issues.push('No evidence links provided');
+      recommendations.push('Add evidence links: demo, repository, test results, documentation');
+      missingItems.push('Evidence links (demo, repo, tests, docs)');
+      status = 'red';
+      confidence = 0.6;
+    } else {
+      const hasDemo = evidenceLinks.some(link => 
+        link.toLowerCase().includes('demo') || 
+        link.toLowerCase().includes('video') ||
+        link.toLowerCase().includes('screencast')
+      );
+      const hasRepo = evidenceLinks.some(link => 
+        link.toLowerCase().includes('repo') || 
+        link.toLowerCase().includes('github') || 
+        link.toLowerCase().includes('gitlab') ||
+        link.toLowerCase().includes('bitbucket')
+      );
+      const hasTests = evidenceLinks.some(link => 
+        link.toLowerCase().includes('test') || 
+        link.toLowerCase().includes('coverage') ||
+        link.toLowerCase().includes('qa')
+      );
+      const hasDocs = evidenceLinks.some(link => 
+        link.toLowerCase().includes('doc') || 
+        link.toLowerCase().includes('guide') ||
+        link.toLowerCase().includes('wiki')
+      );
+
+      if (!hasDemo) {
+        issues.push('Missing demo link');
+        recommendations.push('Add a demo link or video showing the deliverable in action');
+        missingItems.push('Demo link or video');
+        if (status === 'green') status = 'amber';
+      }
+      if (!hasRepo) {
+        issues.push('Missing repository link');
+        recommendations.push('Add repository link for code review and version control');
+        missingItems.push('Repository link');
+        if (status === 'green') status = 'amber';
+      }
+      if (!hasTests) {
+        issues.push('Missing test evidence');
+        recommendations.push('Add test results or coverage report to demonstrate quality');
+        missingItems.push('Test results or coverage report');
+        if (status === 'green') status = 'amber';
+      }
+      if (!hasDocs) {
+        issues.push('Missing documentation');
+        recommendations.push('Add user guide or technical documentation');
+        missingItems.push('Documentation (user guide or technical docs)');
+        if (status === 'green') status = 'amber';
+      }
+    }
+
+    // Analyze Sprint Association
+    if (sprintIds.length === 0) {
+      issues.push('No sprints linked to deliverable');
+      recommendations.push('Link at least one sprint to show development progress and metrics');
+      missingItems.push('Linked sprints');
+      if (status === 'green') status = 'amber';
+    }
+
+    // Analyze Sprint Metrics (if provided)
+    if (sprintMetrics && Object.keys(sprintMetrics).length > 0) {
+      const testPassRate = sprintMetrics.testPassRate || 0;
+      const defectCount = sprintMetrics.defectCount || 0;
+      const criticalDefects = sprintMetrics.criticalDefects || 0;
+
+      if (testPassRate < 0.9) {
+        issues.push(`Test pass rate is ${(testPassRate * 100).toFixed(0)}%, below recommended 90%`);
+        recommendations.push('Improve test pass rate to at least 90% before release');
+        if (status === 'green') status = 'amber';
+      }
+
+      if (criticalDefects > 0) {
+        issues.push(`${criticalDefects} critical defect(s) still open`);
+        recommendations.push('Resolve all critical defects before submitting for client review');
+        status = 'red';
+        confidence = 0.7;
+      } else if (defectCount > 5) {
+        issues.push(`${defectCount} defects still open`);
+        recommendations.push('Consider reducing defect count before release');
+        if (status === 'green') status = 'amber';
+      }
+    }
+
+    // Analyze Known Limitations
+    if (knownLimitations && knownLimitations.trim().length > 0) {
+      risks.push('Known limitations documented - ensure client is aware');
+      recommendations.push('Review known limitations with client before approval');
+    }
+
+    // Calculate final status based on issues
+    if (issues.length >= 3) {
+      status = 'red';
+      confidence = 0.7;
+    } else if (issues.length >= 1 && status !== 'red') {
+      status = 'amber';
+      confidence = 0.85;
+    }
+
+    // Generate AI Insights
+    let aiInsights = '';
+    if (status === 'green') {
+      aiInsights = '✅ All readiness criteria are met. This deliverable appears ready for client review.';
+    } else if (status === 'amber') {
+      aiInsights = '💡 Minor improvements recommended. The deliverable is mostly ready, but addressing the suggested items will improve client confidence.';
+    } else {
+      aiInsights = '⚠️ Multiple readiness gaps detected. Address the critical issues before submission to ensure quality and reduce client feedback cycles.';
+    }
+
+    // Priority Actions (top 3 recommendations)
+    const priorityActions = recommendations.slice(0, 3);
+
+    res.json({
+      success: true,
+      data: {
+        status,
+        confidence,
+        issues,
+        recommendations,
+        risks,
+        missingItems,
+        priorityActions,
+        aiInsights,
+      },
+    });
+  } catch (error) {
+    console.error('Error in AI readiness analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze readiness',
+    });
+  }
+});
+
+// Get AI-powered suggestions for missing DoD items
+app.post('/api/v1/release-readiness/suggest-items', authenticateToken, async (req, res) => {
+  try {
+    const { deliverableTitle, deliverableDescription, existingItems = [] } = req.body;
+
+    // AI-generated suggestions based on deliverable context
+    const baseSuggestions = [
+      'Code review completed',
+      'Unit tests passing (>80% coverage)',
+      'Integration tests passing',
+      'Documentation updated',
+      'Demo prepared',
+      'Performance benchmarks met',
+      'Security review completed',
+      'Accessibility standards met',
+      'Browser/device compatibility tested',
+      'User acceptance testing completed',
+    ];
+
+    // Context-aware suggestions based on deliverable type
+    const contextSuggestions = [];
+    const titleLower = (deliverableTitle || '').toLowerCase();
+    const descLower = (deliverableDescription || '').toLowerCase();
+
+    if (titleLower.includes('api') || descLower.includes('api')) {
+      contextSuggestions.push('API documentation complete', 'API versioning strategy defined');
+    }
+    if (titleLower.includes('ui') || titleLower.includes('interface') || descLower.includes('ui')) {
+      contextSuggestions.push('UI/UX review completed', 'Responsive design verified');
+    }
+    if (titleLower.includes('database') || descLower.includes('database')) {
+      contextSuggestions.push('Database migration scripts tested', 'Backup and recovery procedures verified');
+    }
+
+    // Filter out existing items
+    const allSuggestions = [...baseSuggestions, ...contextSuggestions];
+    const filteredSuggestions = allSuggestions.filter(
+      suggestion => !existingItems.some(existing => 
+        existing.toLowerCase().includes(suggestion.toLowerCase()) ||
+        suggestion.toLowerCase().includes(existing.toLowerCase())
+      )
+    );
+
+    res.json({
+      success: true,
+      data: {
+        suggestions: filteredSuggestions.slice(0, 10), // Return top 10
+      },
+    });
+  } catch (error) {
+    console.error('Error getting AI suggestions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get suggestions',
+    });
+  }
+});
+
+// Analyze sprint metrics for readiness
+app.post('/api/v1/release-readiness/analyze-sprints', authenticateToken, async (req, res) => {
+  try {
+    const { sprintMetrics } = req.body;
+
+    if (!Array.isArray(sprintMetrics) || sprintMetrics.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          overallHealth: 'unknown',
+          concerns: ['No sprint metrics provided'],
+          strengths: [],
+        },
+      });
+    }
+
+    const concerns = [];
+    const strengths = [];
+
+    // Analyze each sprint
+    for (const sprint of sprintMetrics) {
+      const testPassRate = sprint.testPassRate || 0;
+      const defectCount = sprint.defectCount || 0;
+      const criticalDefects = sprint.criticalDefects || 0;
+      const completedPoints = sprint.completedPoints || 0;
+      const committedPoints = sprint.committedPoints || 0;
+
+      if (testPassRate >= 0.95) {
+        strengths.push(`Sprint ${sprint.sprintName || 'Unknown'}: Excellent test pass rate (${(testPassRate * 100).toFixed(0)}%)`);
+      } else if (testPassRate < 0.9) {
+        concerns.push(`Sprint ${sprint.sprintName || 'Unknown'}: Low test pass rate (${(testPassRate * 100).toFixed(0)}%)`);
+      }
+
+      if (criticalDefects > 0) {
+        concerns.push(`Sprint ${sprint.sprintName || 'Unknown'}: ${criticalDefects} critical defect(s) open`);
+      }
+
+      if (completedPoints >= committedPoints * 0.9) {
+        strengths.push(`Sprint ${sprint.sprintName || 'Unknown'}: Good scope completion (${((completedPoints / committedPoints) * 100).toFixed(0)}%)`);
+      } else if (completedPoints < committedPoints * 0.7) {
+        concerns.push(`Sprint ${sprint.sprintName || 'Unknown'}: Low scope completion (${((completedPoints / committedPoints) * 100).toFixed(0)}%)`);
+      }
+    }
+
+    // Determine overall health
+    let overallHealth = 'good';
+    if (concerns.length > strengths.length * 2) {
+      overallHealth = 'poor';
+    } else if (concerns.length > strengths.length) {
+      overallHealth = 'fair';
+    }
+
+    res.json({
+      success: true,
+      data: {
+        overallHealth,
+        concerns,
+        strengths,
+      },
+    });
+  } catch (error) {
+    console.error('Error analyzing sprint metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze sprint metrics',
+    });
+  }
+});
+
+// ==================== END AI RELEASE READINESS ENDPOINTS ====================
 
 app.listen(PORT, () => {
   console.log(`Flow-Space API server running on port ${PORT}`);

@@ -9,7 +9,6 @@ import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/email_verification_screen.dart';
-import 'screens/deliverable_setup_screen.dart';
 import 'screens/enhanced_deliverable_setup_screen.dart';
 import 'screens/sprint_console_screen.dart';
 import 'screens/sprint_metrics_screen.dart';
@@ -113,7 +112,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RouteGuard(
         route: '/deliverable-setup',
         child: SidebarScaffold(
-          child: DeliverableSetupScreen(),
+          child: EnhancedDeliverableSetupScreen(),
         ),
       ),
     ),

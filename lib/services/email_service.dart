@@ -8,7 +8,7 @@ class EmailService {
   EmailService._internal();
 
   // Email service configuration
-  static const String _baseUrl = 'http://localhost:8000/api/v1';
+  static const String _baseUrl = 'http://localhost:3001/api/v1';
   
   // Send verification email
   Future<bool> sendVerificationEmail({
