@@ -638,7 +638,7 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
 app.get('/api/v1/sprints', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT s.id, s.name, s.description, s.status, s.created_by, s.created_at, s.updated_at,
+      SELECT s.id, s.name, s.description, s.status, s.project_id, s.created_by, s.created_at, s.updated_at,
              u.name as created_by_name
       FROM sprints s
       LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
@@ -650,6 +650,7 @@ app.get('/api/v1/sprints', async (req, res) => {
       name: row.name || 'Unnamed Sprint',
       description: row.description || '',
       status: row.status || 'planning',
+      project_id: row.project_id,
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -1805,11 +1806,8 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
     if (userRole === 'teamMember') {
       query += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
       params.push(userId);
-    } else if (userRole === 'deliveryLead') {
-      query += ' WHERE d.created_by = $1';
-      params.push(userId);
     }
-    // clientReviewer and other roles can see all deliverables
+    // deliveryLead, clientReviewer and other roles can see all deliverables
     
     query += ' ORDER BY d.created_at DESC';
     
@@ -2258,13 +2256,28 @@ app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
     `;
     
     const statsResult = await pool.query(statsQuery);
+
+    // Average sign-off time in days for approved reports
+    const avgSignoffQuery = `
+      SELECT AVG(EXTRACT(EPOCH FROM (approved_at - submitted_at)) / 86400.0) AS avg_signoff_days
+      FROM sign_off_reports
+      WHERE status = 'approved'
+        AND approved_at IS NOT NULL
+        AND submitted_at IS NOT NULL
+    `;
+
+    const avgSignoffResult = await pool.query(avgSignoffQuery);
+    const avgSignoffDays = avgSignoffResult.rows[0]?.avg_signoff_days;
     
     res.json({
       success: true,
       data: {
         deliverables: deliverablesResult.rows,
         recentActivity: activityResult.rows,
-        statistics: statsResult.rows[0]
+        statistics: {
+          ...statsResult.rows[0],
+          avg_signoff_days: avgSignoffDays,
+        },
       }
     });
   } catch (error) {
@@ -3475,7 +3488,9 @@ app.post('/api/v1/sign-off-reports/:id/submit', authenticateToken, async (req, r
 
     const result = await pool.query(`
       UPDATE sign_off_reports 
-      SET status = 'submitted', updated_at = NOW()
+      SET status = 'submitted',
+          submitted_at = COALESCE(submitted_at, NOW()),
+          updated_at = NOW()
       WHERE id = $1::uuid AND created_by = $2::uuid
       RETURNING *
     `, [id, userId]);
@@ -3547,7 +3562,9 @@ app.post('/api/v1/sign-off-reports/:id/approve', authenticateToken, async (req, 
     // Update report status
     const result = await pool.query(`
       UPDATE sign_off_reports 
-      SET status = 'approved', updated_at = NOW()
+      SET status = 'approved',
+          approved_at = COALESCE(approved_at, NOW()),
+          updated_at = NOW()
       WHERE id = $1::uuid
       RETURNING *
     `, [id]);
