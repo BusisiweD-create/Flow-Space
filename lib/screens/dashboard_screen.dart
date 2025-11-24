@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/deliverable.dart';
 import '../models/sprint.dart';
+import '../services/backend_api_service.dart';
 import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
@@ -14,6 +15,11 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  // Dashboard metrics
+  double? _avgSignoffDays;
+  bool _isLoadingDashboard = false;
+  String? _dashboardError;
+
   // Sample data for demonstration
   final List<Deliverable> deliverables = [
     Deliverable(
@@ -100,6 +106,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadDashboardMetrics();
+  }
+
+  Future<void> _loadDashboardMetrics() async {
+    setState(() {
+      _isLoadingDashboard = true;
+      _dashboardError = null;
+    });
+
+    try {
+      final api = BackendApiService();
+      await api.initialize();
+      final response = await api.getDashboardData();
+
+      if (!mounted) return;
+
+      if (response.isSuccess && response.data != null) {
+        final data = response.data!['data'] ?? response.data!;
+        final stats = data['statistics'] ?? {};
+        final rawAvg = stats['avg_signoff_days'];
+
+        setState(() {
+          if (rawAvg == null) {
+            _avgSignoffDays = null;
+          } else if (rawAvg is num) {
+            _avgSignoffDays = rawAvg.toDouble();
+          } else {
+            _avgSignoffDays = double.tryParse(rawAvg.toString());
+          }
+        });
+      } else {
+        setState(() {
+          _dashboardError = response.error ?? 'Failed to load dashboard data';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dashboardError = 'Error loading dashboard: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingDashboard = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -151,28 +210,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Section
-            _buildWelcomeSection(),
-            const SizedBox(height: 24),
+      body: _isLoadingDashboard
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Welcome Section
+                  _buildWelcomeSection(),
+                  const SizedBox(height: 24),
 
-            // Key Metrics Row
-            _buildMetricsRow(),
-            const SizedBox(height: 24),
+                  if (_dashboardError != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _dashboardError!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
-            // Sprint Performance Chart
-            _buildSprintPerformanceSection(),
-            const SizedBox(height: 24),
+                  // Key Metrics Row
+                  _buildMetricsRow(),
+                  const SizedBox(height: 24),
 
-            // Deliverables Section
-            _buildDeliverablesSection(),
-          ],
-        ),
-      ),
+                  // Sprint Performance Chart
+                  _buildSprintPerformanceSection(),
+                  const SizedBox(height: 24),
+
+                  // Deliverables Section
+                  _buildDeliverablesSection(),
+                ],
+              ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           _showCreateDeliverableDialog();
@@ -264,10 +356,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: MetricsCard(
             title: 'Avg. Sign-off',
-            value: '2.3d',
+            value: _avgSignoffDays == null
+                ? '--'
+                : '${_avgSignoffDays!.toStringAsFixed(1)}d',
             icon: Icons.schedule,
             color: Colors.purple,
           ),

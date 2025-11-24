@@ -185,6 +185,81 @@ class ApiService {
     }
   }
   
+  static Future<bool> updateTicketStatus({
+    required String issueId,
+    required String status,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/tickets/$issueId/status'),
+        headers: headers,
+        body: jsonEncode({'status': status}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error updating ticket status: $e');
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> createTicket({
+    required String title,
+    required String description,
+    required String type,
+    required String priority,
+    required String sprintId,
+    required String projectKey,
+  }) async {
+    try {
+      debugPrint('Creating ticket: $title');
+      
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/tickets'),
+        headers: headers,
+        body: jsonEncode({
+          'title': title,
+          'description': description,
+          'type': type,
+          'priority': priority,
+          'sprint_id': sprintId,
+          'project_key': projectKey,
+        }),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          debugPrint('✅ Ticket created successfully');
+          return data['data'];
+        }
+      }
+      
+      // Error handling
+      try {
+        final errorData = jsonDecode(response.body);
+        final errorMessage = errorData['details'] ?? errorData['error'] ?? 'Unknown error';
+        debugPrint('❌ Failed to create ticket: ${response.statusCode}');
+        debugPrint('   Error: $errorMessage');
+        debugPrint('   Response: ${response.body}');
+      } catch (e) {
+        debugPrint('❌ Failed to create ticket: ${response.statusCode}');
+        debugPrint('   Response: ${response.body}');
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Error creating ticket: $e');
+      return null;
+    }
+  }
+  
   static Future<void> updateDeliverableStatus({
     required String id,
     required String status,
@@ -288,6 +363,8 @@ class ApiService {
     required String name,
     required String key,
     String? description,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     try {
       debugPrint('Creating project: $name ($key)');
@@ -300,6 +377,8 @@ class ApiService {
           'name': name,
           'key': key,
           'description': description ?? '',
+          'startDate': startDate?.toIso8601String(),
+          'endDate': endDate?.toIso8601String(),
         }),
       );
       

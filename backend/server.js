@@ -685,7 +685,7 @@ app.get('/api/v1/sprints', async (req, res) => {
 
 app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
   try {
-    const { name, description, start_date, end_date, plannedPoints, completedPoints } = req.body;
+    const { name, description, start_date, end_date, project_id, plannedPoints } = req.body;
     const userId = req.user.id;
     
     if (!name || !start_date || !end_date) {
@@ -696,10 +696,19 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     }
     
     const result = await pool.query(
-      `INSERT INTO sprints (name, description, start_date, end_date, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO sprints (name, description, start_date, end_date, project_id, created_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [name, description || '', start_date, end_date, userId, new Date().toISOString(), new Date().toISOString()]
+      [
+        name, 
+        description || '', 
+        start_date, 
+        end_date,
+        project_id || null,
+        userId, 
+        new Date().toISOString(), 
+        new Date().toISOString()
+      ]
     );
     
     res.json({
@@ -708,7 +717,11 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Create sprint error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create sprint',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -730,17 +743,26 @@ app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
       });
     }
     
+    const sprint = result.rows[0];
     res.json({
       success: true,
-      data: result.rows[0]
+      data: {
+        id: sprint.id,
+        name: sprint.name,
+        description: sprint.description,
+        status: sprint.status,
+        project_id: sprint.project_id,
+        start_date: sprint.start_date,
+        end_date: sprint.end_date,
+        created_by: sprint.created_by,
+        created_at: sprint.created_at,
+        updated_at: sprint.updated_at,
+        created_by_name: sprint.created_by_name
+      }
     });
   } catch (error) {
-    console.error('Get sprint by ID error:', error);
-    console.error('Error code:', error.code);
-    console.error('Error detail:', error.detail);
-    
-    // If table doesn't exist, return 404
-    if (error.code === '42P01' || error.code === '42703') {
+    console.error('Get sprint error:', error);
+    if (error.message === 'Sprint not found') {
       return res.status(404).json({ 
         success: false,
         error: 'Sprint not found' 

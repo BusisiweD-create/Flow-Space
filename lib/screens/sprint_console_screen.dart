@@ -1,12 +1,11 @@
 // ignore_for_file: strict_top_level_inference, duplicate_ignore
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'dart:async';
 import '../services/api_service.dart';
-import '../services/jira_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
-import '../widgets/sprint_board_widget.dart';
 import 'create_sprint_screen.dart';
 import 'sprint_board_screen.dart';
 
@@ -18,6 +17,11 @@ class SprintConsoleScreen extends StatefulWidget {
 }
 
 class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
+  // Controllers for project creation form
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _keyController = TextEditingController();
+  final _descriptionController = TextEditingController();
   
   // Data
   List<Map<String, dynamic>> _projects = [];
@@ -29,11 +33,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   String? _selectedProjectKey;
   String? _selectedSprintId;
   
-  // ignore: strict_top_level_inference
-  get _databaseService => SprintDatabaseService();
-  
-  // ignore: strict_top_level_inference
-  get id => null;
+  // Date picker state
+  DateTime? _startDate;
+  DateTime? _endDate;
   
   @override
   void initState() {
@@ -82,6 +84,66 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     }
   }
 
+  // Helper method to show a snackbar
+  // Map ticket to issue format
+  Map<String, dynamic> _mapTicketToIssue(Map<String, dynamic> ticket) {
+    return {
+      'id': ticket['id'],
+      'key': ticket['key'] ?? 'TKT-${ticket['id']}',
+      'fields': {
+        'summary': ticket['title'] ?? 'No title',
+        'status': {'name': ticket['status'] ?? 'To Do'},
+        'priority': {'name': ticket['priority'] ?? 'Medium'},
+        'issuetype': {'name': ticket['type'] ?? 'Task'},
+      },
+    };
+  }
+
+  // Handle issue status change
+  Future<void> _handleIssueStatusChange(String issueId, String newStatus) async {
+    if (!mounted) return;
+    
+    try {
+      await ApiService.updateTicketStatus(
+        issueId: issueId,
+        status: newStatus,
+      );
+      
+      if (!mounted) return;
+      setState(() {
+        final index = _tickets.indexWhere((ticket) => ticket['id'] == issueId);
+        if (index != -1) {
+          _tickets[index]['status'] = newStatus;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('Failed to update ticket status: $e', isError: true);
+      }
+    }
+  }
+
+  // Helper method to show a date picker
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStartDate ? _startDate ?? DateTime.now() : _endDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    
+    if (picked != null && mounted) {
+      setState(() {
+        if (isStartDate) {
+          _startDate = picked;
+        } else {
+          _endDate = picked;
+        }
+      });
+    }
+  }
+
+  // Show snackbar with message
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -90,6 +152,128 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       ),
     );
   }
+
+  void _showCreateTicketDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        String title = '';
+        String description = '';
+        String? type;
+        String? priority;
+
+        return AlertDialog(
+          title: const Text('Create New Ticket'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Title'),
+                  onChanged: (value) => title = value,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Description'),
+                  onChanged: (value) => description = value,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'Type'),
+                  items: ['Task', 'Bug', 'Story', 'Epic']
+                      .map((type) => DropdownMenuItem(
+                            value: type,
+                            child: Text(type),
+                          ))
+                      .toList(),
+                  onChanged: (value) => type = value,
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'Priority'),
+                  items: ['Low', 'Medium', 'High', 'Critical']
+                      .map((priority) => DropdownMenuItem(
+                            value: priority,
+                            child: Text(priority),
+                          ))
+                      .toList(),
+                  onChanged: (value) => priority = value,
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Create'),
+              onPressed: () async {                
+                if (title.isNotEmpty && 
+                    description.isNotEmpty && 
+                    type != null && 
+                    priority != null) {
+                  try {
+                    // Validate required fields
+                    if (_selectedSprintId == null) {
+                      throw Exception('Please select a sprint');
+                    }
+                    if (_selectedProjectKey == null) {
+                      throw Exception('Project key is required');
+                    }
+                    
+                    // Store context in a local variable before async operation
+                    final currentContext = context;
+                    
+                    // Create the ticket using your API service
+                    final newTicket = await ApiService.createTicket(
+                      title: title,
+                      description: description,
+                      type: type!,
+                      priority: priority!,
+                      sprintId: _selectedSprintId!,
+                      projectKey: _selectedProjectKey!,
+                    );
+                    
+                    // Check if widget is still mounted
+                    if (!mounted) return;
+                    
+                    // Check if ticket was created successfully
+                    if (newTicket != null) {
+                      // Update the UI with the new ticket
+                      setState(() {
+                        _tickets.add(newTicket);
+                      });
+                      
+                      // Check mounted again before using context
+                      if (!mounted) return;
+                      if (currentContext.mounted) {
+                        Navigator.of(currentContext).pop();
+                        _showSnackBar('Ticket created successfully!');
+                      }
+                    } else {
+                      if (!mounted) return;
+                      _showSnackBar('Failed to create ticket', isError: true);
+                    }
+                  } catch (e) {
+                    if (!mounted) return;
+                    _showSnackBar('Error creating ticket: $e', isError: true);
+                  }
+                } else {
+                  _showSnackBar('Please fill in all fields', isError: true);
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -101,18 +285,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CreateSprintScreen()),
-              );
-              if (result == true) {
-                // Refresh the sprint list if a new sprint was created
-                _loadData();
-              }
-            },
+            onPressed: _showCreateProjectDialog,
             icon: const Icon(Icons.add, color: FlownetColors.pureWhite),
-            tooltip: 'Create New Sprint',
+            tooltip: 'Create Project',
           ),
           IconButton(
             onPressed: _loadData,
@@ -241,7 +416,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Selected project: ${_projects.firstWhere((p) => p['key'] == _selectedProjectKey, orElse: () => {'name': 'Unknown'})['name']}',
+                    'Selected project: ${_projects.firstWhere(
+                      (p) {
+                        final keyOrId = p['key']?.toString() ?? p['id']?.toString();
+                        return keyOrId == _selectedProjectKey;
+                      },
+                      orElse: () => {'name': 'Unknown'},
+                    )['name']}',
                     style: const TextStyle(
                       color: FlownetColors.electricBlue,
                       fontSize: 14,
@@ -273,7 +454,8 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       itemCount: _projects.length,
       itemBuilder: (context, index) {
         final project = _projects[index];
-        final isSelected = _selectedProjectKey == project['key'];
+        final projectKey = project['key']?.toString() ?? project['id']?.toString();
+        final isSelected = _selectedProjectKey == projectKey;
         
         return GestureDetector(
           onTap: () => _selectProject(project),
@@ -346,6 +528,8 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   }
 
   Widget _buildSprintsSection() {
+    final filteredSprints = _getFilteredSprints();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -360,7 +544,15 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: _showCreateSprintDialog,
+              onPressed: _selectedProjectKey != null ? () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CreateSprintScreen()),
+                );
+                if (result == true) {
+                  _loadData();
+                }
+              } : null,
               icon: const Icon(Icons.add),
               label: const Text('Create Sprint'),
               style: ElevatedButton.styleFrom(
@@ -371,21 +563,49 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        if (_sprints.isEmpty)
-          _buildEmptyState('No sprints yet', 'Create your first sprint to start planning')
+        if (filteredSprints.isEmpty)
+          _buildEmptyState(
+            _selectedProjectKey != null ? 'No sprints for this project' : 'No sprints yet',
+            _selectedProjectKey != null
+                ? 'Create a sprint for the selected project to start planning'
+                : 'Create your first sprint to start planning',
+          )
         else
-          _buildSprintsList(),
+          _buildSprintsList(filteredSprints),
       ],
     );
   }
 
-  Widget _buildSprintsList() {
+  List<Map<String, dynamic>> _getFilteredSprints() {
+    if (_selectedProjectKey == null) {
+      return _sprints;
+    }
+
+    final selectedProject = _projects.firstWhere(
+      (p) {
+        final keyOrId = p['key']?.toString() ?? p['id']?.toString();
+        return keyOrId == _selectedProjectKey;
+      },
+      orElse: () => <String, dynamic>{},
+    );
+
+    final selectedProjectId = selectedProject['id']?.toString();
+    if (selectedProjectId == null) {
+      return _sprints;
+    }
+
+    return _sprints
+        .where((s) => s['project_id']?.toString() == selectedProjectId)
+        .toList();
+  }
+
+  Widget _buildSprintsList(List<Map<String, dynamic>> sprints) {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _sprints.length,
+      itemCount: sprints.length,
       itemBuilder: (context, index) {
-        final sprint = _sprints[index];
+        final sprint = sprints[index];
         final isSelected = _selectedSprintId == sprint['id'].toString();
         
         return Container(
@@ -477,7 +697,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 const SizedBox(width: 8),
                 // View board button
                 IconButton(
-                  onPressed: () => _viewSprintBoard(sprint),
+                  onPressed: () => _navigateToSprintBoard(sprint),
                   icon: const Icon(
                     Icons.dashboard,
                     color: FlownetColors.electricBlue,
@@ -530,26 +750,88 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           ],
         ),
         const SizedBox(height: 16),
+        
+        // Date range selector
+        Row(
+          children: [
+            Expanded(
+              child: TextButton.icon(
+                onPressed: () => _selectDate(context, true),
+                icon: const Icon(Icons.calendar_today, size: 16),
+                label: Text(
+                  _startDate != null 
+                      ? 'From: ${DateFormat('MMM dd, yyyy').format(_startDate!)}'
+                      : 'Select Start Date',
+                  style: const TextStyle(color: FlownetColors.pureWhite),
+                ),
+              ),
+            ),
+            const Text('to', style: TextStyle(color: FlownetColors.pureWhite)),
+            Expanded(
+              child: TextButton.icon(
+                onPressed: () => _selectDate(context, false),
+                icon: const Icon(Icons.calendar_today, size: 16),
+                label: Text(
+                  _endDate != null 
+                      ? 'To: ${DateFormat('MMM dd, yyyy').format(_endDate!)}'
+                      : 'Select End Date',
+                  style: const TextStyle(color: FlownetColors.pureWhite),
+                ),
+              ),
+            ),
+          ],
+        ),
+        
         if (_tickets.isEmpty)
-          _buildEmptyState('No tickets yet', 'Create your first ticket to start tracking work')
+          _buildEmptyState('No tickets yet', 'Create a ticket to get started')
         else
-          _buildTicketsBoard(),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _tickets.length,
+            itemBuilder: (context, index) {
+              final ticket = _mapTicketToIssue(_tickets[index]);
+              return Card(
+                color: FlownetColors.charcoalBlack,
+                child: ListTile(
+                  title: Text(
+                    '${ticket['key'] ?? ''} - ${ticket['fields']['summary']}',
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                  ),
+                  subtitle: Text(
+                    'Type: ${ticket['fields']['issuetype']['name']} | ' 
+                    'Priority: ${ticket['fields']['priority']['name']}\n'
+                    'Status: ${ticket['fields']['status']['name']}',
+                    style: TextStyle(
+                      color: FlownetColors.pureWhite.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  onTap: () {
+                    // Handle ticket tap
+                  },
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) => _handleIssueStatusChange(ticket['id'], value),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'To Do',
+                        child: Text('Mark as To Do'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'In Progress',
+                        child: Text('Mark as In Progress'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'Done',
+                        child: Text('Mark as Done'),
+                      ),
+                    ],
+                    child: const Icon(Icons.more_vert, color: FlownetColors.pureWhite),
+                  ),
+                ),
+              );
+            },
+          ),
       ],
-    );
-  }
-
-  Widget _buildTicketsBoard() {
-    return SizedBox(
-      height: 400,
-      child: SprintBoardWidget(
-        sprintId: _selectedSprintId ?? '',
-        sprintName: _sprints.firstWhere(
-          (sprint) => sprint['id'].toString() == _selectedSprintId,
-          orElse: () => {'name': 'Unknown Sprint'},
-        )['name'] ?? 'Unknown Sprint',
-        issues: _tickets.map((ticket) => _mapTicketToIssue(ticket)).toList(),
-        onIssueStatusChanged: _handleIssueStatusChange,
-      ),
     );
   }
 
@@ -595,12 +877,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
 
   // Helper methods
   void _selectProject(Map<String, dynamic> project) {
+    final keyOrId = project['key']?.toString() ?? project['id']?.toString();
     setState(() {
-      _selectedProjectKey = project['key'];
+      _selectedProjectKey = keyOrId;
       _selectedSprintId = null; // Reset sprint selection
       _tickets.clear(); // Clear tickets
     });
-    debugPrint('🎯 Project selected: ${project['name']} (${project['key']})');
+    debugPrint('🎯 Project selected: ${project['name']} ($keyOrId)');
   }
 
   void _selectSprint(Map<String, dynamic> sprint) {
@@ -619,9 +902,73 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     );
   }
 
+  void _viewSprintDetails(Map<String, dynamic> sprint) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: FlownetColors.charcoalBlack,
+          title: Text(
+            sprint['name'] ?? 'Sprint Details',
+            style: const TextStyle(color: FlownetColors.pureWhite),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDetailRow('Status:', sprint['status']?.toString().toUpperCase() ?? 'N/A',
+                    _getStatusColor(sprint['status'])),
+                _buildDetailRow('Start Date:', sprint['startDate'] != null 
+                    ? DateFormat('MMM dd, yyyy').format(DateTime.parse(sprint['startDate'])) 
+                    : 'Not set'),
+                _buildDetailRow('End Date:', sprint['endDate'] != null 
+                    ? DateFormat('MMM dd, yyyy').format(DateTime.parse(sprint['endDate'])) 
+                    : 'Not set'),
+                if (sprint['goal']?.isNotEmpty ?? false)
+                  _buildDetailRow('Goal:', sprint['goal']),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Close', style: TextStyle(color: FlownetColors.electricBlue)),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, [Color? valueColor]) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(color: FlownetColors.pureWhite, fontSize: 14, height: 1.4),
+          children: [
+            TextSpan(
+              text: '$label\n',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: FlownetColors.electricBlue),
+            ),
+            TextSpan(
+              text: value,
+              style: TextStyle(color: valueColor ?? FlownetColors.pureWhite.withValues(red: 1.0, green: 1.0, blue: 1.0, alpha: 0.9)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
+    final normalizedStatus = status?.toLowerCase() ?? '';
+    switch (normalizedStatus) {
       case 'completed':
+      case 'done':
         return FlownetColors.electricBlue;
       case 'in_progress':
       case 'active':
@@ -637,6 +984,38 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   }
 
   // Normalize status to valid dropdown values
+  // Update sprint status
+  Future<void> _updateSprintStatus(String sprintId, String newStatus) async {
+    if (!mounted) return;
+    
+    try {
+      final success = await ApiService.updateSprintStatus(sprintId, newStatus);
+      if (!mounted) return;
+      
+      if (success) {
+        // Update the local state to reflect the change
+        if (mounted) {
+          setState(() {
+            final sprintIndex = _sprints.indexWhere((s) => s['id'] == sprintId);
+            if (sprintIndex != -1) {
+              _sprints[sprintIndex]['status'] = newStatus;
+            }
+          });
+          _showSnackBar('Sprint status updated successfully');
+        }
+      } else {
+        if (mounted) {
+          _showSnackBar('Failed to update sprint status', isError: true);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error updating sprint status: $e');
+      if (mounted) {
+        _showSnackBar('Error updating sprint status', isError: true);
+      }
+    }
+  }
+
   String _normalizeStatus(String? status) {
     final normalized = status?.toLowerCase() ?? 'planning';
     switch (normalized) {
@@ -654,405 +1033,128 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     }
   }
 
-  // Dialog methods
   void _showCreateProjectDialog() {
-    final nameController = TextEditingController();
-    final keyController = TextEditingController();
-    final descriptionController = TextEditingController();
+    // Reset form
+    _nameController.clear();
+    _keyController.clear();
+    _descriptionController.clear();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.charcoalBlack,
-        title: const Text(
-          'Create New Project',
-          style: TextStyle(color: FlownetColors.pureWhite),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              style: const TextStyle(color: FlownetColors.pureWhite),
-              decoration: const InputDecoration(
-                labelText: 'Project Name',
-                labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: keyController,
-              style: const TextStyle(color: FlownetColors.pureWhite),
-              decoration: const InputDecoration(
-                labelText: 'Project Key (e.g., FLOW)',
-                labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descriptionController,
-              style: const TextStyle(color: FlownetColors.pureWhite),
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Description (Optional)',
-                labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: FlownetColors.pureWhite),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty || keyController.text.trim().isEmpty) {
-                _showSnackBar('Please fill in project name and key', isError: true);
-                return;
-              }
-
-              Navigator.of(context).pop();
-              await _createProject(
-                nameController.text.trim(),
-                keyController.text.trim().toUpperCase(),
-                descriptionController.text.trim(),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: FlownetColors.electricBlue,
-            ),
-            child: const Text(
-              'Create',
-              style: TextStyle(color: FlownetColors.pureWhite),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _updateSprintStatus(String sprintId, String newStatus) async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Call the API to update sprint status
-      final success = await ApiService.updateSprintStatus(sprintId, newStatus);
-
-      if (success) {
-        _showSnackBar('Sprint status updated to $newStatus');
-        await _loadData(); // Reload data to reflect changes
-      } else {
-        _showSnackBar('Failed to update sprint status', isError: true);
-      }
-    } catch (e) {
-      _showSnackBar('Error updating sprint status: $e', isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _viewSprintBoard(Map<String, dynamic> sprint) {
-    // Navigate to sprint board screen with sprint name
-    GoRouter.of(context).go('/sprint-board/${sprint['id']}?name=${Uri.encodeComponent(sprint['name'])}');
-  }
-
-  void _viewSprintDetails(Map<String, dynamic> sprint) {
-    // Navigate to sprint detail screen
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SprintDetailScreen(
-          sprintId: sprint['id'].toString(),
-          sprintData: sprint,
-        ),
-      ),
-    );
-  }
-
-  void _showCreateSprintDialog() {
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final startDateController = TextEditingController();
-    final endDateController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.charcoalBlack,
-        title: const Text(
-          'Create New Sprint',
-          style: TextStyle(color: FlownetColors.pureWhite),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              style: const TextStyle(color: FlownetColors.pureWhite),
-              decoration: const InputDecoration(
-                labelText: 'Sprint Name',
-                labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descriptionController,
-              style: const TextStyle(color: FlownetColors.pureWhite),
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Description (Optional)',
-                labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: startDateController,
-                    style: const TextStyle(color: FlownetColors.pureWhite),
-                    decoration: const InputDecoration(
-                      labelText: 'Start Date',
-                      labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                      border: OutlineInputBorder(
-                        borderSide: BorderSide(color: FlownetColors.electricBlue),
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Create New Project'),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Project Name',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a project name';
+                          }
+                          return null;
+                        },
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _keyController,
+                        decoration: const InputDecoration(
+                          labelText: 'Project Key',
+                          hintText: 'e.g., PROJ',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a project key';
+                          }
+                          if (value.contains(' ')) {
+                            return 'Key cannot contain spaces';
+                          }
+                          return null;
+                        },
+                        textCapitalization: TextCapitalization.characters,
                       ),
-                    ),
-                    readOnly: true,
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (date != null) {
-                        startDateController.text = date.toIso8601String().split('T')[0];
-                      }
-                    },
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _descriptionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Description (Optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
+                      if (_isLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    controller: endDateController,
-                    style: const TextStyle(color: FlownetColors.pureWhite),
-                    decoration: const InputDecoration(
-                      labelText: 'End Date',
-                      labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                      border: OutlineInputBorder(
-                        borderSide: BorderSide(color: FlownetColors.electricBlue),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                      ),
-                    ),
-                    readOnly: true,
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now().add(const Duration(days: 7)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (date != null) {
-                        endDateController.text = date.toIso8601String().split('T')[0];
-                      }
-                    },
-                  ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          if (_formKey.currentState!.validate()) {
+                            setState(() => _isLoading = true);
+                            try {
+                              final project = await ApiService.createProject(
+                                name: _nameController.text.trim(),
+                                key: _keyController.text.trim().toUpperCase(),
+                                description: _descriptionController.text.trim().isNotEmpty
+                                    ? _descriptionController.text.trim()
+                                    : null,
+                              );
+
+                              if (!context.mounted) return;
+                              
+                              Navigator.of(context).pop();
+                              if (project != null) {
+                                _loadData();
+                                _showSnackBar('Project created successfully!');
+                              } else {
+                                _showSnackBar(
+                                  'Failed to create project. Please try again.',
+                                  isError: true,
+                                );
+                              }
+                            } on Exception catch (e) {
+                              if (!mounted) return;
+                              _showSnackBar(
+                                'Error creating project: $e',
+                                isError: true,
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isLoading = false);
+                              }
+                            }
+                          }
+                        },
+                  child: const Text('Create'),
                 ),
               ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: FlownetColors.pureWhite),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty || 
-                  startDateController.text.isEmpty || 
-                  endDateController.text.isEmpty) {
-                _showSnackBar('Please fill in all required fields', isError: true);
-                return;
-              }
-
-              Navigator.of(context).pop();
-              await _createSprint(
-                nameController.text.trim(),
-                descriptionController.text.trim(),
-                startDateController.text,
-                endDateController.text,
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: FlownetColors.electricBlue,
-            ),
-            child: const Text(
-              'Create',
-              style: TextStyle(color: FlownetColors.pureWhite),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
-
-  Future<void> _createSprint(String name, String description, String startDate, String endDate) async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Create sprint via backend API
-      final result = await _databaseService.createSprint(
-        name: name,
-        description: description,
-        startDate: startDate,
-        endDate: endDate,
-      );
-
-      if (result != null) {
-        _showSnackBar('Sprint created successfully!');
-        await _loadData(); // Reload sprints
-      } else {
-        _showSnackBar('Failed to create sprint', isError: true);
-      }
-    } catch (e) {
-      _showSnackBar('Error creating sprint: $e', isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _showCreateTicketDialog() {
-    // Implementation for creating tickets
-    _showSnackBar('Create Ticket dialog - Coming soon!');
-  }
-
-  Future<void> _createProject(String name, String key, String description) async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Create project via backend API
-      final result = await ApiService.createProject(
-        name: name,
-        key: key,
-        description: description,
-      );
-
-      if (result != null) {
-        _showSnackBar('Project created successfully!');
-        await _loadData(); // Reload projects
-      } else {
-        _showSnackBar('Failed to create project', isError: true);
-      }
-    } catch (e) {
-      _showSnackBar('Error creating project: $e', isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  // Event handlers
-  void _handleIssueStatusChange(JiraIssue issue, String newStatus) {
-    // Implementation for handling status changes
-    _showSnackBar('Status changed to $newStatus');
-  }
-
-  // Helper method to map ticket to issue format
-  JiraIssue _mapTicketToIssue(Map<String, dynamic> ticket) {
-    return JiraIssue(
-      id: ticket['id']?.toString() ?? '',
-      key: ticket['ticket_key']?.toString() ?? '',
-      summary: ticket['summary']?.toString() ?? '',
-      description: ticket['description']?.toString(),
-      status: ticket['status']?.toString(),
-      priority: ticket['priority']?.toString(),
-      issueType: ticket['issue_type']?.toString(),
-      assignee: ticket['assignee']?.toString(),
-      reporter: ticket['assignee']?.toString(), // Use assignee as reporter for now
-      created: ticket['created_at'] != null ? DateTime.tryParse(ticket['created_at']) : null,
-      updated: ticket['updated_at'] != null ? DateTime.tryParse(ticket['updated_at']) : null,
-      labels: [],
-    );
-  }
-  
-  // ignore: non_constant_identifier_names
-  Widget SprintDetailScreen({required String sprintId, required Map<String, dynamic> sprintData}) {
-    return Scaffold(
-      appBar: AppBar(
-        // ignore: prefer_const_constructors
-        title: Text('Sprint Details: ${sprintData['name'] ?? 'Unknown'}'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Sprint ID: $sprintId', style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            Text('Name: ${sprintData['name'] ?? 'Unknown'}', style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            Text('Status: ${sprintData['status'] ?? 'Unknown'}', style: const TextStyle(fontSize: 16)),
-            // Add more sprint details as needed
-          ],
-        ),
-      ),
-    );
-  }
-  
-  // ignore: non_constant_identifier_names
-  SprintDatabaseService() {}
 }
