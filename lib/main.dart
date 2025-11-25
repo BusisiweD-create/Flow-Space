@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'widgets/app_container.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
@@ -70,6 +71,11 @@ class KhonoApp extends StatelessWidget {
       theme: FlownetTheme.darkTheme, // Dark mode as default
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return AppContainer(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

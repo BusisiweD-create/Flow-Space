@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'dart:async';
 import '../services/api_service.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
 import 'create_sprint_screen.dart';
 import 'sprint_board_screen.dart';
 
@@ -278,23 +277,6 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
-      appBar: AppBar(
-        backgroundColor: FlownetColors.charcoalBlack,
-        title: const FlownetLogo(),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: _showCreateProjectDialog,
-            icon: const Icon(Icons.add, color: FlownetColors.pureWhite),
-            tooltip: 'Create Project',
-          ),
-          IconButton(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh, color: FlownetColors.pureWhite),
-          ),
-        ],
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: FlownetColors.electricBlue))
           : _buildBody(),

@@ -137,6 +137,8 @@ flutter:
           style: italic
 
   assets:
+    - assets/fonts/
+    - assets/Icons/
     - assets/images/
     - assets/videos/
     - assets/audios/
