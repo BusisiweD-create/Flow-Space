@@ -139,8 +139,10 @@ flutter:
   assets:
     - assets/fonts/
     - assets/Icons/
+    - assets/Icons/khono_bg.png
     - assets/images/
     - assets/videos/
     - assets/audios/
     - assets/logo.png
     - assets/logo_icon.png
+    - assets/Icons/khono.png

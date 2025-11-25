@@ -6,7 +6,7 @@ import 'widgets/app_container.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
-import 'screens/welcome_screen.dart';
+import 'screens/signoff_hub_welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/email_verification_screen.dart';
@@ -85,7 +85,7 @@ final GoRouter _router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const WelcomeScreen(),
+      builder: (context, state) => const SignoffHubWelcomeScreen(),
     ),
     GoRoute(
       path: '/login',

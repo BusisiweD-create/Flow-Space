@@ -37,14 +37,21 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 // Email Configuration
 let emailTransporter = null;
 
-if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+// Support both EMAIL_USER/EMAIL_PASS and SMTP_USER/SMTP_PASS for compatibility
+const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+const smtpPort = parseInt(process.env.SMTP_PORT) || 587;
+const smtpSecure = process.env.SMTP_SECURE === 'true' || false;
+
+if (emailUser && emailPass) {
   emailTransporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      user: emailUser,
+      pass: emailPass
     }
   });
   
@@ -143,11 +150,11 @@ const authenticateToken = (req, res, next) => {
 
 // PostgreSQL connection
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'flow_space',
-  password: 'postgres',
-  port: 5432,
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'flow_space',
+  password: process.env.DB_PASSWORD || 'postgres',
+  port: parseInt(process.env.DB_PORT) || 5432,
 });
 
 // Test database connection
@@ -219,7 +226,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     try {
       if (emailTransporter) {
         const mailOptions = {
-          from: process.env.EMAIL_USER,
+          from: emailUser || process.env.EMAIL_FROM_ADDRESS || 'noreply@flowspace.com',
           to: email,
           subject: 'Flow-Space Email Verification',
           html: `

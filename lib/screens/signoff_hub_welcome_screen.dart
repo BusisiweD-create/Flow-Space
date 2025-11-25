@@ -3,24 +3,24 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+class SignoffHubWelcomeScreen extends StatelessWidget {
+  const SignoffHubWelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // Red gradient background
+          // Dark red gradient background
           Positioned.fill(
             child: Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    const Color(0xFFC10D00), // Bright red at top
-                    const Color(0xFF8B0000), // Darker red at bottom
+                    Color(0xFFC10D00), // Bright red at top
+                    Color(0xFF8B0000), // Darker red/black at bottom
                   ],
                 ),
               ),
@@ -36,7 +36,7 @@ class WelcomeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 40),
-
+                    
                     // Logo and App Name Card
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -59,33 +59,29 @@ class WelcomeScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
-                              Icons.dashboard,
+                              Icons.grid_view,
                               size: 40,
                               color: Colors.white,
                             ),
                           ),
                           const SizedBox(height: 16),
-                          Text(
+                          const Text(
                             'Khonology',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineLarge
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 32,
-                                ),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 32,
+                              fontFamily: 'Poppins',
+                            ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
+                          const Text(
                             'Deliverable & Sprint Sign-Off Hub',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 16,
-                                ),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontFamily: 'Poppins',
+                            ),
                             textAlign: TextAlign.center,
                           ),
                         ],
@@ -136,6 +132,7 @@ class WelcomeScreen extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
+                                fontFamily: 'Poppins',
                               ),
                             ),
                           ),
@@ -148,8 +145,7 @@ class WelcomeScreen extends StatelessWidget {
                             onPressed: () => context.go('/register'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.white,
-                              side: const BorderSide(
-                                  color: Colors.white, width: 2),
+                              side: const BorderSide(color: Colors.white, width: 2),
                               shape: const StadiumBorder(),
                             ),
                             child: const Text(
@@ -157,6 +153,7 @@ class WelcomeScreen extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
+                                fontFamily: 'Poppins',
                               ),
                             ),
                           ),
@@ -219,19 +216,21 @@ class WelcomeScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    fontFamily: 'Poppins',
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 14,
-                      ),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 14,
+                    fontFamily: 'Poppins',
+                  ),
                 ),
               ],
             ),
@@ -241,3 +240,4 @@ class WelcomeScreen extends StatelessWidget {
     );
   }
 }
+
