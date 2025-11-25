@@ -1554,9 +1554,9 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         n.is_read,
         n.created_at,
         n.updated_at,
-        u.name as created_by_name
+        u.name as user_name
       FROM notifications n
-      LEFT JOIN users u ON n.created_by = u.id
+      LEFT JOIN users u ON n.user_id = u.id
       WHERE n.user_id = $1 OR n.user_id IS NULL
       ORDER BY n.created_at DESC
     `, [userId]);

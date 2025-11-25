@@ -1,200 +1,183 @@
+// ignore_for_file: deprecated_member_use
+ 
 import 'package:flutter/material.dart';
+import 'dart:async'; // For Timer
 import 'package:go_router/go_router.dart';
+import '../widgets/app_container.dart';
+ 
+// The main entry point for the Flutter application.
+// void main() {
+//   runApp(const MyApp());
+// }
+ 
+// A StatelessWidget that sets up the MaterialApp.
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       title: 'Personal Development Hub',
+//       theme: ThemeData(
+//         brightness: Brightness.dark,
+//         primarySwatch: Colors.blue,
+//         fontFamily: 'Inter',
+//       ),
+//       home: const PersonalDevelopmentHubScreen(),
+//       debugShowCheckedModeBanner: false,
+//     );
+//   }
+// }
+ 
+// The main screen widget for the Personal Development Hub.
+class PersonalDevelopmentHubScreen extends StatefulWidget {
+  const PersonalDevelopmentHubScreen({super.key});
+ 
+  @override
+  State<PersonalDevelopmentHubScreen> createState() => _PersonalDevelopmentHubScreenState();
+}
+ 
+class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScreen> {
+  late List<String> inspirationalLines;
+  int _currentLineIndex = 0;
+  late Timer _timer;
+ 
+  @override
+  void initState() {
+    super.initState();
+    inspirationalLines = const [
+      'Cultivate your mind, blossom your potential.',
+      'Every step forward is a victory.',
+      'Organize your life, clarify your purpose.',
+      'Knowledge is the compass of growth.',
+      'Build strong habits, build a strong future.',
+      'Financial wisdom empowers freedom.',
+      'Unlock your inner creativity.',
+      'Mindfulness lights the path to peace.',
+      'Fitness fuels your ambition.',
+      'Learn relentlessly, live boundlessly.',
+      'Your journey, your rules, your growth.',
+      'Small changes, significant impact.',
+      'Embrace the challenge, find your strength.',
+      'Beyond limits, lies growth.',
+      'Master your days, master your destiny.',
+      'Innovate, iterate, inspire.',
+      'The best investment is in yourself.',
+      'Find your balance, elevate your being.',
+      'Progress, not perfection.',
+      'Dream big, start small, act now.',
+    ];
+    _startTimer();
+  }
 
-class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
-
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      setState(() {
+        _currentLineIndex = (_currentLineIndex + 1) % inspirationalLines.length;
+      });
+    });
+  }
+ 
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+ 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
-              Theme.of(context).colorScheme.secondary,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                // Logo and App Name
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      width: 1,
-                    ),
-                  ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        primarySwatch: Colors.blue,
+        fontFamily: 'Poppins',
+      ),
+      home: Scaffold(
+        body: AppContainer(
+          child: Stack(
+            children: [
+              // Solid color background
+              Container(
+                color: Colors.black,
+              ),
+              // Content overlay
+              Positioned.fill(
+                child: Center(
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
-                        Icons.dashboard,
-                        size: 80,
-                        color: Colors.white,
+                      // Text-based logo
+                      const Center(
+                        child: Text(
+                          'FLOWSPACE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2.0,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Khonology',
-                        style:
-                            Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                      const SizedBox(height: 24),
+                      // Tagline - Centered
+                      const Center(
+                        child: Text(
+                          'Your Growth Journey, Simplified',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFC10D00),
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Deliverable & Sprint Sign-Off Hub',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                ),
-                        textAlign: TextAlign.center,
+                      const SizedBox(height: 12),
+                      // Inspirational message - Centered
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: Text(
+                            inspirationalLines[_currentLineIndex],
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 20,
+                              color: Colors.white.withAlpha(204),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Button - Centered
+                      Center(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            GoRouter.of(context).push('/login');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            // ignore: prefer_const_constructors
+                            backgroundColor: Color(0xFFC10D00), // Use the new red color
+                            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                            shape: const StadiumBorder(), // Changed to StadiumBorder
+                          ),
+                          child: const Text(
+                            'GET STARTED',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 40),
-
-                // Features
-                _buildFeatureCard(
-                  context,
-                  Icons.assignment,
-                  'Deliverable Management',
-                  'Create, track, and manage deliverables with Definition of Done',
-                ),
-                const SizedBox(height: 16),
-                _buildFeatureCard(
-                  context,
-                  Icons.timeline,
-                  'Sprint Performance',
-                  'Visualize sprint metrics, velocity, and completion rates',
-                ),
-                const SizedBox(height: 16),
-                _buildFeatureCard(
-                  context,
-                  Icons.approval,
-                  'Client Approval',
-                  'Streamlined sign-off process with digital approvals',
-                ),
-
-                const SizedBox(height: 40),
-
-                // Action Buttons
-                Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: () => context.go('/login'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor:
-                              Theme.of(context).colorScheme.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                        ),
-                        child: const Text(
-                          'Sign In',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: OutlinedButton(
-                        onPressed: () => context.go('/register'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white, width: 2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Create Account',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String description,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: Colors.white,
-            size: 32,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.8),
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

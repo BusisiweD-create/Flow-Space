@@ -18,16 +18,9 @@ class AppContainer extends StatelessWidget {
 
     return Container(
       decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/Icons/Global BG.jpg'),
-          fit: BoxFit.cover,
-        ),
+        color: Color(0xFF121212), // Dark background color
       ),
-      child: Container(
-        // ignore: deprecated_member_use
-        color: Colors.black.withOpacity(0.7), // TODO: Replace with proper color value when withOpacity is removed
-        child: child,
-      ),
+      child: child,
     );
   }
 }

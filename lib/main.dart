@@ -85,7 +85,7 @@ final GoRouter _router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const WelcomeScreen(),
+      builder: (context, state) => const PersonalDevelopmentHubScreen(),
     ),
     GoRoute(
       path: '/login',
