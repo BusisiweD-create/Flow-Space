@@ -36,7 +36,7 @@ class WelcomeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 40),
-                    
+
                     // Logo and App Name Card
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -67,7 +67,10 @@ class WelcomeScreen extends StatelessWidget {
                           const SizedBox(height: 16),
                           Text(
                             'Khonology',
-                            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineLarge
+                                ?.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 32,
@@ -76,7 +79,10 @@ class WelcomeScreen extends StatelessWidget {
                           const SizedBox(height: 8),
                           Text(
                             'Deliverable & Sprint Sign-Off Hub',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
                                   color: Colors.white.withOpacity(0.9),
                                   fontSize: 16,
                                 ),
@@ -142,7 +148,8 @@ class WelcomeScreen extends StatelessWidget {
                             onPressed: () => context.go('/register'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white, width: 2),
+                              side: const BorderSide(
+                                  color: Colors.white, width: 2),
                               shape: const StadiumBorder(),
                             ),
                             child: const Text(
