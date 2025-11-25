@@ -717,6 +717,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                             ),
                                           )
                                         : DropdownButtonFormField<String>(
+                                            isExpanded: true,
                                             initialValue: _selectedDeliverableId,
                                             decoration: const InputDecoration(
                                               labelText: 'Deliverable *',
@@ -725,14 +726,14 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                               helperText: 'Select a deliverable to link this report to',
                                             ),
                                             items: _deliverables.map<DropdownMenuItem<String>>((d) {
-                                              final id = d is Map ? (d['id'] as String?) : (d.id?.toString() ?? '');
+                                              final id = d is Map ? d['id']?.toString() : (d.id?.toString() ?? '');
                                               final title = d is Map 
-                                                  ? (d['title'] as String? ?? 'Untitled')
+                                                  ? (d['title']?.toString() ?? 'Untitled')
                                                   : (d.title?.toString() ?? 'Untitled');
                                               final status = d is Map 
-                                                  ? (d['status'] as String? ?? '')
+                                                  ? (d['status']?.toString() ?? '')
                                                   : (d.status?.toString() ?? '');
-                                              
+
                                               return DropdownMenuItem<String>(
                                                 value: id,
                                                 child: Column(
@@ -742,6 +743,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                                     Text(
                                                       title,
                                                       style: const TextStyle(fontWeight: FontWeight.bold),
+                                                      overflow: TextOverflow.ellipsis,
                                                     ),
                                                     if (status.isNotEmpty)
                                                       Text(
@@ -750,15 +752,27 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                                           fontSize: 12,
                                                           color: Colors.grey[600],
                                                         ),
+                                                        overflow: TextOverflow.ellipsis,
                                                       ),
                                                   ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                            selectedItemBuilder: (context) => _deliverables.map<Widget>((d) {
+                                              final title = d is Map 
+                                                  ? (d['title']?.toString() ?? 'Untitled')
+                                                  : (d.title?.toString() ?? 'Untitled');
+                                              return Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: Text(
+                                                  title,
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               );
                                             }).toList(),
                                             onChanged: (value) {
                                               setState(() {
                                                 _selectedDeliverableId = value;
-                                                debugPrint('📋 Deliverable selected: $value');
                                               });
                                             },
                                             validator: (value) {
@@ -805,7 +819,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       Wrap(
                         spacing: 8,
                         children: _sprints.map((sprint) {
-                          final sprintId = sprint['id'] as String;
+                          final sprintId = sprint['id'].toString();
                           final isSelected = _selectedSprintIds.contains(sprintId);
                           return FilterChip(
                             label: Text(sprint['name'] as String? ?? 'Unnamed Sprint'),

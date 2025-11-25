@@ -6,6 +6,7 @@ import '../widgets/deliverable_card.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../providers/dashboard_provider.dart';
+import '../widgets/notification_center_widget.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -44,12 +45,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () => context.go('/sprint-console'),
             tooltip: 'Sprint Console',
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              _showNotificationsDialog();
-            },
-          ),
+          const NotificationCenterWidget(),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () {
@@ -380,21 +376,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  void _showNotificationsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Notifications'),
-        content: const Text('No new notifications at this time.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
   void _showSettingsDialog() {
     showDialog(

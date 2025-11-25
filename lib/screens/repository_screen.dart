@@ -44,8 +44,14 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDocuments();
-    _loadFilters();
+    Future.microtask(() async {
+      try {
+        await AuthService().initialize();
+      } catch (_) {}
+      if (!mounted) return;
+      await _loadFilters();
+      await _loadDocuments();
+    });
   }
 
   Future<void> _loadFilters() async {
@@ -83,6 +89,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
           _documents = (response.data!['documents'] as List).cast<RepositoryFile>();
           _filteredDocuments = _documents;
         });
+        _filterDocuments();
       } else {
         _showErrorSnackBar('Failed to load documents: ${response.error}');
       }
@@ -388,17 +395,37 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   void _filterDocuments() {
     setState(() {
       _filteredDocuments = _documents.where((doc) {
-        final matchesSearch = _searchQuery.isEmpty || 
-            doc.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            doc.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            (doc.tags != null && doc.tags!.toLowerCase().contains(_searchQuery.toLowerCase())) ||
-            doc.uploaderName?.toLowerCase().contains(_searchQuery.toLowerCase()) == true ||
-            doc.uploader.toLowerCase().contains(_searchQuery.toLowerCase());
-        
-        final matchesFileType = _selectedFileType == 'all' || 
+        final q = _searchQuery.toLowerCase();
+        final matchesSearch = q.isEmpty ||
+            doc.name.toLowerCase().contains(q) ||
+            doc.description.toLowerCase().contains(q) ||
+            (doc.tags != null && doc.tags!.toLowerCase().contains(q)) ||
+            (doc.uploaderName?.toLowerCase().contains(q) == true) ||
+            doc.uploader.toLowerCase().contains(q);
+
+        final matchesFileType = _selectedFileType == 'all' ||
             doc.fileType.toLowerCase() == _selectedFileType.toLowerCase();
-        
-        return matchesSearch && matchesFileType;
+
+        final matchesProject = _selectedProjectId == null ||
+            (doc.tags?.contains(_selectedProjectId!) == true ||
+             doc.description.contains(_selectedProjectId!) ||
+             doc.filePath?.contains(_selectedProjectId!) == true);
+
+        final matchesSprint = _selectedSprintId == null ||
+            (doc.tags?.contains(_selectedSprintId!) == true ||
+             doc.description.contains(_selectedSprintId!) ||
+             doc.filePath?.contains(_selectedSprintId!) == true);
+
+        final matchesDeliverable = _selectedDeliverableId == null ||
+            (doc.tags?.contains(_selectedDeliverableId!) == true ||
+             doc.description.contains(_selectedDeliverableId!) ||
+             doc.filePath?.contains(_selectedDeliverableId!) == true);
+
+        final inDateRange = (_dateFrom == null && _dateTo == null) ||
+            ((_dateFrom == null || doc.uploadDate.isAfter(_dateFrom!)) &&
+             (_dateTo == null || doc.uploadDate.isBefore(_dateTo!)));
+
+        return matchesSearch && matchesFileType && matchesProject && matchesSprint && matchesDeliverable && inDateRange;
       }).toList();
     });
   }
@@ -494,8 +521,8 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                         items: [
                           const DropdownMenuItem<String?>(value: null, child: Text('All Projects')),
                           ..._projects.map((p) => DropdownMenuItem<String?>(
-                            value: p['id'] as String,
-                            child: Text(p['name'] as String? ?? 'Unknown'),
+                            value: p['id']?.toString(),
+                            child: Text((p['name'] ?? 'Unknown').toString()),
                           ),),
                         ],
                         onChanged: (value) {
@@ -536,11 +563,11 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                           const DropdownMenuItem<String?>(value: null, child: Text('All Deliverables')),
                           ..._deliverables.map((d) {
                             // Handle both Map and Deliverable object
-                            final id = d is Map ? (d['id'] as String?) : (d.id as String?);
-                            final title = d is Map ? (d['title'] as String?) : (d.title as String?);
+                            final id = d is Map ? d['id'] : d.id;
+                            final title = d is Map ? d['title'] : d.title;
                             return DropdownMenuItem<String?>(
-                              value: id,
-                              child: Text(title ?? 'Unknown'),
+                              value: id?.toString(),
+                              child: Text((title ?? 'Unknown').toString()),
                             );
                           }),
                         ],
@@ -773,9 +800,19 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         fillColor: FlownetColors.charcoalBlack,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       ),
+      isExpanded: true,
       style: const TextStyle(color: FlownetColors.pureWhite, fontSize: 14),
       dropdownColor: FlownetColors.graphiteGray,
       items: items,
+      selectedItemBuilder: (context) => items
+          .map((item) => Align(
+                alignment: Alignment.centerLeft,
+                child: DefaultTextStyle.merge(
+                  overflow: TextOverflow.ellipsis,
+                  child: item.child,
+                ),
+              ))
+          .toList(),
       onChanged: onChanged,
     );
   }

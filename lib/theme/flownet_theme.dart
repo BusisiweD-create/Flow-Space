@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use, duplicate_ignore
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class FlownetColors {
   // Primary Colors
@@ -38,6 +37,7 @@ class FlownetTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: 'system-ui',
 
       // Color Scheme
       colorScheme: const ColorScheme.dark(
@@ -56,84 +56,92 @@ class FlownetTheme {
       ),
 
       // Typography
-      textTheme: TextTheme(
-        // Headings - Montserrat Bold
-        displayLarge: GoogleFonts.montserrat(
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.bold,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        displayMedium: GoogleFonts.montserrat(
+        displayMedium: TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.bold,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        displaySmall: GoogleFonts.montserrat(
+        displaySmall: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        headlineLarge: GoogleFonts.montserrat(
+        headlineLarge: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.bold,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        headlineMedium: GoogleFonts.montserrat(
+        headlineMedium: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        headlineSmall: GoogleFonts.montserrat(
+        headlineSmall: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-
-        // Body text - Open Sans Regular
-        bodyLarge: GoogleFonts.openSans(
+        bodyLarge: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.normal,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        bodyMedium: GoogleFonts.openSans(
+        bodyMedium: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.normal,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        bodySmall: GoogleFonts.openSans(
+        bodySmall: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.normal,
           color: FlownetColors.coolGray,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-
-        // Labels
-        labelLarge: GoogleFonts.openSans(
+        labelLarge: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        labelMedium: GoogleFonts.openSans(
+        labelMedium: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        labelSmall: GoogleFonts.openSans(
+        labelSmall: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: FlownetColors.coolGray,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
       // AppBar Theme
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.montserrat(
+        titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: FlownetColors.pureWhite,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
@@ -157,9 +165,10 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.openSans(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.all(
@@ -175,9 +184,10 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.openSans(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.all(
@@ -189,9 +199,10 @@ class FlownetTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: FlownetColors.crimsonRed,
-          textStyle: GoogleFonts.openSans(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ),
       ),
@@ -217,13 +228,15 @@ class FlownetTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: FlownetColors.crimsonRed),
         ),
-        hintStyle: GoogleFonts.openSans(
+        hintStyle: const TextStyle(
           color: FlownetColors.coolGray,
           fontSize: 16,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        labelStyle: GoogleFonts.openSans(
+        labelStyle: const TextStyle(
           color: FlownetColors.coolGray,
           fontSize: 16,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
@@ -255,23 +268,25 @@ class FlownetTheme {
       ),
 
       // Navigation Rail Theme
-      navigationRailTheme: NavigationRailThemeData(
+      navigationRailTheme: const NavigationRailThemeData(
         backgroundColor: FlownetColors.charcoalBlack,
-        selectedIconTheme: const IconThemeData(
+        selectedIconTheme: IconThemeData(
           color: FlownetColors.crimsonRed,
           size: 24,
         ),
-        unselectedIconTheme: const IconThemeData(
+        unselectedIconTheme: IconThemeData(
           color: FlownetColors.coolGray,
           size: 24,
         ),
-        selectedLabelTextStyle: GoogleFonts.openSans(
+        selectedLabelTextStyle: TextStyle(
           color: FlownetColors.crimsonRed,
           fontWeight: FontWeight.w600,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        unselectedLabelTextStyle: GoogleFonts.openSans(
+        unselectedLabelTextStyle: TextStyle(
           color: FlownetColors.coolGray,
           fontWeight: FontWeight.normal,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
@@ -288,13 +303,15 @@ class FlownetTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        titleTextStyle: GoogleFonts.openSans(
+        titleTextStyle: const TextStyle(
           color: FlownetColors.pureWhite,
           fontWeight: FontWeight.w500,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        subtitleTextStyle: GoogleFonts.openSans(
+        subtitleTextStyle: const TextStyle(
           color: FlownetColors.coolGray,
           fontSize: 14,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
     );
@@ -326,6 +343,7 @@ class FlownetTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: 'system-ui',
 
       // Color Scheme
       colorScheme: const ColorScheme.light(
@@ -344,84 +362,92 @@ class FlownetTheme {
       ),
 
       // Typography
-      textTheme: TextTheme(
-        // Headings - Montserrat Bold
-        displayLarge: GoogleFonts.montserrat(
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        displayMedium: GoogleFonts.montserrat(
+        displayMedium: TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        displaySmall: GoogleFonts.montserrat(
+        displaySmall: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        headlineLarge: GoogleFonts.montserrat(
+        headlineLarge: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        headlineMedium: GoogleFonts.montserrat(
+        headlineMedium: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        headlineSmall: GoogleFonts.montserrat(
+        headlineSmall: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-
-        // Body text - Open Sans Regular
-        bodyLarge: GoogleFonts.openSans(
+        bodyLarge: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.normal,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        bodyMedium: GoogleFonts.openSans(
+        bodyMedium: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.normal,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        bodySmall: GoogleFonts.openSans(
+        bodySmall: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.normal,
           color: FlownetColors.graphiteGray,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-
-        // Labels
-        labelLarge: GoogleFonts.openSans(
+        labelLarge: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        labelMedium: GoogleFonts.openSans(
+        labelMedium: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        labelSmall: GoogleFonts.openSans(
+        labelSmall: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: FlownetColors.graphiteGray,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
       // AppBar Theme
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: FlownetColors.pureWhite,
         foregroundColor: FlownetColors.charcoalBlack,
         elevation: 1,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.montserrat(
+        titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
@@ -446,9 +472,10 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.openSans(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.all(
@@ -464,9 +491,10 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.openSans(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.all(
@@ -478,9 +506,10 @@ class FlownetTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: FlownetColors.crimsonRed,
-          textStyle: GoogleFonts.openSans(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ),
       ),
@@ -506,13 +535,15 @@ class FlownetTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: FlownetColors.crimsonRed),
         ),
-        hintStyle: GoogleFonts.openSans(
+        hintStyle: const TextStyle(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        labelStyle: GoogleFonts.openSans(
+        labelStyle: const TextStyle(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
@@ -544,23 +575,25 @@ class FlownetTheme {
       ),
 
       // Navigation Rail Theme
-      navigationRailTheme: NavigationRailThemeData(
+      navigationRailTheme: const NavigationRailThemeData(
         backgroundColor: FlownetColors.pureWhite,
-        selectedIconTheme: const IconThemeData(
+        selectedIconTheme: IconThemeData(
           color: FlownetColors.crimsonRed,
           size: 24,
         ),
-        unselectedIconTheme: const IconThemeData(
+        unselectedIconTheme: IconThemeData(
           color: FlownetColors.graphiteGray,
           size: 24,
         ),
-        selectedLabelTextStyle: GoogleFonts.openSans(
+        selectedLabelTextStyle: TextStyle(
           color: FlownetColors.crimsonRed,
           fontWeight: FontWeight.w600,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        unselectedLabelTextStyle: GoogleFonts.openSans(
+        unselectedLabelTextStyle: TextStyle(
           color: FlownetColors.graphiteGray,
           fontWeight: FontWeight.normal,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
@@ -577,13 +610,15 @@ class FlownetTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        titleTextStyle: GoogleFonts.openSans(
+        titleTextStyle: const TextStyle(
           color: FlownetColors.charcoalBlack,
           fontWeight: FontWeight.w500,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        subtitleTextStyle: GoogleFonts.openSans(
+        subtitleTextStyle: const TextStyle(
           color: FlownetColors.graphiteGray,
           fontSize: 14,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
     );

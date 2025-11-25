@@ -5,6 +5,9 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
+    project_id: {
+      type: DataTypes.UUID
+    },
     name: {
       type: DataTypes.STRING(255),
       allowNull: false
@@ -109,6 +112,10 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Sprint.associate = function(models) {
+    Sprint.belongsTo(models.Project, {
+      foreignKey: 'project_id',
+      as: 'project'
+    });
     Sprint.belongsToMany(models.Deliverable, {
       through: models.DeliverableSprint,
       foreignKey: 'sprint_id',

@@ -67,8 +67,21 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   Future<void> _loadReports() async {
     try {
       setState(() => _isLoading = true);
+      String? statusParam;
+      if (_selectedFilter != 'all') {
+        switch (_selectedFilter) {
+          case 'underReview':
+            statusParam = 'under_review';
+            break;
+          case 'changeRequested':
+            statusParam = 'change_requested';
+            break;
+          default:
+            statusParam = _selectedFilter;
+        }
+      }
       final response = await _reportService.getSignOffReports(
-        status: _selectedFilter != 'all' ? _selectedFilter : null,
+        status: statusParam,
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
 
@@ -84,49 +97,96 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         debugPrint('📋 Parsed ${reportsData.length} reports');
         setState(() {
           _reports = reportsData.map((json) {
-            // Map backend response to SignOffReport model
-            final content = json['content'] as Map<String, dynamic>? ?? {};
+            final contentRaw = json['content'] as Map<String, dynamic>?;
+            final content = (contentRaw != null && contentRaw.isNotEmpty)
+                ? contentRaw
+                : {
+                    'reportTitle': json['reportTitle'] ?? json['report_title'],
+                    'reportContent': json['reportContent'] ?? json['report_content'],
+                    'sprintIds': json['sprintIds'] ?? json['sprint_ids'],
+                    'sprintPerformanceData': json['sprintPerformanceData'] ?? json['sprint_performance_data'],
+                    'knownLimitations': json['knownLimitations'] ?? json['known_limitations'],
+                    'nextSteps': json['nextSteps'] ?? json['next_steps'],
+                  };
             final reviews = json['reviews'] as List? ?? [];
             final latestReview = reviews.isNotEmpty ? reviews[0] : null;
-            
             return SignOffReport(
               id: json['id']?.toString() ?? '',
               deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString() ?? '',
-              reportTitle: content['reportTitle']?.toString() ?? 'Untitled Report',
-              reportContent: content['reportContent']?.toString() ?? '',
+              reportTitle: (content['reportTitle']?.toString() ?? 'Untitled Report'),
+              reportContent: (content['reportContent']?.toString() ?? ''),
               sprintIds: (content['sprintIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
               sprintPerformanceData: content['sprintPerformanceData']?.toString(),
               knownLimitations: content['knownLimitations']?.toString(),
               nextSteps: content['nextSteps']?.toString(),
               status: _parseStatus(json['status']?.toString() ?? 'draft'),
               createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
-              createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? 'Unknown',
-              submittedAt: null, // Will be populated from audit logs if needed
+              createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? 'Unknown',
+              submittedAt: null,
               submittedBy: null,
-              reviewedAt: latestReview != null && latestReview['approved_at'] != null
-                  ? _parseDateTime(latestReview['approved_at'])
-                  : null,
+              reviewedAt: latestReview != null && latestReview['approved_at'] != null ? _parseDateTime(latestReview['approved_at']) : null,
               reviewedBy: latestReview?['reviewerName']?.toString(),
-              approvedAt: latestReview != null && latestReview['approved_at'] != null && latestReview['reviewStatus'] == 'approved'
-                  ? _parseDateTime(latestReview['approved_at'])
-                  : null,
-              approvedBy: latestReview != null && latestReview['reviewStatus'] == 'approved'
-                  ? latestReview['reviewerName']?.toString()
-                  : null,
-              changeRequestDetails: latestReview != null && latestReview['reviewStatus'] == 'change_requested'
-                  ? latestReview['feedback']?.toString()
-                  : null,
+              approvedAt: latestReview != null && latestReview['approved_at'] != null && latestReview['reviewStatus'] == 'approved' ? _parseDateTime(latestReview['approved_at']) : null,
+              approvedBy: latestReview != null && latestReview['reviewStatus'] == 'approved' ? latestReview['reviewerName']?.toString() : null,
+              changeRequestDetails: latestReview != null && latestReview['reviewStatus'] == 'change_requested' ? latestReview['feedback']?.toString() : null,
             );
           }).toList();
         });
       } else {
+        final alt = await BackendApiService().getSignOffReports(
+          status: statusParam,
+          search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        );
+        if (alt.isSuccess && alt.data != null) {
+          final reportsData = alt.data is List 
+              ? alt.data as List
+              : (alt.data!['data'] as List? ?? []);
+          setState(() {
+            _reports = reportsData.map((json) {
+              final contentRaw = json['content'] as Map<String, dynamic>?;
+              final content = (contentRaw != null && contentRaw.isNotEmpty)
+                  ? contentRaw
+                  : {
+                      'reportTitle': json['reportTitle'] ?? json['report_title'],
+                      'reportContent': json['reportContent'] ?? json['report_content'],
+                      'sprintIds': json['sprintIds'] ?? json['sprint_ids'],
+                      'sprintPerformanceData': json['sprintPerformanceData'] ?? json['sprint_performance_data'],
+                      'knownLimitations': json['knownLimitations'] ?? json['known_limitations'],
+                      'nextSteps': json['nextSteps'] ?? json['next_steps'],
+                    };
+              final reviews = json['reviews'] as List? ?? [];
+              final latestReview = reviews.isNotEmpty ? reviews[0] : null;
+              return SignOffReport(
+                id: json['id']?.toString() ?? '',
+                deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString() ?? '',
+                reportTitle: (content['reportTitle']?.toString() ?? 'Untitled Report'),
+                reportContent: (content['reportContent']?.toString() ?? ''),
+                sprintIds: (content['sprintIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
+                sprintPerformanceData: content['sprintPerformanceData']?.toString(),
+                knownLimitations: content['knownLimitations']?.toString(),
+                nextSteps: content['nextSteps']?.toString(),
+                status: _parseStatus(json['status']?.toString() ?? 'draft'),
+                createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
+                createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? 'Unknown',
+                submittedAt: null,
+                submittedBy: null,
+                reviewedAt: latestReview != null && latestReview['approved_at'] != null ? _parseDateTime(latestReview['approved_at']) : null,
+                reviewedBy: latestReview?['reviewerName']?.toString(),
+                approvedAt: latestReview != null && latestReview['approved_at'] != null && latestReview['reviewStatus'] == 'approved' ? _parseDateTime(latestReview['approved_at']) : null,
+                approvedBy: latestReview != null && latestReview['reviewStatus'] == 'approved' ? latestReview['reviewerName']?.toString() : null,
+                changeRequestDetails: latestReview != null && latestReview['reviewStatus'] == 'change_requested' ? latestReview['feedback']?.toString() : null,
+              );
+            }).toList();
+          });
+        } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to load reports: ${response.error ?? "Unknown error"}'),
+              content: Text('Failed to load reports: ${response.error ?? alt.error ?? "Unknown error"}'),
               backgroundColor: FlownetColors.crimsonRed,
             ),
           );
+        }
         }
       }
     } catch (e) {
@@ -758,6 +818,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                               setState(() {
                                 _searchQuery = '';
                               });
+                              _loadReports();
                             },
                           )
                         : null,
@@ -767,6 +828,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                     setState(() {
                       _searchQuery = value;
                     });
+                    _loadReports();
                   },
                 ),
                 const SizedBox(height: 16),
@@ -986,6 +1048,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         setState(() {
           _selectedFilter = value;
         });
+        _loadReports();
       },
       backgroundColor: FlownetColors.slate,
       selectedColor: FlownetColors.electricBlue,

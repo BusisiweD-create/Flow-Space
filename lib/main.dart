@@ -14,11 +14,13 @@ import 'screens/enhanced_deliverable_setup_screen.dart';
 import 'screens/sprint_console_screen.dart';
 import 'screens/sprint_metrics_screen.dart';
 import 'screens/report_builder_screen.dart';
+import 'screens/report_editor_screen.dart';
 import 'screens/client_review_screen.dart';
 import 'screens/enhanced_client_review_screen.dart';
 import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
 import 'screens/approvals_screen.dart';
+import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
@@ -95,9 +97,48 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/verify-email',
       builder: (context, state) {
-        final email = state.extra as Map<String, dynamic>?;
+        final extra = state.extra;
+        final emailFromExtra = extra is Map<String, dynamic> ? (extra['email'] as String?) : null;
+        final emailFromQuery = state.uri.queryParameters['email'];
+        final codeFromQuery = state.uri.queryParameters['code'];
         return EmailVerificationScreen(
-          email: email?['email'] ?? '',
+          email: emailFromExtra ?? emailFromQuery ?? '',
+          verificationCode: codeFromQuery,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/email-verification',
+      builder: (context, state) {
+        final extra = state.extra;
+        final emailFromExtra = extra is Map<String, dynamic> ? (extra['email'] as String?) : null;
+        final emailFromQuery = state.uri.queryParameters['email'];
+        final codeFromQuery = state.uri.queryParameters['code'];
+        return EmailVerificationScreen(
+          email: emailFromExtra ?? emailFromQuery ?? '',
+          verificationCode: codeFromQuery,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/verify-email/:code',
+      builder: (context, state) {
+        final code = state.pathParameters['code']!;
+        final emailFromQuery = state.uri.queryParameters['email'] ?? '';
+        return EmailVerificationScreen(
+          email: emailFromQuery,
+          verificationCode: code,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/email-verification/:code',
+      builder: (context, state) {
+        final code = state.pathParameters['code']!;
+        final emailFromQuery = state.uri.queryParameters['email'] ?? '';
+        return EmailVerificationScreen(
+          email: emailFromQuery,
+          verificationCode: code,
         );
       },
     ),
@@ -148,6 +189,18 @@ final GoRouter _router = GoRouter(
           route: '/report-builder',
           child: SidebarScaffold(
             child: ReportBuilderScreen(deliverableId: deliverableId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/report-editor/:deliverableId',
+      builder: (context, state) {
+        final deliverableId = state.pathParameters['deliverableId']!;
+        return RouteGuard(
+          route: '/report-editor',
+          child: SidebarScaffold(
+            child: ReportEditorScreen(deliverableId: deliverableId),
           ),
         );
       },
@@ -229,15 +282,24 @@ final GoRouter _router = GoRouter(
         );
       },
     ),
-    GoRoute(
-      path: '/approvals',
-      builder: (context, state) => const RouteGuard(
-        route: '/approvals',
-        child: SidebarScaffold(
-          child: ApprovalsScreen(),
-        ),
+  GoRoute(
+    path: '/approvals',
+    builder: (context, state) => const RouteGuard(
+      route: '/approvals',
+      child: SidebarScaffold(
+        child: ApprovalsScreen(),
       ),
     ),
+  ),
+  GoRoute(
+    path: '/approval-requests',
+    builder: (context, state) => const RouteGuard(
+      route: '/approval-requests',
+      child: SidebarScaffold(
+        child: ApprovalRequestsScreen(),
+      ),
+    ),
+  ),
     GoRoute(
       path: '/repository',
       builder: (context, state) => const RouteGuard(

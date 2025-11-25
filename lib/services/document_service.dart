@@ -154,7 +154,7 @@ class DocumentService {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/documents'),
+        Uri.parse('$_baseUrl/files/upload'),
       );
 
       request.headers['Authorization'] = 'Bearer $token';
@@ -171,13 +171,23 @@ class DocumentService {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final document = RepositoryFile.fromJson(data['data']);
-          return ApiResponse.success({'document': document}, response.statusCode);
-        } else {
-          return ApiResponse.error(data['error'] ?? 'Failed to upload document');
-        }
+        final raw = jsonDecode(response.body);
+        final mapped = {
+          'id': raw['filename']?.toString() ?? '',
+          'name': raw['originalName']?.toString() ?? raw['filename']?.toString() ?? 'Uploaded File',
+          'fileType': (raw['filename']?.toString() ?? '').split('.').last,
+          'uploaded_at': DateTime.now().toIso8601String(),
+          'uploaded_by': _authService.currentUser?.id.toString() ?? 'system',
+          'size': raw['size']?.toString(),
+          'description': description ?? '',
+          'uploader': _authService.currentUser?.id.toString() ?? 'system',
+          'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
+          'file_path': raw['url'],
+          'tags': tags,
+          'uploader_name': _authService.currentUser?.name ?? 'System',
+        };
+        final document = RepositoryFile.fromJson(mapped);
+        return ApiResponse.success({'document': document}, response.statusCode);
       } else {
         final errorBody = response.body;
         try {
@@ -207,7 +217,7 @@ class DocumentService {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/documents'),
+        Uri.parse('$_baseUrl/files/upload'),
       );
 
       request.headers['Authorization'] = 'Bearer $token';
@@ -232,13 +242,23 @@ class DocumentService {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final document = RepositoryFile.fromJson(data['data']);
-          return ApiResponse.success({'document': document}, response.statusCode);
-        } else {
-          return ApiResponse.error(data['error'] ?? 'Failed to upload document');
-        }
+        final raw = jsonDecode(response.body);
+        final mapped = {
+          'id': raw['filename']?.toString() ?? '',
+          'name': raw['originalName']?.toString() ?? fileName,
+          'fileType': (fileName).split('.').last,
+          'uploaded_at': DateTime.now().toIso8601String(),
+          'uploaded_by': _authService.currentUser?.id.toString() ?? 'system',
+          'size': raw['size']?.toString(),
+          'description': description ?? '',
+          'uploader': _authService.currentUser?.id.toString() ?? 'system',
+          'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
+          'file_path': raw['url'],
+          'tags': tags,
+          'uploader_name': _authService.currentUser?.name ?? 'System',
+        };
+        final document = RepositoryFile.fromJson(mapped);
+        return ApiResponse.success({'document': document}, response.statusCode);
       } else {
         final errorBody = response.body;
         try {

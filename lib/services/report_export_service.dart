@@ -183,7 +183,7 @@ class ReportExportService {
                               horizontalRadius: 4,
                               verticalRadius: 4,
                               child: pw.Image(
-                                pw.MemoryImage(base64Decode(signatureData)),
+                                pw.MemoryImage(base64Decode(signatureData.contains(',') ? signatureData.split(',').last : signatureData)),
                                 fit: pw.BoxFit.contain,
                               ),
                             ),

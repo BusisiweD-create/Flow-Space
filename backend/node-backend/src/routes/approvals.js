@@ -101,7 +101,8 @@ router.post('/', async (req, res) => {
       deliverable_id,
       requested_by,
       due_date,
-      comments
+      comments,
+      send_to
     } = req.body;
     
     // Validate required fields
@@ -133,6 +134,53 @@ router.post('/', async (req, res) => {
       ]
     });
     
+    // Notify recipients (in-app and email)
+    try {
+      const EmailService = require('../services/emailService');
+      const emailService = new EmailService();
+      const deliverable = await Deliverable.findByPk(deliverable_id);
+      const title = deliverable?.title || `Deliverable #${deliverable_id}`;
+      const requester = await User.findByPk(requested_by);
+      const requesterName = requester ? `${requester.first_name || ''} ${requester.last_name || ''}`.trim() : 'Delivery Lead';
+
+      let roles = [];
+      const target = (send_to || '').toLowerCase();
+      if (target === 'system_admin') roles = ['system_admin'];
+      else roles = ['client_reviewer'];
+
+      const recipients = await User.findAll({ where: { role: { [Op.in]: roles } } });
+      if (recipients && recipients.length > 0) {
+        const notifications = recipients.map((recipient) => ({
+          recipient_id: recipient.id,
+          sender_id: requested_by,
+          type: 'approval',
+          message: `Approval request for ${title}`,
+          payload: {
+            approval_request_id: approvalRequest.id,
+            deliverable_id,
+            deliverable_title: title,
+          },
+          is_read: false,
+          created_at: new Date(),
+        }));
+        await Notification.bulkCreate(notifications);
+
+        // Send emails
+        for (const recipient of recipients) {
+          if (recipient.email) {
+            await emailService.sendApprovalRequestEmail(
+              recipient.email,
+              `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim(),
+              title,
+              requesterName
+            );
+          }
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Error notifying recipients for approval request:', notifyErr);
+    }
+
     res.status(201).json(createdRequest);
   } catch (error) {
     console.error('Error creating approval request:', error);
@@ -234,6 +282,7 @@ router.put('/:id/reject', async (req, res) => {
 router.put('/:id/remind', async (req, res) => {
   try {
     const { id } = req.params;
+    const { report_id, send_to } = req.body || {};
     
     const approvalRequest = await ApprovalRequest.findByPk(id);
     
@@ -251,37 +300,54 @@ router.put('/:id/remind', async (req, res) => {
     });
 
     try {
+      const EmailService = require('../services/emailService');
+      const emailService = new EmailService();
       const deliverable = await Deliverable.findByPk(approvalRequest.deliverable_id);
       const title = deliverable?.title || `Deliverable #${approvalRequest.deliverable_id}`;
 
-      // Notify all clients in the system about the pending approval
-      const { Op } = require('sequelize');
-      const clients = await User.findAll({
-        where: { role: { [Op.in]: ['client', 'Client', 'CLIENT'] } }
-      });
+      const target = (send_to || '').toLowerCase();
+      let roles = [];
+      if (target === 'system_admin') roles = ['system_admin'];
+      else roles = ['client_reviewer'];
 
-      if (clients && clients.length > 0) {
-        const notifications = clients.map((client) => ({
-          recipient_id: client.id,
-          sender_id: approvalRequest.requested_by,
-          type: 'approval',
-          message: `Reminder: Approval pending for ${title}`,
-          payload: {
-            approval_request_id: approvalRequest.id,
-            deliverable_id: approvalRequest.deliverable_id,
-            deliverable_title: title,
-          },
-          is_read: false,
-          created_at: new Date(),
-        }));
+      const recipients = await User.findAll({ where: { role: { [Op.in]: roles } } });
+
+      const notifications = recipients.map((recipient) => ({
+        recipient_id: recipient.id,
+        sender_id: approvalRequest.requested_by,
+        type: 'approval',
+        message: `Reminder: Approval pending for ${title}`,
+        payload: {
+          approval_request_id: approvalRequest.id,
+          deliverable_id: approvalRequest.deliverable_id,
+          deliverable_title: title,
+          ...(report_id ? { report_id } : {}),
+        },
+        is_read: false,
+        created_at: new Date(),
+      }));
+      if (notifications.length > 0) {
         await Notification.bulkCreate(notifications);
+        // Send emails
+        const reportTitle = (() => {
+          return null; // optional: could be fetched if needed
+        })();
+        for (const recipient of recipients) {
+          if (recipient.email) {
+            await emailService.sendApprovalReminderEmail(
+              recipient.email,
+              `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim(),
+              title,
+              reportTitle
+            );
+          }
+        }
       }
     } catch (notifyErr) {
-      console.error('Error creating client notifications for reminder:', notifyErr);
-      // Continue without failing the reminder response
+      console.error('Error creating notifications/emails for reminder:', notifyErr);
     }
 
-    res.json(approvalRequest);
+  res.json(approvalRequest);
   } catch (error) {
     console.error('Error sending reminder:', error);
     res.status(500).json({ error: 'Internal server error' });

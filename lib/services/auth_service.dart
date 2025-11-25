@@ -17,6 +17,7 @@ class AuthService {
   User? _currentUser;
   bool _isAuthenticated = false;
   bool _isInitialized = false;
+  String? _lastAuthError;
 
   Future<void> _ensureInitialized() async {
     if (!_isInitialized) {
@@ -27,9 +28,16 @@ class AuthService {
 
   // Getters
   User? get currentUser => _currentUser;
+  Future<User?> getCurrentUser() async {
+    if (_currentUser == null) {
+      await _loadCurrentUser();
+    }
+    return _currentUser;
+  }
   bool get isAuthenticated => _isAuthenticated;
   UserRole? get currentUserRole => _currentUser?.role;
   String? get accessToken => _apiService.accessToken;
+  String? get lastAuthError => _lastAuthError;
 
   // Initialize the service
   Future<void> initialize() async {
@@ -43,9 +51,15 @@ class AuthService {
       final response = await _apiService.getCurrentUser();
       if (response.isSuccess && response.data != null) {
         _currentUser = _apiService.parseUserFromResponse(response);
-        _isAuthenticated = _currentUser != null;
-        if (_isAuthenticated) {
+        if (_currentUser != null && _currentUser!.isActive) {
+          _isAuthenticated = true;
           debugPrint('User session restored: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+        } else {
+          await _apiService.signOut();
+          _currentUser = null;
+          _isAuthenticated = false;
+          _lastAuthError = 'Your account is inactive. Please contact support.';
+          debugPrint('Inactive user blocked from session restore');
         }
       }
     } catch (e) {
@@ -66,18 +80,26 @@ class AuthService {
         final userResponse = ApiResponse.success(userData, response.statusCode);
         
         _currentUser = _apiService.parseUserFromResponse(userResponse);
-        _isAuthenticated = _currentUser != null;
-        
-        if (_isAuthenticated) {
+        if (_currentUser != null && _currentUser!.isActive) {
+          _isAuthenticated = true;
           debugPrint('User signed in: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
           return true;
+        } else {
+          await _apiService.signOut();
+          _currentUser = null;
+          _isAuthenticated = false;
+          _lastAuthError = 'Your account is inactive. Please contact support.';
+          debugPrint('Inactive user login blocked');
+          return false;
         }
       } else {
         debugPrint('Sign in failed: ${response.error}');
+        _lastAuthError = response.error;
       }
       return false;
     } catch (e) {
       debugPrint('Sign in error: $e');
+      _lastAuthError = 'Login failed. Please try again.';
       return false;
     }
   }
@@ -88,17 +110,22 @@ class AuthService {
       
       if (response.isSuccess && response.data != null) {
         _currentUser = _apiService.parseUserFromResponse(response);
-        _isAuthenticated = _currentUser != null;
-        
-        if (_isAuthenticated) {
+        if (_currentUser != null && _currentUser!.isActive) {
+          _isAuthenticated = true;
           debugPrint('User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
           return {'success': true};
+        } else {
+          await _apiService.signOut();
+          _currentUser = null;
+          _isAuthenticated = false;
+          _lastAuthError = 'Your account is inactive. Please contact support.';
+          debugPrint('Inactive user signup blocked');
+          return {'success': false, 'error': _lastAuthError!};
         }
       } else {
         debugPrint('Sign up failed: ${response.error}');
         return {'success': false, 'error': response.error ?? 'Registration failed'};
       }
-      return {'success': false, 'error': 'Registration failed'};
     } catch (e) {
       debugPrint('Sign up error: $e');
       return {'success': false, 'error': 'Registration failed: $e'};
@@ -199,92 +226,25 @@ class AuthService {
     return PermissionManager.getPermissionNamesForRole(_currentUser!.role);
   }
 
-  // Check if user can access a specific route
-  bool canAccessRoute(String route) {
-    if (!_isAuthenticated) return false;
-
-    switch (route) {
-      case '/dashboard':
-        return true; // All authenticated users can access dashboard
-      case '/deliverable-setup':
-      case '/enhanced-deliverable-setup':
-        return canCreateDeliverable();
-      case '/sprint-console':
-        return hasPermission('manage_sprints');
-      case '/client-review':
-      case '/enhanced-client-review':
-        return canViewClientReview();
-      case '/report-builder':
-        return isDeliveryLead || isSystemAdmin;
-      case '/report-repository':
-        return isDeliveryLead || isSystemAdmin || isClientReviewer;
-      case '/notification-center':
-        return true; // All users can access notifications
-      case '/approvals':
-        return canApproveDeliverable() || isDeliveryLead;
-      case '/repository':
-        return isDeliveryLead || isSystemAdmin || isTeamMember || isClientReviewer;
-      default:
-        return true; // Allow access to other routes by default
-    }
-  }
-
-  // Email verification methods
   Future<ApiResponse> resendVerificationEmail(String email) async {
     try {
-      final response = await _apiService.resendVerificationEmail(email);
-      if (response.isSuccess) {
-        debugPrint('Verification email sent successfully');
-      }
-      return response;
+      return await _apiService.resendVerificationEmail(email);
     } catch (e) {
       debugPrint('Resend verification email error: $e');
-      return ApiResponse.error('Failed to resend verification email: $e');
+      return ApiResponse.error('Failed to resend verification email');
     }
   }
 
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
     try {
-      final response = await _apiService.verifyEmail(email, verificationCode);
-      if (response.isSuccess && response.data != null) {
-        debugPrint('Email verified successfully');
-        
-        // Extract JWT token from verification response
-        final data = response.data!;
-        final token = data['token'];
-        final userData = data['user'];
-        final expiresIn = data['expires_in'] ?? 86400;
-        
-        if (token != null) {
-          // Save the JWT token
-          final expiry = DateTime.now().add(Duration(seconds: expiresIn));
-          await _apiService.saveTokens(token, '', expiry);
-          debugPrint('JWT token saved after email verification');
-        }
-        
-        // Set current user
-        if (userData != null) {
-          _currentUser = User.fromJson(userData);
-          _isAuthenticated = true;
-          debugPrint('✅ Loaded user: ${_currentUser!.name} (${_currentUser!.email})');
-        }
-      }
-      return response;
+      return await _apiService.verifyEmail(email, verificationCode);
     } catch (e) {
-      debugPrint('Email verification error: $e');
-      return ApiResponse.error('Email verification failed: $e');
+      debugPrint('Verify email error: $e');
+      return ApiResponse.error('Failed to verify email');
     }
   }
 
-  Future<ApiResponse> checkEmailVerificationStatus(String email) async {
-    try {
-      final response = await _apiService.checkEmailVerificationStatus(email);
-      return response;
-    } catch (e) {
-      debugPrint('Check verification status error: $e');
-      return ApiResponse.error('Failed to check verification status: $e');
-    }
+  bool canAccessRoute(String route) {
+    return _isAuthenticated;
   }
-
-  Future login(String s, String t) async {}
 }

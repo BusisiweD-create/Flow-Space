@@ -332,61 +332,55 @@ class UserDataService {
           throw Exception('No data received from API');
         }
         
-        // Handle the structured response from backend
-        // Backend returns: {"users": [...], "pagination": {...}}
-        debugPrint('Received structured response from API');
+        List<dynamic> usersDataList = const [];
         
-        // Extract users array from the response
-        final usersData = responseData['users'];
+        if (responseData is List) {
+          usersDataList = responseData;
+        } else if (responseData is Map) {
+          final map = Map<String, dynamic>.from(responseData);
+          dynamic usersField = map['users'];
+          usersField ??= map['data'];
+          usersField ??= map['items'];
+          if (usersField == null && map['data'] is Map) {
+            final nested = Map<String, dynamic>.from(map['data']);
+            usersField = nested['users'] ?? nested['items'] ?? nested['data'];
+          }
+          if (usersField is List) {
+            usersDataList = usersField;
+          } else if (usersField is Map) {
+            usersDataList = [usersField];
+          } else if (usersField == null) {
+            usersDataList = const [];
+          }
+        }
         
-        if (usersData == null) {
-          debugPrint('No users array found in response');
+        if (usersDataList.isEmpty) {
           throw Exception('Invalid API response format: missing users array');
         }
         
-        if (usersData is List) {
-          debugPrint('Processing ${usersData.length} users from API response');
-          
-          // Convert each user data to proper format with robust error handling
-          final users = <User>[];
-          
-          for (var userData in usersData) {
-            try {
-              // Handle different data types that might come from JavaScript
-              Map<String, dynamic> userMap;
-              
-              if (userData is Map<String, dynamic>) {
-                userMap = userData;
-              } else if (userData is Map) {
-                // Convert any Map type to Map<String, dynamic>
-                userMap = Map<String, dynamic>.from(userData);
-              } else if (userData is String) {
-                // Handle string JSON representation
-                userMap = Map<String, dynamic>.from(jsonDecode(userData));
-              } else {
-                debugPrint('Skipping invalid user data format: ${userData.runtimeType}');
-                continue;
-              }
-              
-              final user = _parseUserFromApi(userMap);
-              users.add(user);
-            } catch (e) {
-              debugPrint('Error parsing individual user: $e');
-              debugPrint('Problematic user data: $userData');
+        final users = <User>[];
+        for (final userData in usersDataList) {
+          try {
+            Map<String, dynamic> userMap;
+            if (userData is Map<String, dynamic>) {
+              userMap = userData;
+            } else if (userData is Map) {
+              userMap = Map<String, dynamic>.from(userData);
+            } else if (userData is String) {
+              userMap = Map<String, dynamic>.from(jsonDecode(userData));
+            } else {
+              continue;
             }
-          }
-          
-          if (users.isNotEmpty) {
-            return users;
-          } else {
-            throw Exception('No valid users found in response');
-          }
-        } else {
-          debugPrint('Users data is not a list: ${usersData.runtimeType}');
-          throw Exception('Invalid API response format: users should be an array');
+            final user = _parseUserFromApi(userMap);
+            users.add(user);
+          } catch (_) {}
         }
-            
-      
+        if (users.isNotEmpty) {
+          return users;
+        } else {
+          throw Exception('No valid users found in response');
+        }
+
       } else {
         throw Exception('API call failed: ${response.error}');
       }

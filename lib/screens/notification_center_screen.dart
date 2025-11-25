@@ -40,25 +40,10 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
                 ? (raw['data'] ?? raw['notifications'] ?? raw['items'] ?? [])
                 : []);
         
-        final notifications = notificationsData.map((notificationData) {
-          return NotificationItem(
-            id: notificationData['id']?.toString() ?? '',
-            title: notificationData['title']?.toString() ?? 'Notification',
-            message: notificationData['message']?.toString() ?? '',
-            type: _parseNotificationType(notificationData['type']?.toString()),
-            priority: _parseNotificationPriority(notificationData['priority']?.toString()),
-            isRead: notificationData['isRead'] ?? false,
-            createdAt: notificationData['createdAt'] != null
-                ? DateTime.parse(notificationData['createdAt'])
-                : DateTime.now(),
-            deliverableId: notificationData['deliverableId']?.toString(),
-            reportId: notificationData['reportId']?.toString(),
-            sprintId: notificationData['sprintId']?.toString(),
-            dueDate: notificationData['dueDate'] != null
-                ? DateTime.parse(notificationData['dueDate'])
-                : null,
-          );
-        }).toList();
+        final notifications = notificationsData
+            .whereType<Map>()
+            .map((notificationData) => NotificationItem.fromJson(Map<String, dynamic>.from(notificationData)))
+            .toList();
 
         setState(() {
           _notifications = notifications;
@@ -110,13 +95,24 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     return filtered;
   }
 
-  void _markAsRead(NotificationItem notification) {
+  Future<void> _markAsRead(NotificationItem notification) async {
+    try {
+      final backendService = ref.read(backendApiServiceProvider);
+      final resp = await backendService.markNotificationAsRead(notification.id);
+      if (!resp.isSuccess) {
+        // Silent fallback; keep local state consistent
+      }
+    } catch (_) {}
     setState(() {
       notification.isRead = true;
     });
   }
 
-  void _markAllAsRead() {
+  Future<void> _markAllAsRead() async {
+    try {
+      final backendService = ref.read(backendApiServiceProvider);
+      await backendService.markAllNotificationsAsRead();
+    } catch (_) {}
     setState(() {
       for (var notification in _notifications) {
         notification.isRead = true;
@@ -267,37 +263,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   }
 
   // Helper methods for parsing notification data from API
-  NotificationType _parseNotificationType(String? typeString) {
-    switch (typeString?.toLowerCase()) {
-      case 'review':
-        return NotificationType.review;
-      case 'metrics':
-        return NotificationType.metrics;
-      case 'change_request':
-        return NotificationType.changeRequest;
-      case 'report':
-        return NotificationType.report;
-      case 'reminder':
-        return NotificationType.reminder;
-      case 'approval':
-        return NotificationType.approval;
-      default:
-        return NotificationType.review; // Default to review
-    }
-  }
-
-  NotificationPriority _parseNotificationPriority(String? priorityString) {
-    switch (priorityString?.toLowerCase()) {
-      case 'high':
-        return NotificationPriority.high;
-      case 'medium':
-        return NotificationPriority.medium;
-      case 'low':
-        return NotificationPriority.low;
-      default:
-        return NotificationPriority.medium; // Default to medium
-    }
-  }
+  
 
   @override
   Widget build(BuildContext context) {

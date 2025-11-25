@@ -158,6 +158,54 @@ class EmailService {
 </html>
     `;
   }
+
+  async sendApprovalRequestEmail(toEmail, recipientName, deliverableTitle, requestedByName) {
+    try {
+      const subject = 'Approval Request: ' + (deliverableTitle || 'Deliverable');
+      const html = `<!DOCTYPE html>
+<html><body>
+  <p>Hi ${recipientName || ''},</p>
+  <p>${requestedByName || 'A delivery lead'} has sent an approval request for <strong>${deliverableTitle || 'a deliverable'}</strong>.</p>
+  <p>Please log in to Flownet Workspaces to review and approve.</p>
+  <p>Best regards,<br/>Flownet Workspaces</p>
+</body></html>`;
+      const mailOptions = {
+        from: { name: this.fromName, address: this.fromEmail },
+        to: toEmail,
+        subject,
+        html,
+        replyTo: this.replyTo
+      };
+      const result = await this.transporter.sendMail(mailOptions);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  async sendApprovalReminderEmail(toEmail, recipientName, deliverableTitle, reportTitle) {
+    try {
+      const subject = 'Reminder: Approval Pending';
+      const html = `<!DOCTYPE html>
+<html><body>
+  <p>Hi ${recipientName || ''},</p>
+  <p>This is a reminder that approval is pending for <strong>${deliverableTitle || 'a deliverable'}</strong>${reportTitle ? ` and report <strong>${reportTitle}</strong>` : ''}.</p>
+  <p>Please log in to Flownet Workspaces to review.</p>
+  <p>Best regards,<br/>Flownet Workspaces</p>
+</body></html>`;
+      const mailOptions = {
+        from: { name: this.fromName, address: this.fromEmail },
+        to: toEmail,
+        subject,
+        html,
+        replyTo: this.replyTo
+      };
+      const result = await this.transporter.sendMail(mailOptions);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = EmailService;

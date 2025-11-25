@@ -127,7 +127,7 @@ class SignOffReportService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/$reportId/audit'),
+        Uri.parse(ApiConfig.getFullUrl('/audit/signoff/$reportId')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -147,10 +147,10 @@ class SignOffReportService {
       }
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // Backend returns { success: true, data: [...] }
-        // Extract the data field
-        final auditData = data['data'] ?? data;
+        final decoded = jsonDecode(response.body);
+        final auditData = (decoded is Map<String, dynamic> && decoded.containsKey('data'))
+            ? decoded['data']
+            : decoded;
         return ApiResponse.success({'audit': auditData}, response.statusCode);
       } else {
         try {

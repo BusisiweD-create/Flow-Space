@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Signoff, AuditLog, Deliverable, Sprint, sequelize } = require('../models');
+const { Signoff, AuditLog, Deliverable, Sprint, User, sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
 function safeParseJson(text) {
   try { return JSON.parse(text); } catch (_) { return {}; }
@@ -60,7 +60,11 @@ router.get('/', async (req, res) => {
     } catch (dbErr) {
       results = [];
     }
-    const reports = (Array.isArray(results) ? results : []).map((row) => {
+    const rawRows = Array.isArray(results) ? results : [];
+    const userIds = [...new Set(rawRows.map(r => r.created_by).filter(Boolean))];
+    const users = userIds.length > 0 ? await User.findAll({ where: { id: userIds } }) : [];
+    const userMap = new Map(users.map(u => [u.id, `${u.first_name || ''} ${u.last_name || ''}`.trim()]));
+    const reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
         return {
@@ -75,6 +79,7 @@ router.get('/', async (req, res) => {
           status: row.status || 'draft',
           createdAt: row.created_at,
           createdBy: (row.created_by || '').toString(),
+          createdByName: userMap.get(row.created_by) || null,
           submittedAt: c.submittedAt || c.submitted_at,
           submittedBy: c.submittedBy || c.submitted_by,
           reviewedAt: c.reviewedAt || c.reviewed_at,
@@ -95,6 +100,7 @@ router.get('/', async (req, res) => {
           status: row.status || 'draft',
           createdAt: row.created_at,
           createdBy: (row.created_by || '').toString(),
+          createdByName: userMap.get(row.created_by) || null,
         };
       }
     });
@@ -151,6 +157,8 @@ router.get('/:id', async (req, res) => {
       }
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const creator = row.created_by ? await User.findByPk(row.created_by) : null;
+      const createdByName = creator ? `${creator.first_name} ${creator.last_name}` : null;
       const report = {
         id: row.id,
         deliverableId: (row.deliverable_id || '').toString(),
@@ -163,6 +171,7 @@ router.get('/:id', async (req, res) => {
         status: row.status || 'draft',
         createdAt: row.created_at,
         createdBy: (row.created_by || '').toString(),
+        createdByName: createdByName,
         submittedAt: c.submittedAt || c.submitted_at,
         submittedBy: c.submittedBy || c.submitted_by,
         reviewedAt: c.reviewedAt || c.reviewed_at,
@@ -223,7 +232,7 @@ router.post('/', async (req, res) => {
       };
       const [results] = await sequelize.query(
         'INSERT INTO sign_off_reports (deliverable_id, created_by, status, content) VALUES ($1, $2, $3, $4) RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at',
-        { bind: [deliverableId, null, status || 'draft', JSON.stringify(content)] }
+        { bind: [deliverableId, (req.user && req.user.id) || null, status || 'draft', JSON.stringify(content)] }
       );
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
@@ -240,6 +249,14 @@ router.post('/', async (req, res) => {
         createdAt: row.created_at,
         createdBy: (row.created_by || '').toString()
       };
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('report_created', {
+          id: report.id,
+          deliverableId: report.deliverableId,
+          reportTitle: report.reportTitle,
+          created_by: report.createdBy
+        });
+      }
       return res.status(201).json(report);
     }
     const signoffData = req.body;
@@ -264,8 +281,8 @@ router.put('/:id', async (req, res) => {
       await ensureReportsTable();
       const updates = req.body || {};
       const [results] = await sequelize.query(
-        'UPDATE sign_off_reports SET status = COALESCE($2, status), content = COALESCE($3::jsonb, content), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at',
-        { bind: [id, updates.status, JSON.stringify(updates)] }
+        'UPDATE sign_off_reports SET status = COALESCE(?, status), content = COALESCE(?::jsonb, content), updated_at = NOW() WHERE id = ? RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at',
+        { replacements: [updates.status ?? null, JSON.stringify(updates), id] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -339,10 +356,11 @@ router.post('/:id/approve', async (req, res) => {
     const { id } = req.params;
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
-      const { comment } = req.body || {};
+      await ensureReportsTable();
+      const { comment, digitalSignature } = req.body || {};
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('approvedAt', NOW(), 'approvedBy', $3, 'clientComment', $4), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
-        { bind: [id, 'approved', null, comment] }
+        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('approvedAt', NOW(), 'approvedBy', $3::text, 'clientComment', $4::text, 'digitalSignature', $5::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, 'approved', (req.user && req.user.id) || null, comment ?? null, digitalSignature ?? null] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -360,8 +378,18 @@ router.post('/:id/approve', async (req, res) => {
         createdBy: (row.created_by || '').toString(),
         approvedAt: c.approvedAt || c.approved_at,
         approvedBy: c.approvedBy || c.approved_by,
-        clientComment: c.clientComment || c.client_comment
+        clientComment: c.clientComment || c.client_comment,
+        digitalSignature: c.digitalSignature || c.digital_signature
       };
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('report_approved', {
+          id: report.id,
+          deliverableId: report.deliverableId,
+          reportTitle: report.reportTitle,
+          created_by: report.createdBy,
+          approvedBy: report.approvedBy
+        });
+      }
       return res.json(report);
     }
     const signoff = await Signoff.findByPk(id);
@@ -372,6 +400,156 @@ router.post('/:id/approve', async (req, res) => {
     res.json(signoff);
   } catch (error) {
     console.error('Error approving signoff:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/submit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const base = req.baseUrl || '';
+    if (base.endsWith('/sign-off-reports')) {
+      await ensureReportsTable();
+      const [results] = await sequelize.query(
+        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW()), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, 'submitted'] }
+      );
+      if (!results || results.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const row = results[0];
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const report = {
+        id: row.id,
+        deliverableId: (row.deliverable_id || '').toString(),
+        reportTitle: (c.reportTitle || c.report_title || 'Untitled Report'),
+        reportContent: (c.reportContent || c.report_content || ''),
+        sprintIds: c.sprintIds || c.sprint_ids || [],
+        sprintPerformanceData: c.sprintPerformanceData || c.sprint_performance_data,
+        knownLimitations: c.knownLimitations || c.known_limitations,
+        nextSteps: c.nextSteps || c.next_steps,
+        status: row.status || 'submitted',
+        createdAt: row.created_at,
+        createdBy: (row.created_by || '').toString(),
+        submittedAt: c.submittedAt || c.submitted_at,
+        submittedBy: c.submittedBy || c.submitted_by
+      };
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('report_submitted', {
+          id: report.id,
+          deliverableId: report.deliverableId,
+          reportTitle: report.reportTitle,
+          created_by: report.createdBy
+        });
+      }
+      return res.json(report);
+    }
+    return res.status(404).json({ error: 'Endpoint not found' });
+  } catch (error) {
+    console.error('Error submitting sign-off report:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/signatures', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const base = req.baseUrl || '';
+    if (base.endsWith('/sign-off-reports')) {
+      await ensureReportsTable();
+      const [results] = await sequelize.query(
+        'SELECT id, content, updated_at FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
+      );
+      if (!results || results.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const row = results[0];
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const sigs = [];
+      const arr = Array.isArray(c.signatures) ? c.signatures : [];
+      for (const s of arr) {
+        sigs.push({
+          signature_data: s.signature_data || s.digitalSignature || s.digital_signature || null,
+          signer_name: s.signer_name || null,
+          signer_role: s.signer_role || null,
+          signed_at: s.signed_at || row.updated_at,
+          is_valid: s.is_valid !== undefined ? s.is_valid : true,
+          signature_type: s.signature_type || 'manual'
+        });
+      }
+      if (sigs.length === 0 && (c.digitalSignature || c.digital_signature)) {
+        sigs.push({
+          signature_data: c.digitalSignature || c.digital_signature,
+          signer_name: null,
+          signer_role: null,
+          signed_at: c.approvedAt || c.approved_at || row.updated_at,
+          is_valid: true,
+          signature_type: 'manual'
+        });
+      }
+      return res.json({ success: true, data: sigs });
+    }
+    return res.status(404).json({ error: 'Endpoint not found' });
+  } catch (error) {
+    console.error('Error fetching report signatures:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/request-changes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const base = req.baseUrl || '';
+    if (base.endsWith('/sign-off-reports')) {
+      const { changeRequestDetails } = req.body || {};
+      await ensureReportsTable();
+      const [existing] = await sequelize.query(
+        "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1",
+        { bind: [id] }
+      );
+      if (!existing || existing.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const cur = existing[0];
+      const curC = typeof cur.content === 'string' ? safeParseJson(cur.content) : (cur.content || {});
+      const merged = {
+        ...curC,
+        changeRequestDetails: changeRequestDetails ?? curC.changeRequestDetails ?? curC.change_request_details ?? null,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: (req.user && req.user.id) ? String(req.user.id) : (curC.reviewedBy || null)
+      };
+      const [results] = await sequelize.query(
+        "UPDATE sign_off_reports SET status = $2, content = $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, 'change_requested', JSON.stringify(merged)] }
+      );
+      const row = results[0];
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const report = {
+        id: row.id,
+        deliverableId: (row.deliverable_id || '').toString(),
+        reportTitle: (c.reportTitle || c.report_title || 'Untitled Report'),
+        reportContent: (c.reportContent || c.report_content || ''),
+        sprintIds: c.sprintIds || c.sprint_ids || [],
+        status: row.status || 'change_requested',
+        createdAt: row.created_at,
+        createdBy: (row.created_by || '').toString(),
+        changeRequestDetails: c.changeRequestDetails || c.change_request_details
+      };
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('report_change_requested', {
+          id: report.id,
+          deliverableId: report.deliverableId,
+          reportTitle: report.reportTitle,
+          created_by: report.createdBy,
+          changeRequestDetails: report.changeRequestDetails
+        });
+      }
+      return res.json(report);
+    }
+    return res.status(404).json({ error: 'Endpoint not found' });
+  } catch (error) {
+    console.error('Error requesting changes:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

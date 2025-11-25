@@ -1,19 +1,20 @@
 import 'dart:async';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/io.dart';
 import 'package:flutter/foundation.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+import '../config/environment.dart';
 import '../models/sprint_metrics.dart';
 import 'auth_service.dart';
 
 class QARealtimeService {
   final AuthService _authService;
-  WebSocketChannel? _channel;
+  io.Socket? _socket;
   final StreamController<SprintMetrics> _metricsController = StreamController<SprintMetrics>.broadcast();
   final StreamController<Map<String, dynamic>> _defectsController = StreamController<Map<String, dynamic>>.broadcast();
   final StreamController<double> _testCoverageController = StreamController<double>.broadcast();
   
   bool _isConnected = false;
   Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
   
   QARealtimeService(this._authService);
   
@@ -29,53 +30,60 @@ class QARealtimeService {
       if (token == null) {
         throw Exception('No authentication token available');
       }
-      
-      const wsUrl = 'ws://localhost:8000/api/ws/qa-metrics?token=\$token';
-      
-      _channel = IOWebSocketChannel.connect(wsUrl);
-      
-      _channel!.stream.listen(
-        (message) => _handleMessage(message),
-        onError: (error) => _handleError(error),
-        onDone: () => _handleDisconnect(),
+      final baseHost = Environment.apiBaseUrl.replaceAll('/api/v1', '');
+      _socket?.disconnect();
+      _socket?.dispose();
+      _socket = io.io(
+        baseHost,
+        io.OptionBuilder()
+            .setTransports(['websocket'])
+            .enableAutoConnect()
+            .setAuth({'token': token})
+            .build(),
       );
-      
-      _isConnected = true;
-      
+      _setupSocketEvents();
+      _socket!.connect();
     } catch (e) {
       _scheduleReconnect();
     }
   }
   
   void disconnect() {
-    _channel?.sink.close();
-    _channel = null;
+    _socket?.disconnect();
+    _socket?.dispose();
+    _socket = null;
     _isConnected = false;
     _reconnectTimer?.cancel();
   }
   
-  void _handleMessage(dynamic message) {
-    try {
-      final data = Map<String, dynamic>.from(message);
-      final type = data['type'] as String?;
-      
-      switch (type) {
-        case 'metrics_update':
-          _handleMetricsUpdate(data['data']);
-          break;
-        case 'defects_update':
-          _handleDefectsUpdate(data['data']);
-          break;
-        case 'test_coverage_update':
-          _handleTestCoverageUpdate(data['data']);
-          break;
-        default:
-          // Unknown message type - silently ignore
-          break;
-      }
-    } catch (e) {
-      // Error handling message - silently ignore
-    }
+  void _setupSocketEvents() {
+    _socket!
+      ..onConnect((_) {
+        _isConnected = true;
+        _reconnectAttempts = 0;
+      })
+      ..onDisconnect((_) {
+        _isConnected = false;
+        _scheduleReconnect();
+      })
+      ..on('connect_error', (err) {
+        _handleError(err);
+      })
+      ..on('error', (err) {
+        _handleError(err);
+      })
+      ..on('qa_metrics_update', (data) {
+        _handleMetricsUpdate(data);
+      })
+      ..on('qa_defects_update', (data) {
+        _handleDefectsUpdate(data);
+      })
+      ..on('qa_coverage_update', (data) {
+        _handleTestCoverageUpdate(data);
+      })
+      ..on('sprint_progress_updated', (data) {
+        _handleMetricsUpdate(data);
+      });
   }
   
   void _handleMetricsUpdate(dynamic data) {
@@ -111,12 +119,19 @@ class QARealtimeService {
   
   void _handleDisconnect() {
     _isConnected = false;
+    _reconnectAttempts = _reconnectAttempts + 1;
     _scheduleReconnect();
   }
   
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 5), () {
+    final int seconds = () {
+      const base = 5;
+      const maxDelay = 60;
+      final calc = base * (1 << (_reconnectAttempts > 6 ? 6 : _reconnectAttempts));
+      return calc > maxDelay ? maxDelay : calc;
+    }();
+    _reconnectTimer = Timer(Duration(seconds: seconds), () {
       if (!_isConnected) {
         connect();
       }
@@ -124,17 +139,15 @@ class QARealtimeService {
   }
   
   Future<void> sendCommand(String command, Map<String, dynamic> data) async {
-    if (_channel == null || !_isConnected) {
+    if (_socket == null || !_isConnected) {
       throw Exception('WebSocket not connected');
     }
-    
     final message = {
       'type': 'command',
       'command': command,
       'data': data,
     };
-    
-    _channel!.sink.add(message);
+    _socket!.emit('qa_command', message);
   }
   
   void dispose() {

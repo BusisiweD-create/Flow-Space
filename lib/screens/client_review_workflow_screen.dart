@@ -10,6 +10,8 @@ import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/signature_capture_widget.dart';
 import '../widgets/signature_display_widget.dart';
+import '../services/docusign_service.dart';
+import '../services/backend_api_service.dart';
 
 class ClientReviewWorkflowScreen extends ConsumerStatefulWidget {
   final String reportId;
@@ -31,6 +33,8 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
   
   final SignOffReportService _reportService = SignOffReportService(AuthService());
   final DeliverableService _deliverableService = DeliverableService();
+  final DocuSignService _docuSignService = DocuSignService(ApiClient());
+  final BackendApiService _apiService = BackendApiService();
   
   SignOffReport? _report;
   Map<String, dynamic>? _deliverable;
@@ -39,11 +43,15 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
   bool _isSubmitting = false;
   String? _selectedAction; // 'approve' or 'request_changes'
   List<Map<String, dynamic>> _signatures = []; // Store digital signatures
+  bool _docuSignEnabled = false;
+  bool _useDocuSign = false;
+  String _signerEmail = '';
 
   @override
   void initState() {
     super.initState();
     _loadReportData();
+    _loadDocuSignConfig();
   }
 
   Future<void> _loadReportData() async {
@@ -69,8 +77,8 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
         
         setState(() {
           _report = SignOffReport(
-            id: data['id'] as String,
-            deliverableId: data['deliverableId'] as String? ?? data['deliverable_id'] as String? ?? '',
+            id: (data['id'] ?? '').toString(),
+            deliverableId: ((data['deliverableId'] ?? data['deliverable_id']) ?? '').toString(),
             reportTitle: content['reportTitle'] as String? ?? 'Untitled Report',
             reportContent: content['reportContent'] as String? ?? '',
             sprintIds: (content['sprintIds'] as List?)?.cast<String>() ?? [],
@@ -130,7 +138,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       if (response.isSuccess && response.data != null) {
         final deliverables = response.data!['deliverables'] as List;
         final deliverable = deliverables.firstWhere(
-          (d) => d['id'] == deliverableId,
+          (d) => d['id'].toString() == deliverableId.toString(),
           orElse: () => null,
         );
         if (deliverable != null) {
@@ -142,10 +150,19 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
     }
   }
 
+  Future<void> _loadDocuSignConfig() async {
+    final ok = await _docuSignService.loadConfiguration();
+    if (mounted) {
+      setState(() => _docuSignEnabled = ok);
+    }
+  }
+
   ReportStatus _parseStatus(String status) {
     switch (status.toLowerCase()) {
       case 'submitted':
         return ReportStatus.submitted;
+      case 'under_review':
+        return ReportStatus.underReview;
       case 'approved':
         return ReportStatus.approved;
       case 'change_requested':
@@ -183,34 +200,62 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       ApiResponse response;
       
       if (_selectedAction == 'approve') {
-        // Capture signature - MANDATORY for approval
-        String? signature;
-        if (_signatureKey.currentState != null) {
-          signature = await _signatureKey.currentState!.getSignature();
-        }
-        
-        // Validate signature exists
-        if (signature == null || signature.isEmpty) {
-          if (mounted) {
+        if (_docuSignEnabled && _useDocuSign) {
+          if (_signerEmail.trim().isEmpty) {
             setState(() => _isSubmitting = false);
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('⚠️ Digital signature is required to approve this report. Please sign in the signature box above.'),
+                content: Text('Please enter the signer email for DocuSign'),
                 backgroundColor: Colors.orange,
-                duration: Duration(seconds: 4),
               ),
             );
+            return;
           }
-          return;
+          final envelopeId = await _docuSignService.createEnvelopeForReport(
+            reportId: widget.reportId,
+            signerEmail: _signerEmail.trim(),
+            signerName: AuthService().currentUser?.name ?? 'Signer',
+            reportTitle: _report?.reportTitle ?? 'Sign-Off Report',
+            reportContent: _report?.reportContent ?? '',
+          );
+          if (envelopeId != null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('DocuSign envelope created and sent'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+            response = ApiResponse.success({'status': 'docusign_sent'}, 200);
+          } else {
+            response = ApiResponse.error('Failed to create DocuSign envelope');
+          }
+        } else {
+          String? signature;
+          if (_signatureKey.currentState != null) {
+            signature = await _signatureKey.currentState!.getSignature();
+          }
+          if (signature == null || signature.isEmpty) {
+            if (mounted) {
+              setState(() => _isSubmitting = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Digital signature is required to approve this report.'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+            return;
+          }
+          response = await _reportService.approveReport(
+            widget.reportId,
+            comment: _commentController.text.trim().isNotEmpty 
+                ? _commentController.text.trim() 
+                : null,
+            digitalSignature: signature,
+          );
         }
-        
-        response = await _reportService.approveReport(
-          widget.reportId,
-          comment: _commentController.text.trim().isNotEmpty 
-              ? _commentController.text.trim() 
-              : null,
-          digitalSignature: signature,
-        );
       } else {
         response = await _reportService.requestChanges(
           widget.reportId,
@@ -258,6 +303,62 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
+    }
+  }
+
+  Future<void> _generateCommentSuggestion() async {
+    if (_report == null) return;
+    setState(() => _isSubmitting = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Generate a concise, professional client approval comment based on the report.'
+        },
+        {
+          'role': 'user',
+          'content': '${_report!.reportTitle}\n\n${_report!.reportContent}\n\nKnown limitations: ${_report!.knownLimitations ?? '-'}\nNext steps: ${_report!.nextSteps ?? '-'}'
+        }
+      ];
+      final resp = await _apiService.aiChat(messages, temperature: 0.6, maxTokens: 120);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data as Map<String, dynamic>;
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _commentController.text = content;
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _generateChangeRequestSuggestion() async {
+    if (_report == null) return;
+    setState(() => _isSubmitting = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Draft a clear, actionable change request detailing improvements needed.'
+        },
+        {
+          'role': 'user',
+          'content': '${_report!.reportTitle}\n\n${_report!.reportContent}\n\nFocus on gaps, risks, and necessary updates.'
+        }
+      ];
+      final resp = await _apiService.aiChat(messages, temperature: 0.7, maxTokens: 160);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data as Map<String, dynamic>;
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _changeRequestController.text = content;
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -618,15 +719,47 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                               ),
                               maxLines: 3,
                             ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _isSubmitting ? null : _generateCommentSuggestion,
+                                icon: const Icon(Icons.auto_awesome),
+                                label: const Text('Suggest with AI'),
+                              ),
+                            ),
                             const SizedBox(height: 24),
-                            // Digital Signature
+                          if (_docuSignEnabled) ...[
+                            const SizedBox(height: 8),
+                            SwitchListTile(
+                              value: _useDocuSign,
+                              onChanged: (v) => setState(() => _useDocuSign = v),
+                              title: const Text('Use DocuSign (Certified)'),
+                              subtitle: const Text('Send a DocuSign envelope to signer email'),
+                              activeThumbColor: FlownetColors.electricBlue,
+                            ),
+                            if (_useDocuSign) ...[
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Signer Email',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.email),
+                                ),
+                                onChanged: (v) => _signerEmail = v,
+                              ),
+                            ] else ...[
+                              SignatureCaptureWidget(
+                                key: _signatureKey,
+                                existingSignature: _report?.digitalSignature,
+                              ),
+                            ],
+                          ] else ...[
                             SignatureCaptureWidget(
                               key: _signatureKey,
-                              onSignatureCaptured: (signature) {
-                                // Signature captured callback
-                              },
                               existingSignature: _report?.digitalSignature,
                             ),
+                          ],
                           ],
                           
                           // Change Request Details (required for request changes)
@@ -648,6 +781,15 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                                 }
                                 return null;
                               },
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _isSubmitting ? null : _generateChangeRequestSuggestion,
+                                icon: const Icon(Icons.auto_awesome),
+                                label: const Text('Suggest with AI'),
+                              ),
                             ),
                           ],
                           

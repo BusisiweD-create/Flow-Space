@@ -10,6 +10,7 @@ import '../widgets/flownet_logo.dart';
 import '../widgets/sprint_board_widget.dart';
 import 'create_sprint_screen.dart';
 import 'sprint_board_screen.dart';
+import '../services/backend_api_service.dart';
 
 class SprintConsoleScreen extends StatefulWidget {
   const SprintConsoleScreen({super.key});
@@ -29,6 +30,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   bool _isLoading = false;
   String? _selectedProjectKey;
   String? _selectedSprintId;
+  bool _isAiSuggesting = false;
   
   final SprintDatabaseService _databaseService = SprintDatabaseService();
   
@@ -700,6 +702,14 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 ),
               ),
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : () => _aiSuggestProjectName(nameController, descriptionController),
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
+              ),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: keyController,
@@ -713,6 +723,14 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
                 ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : () => _aiSuggestProjectKey(nameController, keyController),
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
               ),
             ),
             const SizedBox(height: 16),
@@ -729,6 +747,14 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
                 ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : () => _aiSuggestProjectDescription(nameController, descriptionController),
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
               ),
             ),
           ],
@@ -766,6 +792,66 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _aiSuggestProjectName(TextEditingController nameController, TextEditingController descriptionController) async {
+    if (_isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final messages = [
+        {'role': 'system', 'content': 'Propose a concise professional project name.'},
+        {'role': 'user', 'content': 'Description: ${descriptionController.text}'}
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 20);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) nameController.text = content.trim();
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
+  Future<void> _aiSuggestProjectKey(TextEditingController nameController, TextEditingController keyController) async {
+    if (_isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final messages = [
+        {'role': 'system', 'content': 'Generate a 2-6 letter uppercase project key derived from the name.'},
+        {'role': 'user', 'content': 'Name: ${nameController.text}'}
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.4, maxTokens: 8);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) keyController.text = content.trim().replaceAll(RegExp('[^A-Z]'), '');
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
+  Future<void> _aiSuggestProjectDescription(TextEditingController nameController, TextEditingController descriptionController) async {
+    if (_isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final messages = [
+        {'role': 'system', 'content': 'Write a clear project description with scope and outcomes.'},
+        {'role': 'user', 'content': 'Name: ${nameController.text}'}
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 120);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) descriptionController.text = content.trim();
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
   }
 
   Future<void> _updateSprintStatus(String sprintId, String newStatus) async {
@@ -840,6 +926,14 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 ),
               ),
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : () => _aiSuggestSprintName(nameController),
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
+              ),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: descriptionController,
@@ -854,6 +948,14 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
                 ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : () => _aiSuggestSprintDescription(descriptionController),
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
               ),
             ),
             const SizedBox(height: 16),
@@ -958,11 +1060,58 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     );
   }
 
+  Future<void> _aiSuggestSprintName(TextEditingController nameController) async {
+    if (_isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final selectedProject = _projects.firstWhere((p) => p['key'] == _selectedProjectKey, orElse: () => {});
+      final projectName = selectedProject['name']?.toString() ?? '';
+      final messages = [
+        {'role': 'system', 'content': 'Propose a sprint name indicating focus and iteration number.'},
+        {'role': 'user', 'content': 'Project: $projectName'}
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 24);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) nameController.text = content.trim();
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
+  Future<void> _aiSuggestSprintDescription(TextEditingController descriptionController) async {
+    if (_isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final messages = [
+        {'role': 'system', 'content': 'Write a brief sprint goal and scope summary.'}
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 120);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) descriptionController.text = content.trim();
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
   Future<void> _createSprint(String name, String description, String startDate, String endDate) async {
     try {
       setState(() {
         _isLoading = true;
       });
+
+      final selectedProject = _projects.firstWhere(
+        (p) => p['key'] == _selectedProjectKey,
+        orElse: () => {},
+      );
+      final projectId = selectedProject['id']?.toString();
 
       // Create sprint via backend API
       final result = await _databaseService.createSprint(
@@ -970,6 +1119,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         description: description,
         startDate: startDate,
         endDate: endDate,
+        projectId: projectId,
       );
 
       if (result != null) {

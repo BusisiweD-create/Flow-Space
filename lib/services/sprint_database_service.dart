@@ -64,6 +64,7 @@ class SprintDatabaseService {
     String? endDate,
     String? goal,
     int? boardId,
+    String? projectId,
   }) async {
     try {
       final body = {
@@ -73,6 +74,7 @@ class SprintDatabaseService {
         if (endDate != null) 'end_date': endDate,
         if (goal != null) 'goal': goal,
         if (boardId != null) 'boardId': boardId,
+        if (projectId != null) 'project_id': projectId,
       };
 
       final response = await http.post(
@@ -124,6 +126,7 @@ class SprintDatabaseService {
     String? state,
     DateTime? startDate,
     DateTime? endDate,
+    String? projectId,
   }) async {
     try {
       final body = <String, dynamic>{};
@@ -132,6 +135,7 @@ class SprintDatabaseService {
       if (state != null) body['state'] = state;
       if (startDate != null) body['startDate'] = startDate.toIso8601String();
       if (endDate != null) body['endDate'] = endDate.toIso8601String();
+      if (projectId != null) body['project_id'] = projectId;
 
       final response = await http.put(
         Uri.parse('$_baseUrl/sprints/$sprintId'),

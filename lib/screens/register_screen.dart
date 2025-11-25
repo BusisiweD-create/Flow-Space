@@ -596,9 +596,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (result['success'] == true && mounted) {
         _errorHandler.showSuccessSnackBar(context, 'Registration successful!');
-        // Navigate to email verification screen
         if (mounted) {
-          context.go('/email-verification', extra: {
+          context.go('/verify-email', extra: {
             'email': _emailController.text.trim(),
           },);
         }

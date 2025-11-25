@@ -44,10 +44,15 @@ router.post('/', authenticateToken, async (req, res) => {
  */
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const { skip = 0, limit = 100 } = req.query;
+    const { skip = 0, limit = 100, unread_only } = req.query;
     
+    const where = { recipient_id: req.user.id };
+    if (String(unread_only || '').toLowerCase() === 'true') {
+      where.is_read = false;
+    }
+
     const notifications = await Notification.findAll({
-      where: { recipient_id: req.user.id },
+      where,
       offset: parseInt(skip),
       limit: parseInt(limit),
       order: [['created_at', 'DESC']]
@@ -109,11 +114,36 @@ router.put('/:id/read', authenticateToken, async (req, res) => {
       });
     }
     
-    await notification.update({ is_read: true, read_at: new Date() });
+    await notification.update({ is_read: true });
     
     res.json(notification);
   } catch (error) {
     console.error('Error marking notification as read:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/read-all', authenticateToken, async (req, res) => {
+  try {
+    const [affectedCount] = await Notification.update(
+      { is_read: true },
+      { where: { recipient_id: req.user.id, is_read: false } }
+    );
+    res.json({ success: true, data: { markedCount: affectedCount } });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/count', authenticateToken, async (req, res) => {
+  try {
+    const unreadCount = await Notification.count({
+      where: { recipient_id: req.user.id, is_read: false }
+    });
+    res.json({ success: true, data: { unreadCount } });
+  } catch (error) {
+    console.error('Error fetching unread notification count:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

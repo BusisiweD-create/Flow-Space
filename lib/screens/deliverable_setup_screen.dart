@@ -24,6 +24,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   final List<String> _selectedSprints = [];
   List<Map<String, dynamic>> _availableSprints = [];
   bool _isSaving = false;
+  bool _isGenerating = false;
 
   @override
   void initState() {
@@ -83,6 +84,90 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       setState(() {
         _availableSprints = [];
       });
+    }
+  }
+
+  Future<void> _generateTitleSuggestion() async {
+    if (_isGenerating) return;
+    setState(() => _isGenerating = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Write a concise professional deliverable title. Max 12 words.'
+        },
+        {
+          'role': 'user',
+          'content': 'Description: ${_descriptionController.text}\nPriority: $_priority\nDue: ${_dueDate?.toIso8601String() ?? ''}\nSprints: ${_selectedSprints.join(', ')}'
+        }
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 40);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _titleController.text = content.trim();
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
+  }
+
+  Future<void> _generateDescriptionSuggestion() async {
+    if (_isGenerating) return;
+    setState(() => _isGenerating = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Write a clear deliverable description summarizing scope, outcomes, and constraints.'
+        },
+        {
+          'role': 'user',
+          'content': 'Title: ${_titleController.text}\nPriority: $_priority\nDue: ${_dueDate?.toIso8601String() ?? ''}\nSprints: ${_selectedSprints.join(', ')}\nDefinition of Done: ${_dodController.text}'
+        }
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 160);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _descriptionController.text = content.trim();
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
+  }
+
+  Future<void> _generateDodSuggestion() async {
+    if (_isGenerating) return;
+    setState(() => _isGenerating = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Propose 5-8 acceptance criteria as a checklist, one per line.'
+        },
+        {
+          'role': 'user',
+          'content': 'Title: ${_titleController.text}\nDescription: ${_descriptionController.text}'
+        }
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 200);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _dodController.text = content.trim();
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isGenerating = false);
     }
   }
 
@@ -197,6 +282,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                   return null;
                 },
               ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _isGenerating ? null : _generateTitleSuggestion,
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Suggest with AI'),
+                ),
+              ),
               const SizedBox(height: 16),
 
               // Description
@@ -214,6 +307,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                   }
                   return null;
                 },
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _isGenerating ? null : _generateDescriptionSuggestion,
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Suggest with AI'),
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -233,6 +334,14 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                   }
                   return null;
                 },
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _isGenerating ? null : _generateDodSuggestion,
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Suggest with AI'),
+                ),
               ),
               const SizedBox(height: 16),
 

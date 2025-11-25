@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/approval_request.dart' as core;
 import '../services/approval_service.dart';
 import '../services/auth_service.dart';
+import '../services/sign_off_report_service.dart';
+import 'client_review_workflow_screen.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
@@ -14,6 +16,7 @@ class ApprovalRequestsScreen extends StatefulWidget {
 
 class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
   final ApprovalService _approvalService = ApprovalService(AuthService());
+  final SignOffReportService _reportService = SignOffReportService(AuthService());
   List<core.ApprovalRequest> _requests = [];
   bool _isLoading = true;
   String _searchQuery = '';
@@ -24,7 +27,13 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadApprovalRequests();
+    Future.microtask(() async {
+      try {
+        await AuthService().initialize();
+      } catch (_) {}
+      if (!mounted) return;
+      await _loadApprovalRequests();
+    });
   }
 
   Future<void> _loadApprovalRequests() async {
@@ -44,6 +53,36 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
       _showErrorSnackBar('Error loading approval requests: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _openAssociatedReport(core.ApprovalRequest request) async {
+    try {
+      final deliverableId = request.deliverableId;
+      if (deliverableId == null || deliverableId.isEmpty) {
+        _showErrorSnackBar('No associated deliverable for this approval');
+        return;
+      }
+      final resp = await _reportService.getSignOffReports(deliverableId: deliverableId);
+      if (resp.isSuccess && resp.data != null) {
+        final list = resp.data is List ? (resp.data as List) : (resp.data['data'] as List? ?? []);
+        if (list.isNotEmpty) {
+          final reportId = (list.first['id'] ?? '').toString();
+          if (reportId.isNotEmpty) {
+            if (!mounted) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ClientReviewWorkflowScreen(reportId: reportId),
+              ),
+            );
+            return;
+          }
+        }
+      }
+      _showErrorSnackBar('No associated report found');
+    } catch (e) {
+      _showErrorSnackBar('Failed to open associated report: $e');
     }
   }
 
@@ -448,6 +487,11 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                                       tooltip: 'Reject',
                                     ),
                                   ],
+                                  IconButton(
+                                    icon: const Icon(Icons.visibility, color: FlownetColors.electricBlue),
+                                    onPressed: () => _openAssociatedReport(request),
+                                    tooltip: 'View Associated Report',
+                                  ),
                                   IconButton(
                                     icon: const Icon(Icons.info, color: FlownetColors.coolGray),
                                     onPressed: () => _showRequestDetails(request),

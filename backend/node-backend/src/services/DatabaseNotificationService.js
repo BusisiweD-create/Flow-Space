@@ -12,6 +12,7 @@ class DatabaseNotificationService extends EventEmitter {
         this.maxReconnectAttempts = 10;
         this.reconnectDelay = 5000; // 5 seconds
         this.socketService = null;
+        this.modelEventsInitialized = false;
         
         // Set up global event emitter for model hooks
         this.setupGlobalEventEmitter();
@@ -273,29 +274,101 @@ class DatabaseNotificationService extends EventEmitter {
      */
     setupModelEventListeners() {
         if (!global.realtimeEvents) return;
+        if (this.modelEventsInitialized) return;
 
-        // Listen for all model events and forward to socket service
-        const eventsToListen = [
-            'deliverable_created', 'deliverable_updated', 'deliverable_deleted',
-            'sprint_created', 'sprint_updated', 'sprint_deleted',
-            'project_created', 'project_updated', 'project_deleted',
-            'user_created', 'user_updated', 'user_deleted', 'user_role_changed'
-        ];
+        const { User, Notification } = require('../models');
+        const { Op } = require('sequelize');
 
-        eventsToListen.forEach(event => {
-            global.realtimeEvents.on(event, (data) => {
-                if (this.socketService) {
-                    // Forward the event to all connected clients
-                    this.socketService.broadcastToAll(event, data);
-                    
-                    loggingService.log(LogLevel.DEBUG, LogCategory.WEBSOCKET,
-                        `Forwarded ${event} to socket service`,
-                        null,
-                        { data }
-                    );
-                }
-            });
+        const broadcastAll = (event, data) => {
+            if (this.socketService) {
+                this.socketService.broadcastToAll(event, data);
+            }
+        };
+
+        const broadcastRoles = (roles, event, data) => {
+            if (this.socketService) {
+                roles.forEach(r => this.socketService.broadcastToRole(r, event, data));
+            }
+        };
+
+        const notifyAll = async (type, message, payload, senderId = null) => {
+            const users = await User.findAll({ where: { is_active: true } });
+            const notifications = users.map(u => ({
+                recipient_id: u.id,
+                sender_id: senderId,
+                type,
+                message,
+                payload,
+                is_read: false,
+                created_at: new Date()
+            }));
+            if (notifications.length > 0) {
+                await Notification.bulkCreate(notifications);
+                broadcastAll('notification_received', { type, message, payload });
+            }
+        };
+
+        const notifyRoles = async (roles, type, message, payload, senderId = null) => {
+            const roleVariants = roles.flatMap(r => [r, r.charAt(0).toUpperCase() + r.slice(1), r.toLowerCase()]);
+            const recipients = await User.findAll({ where: { role: { [Op.in]: roleVariants }, is_active: true } });
+            const notifications = recipients.map(u => ({
+                recipient_id: u.id,
+                sender_id: senderId,
+                type,
+                message,
+                payload,
+                is_read: false,
+                created_at: new Date()
+            }));
+            if (notifications.length > 0) {
+                await Notification.bulkCreate(notifications);
+                broadcastRoles(roleVariants, 'notification_received', { type, message, payload });
+            }
+        };
+
+        global.realtimeEvents.on('deliverable_created', async (data) => {
+            const title = data && data.title ? data.title : 'Deliverable';
+            await notifyAll('deliverable', `Deliverable created: ${title}`, { deliverable_id: data && data.id });
+            broadcastAll('deliverable_created', data);
         });
+
+        global.realtimeEvents.on('sprint_created', async (data) => {
+            const name = data && data.name ? data.name : 'Sprint';
+            await notifyAll('sprint', `Sprint created: ${name}`, { sprint_id: data && data.id });
+            broadcastAll('sprint_created', data);
+        });
+
+        global.realtimeEvents.on('project_created', async (data) => {
+            const name = data && data.name ? data.name : 'Project';
+            await notifyAll('project', `Project created: ${name}`, { project_id: data && data.id });
+            broadcastAll('project_created', data);
+        });
+
+        global.realtimeEvents.on('report_created', async (data) => {
+            const title = data && data.reportTitle ? data.reportTitle : 'Sign-Off Report';
+            const senderId = data && data.created_by && /^[0-9a-fA-F-]{36}$/.test(data.created_by) ? data.created_by : null;
+            await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report created: ${title}`, { report_id: data && data.id, action_url: `/enhanced-client-review/${data && data.id}` }, senderId);
+        });
+
+        global.realtimeEvents.on('report_submitted', async (data) => {
+            const title = data && data.reportTitle ? data.reportTitle : 'Sign-Off Report';
+            const senderId = data && data.created_by && /^[0-9a-fA-F-]{36}$/.test(data.created_by) ? data.created_by : null;
+            await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report submitted: ${title}`, { report_id: data && data.id, action_url: `/enhanced-client-review/${data && data.id}` }, senderId);
+        });
+
+        global.realtimeEvents.on('report_approved', async (data) => {
+            const title = data && data.reportTitle ? data.reportTitle : 'Sign-Off Report';
+            const senderId = data && data.created_by && /^[0-9a-fA-F-]{36}$/.test(data.created_by) ? data.created_by : null;
+            await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report approved: ${title}`, { report_id: data && data.id, action_url: `/enhanced-client-review/${data && data.id}` }, senderId);
+        });
+
+        global.realtimeEvents.on('report_change_requested', async (data) => {
+            const title = data && data.reportTitle ? data.reportTitle : 'Sign-Off Report';
+            const senderId = data && data.created_by && /^[0-9a-fA-F-]{36}$/.test(data.created_by) ? data.created_by : null;
+            await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'change_request', `Changes requested: ${title}`, { report_id: data && data.id, action_url: `/enhanced-client-review/${data && data.id}` }, senderId);
+        });
+
+        this.modelEventsInitialized = true;
     }
 
     /**

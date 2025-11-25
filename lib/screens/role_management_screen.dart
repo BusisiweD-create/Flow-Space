@@ -491,15 +491,72 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   }
 
   void _showEditUserDialog(User user) {
+    final nameController = TextEditingController(text: user.name);
+    final emailController = TextEditingController(text: user.email);
+    UserRole selectedRole = user.role;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Edit ${user.name}'),
-        content: const Text('User editing functionality will be implemented in the next phase.'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Full Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<UserRole>(
+                // ignore: deprecated_member_use
+                value: selectedRole,
+                decoration: const InputDecoration(labelText: 'Role'),
+                items: UserRole.values.map((role) => DropdownMenuItem(
+                  value: role,
+                  child: Text(role.displayName),
+                ),).toList(),
+                onChanged: (role) {
+                  if (role != null) selectedRole = role;
+                },
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final nameParts = nameController.text.trim().split(' ');
+              final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+              final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+              _errorHandler.showLoadingDialog(context, message: 'Saving changes...');
+              try {
+                await _userDataService.updateUser(
+                  userId: user.id,
+                  firstName: firstName,
+                  lastName: lastName,
+                  email: emailController.text.trim(),
+                  role: selectedRole.name,
+                );
+                _errorHandler.hideLoadingDialog(context);
+                await _loadUsers();
+                _errorHandler.showSuccessSnackBar(context, 'User updated successfully');
+                Navigator.of(context).pop();
+              } catch (e) {
+                _errorHandler.hideLoadingDialog(context);
+                _errorHandler.showErrorSnackBar(context, 'Failed to update user: $e');
+              }
+            },
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -537,25 +594,35 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   }
 
   void _changeUserRole(User user, UserRole newRole) {
-    setState(() {
-      final index = _users.indexWhere((u) => u.id == user.id);
-      if (index != -1) {
-        _users[index] = user.copyWith(role: newRole);
+    _errorHandler.showLoadingDialog(context, message: 'Changing role...');
+    _userDataService.updateUserRole(user.id, newRole).then((success) async {
+      _errorHandler.hideLoadingDialog(context);
+      if (success) {
+        await _loadUsers();
+        _errorHandler.showSuccessSnackBar(context, '${user.name}\'s role changed to ${newRole.displayName}');
+      } else {
+        _errorHandler.showErrorSnackBar(context, 'Failed to change role');
       }
+    }).catchError((e) {
+      _errorHandler.hideLoadingDialog(context);
+      _errorHandler.showErrorSnackBar(context, 'Error: $e');
     });
-    
-    _showSuccessSnackBar('${user.name}\'s role changed to ${newRole.displayName}');
   }
 
   void _toggleUserStatus(User user) {
-    setState(() {
-      final index = _users.indexWhere((u) => u.id == user.id);
-      if (index != -1) {
-        _users[index] = user.copyWith(isActive: !user.isActive);
-      }
+    final newStatus = !user.isActive;
+    _errorHandler.showLoadingDialog(context, message: newStatus ? 'Activating user...' : 'Deactivating user...');
+    _userDataService.updateUser(
+      userId: user.id,
+      isActive: newStatus,
+    ).then((_) async {
+      _errorHandler.hideLoadingDialog(context);
+      await _loadUsers();
+      _errorHandler.showSuccessSnackBar(context, '${user.name} ${newStatus ? 'activated' : 'deactivated'}');
+    }).catchError((e) {
+      _errorHandler.hideLoadingDialog(context);
+      _errorHandler.showErrorSnackBar(context, 'Failed to update status: $e');
     });
-    
-    _showSuccessSnackBar('${user.name} ${user.isActive ? 'deactivated' : 'activated'}');
   }
 
   void _showDeleteUserDialog(User user) {
@@ -575,25 +642,16 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
             TextButton(
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
               onPressed: () async {
-                try {
-                  final response = await _apiService.deleteUser(user.id);
-                  if (response.isSuccess) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('User deleted successfully')),
-                    );
-                    _loadUsers(); // Refresh the user list
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Error deleting user: \${response.error}')),
-                    );
-                  }
-                  Navigator.of(context).pop();
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Error deleting user: \$e')),
-                  );
-                  Navigator.of(context).pop();
+                _errorHandler.showLoadingDialog(context, message: 'Deleting user...');
+                final result = await _userDataService.deleteUser(user.id);
+                _errorHandler.hideLoadingDialog(context);
+                if (result['success'] == true) {
+                  _errorHandler.showSuccessSnackBar(context, 'User deleted successfully');
+                  await _loadUsers();
+                } else {
+                  _errorHandler.showErrorSnackBar(context, result['error']?.toString() ?? 'Failed to delete user');
                 }
+                Navigator.of(context).pop();
               },
             ),
           ],
@@ -601,19 +659,6 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
       },
     );
   }
-
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-
-
 
 
 

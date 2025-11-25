@@ -18,7 +18,8 @@ app.use((req, res, next) => {
 const { testConnection, syncDatabase } = require('./config/database');
 
 // Import models
-const { sequelize } = require('./models');
+const { sequelize, User, Notification } = require('./models');
+const { QueryTypes, Op } = require('sequelize');
 
 // Import middleware
 const { loggingMiddleware } = require('./middleware/loggingMiddleware');
@@ -26,6 +27,7 @@ const { performanceMiddleware } = require('./middleware/performanceMiddleware');
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const { authenticateToken } = require('./middleware/auth');
 const deliverablesRoutes = require('./routes/deliverables');
 const sprintsRoutes = require('./routes/sprints');
 const projectsRoutes = require('./routes/projects');
@@ -37,10 +39,12 @@ const notificationsRoutes = require('./routes/notifications');
 const profileRoutes = require('./routes/profile');
 const settingsRoutes = require('./routes/settings');
 const signoffRoutes = require('./routes/signoff');
+const aiRoutes = require('./routes/ai');
 const websocketRoutes = require('./routes/websocket');
 const systemRoutes = require('./routes/system');
 const usersRoutes = require('./routes/users');
 const approvalsRoutes = require('./routes/approvals');
+const documentsRoutes = require('./routes/documents');
 
 // Import services
 const { presenceService } = require('./services/presenceService');
@@ -73,8 +77,12 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/deliverables', deliverablesRoutes);
 app.use('/api/v1/sprints', sprintsRoutes);
 app.use('/api/v1/projects', projectsRoutes);
-app.use('/api/v1/signoff', signoffRoutes);
-app.use('/api/v1/sign-off-reports', signoffRoutes);
+app.use('/api/v1/signoff', authenticateToken, signoffRoutes);
+app.use('/api/v1/sign-off-reports', authenticateToken, signoffRoutes);
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
+app.use('/api/v1/ai', aiLimiter, aiRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
+app.use('/ai', aiLimiter, aiRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/profile', profileRoutes);
@@ -87,6 +95,19 @@ app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/approvals', approvalsRoutes);
 app.use('/api/v1/audit-logs', auditRoutes);
+app.use('/api/v1/documents', documentsRoutes);
+app.post('/api/v1/iot/ingest', (req, res) => {
+  try {
+    const { topic, payload, roles, targetRoles, event } = req.body || {};
+    const t = typeof topic === 'string' ? topic : '';
+    const p = payload !== undefined ? payload : (event ? { event, payload: req.body } : req.body);
+    const enriched = { ...(p || {}), roles: roles || targetRoles };
+    socketService._handleIotMessage(t || 'iot/ingest', Buffer.from(JSON.stringify(enriched)));
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ success: false, error: 'invalid payload' });
+  }
+});
 
 // Sprint tickets compatibility endpoints (minimal implementation to unblock UI)
 app.get('/api/v1/sprints/:id/tickets', async (req, res) => {
@@ -133,7 +154,8 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy' });
+  const iotEnabled = String(process.env.IOT_ENABLED || '').toLowerCase() === 'true';
+  res.json({ status: 'healthy', iot: { enabled: iotEnabled } });
 });
 
 // Error handling middleware
@@ -175,6 +197,10 @@ async function startServer() {
       // Initialize Socket.io server
       socketService.initialize(server);
       console.log('✅ Socket.io server initialized for real-time communication');
+      console.log('🔧 IoT MQTT status:', {
+        enabled: String(process.env.IOT_ENABLED || '').toLowerCase() === 'true',
+        url: process.env.IOT_MQTT_URL || ''
+      });
       
       // Initialize Database Notification Service
       const dbConnectionString = process.env.DATABASE_URL;
@@ -200,11 +226,66 @@ async function startServer() {
         console.error('Failed to start logging service:', error);
       });
       
-      console.log('✅ Background services started successfully');
-      console.log(`🔗 Access your backend at: http://localhost:${PORT}/`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔗 API v1 endpoints: http://localhost:${PORT}/api/v1/`);
+  console.log('✅ Background services started successfully');
+  console.log(`🔗 Access your backend at: http://localhost:${PORT}/`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 API v1 endpoints: http://localhost:${PORT}/api/v1/`);
       console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}`);
+      console.log(`🔧 IoT enabled: ${String(process.env.IOT_ENABLED || '').toLowerCase() === 'true'}`);
+      const hasOpenAI = !!process.env.OPENAI_API_KEY;
+      console.log(hasOpenAI ? '✅ OpenAI API key detected' : '⚠️ OpenAI API key missing');
+      if (hasOpenAI) {
+        console.log(`🤖 AI chat endpoint ready: http://localhost:${PORT}/api/v1/ai/chat`);
+      } else {
+        console.warn('AI features disabled until OPENAI_API_KEY is set');
+      }
+
+      const sendPendingReportReminders = async () => {
+        try {
+          const dueReports = await sequelize.query(
+            "SELECT id, created_by, status, content, updated_at FROM sign_off_reports WHERE status = 'submitted' AND updated_at <= NOW() - INTERVAL '1 day'",
+            { type: QueryTypes.SELECT }
+          );
+
+          if (!dueReports || dueReports.length === 0) return;
+
+          const reviewers = await User.findAll({ where: { role: { [Op.in]: ['clientReviewer', 'ClientReviewer', 'clientreviewer'] }, is_active: true } });
+          if (!reviewers || reviewers.length === 0) return;
+
+          for (const report of dueReports) {
+            const content = typeof report.content === 'string' ? (() => { try { return JSON.parse(report.content); } catch { return {}; } })() : (report.content || {});
+            const title = content.reportTitle || content.report_title || 'Sign-Off Report';
+
+            // Prevent duplicate reminders by checking existing notifications in the last 2 days
+            const recentReminders = await sequelize.query(
+              "SELECT id FROM notifications WHERE type = 'approval' AND message LIKE :msgPattern AND created_at >= NOW() - INTERVAL '2 days'",
+              { type: QueryTypes.SELECT, replacements: { msgPattern: `%${title}%` } }
+            );
+            if (recentReminders && recentReminders.length > 0) continue;
+
+            const notifications = reviewers.map((client) => ({
+              recipient_id: client.id,
+              sender_id: report.created_by || null,
+              type: 'approval',
+              message: `Reminder: Please review and approve or request changes for "${title}"`,
+              payload: {
+                report_id: report.id,
+                report_title: title,
+                action_url: `/enhanced-client-review/${report.id}`,
+              },
+              is_read: false,
+              created_at: new Date(),
+            }));
+
+            await Notification.bulkCreate(notifications);
+          }
+        } catch (err) {
+          console.error('Error sending pending report reminders:', err);
+        }
+      };
+
+      sendPendingReportReminders();
+      setInterval(sendPendingReportReminders, 30 * 60 * 1000);
     });
     
   } catch (error) {

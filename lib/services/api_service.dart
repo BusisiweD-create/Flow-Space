@@ -347,6 +347,7 @@ class ApiService {
     required int plannedPoints,
     required int completedPoints,
     required String createdBy, required String description, int? committedPoints, int? carriedOverPoints, int? addedDuringSprint, int? removedDuringSprint, int? testPassRate, int? codeCoverage, int? escapedDefects, int? defectsOpened, int? defectsClosed, required String defectSeverityMix, int? codeReviewCompletion, required String documentationStatus, required String uatNotes, int? uatPassRate, int? risksIdentified, int? risksMitigated, required String blockers, required String decisions,
+    String? projectId,
   }) async {
     try {
       final backendService = BackendApiService();
@@ -376,6 +377,7 @@ class ApiService {
         'risksMitigated': risksMitigated,
         'blockers': blockers,
         'decisions': decisions,
+        'projectId': projectId,
       }..removeWhere((key, value) => value == null);
       final response = await backendService.createSprint(payload);
       if (response.isSuccess && response.data != null) {

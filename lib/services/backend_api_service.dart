@@ -252,6 +252,14 @@ class BackendApiService {
     },);
   }
 
+  Future<ApiResponse> aiChat(List<Map<String, dynamic>> messages, {double? temperature, int? maxTokens}) async {
+    return await _apiClient.post('/ai/chat', body: {
+      'messages': messages,
+      if (temperature != null) 'temperature': temperature,
+      if (maxTokens != null) 'max_tokens': maxTokens,
+    });
+  }
+
   // Project endpoints
   Future<ApiResponse> getProjects({int page = 1, int limit = 20, String? search}) async {
     final queryParams = <String, String>{
@@ -306,6 +314,18 @@ class BackendApiService {
 
   Future<ApiResponse> markAllNotificationsAsRead() async {
     return await _apiClient.put('/notifications/read-all');
+  }
+
+  Future<ApiResponse> simulateReportReminder({String? reportId, bool force = true, String? recipientRole}) async {
+    final body = <String, dynamic>{};
+    if (reportId != null && reportId.isNotEmpty) body['reportId'] = reportId;
+    if (force) body['force'] = true;
+    if (recipientRole != null && recipientRole.isNotEmpty) body['recipientRole'] = recipientRole;
+    return await _apiClient.post('/system/simulate-report-reminder', body: body);
+  }
+
+  Future<ApiResponse> sendReminderForReport(String reportId, String recipientRole) async {
+    return await simulateReportReminder(reportId: reportId, recipientRole: recipientRole, force: true);
   }
 
   Future<ApiResponse> deleteNotification(String notificationId) async {
@@ -579,14 +599,23 @@ class BackendApiService {
           break;
       }
       
+      final firstName = userData['first_name'] ?? userData['firstName'] ?? userData['firstname'] ?? '';
+      final lastName = userData['last_name'] ?? userData['lastName'] ?? userData['lastname'] ?? '';
+      final combinedName = ('$firstName $lastName').trim();
+      final rawEmail = userData['email']?.toString() ?? '';
+      final emailLocal = rawEmail.contains('@') ? rawEmail.split('@')[0] : rawEmail;
+      final resolvedName = () {
+        final n = (userData['name'] ?? userData['username'] ?? combinedName).toString().trim();
+        return n.isNotEmpty ? n : emailLocal;
+      }();
+
       final userJsonForParsing = {
         'id': userData['id']?.toString(),
         'email': userData['email'],
-        'name': userData['name'] ?? userData['username'] ?? 
-               '${userData['first_name'] ?? userData['firstName'] ?? userData['firstname'] ?? ''} ${userData['last_name'] ?? userData['lastName'] ?? userData['lastname'] ?? ''}'.trim(),
-        'role': userRoleForParsing, // Use the converted role format
+        'name': resolvedName,
+        'role': userRoleForParsing,
         'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'] ?? userData['avatarurl'],
-        'createdAt': userData['created_at'] ?? userData['createdAt'] ?? userData['createdat'] ?? DateTime.now().toIso8601String(), // Provide default if missing
+        'createdAt': userData['created_at'] ?? userData['createdAt'] ?? userData['createdat'] ?? DateTime.now().toIso8601String(),
         'lastLoginAt': userData['last_login'] ?? userData['last_login_at'] ?? userData['lastLoginAt'] ?? userData['lastlogin'] ?? userData['lastLogin'],
         'isActive': userData['is_active'] ?? userData['isActive'] ?? userData['isactive'] ?? (userData['status'] == 'active') ?? true,
         'projectIds': userData['project_ids'] ?? userData['projectIds'] ?? userData['projectids'] ?? [],

@@ -101,6 +101,66 @@ router.get('/:id', authenticateToken, requireRole(['admin', 'system_admin']), as
   }
 });
 
+router.put('/:id/role', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body || {};
+
+    if (!role || typeof role !== 'string' || role.trim() === '') {
+      return res.status(400).json({
+        error: 'Invalid role',
+        message: 'Role is required and must be a non-empty string'
+      });
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        error: 'User not found',
+        message: 'User not found'
+      });
+    }
+
+    if (user.role === role) {
+      return res.json({
+        message: 'User role unchanged',
+        user: {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+          is_active: user.is_active,
+          last_login: user.last_login,
+          created_at: user.created_at
+        }
+      });
+    }
+
+    await user.update({ role }, { updatedBy: req.user?.id });
+
+    return res.json({
+      message: 'User role updated successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        is_active: user.is_active,
+        last_login: user.last_login,
+        created_at: user.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Update user role error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to update user role'
+    });
+  }
+});
+
 /**
  * @route PUT /api/users/:id
  * @desc Update user information

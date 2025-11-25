@@ -30,6 +30,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
   Deliverable? _deliverable;
   List<SprintMetrics> _sprintMetrics = [];
   bool _isGenerating = false;
+  bool _isAiSuggesting = false;
   bool _isPreviewMode = false;
   bool _isLoading = false;
 
@@ -201,6 +202,121 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
+  Future<void> _generateTitleSuggestion() async {
+    if (_deliverable == null || _isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Propose a clear sign-off report title based on the deliverable.'
+        },
+        {
+          'role': 'user',
+          'content': 'Deliverable: ${_deliverable!.title}\nDescription: ${_deliverable!.description}'
+        }
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 40);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _reportTitleController.text = content.trim();
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
+  Future<void> _generateContentSuggestion() async {
+    if (_deliverable == null || _isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final totalCommitted = _sprintMetrics.fold(0, (sum, metric) => sum + metric.committedPoints);
+      final totalCompleted = _sprintMetrics.fold(0, (sum, metric) => sum + metric.completedPoints);
+      final avgTestPassRate = _sprintMetrics.isEmpty ? 0.0 : _sprintMetrics.fold(0.0, (sum, m) => sum + m.testPassRate) / _sprintMetrics.length;
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Draft a structured report content with sections and concise language.'
+        },
+        {
+          'role': 'user',
+          'content': 'Title: ${_deliverable!.title}\nDescription: ${_deliverable!.description}\nCommitted: $totalCommitted\nCompleted: $totalCompleted\nAvgTestPassRate: ${avgTestPassRate.toStringAsFixed(1)}%\nDefinitionOfDone: ${_deliverable!.definitionOfDone.join('; ')}'
+        }
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 600);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _reportContentController.text = content.trim();
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
+  Future<void> _generateKnownLimitationsSuggestion() async {
+    if (_deliverable == null || _isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'List concise known limitations and risks, one per line.'
+        },
+        {
+          'role': 'user',
+          'content': 'Deliverable: ${_deliverable!.title}\nMetrics: ${_sprintMetrics.map((m) => 'D:${m.totalDefects}/R:${m.defectsClosed}/TPR:${m.testPassRate.toStringAsFixed(1)}').join(', ')}'
+        }
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 160);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _knownLimitationsController.text = content.trim();
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
+  Future<void> _generateNextStepsSuggestion() async {
+    if (_deliverable == null || _isAiSuggesting) return;
+    setState(() => _isAiSuggesting = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Suggest actionable next steps for stakeholders, one per line.'
+        },
+        {
+          'role': 'user',
+          'content': 'Title: ${_deliverable!.title}\nStatus: ${_deliverable!.statusDisplayName}\nDefinitionOfDone: ${_deliverable!.definitionOfDone.join('; ')}'
+        }
+      ];
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 160);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _nextStepsController.text = content.trim();
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isAiSuggesting = false);
+    }
+  }
+
   Future<void> generateReport() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -325,6 +441,14 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
               ),
               validator: (value) => value?.isEmpty == true ? 'Title is required' : null,
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : _generateTitleSuggestion,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest Title with AI'),
+              ),
+            ),
             const SizedBox(height: 16),
 
             // Report Content
@@ -337,6 +461,14 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
               ),
               maxLines: 15,
               validator: (value) => value?.isEmpty == true ? 'Content is required' : null,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : _generateContentSuggestion,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest Content with AI'),
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -351,6 +483,14 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
               ),
               maxLines: 3,
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : _generateKnownLimitationsSuggestion,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
+              ),
+            ),
             const SizedBox(height: 16),
 
             // Next Steps
@@ -363,6 +503,14 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 hintText: 'Recommended next steps or follow-up actions...',
               ),
               maxLines: 3,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isAiSuggesting ? null : _generateNextStepsSuggestion,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
+              ),
             ),
             const SizedBox(height: 24),
 

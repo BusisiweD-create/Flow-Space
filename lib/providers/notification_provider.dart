@@ -71,12 +71,17 @@ class NotificationNotifier extends Notifier<NotificationState> {
             orElse: () => NotificationAction.general,
           );
 
-          final createdAtStr = (item['createdAt']?.toString() ?? item['date']?.toString());
+          final createdAtStr = (item['createdAt']?.toString() 
+              ?? item['created_at']?.toString() 
+              ?? item['date']?.toString());
           final createdAt = createdAtStr != null && createdAtStr.isNotEmpty
               ? DateTime.parse(createdAtStr)
               : DateTime.now();
 
-          final timestampStr = (item['timestamp']?.toString() ?? createdAtStr);
+          final timestampStr = (item['timestamp']?.toString() 
+              ?? item['createdAt']?.toString() 
+              ?? item['created_at']?.toString() 
+              ?? createdAtStr);
           final timestamp = timestampStr != null && timestampStr.isNotEmpty
               ? DateTime.parse(timestampStr)
               : createdAt;
@@ -86,7 +91,7 @@ class NotificationNotifier extends Notifier<NotificationState> {
             title: item['title']?.toString() ?? 'Notification',
             description: item['description']?.toString() ?? (item['message']?.toString() ?? ''),
             date: createdAt,
-            isRead: item['isRead'] ?? false,
+            isRead: (item['isRead'] ?? item['is_read'] ?? false) == true,
             type: type,
             message: item['message']?.toString() ?? '',
             timestamp: timestamp,
@@ -114,31 +119,53 @@ class NotificationNotifier extends Notifier<NotificationState> {
     }
   }
 
-  void markAsRead(String notificationId) {
-    final updatedNotifications = state.notifications.map((notification) {
-      if (notification.id == notificationId) {
-        return notification.copyWith(isRead: true);
+  Future<void> markAsRead(String notificationId) async {
+    try {
+      final backend = ref.read(backendApiServiceProvider);
+      final resp = await backend.markNotificationAsRead(notificationId);
+      if (!resp.isSuccess) {
+        state = state.copyWith(error: resp.error ?? 'Failed to mark as read');
+        return;
       }
-      return notification;
-    }).toList();
 
-    final unreadCount = updatedNotifications.where((n) => !n.isRead).length;
+      final updatedNotifications = state.notifications.map((notification) {
+        if (notification.id == notificationId) {
+          return notification.copyWith(isRead: true);
+        }
+        return notification;
+      }).toList();
 
-    state = state.copyWith(
-      notifications: updatedNotifications,
-      unreadCount: unreadCount,
-    );
+      final unreadCount = updatedNotifications.where((n) => !n.isRead).length;
+
+      state = state.copyWith(
+        notifications: updatedNotifications,
+        unreadCount: unreadCount,
+      );
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to mark as read: $e');
+    }
   }
 
-  void markAllAsRead() {
-    final updatedNotifications = state.notifications
-        .map((notification) => notification.copyWith(isRead: true))
-        .toList();
+  Future<void> markAllAsRead() async {
+    try {
+      final backend = ref.read(backendApiServiceProvider);
+      final resp = await backend.markAllNotificationsAsRead();
+      if (!resp.isSuccess) {
+        state = state.copyWith(error: resp.error ?? 'Failed to mark all as read');
+        return;
+      }
 
-    state = state.copyWith(
-      notifications: updatedNotifications,
-      unreadCount: 0,
-    );
+      final updatedNotifications = state.notifications
+          .map((notification) => notification.copyWith(isRead: true))
+          .toList();
+
+      state = state.copyWith(
+        notifications: updatedNotifications,
+        unreadCount: 0,
+      );
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to mark all as read: $e');
+    }
   }
 
   /// Add a new notification

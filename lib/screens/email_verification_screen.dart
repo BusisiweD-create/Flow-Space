@@ -8,8 +8,9 @@ import '../services/auth_service.dart';
 
 class EmailVerificationScreen extends ConsumerStatefulWidget {
   final String email;
+  final String? verificationCode;
   
-  const EmailVerificationScreen({super.key, required this.email});
+  const EmailVerificationScreen({super.key, required this.email, this.verificationCode});
 
   @override
   ConsumerState<EmailVerificationScreen> createState() => _EmailVerificationScreenState();
@@ -26,6 +27,10 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
     super.initState();
     _startResendCountdown();
     _loadVerificationCode();
+    if (widget.verificationCode != null && widget.verificationCode!.isNotEmpty) {
+      _verificationCode = widget.verificationCode;
+      _verifyEmail();
+    }
   }
 
   void _loadVerificationCode() {
@@ -79,8 +84,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
             ),
           );
           
-          // Navigate to dashboard
-          context.go('/dashboard');
+          context.go('/login');
         }
       } else {
         if (mounted) {
@@ -230,8 +234,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                     ),
                   ),
                 ),
-                keyboardType: TextInputType.number,
-                maxLength: 6,
+                keyboardType: TextInputType.text,
               ),
               const SizedBox(height: 24),
 

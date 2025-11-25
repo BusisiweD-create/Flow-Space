@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/notification_item.dart';
 
 class NotificationService {
-  static const String _baseUrl = 'http://localhost:8000/api/v1';
+  static const String _baseUrl = 'http://localhost:8000/api';
   String? _authToken;
 
   void setAuthToken(String token) {
@@ -43,15 +43,19 @@ class NotificationService {
   Future<List<NotificationItem>> getNotifications() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/notifications'),
+        Uri.parse('$_baseUrl/notifications/me'),
         headers: _headers,
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true && data['data'] != null) {
+        if (data is List) {
+          return data
+              .map((json) => NotificationItem.fromJson(json as Map<String, dynamic>))
+              .toList();
+        } else if (data is Map && data['data'] is List) {
           return (data['data'] as List)
-              .map((json) => NotificationItem.fromJson(json))
+              .map((json) => NotificationItem.fromJson(json as Map<String, dynamic>))
               .toList();
         }
       }

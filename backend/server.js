@@ -4178,4 +4178,62 @@ app.post('/api/v1/docusign/webhook', express.raw({ type: 'application/json' }), 
 
 app.listen(PORT, () => {
   console.log(`Flow-Space API server running on port ${PORT}`);
+  const checkReportApprovalReminders = async () => {
+    try {
+      const dueReports = await pool.query(`
+        SELECT r.id, r.report_title, r.content, r.updated_at, r.created_by
+        FROM sign_off_reports r
+        WHERE r.status = 'submitted'
+          AND r.updated_at <= NOW() - INTERVAL '1 day'
+          AND NOT EXISTS (
+            SELECT 1 FROM audit_logs a
+            WHERE a.resource_type = 'sign_off_report'
+              AND a.resource_id = r.id::text
+              AND a.action = 'report_reminder_sent'
+          )
+      `);
+
+      if (!dueReports.rows || dueReports.rows.length === 0) {
+        return;
+      }
+
+      const reviewersRes = await pool.query(`
+        SELECT id, email, name FROM users WHERE role = 'clientReviewer' AND is_active = true
+      `);
+
+      for (const report of dueReports.rows) {
+        const title = report.report_title || (report.content && report.content.reportTitle) || 'Sign-Off Report';
+        for (const reviewer of reviewersRes.rows) {
+          const notificationId = uuidv4();
+          await pool.query(`
+            INSERT INTO notifications (
+              id, title, message, type, user_id, action_url, is_read, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
+          `, [
+            notificationId,
+            '⏰ Pending Approval Reminder',
+            `Reminder: Please review and approve or request changes for "${title}".`,
+            'approval',
+            reviewer.id,
+            `/enhanced-client-review/${report.id}`,
+          ]);
+        }
+
+        await pool.query(`
+          INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
+          VALUES ($1::uuid, 'report_reminder_sent', 'sign_off_report', $2, $3::jsonb, NOW())
+        `, [
+          report.created_by,
+          report.id,
+          JSON.stringify({ reminderType: 'pending_approval', threshold: '1_day' }),
+        ]);
+      }
+    } catch (err) {
+      console.error('Error processing report approval reminders:', err);
+    }
+  };
+
+  checkReportApprovalReminders();
+  setInterval(checkReportApprovalReminders, 30 * 60 * 1000);
 });

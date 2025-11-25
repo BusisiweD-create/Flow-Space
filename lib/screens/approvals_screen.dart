@@ -5,11 +5,14 @@ import '../services/approval_service.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/sign_off_report_service.dart';
+import 'client_review_workflow_screen.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 
 class ApprovalsScreen extends ConsumerStatefulWidget {
-  const ApprovalsScreen({super.key});
+  final String? reportId;
+  const ApprovalsScreen({super.key, this.reportId});
 
   @override
   ConsumerState<ApprovalsScreen> createState() => _ApprovalsScreenState();
@@ -21,11 +24,18 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   String _selectedStatus = 'all';
+  final SignOffReportService _reportService = SignOffReportService(AuthService());
 
   @override
   void initState() {
     super.initState();
-    _loadApprovalRequests();
+    Future.microtask(() async {
+      try {
+        await AuthService().initialize();
+      } catch (_) {}
+      if (!mounted) return;
+      await _loadApprovalRequests();
+    });
   }
 
   Future<void> _loadApprovalRequests() async {
@@ -35,9 +45,41 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       final response = await _approvalService.getApprovalRequests();
       
       if (response.isSuccess) {
-        setState(() {
-          _approvalRequests = response.data!['requests'].cast<ApprovalRequest>();
-        });
+        final List<ApprovalRequest> list = (response.data!['requests'] as List).cast<ApprovalRequest>();
+        if (widget.reportId != null && widget.reportId!.isNotEmpty) {
+          final reportResp = await _reportService.getSignOffReport(widget.reportId!);
+          String? deliverableId;
+          if (reportResp.isSuccess && reportResp.data != null) {
+            final data = reportResp.data;
+            if (data is Map) {
+              deliverableId = data['deliverableId']?.toString() ?? data['deliverable_id']?.toString();
+              if (deliverableId == null && data['data'] is Map) {
+                final m = data['data'] as Map;
+                deliverableId = m['deliverableId']?.toString() ?? m['deliverable_id']?.toString();
+              }
+            }
+          }
+          deliverableId ??= widget.reportId;
+          if (deliverableId != null && deliverableId.isNotEmpty) {
+            final List<ApprovalRequest> prioritized = [...list];
+            prioritized.sort((a, b) {
+              final aMatch = a.deliverableId == deliverableId ? 0 : 1;
+              final bMatch = b.deliverableId == deliverableId ? 0 : 1;
+              return aMatch.compareTo(bMatch);
+            });
+            setState(() {
+              _approvalRequests = prioritized;
+            });
+          } else {
+            setState(() {
+              _approvalRequests = list;
+            });
+          }
+        } else {
+          setState(() {
+            _approvalRequests = list;
+          });
+        }
       } else {
         _showErrorSnackBar('Failed to load approval requests: ${response.error}');
       }
@@ -56,6 +98,36 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       final matchesStatus = _selectedStatus == 'all' || request.status == _selectedStatus;
       return matchesSearch && matchesStatus;
     }).toList();
+  }
+
+  Future<void> _openAssociatedReport(ApprovalRequest request) async {
+    try {
+      final deliverableId = request.deliverableId;
+      if (deliverableId == null || deliverableId.isEmpty) {
+        _showErrorSnackBar('No associated deliverable for this approval');
+        return;
+      }
+      final resp = await _reportService.getSignOffReports(deliverableId: deliverableId);
+      if (resp.isSuccess && resp.data != null) {
+        final list = resp.data is List ? (resp.data as List) : (resp.data['data'] as List? ?? []);
+        if (list.isNotEmpty) {
+          final reportId = (list.first['id'] ?? '').toString();
+          if (reportId.isNotEmpty) {
+            if (!mounted) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ClientReviewWorkflowScreen(reportId: reportId),
+              ),
+            );
+            return;
+          }
+        }
+      }
+      _showErrorSnackBar('No associated report found');
+    } catch (e) {
+      _showErrorSnackBar('Failed to open associated report: $e');
+    }
   }
 
   void _showErrorSnackBar(String message) {
@@ -317,6 +389,11 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                                       tooltip: 'Reject',
                                     ),
                                   ],
+                                  IconButton(
+                                    icon: const Icon(Icons.visibility, color: FlownetColors.electricBlue),
+                                    onPressed: () => _openAssociatedReport(request),
+                                    tooltip: 'View Associated Report',
+                                  ),
                               ],
                             ),
                           ),

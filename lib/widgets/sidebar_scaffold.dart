@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
 import 'flownet_logo.dart';
+import 'notification_center_widget.dart';
 import '../services/auth_service.dart';
 
 class SidebarScaffold extends StatefulWidget {
@@ -290,7 +291,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             color: FlownetColors.pureWhite,
                           ),
                           const Spacer(),
-                          // Current page indicator
+                          const NotificationCenterWidget(),
+                          const SizedBox(width: 12),
                           Text(
                             _getPageTitle(routeLocation),
                             style: const TextStyle(
@@ -322,6 +324,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 onPressed: () => Navigator.of(context).pop(),
                 tooltip: 'Back',
               ),
+            const NotificationCenterWidget(),
           ],
         ),
         drawer: Drawer(

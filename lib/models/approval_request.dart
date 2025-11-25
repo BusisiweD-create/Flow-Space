@@ -12,6 +12,7 @@ class ApprovalRequest {
   final String? reviewReason;
   final String priority;
   final String category;
+  final String? deliverableId;
 
   ApprovalRequest({
     required this.id,
@@ -27,6 +28,7 @@ class ApprovalRequest {
     this.reviewReason,
     required this.priority,
     required this.category,
+    this.deliverableId,
   });
 
   factory ApprovalRequest.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,7 @@ class ApprovalRequest {
       reviewReason: json['review_reason'],
       priority: json['priority'] ?? 'medium',
       category: json['category'] ?? '',
+      deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString(),
     );
   }
 
@@ -62,6 +65,7 @@ class ApprovalRequest {
       'review_reason': reviewReason,
       'priority': priority,
       'category': category,
+      'deliverable_id': deliverableId,
     };
   }
 
@@ -79,6 +83,7 @@ class ApprovalRequest {
     String? reviewReason,
     String? priority,
     String? category,
+    String? deliverableId,
   }) {
     return ApprovalRequest(
       id: id ?? this.id,
@@ -94,6 +99,7 @@ class ApprovalRequest {
       reviewReason: reviewReason ?? this.reviewReason,
       priority: priority ?? this.priority,
       category: category ?? this.category,
+      deliverableId: deliverableId ?? this.deliverableId,
     );
   }
 

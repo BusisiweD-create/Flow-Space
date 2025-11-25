@@ -34,6 +34,7 @@ class _EnhancedClientReviewScreenState extends ConsumerState<EnhancedClientRevie
   bool _showAdvancedOptions = false;
   DateTime? _reminderDate;
   String _priority = 'normal';
+  final BackendApiService _apiService = BackendApiService();
 
   @override
   void initState() {
@@ -238,6 +239,62 @@ Future<void> _submitApproval() async {
       setState(() {
         _reminderDate = date;
       });
+    }
+  }
+
+  Future<void> _generateCommentSuggestion() async {
+    if (_report == null || _isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Draft a constructive review comment acknowledging strengths and noting minor issues.'
+        },
+        {
+          'role': 'user',
+          'content': '${_report!.reportTitle}\n${_report!.reportContent}'
+        }
+      ];
+      final resp = await _apiService.aiChat(messages, temperature: 0.6, maxTokens: 140);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _commentController.text = content;
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _generateChangeRequestSuggestion() async {
+    if (_report == null || _isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'Draft a clear, actionable change request detailing improvements needed.'
+        },
+        {
+          'role': 'user',
+          'content': '${_report!.reportTitle}\n${_report!.reportContent}\nFocus on gaps, risks, and necessary updates.'
+        }
+      ];
+      final resp = await _apiService.aiChat(messages, temperature: 0.7, maxTokens: 160);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        if (content.isNotEmpty) {
+          _changeRequestController.text = content;
+        }
+      }
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -701,6 +758,14 @@ Future<void> _submitApproval() async {
               ),
               maxLines: 3,
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isSubmitting ? null : _generateCommentSuggestion,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Suggest with AI'),
+              ),
+            ),
             const SizedBox(height: 16),
 
             // Change Request Details
@@ -720,6 +785,14 @@ Future<void> _submitApproval() async {
                   }
                   return null;
                 },
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _isSubmitting ? null : _generateChangeRequestSuggestion,
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Suggest with AI'),
+                ),
               ),
               const SizedBox(height: 16),
             ],
