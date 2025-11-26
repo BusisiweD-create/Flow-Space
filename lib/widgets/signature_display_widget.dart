@@ -188,11 +188,14 @@ class SignatureDisplayWidget extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
+    final tz = date.toUtc().add(const Duration(hours: 2));
     final months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
-    return '${date.day} ${months[date.month - 1]} ${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final h = tz.hour.toString().padLeft(2, '0');
+    final m = tz.minute.toString().padLeft(2, '0');
+    return '${tz.day} ${months[tz.month - 1]} ${tz.year} at $h:$m';
   }
 
   String _formatSignatureType(String type) {
@@ -269,7 +272,9 @@ class SignatureDisplayCompact extends StatelessWidget {
   }
 
   String _formatCompactDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
   }
 }
 

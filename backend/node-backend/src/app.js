@@ -18,7 +18,7 @@ app.use((req, res, next) => {
 const { testConnection, syncDatabase } = require('./config/database');
 
 // Import models
-const { sequelize, User, Notification } = require('./models');
+const { sequelize, User, Notification, Ticket } = require('./models');
 const { QueryTypes, Op } = require('sequelize');
 
 // Import middleware
@@ -112,7 +112,12 @@ app.post('/api/v1/iot/ingest', (req, res) => {
 // Sprint tickets compatibility endpoints (minimal implementation to unblock UI)
 app.get('/api/v1/sprints/:id/tickets', async (req, res) => {
   try {
-    res.json({ success: true, data: [] });
+    const sprintId = req.params.id;
+    const tickets = await Ticket.findAll({
+      where: { sprint_id: sprintId },
+      order: [['updated_at', 'DESC']]
+    });
+    res.json({ success: true, data: tickets });
   } catch (error) {
     console.error('Error fetching sprint tickets:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -125,22 +130,102 @@ app.post('/api/v1/tickets', async (req, res) => {
     if (!sprintId || !title || !description) {
       return res.status(400).json({ success: false, error: 'Sprint ID, title, and description are required' });
     }
-    const now = new Date().toISOString();
-    const ticket = {
-      id: `T-${Date.now()}`,
-      sprint_id: sprintId,
+    const key = `T-${Date.now()}`;
+    const created = await Ticket.create({
+      ticket_id: key,
+      ticket_key: key,
+      sprint_id: parseInt(sprintId),
       summary: title,
       description,
       status: 'To Do',
       assignee: assignee || null,
-      priority: priority || 'medium',
-      issue_type: type || 'task',
-      created_at: now,
-      updated_at: now,
-    };
-    res.status(201).json({ success: true, data: ticket });
+      priority: (priority || 'medium').toString(),
+      issue_type: (type || 'task').toString()
+    });
+
+    if (global.realtimeEvents) {
+      global.realtimeEvents.emit('ticket_created', {
+        id: created.id,
+        ticket_id: created.ticket_id,
+        ticket_key: created.ticket_key,
+        sprint_id: created.sprint_id,
+        summary: created.summary,
+        status: created.status,
+        priority: created.priority,
+        assignee: created.assignee,
+        created_at: created.created_at,
+        updated_at: created.updated_at
+      });
+    }
+
+    res.status(201).json({ success: true, data: created });
   } catch (error) {
     console.error('Error creating ticket:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+app.put('/api/v1/tickets/:ticketId/status', async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { status } = req.body || {};
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'Status is required' });
+    }
+    const ticket = await Ticket.findOne({ where: { ticket_id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+    await ticket.update({ status });
+
+    if (global.realtimeEvents) {
+      global.realtimeEvents.emit('ticket_updated', {
+        id: ticket.id,
+        ticket_id: ticket.ticket_id,
+        ticket_key: ticket.ticket_key,
+        sprint_id: ticket.sprint_id,
+        summary: ticket.summary,
+        status: ticket.status,
+        priority: ticket.priority,
+        assignee: ticket.assignee,
+        updated_at: ticket.updated_at
+      });
+    }
+
+    res.json({ success: true, data: ticket });
+  } catch (error) {
+    console.error('Error updating ticket status:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+app.put('/api/v1/tickets/:ticketId', async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const updates = req.body || {};
+    const ticket = await Ticket.findOne({ where: { ticket_id: ticketId } });
+    if (!ticket) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+    await ticket.update(updates);
+
+    if (global.realtimeEvents) {
+      global.realtimeEvents.emit('ticket_updated', {
+        id: ticket.id,
+        ticket_id: ticket.ticket_id,
+        ticket_key: ticket.ticket_key,
+        sprint_id: ticket.sprint_id,
+        summary: ticket.summary,
+        status: ticket.status,
+        priority: ticket.priority,
+        assignee: ticket.assignee,
+        updated_at: ticket.updated_at
+      });
+    }
+
+    res.json({ success: true, data: ticket });
+  } catch (error) {
+    console.error('Error updating ticket:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

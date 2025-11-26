@@ -32,7 +32,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Sprints', 
         icon: Icons.timer_outlined, 
         route: '/sprint-console',
-        requiredPermission: 'manage_sprints',
+        requiredPermission: 'create_sprint',
       ),
       const _NavItem(
         label: 'Notifications',
@@ -41,16 +41,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null, // All users can access notifications
       ),
       const _NavItem(
-        label: 'Approvals',
-        icon: Icons.check_box_outlined,
-        route: '/approvals',
-        requiredPermission: 'view_approvals',
-      ),
-      const _NavItem(
         label: 'Approval Requests',
         icon: Icons.assignment_outlined,
         route: '/approval-requests',
-        requiredPermission: 'approve_deliverable',
+        requiredPermission: 'view_approvals',
       ),
       const _NavItem(
         label: 'Repository', 
@@ -62,7 +56,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Reports', 
         icon: Icons.assessment_outlined, 
         route: '/report-repository',
-        requiredPermission: null, // Allow all authenticated users (especially client reviewers)
+        requiredPermission: 'view_all_deliverables',
       ),
       const _NavItem(
         label: 'Role Management',
@@ -455,8 +449,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   String _getPageTitle(String route) {
     switch (route) {
-      case '/approvals':
-        return 'Approvals';
+      case '/approval-requests':
+        return 'Approval Requests';
       case '/notifications':
         return 'Notifications';
       case '/repository':

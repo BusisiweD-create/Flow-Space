@@ -1,6 +1,7 @@
 // ignore_for_file: strict_top_level_inference, duplicate_ignore
 
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
 import '../services/sprint_database_service.dart';
@@ -31,6 +32,8 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   String? _selectedProjectKey;
   String? _selectedSprintId;
   bool _isAiSuggesting = false;
+  bool _useAiForTicket = false;
+  bool _isGeneratingAiTicket = false;
   
   final SprintDatabaseService _databaseService = SprintDatabaseService();
   
@@ -480,7 +483,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                     ],
                     onChanged: (String? newStatus) {
                       if (newStatus != null && newStatus != sprint['status']) {
-                        _updateSprintStatus(sprint['id'], newStatus);
+                        _updateSprintStatus(sprint['id'].toString(), newStatus);
                       }
                     },
                   ),
@@ -1124,7 +1127,22 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
 
       if (result != null) {
         _showSnackBar('Sprint created successfully!');
-        await _loadData(); // Reload sprints
+        try {
+          setState(() {
+            _sprints = [result, ..._sprints];
+            _selectedSprintId = result['id']?.toString();
+          });
+          final id = result['id']?.toString() ?? '';
+          final nameArg = Uri.encodeComponent((result['name'] ?? '').toString());
+          if (id.isNotEmpty) {
+            if (!mounted) return;
+            GoRouter.of(context).go('/sprint-board/$id?name=$nameArg');
+          } else {
+            await _loadData();
+          }
+        } catch (_) {
+          await _loadData();
+        }
       } else {
         _showSnackBar('Failed to create sprint', isError: true);
       }
@@ -1138,8 +1156,245 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   }
 
   void _showCreateTicketDialog() {
-    // Implementation for creating tickets
-    _showSnackBar('Create Ticket dialog - Coming soon!');
+    if (_selectedSprintId == null) {
+      _showSnackBar('Select a sprint first', isError: true);
+      return;
+    }
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final assigneeController = TextEditingController();
+    final aiPromptController = TextEditingController();
+    String selectedPriority = 'Medium';
+    String selectedType = 'Task';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.charcoalBlack,
+        title: const Text('Create Ticket', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: SwitchListTile(
+                      value: _useAiForTicket,
+                      onChanged: (v) { setState(() { _useAiForTicket = v; }); },
+                      title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
+                    ),
+                  ),
+                ],
+              ),
+              if (_useAiForTicket) ...[
+                TextField(
+                  controller: aiPromptController,
+                  maxLines: 3,
+                  style: const TextStyle(color: FlownetColors.pureWhite),
+                  decoration: const InputDecoration(
+                    labelText: 'AI Prompt (requirements/context)',
+                    labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(color: FlownetColors.electricBlue),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: _isGeneratingAiTicket
+                        ? null
+                        : () async {
+                            setState(() { _isGeneratingAiTicket = true; });
+                            try {
+                              final backend = BackendApiService();
+                              final sprintName = _sprints.firstWhere(
+                                (s) => (s['id']?.toString() ?? '') == _selectedSprintId,
+                                orElse: () => {},
+                              )['name'] ?? '';
+                              final messages = [
+                                { 'role': 'system', 'content': 'You generate concise sprint tickets. Return JSON with keys: title, description.' },
+                                { 'role': 'user', 'content': 'Sprint: $sprintName. Requirements: ${aiPromptController.text}'.trim() }
+                              ];
+                              final resp = await backend.aiChat(messages, temperature: 0.4, maxTokens: 256);
+                              if (resp.isSuccess && resp.data != null) {
+                                final data = resp.data as Map<String, dynamic>;
+                                final content = (data['content'] ?? '').toString();
+                                String t = '';
+                                String d = '';
+                                try {
+                                  final parsed = content.startsWith('{') ? jsonDecode(content) : null;
+                                  if (parsed is Map) {
+                                    t = (parsed['title'] ?? '').toString();
+                                    d = (parsed['description'] ?? '').toString();
+                                  }
+                                } catch (_) {}
+                                if (t.isEmpty) {
+                                  final lines = content.split('\n').where((e) => e.trim().isNotEmpty).toList();
+                                  t = lines.isNotEmpty ? lines.first.trim() : 'New Sprint Ticket';
+                                  d = lines.skip(1).join('\n').trim();
+                                  if (d.isEmpty) d = content.trim();
+                                }
+                                titleController.text = t;
+                                descriptionController.text = d;
+                              }
+                            } catch (_) {}
+                            setState(() { _isGeneratingAiTicket = false; });
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: FlownetColors.electricBlue,
+                      foregroundColor: FlownetColors.pureWhite,
+                    ),
+                    icon: _isGeneratingAiTicket
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.auto_awesome),
+                    label: const Text('Generate with AI'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              TextField(
+                controller: titleController,
+                style: const TextStyle(color: FlownetColors.pureWhite),
+                decoration: const InputDecoration(
+                  labelText: 'Ticket Title',
+                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descriptionController,
+                maxLines: 3,
+                style: const TextStyle(color: FlownetColors.pureWhite),
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: assigneeController,
+                style: const TextStyle(color: FlownetColors.pureWhite),
+                decoration: const InputDecoration(
+                  labelText: 'Assignee Email',
+                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: selectedPriority,
+                      style: const TextStyle(color: FlownetColors.pureWhite),
+                      decoration: const InputDecoration(
+                        labelText: 'Priority',
+                        labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: FlownetColors.electricBlue),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                        ),
+                      ),
+                      dropdownColor: FlownetColors.charcoalBlack,
+                      items: const [
+                        DropdownMenuItem(value: 'Low', child: Text('Low', style: TextStyle(color: FlownetColors.pureWhite))),
+                        DropdownMenuItem(value: 'Medium', child: Text('Medium', style: TextStyle(color: FlownetColors.pureWhite))),
+                        DropdownMenuItem(value: 'High', child: Text('High', style: TextStyle(color: FlownetColors.pureWhite))),
+                        DropdownMenuItem(value: 'Critical', child: Text('Critical', style: TextStyle(color: FlownetColors.pureWhite))),
+                      ],
+                      onChanged: (value) => selectedPriority = value ?? 'Medium',
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: selectedType,
+                      style: const TextStyle(color: FlownetColors.pureWhite),
+                      decoration: const InputDecoration(
+                        labelText: 'Type',
+                        labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: FlownetColors.electricBlue),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                        ),
+                      ),
+                      dropdownColor: FlownetColors.charcoalBlack,
+                      items: const [
+                        DropdownMenuItem(value: 'Task', child: Text('Task', style: TextStyle(color: FlownetColors.pureWhite))),
+                        DropdownMenuItem(value: 'Bug', child: Text('Bug', style: TextStyle(color: FlownetColors.pureWhite))),
+                        DropdownMenuItem(value: 'Story', child: Text('Story', style: TextStyle(color: FlownetColors.pureWhite))),
+                        DropdownMenuItem(value: 'Epic', child: Text('Epic', style: TextStyle(color: FlownetColors.pureWhite))),
+                      ],
+                      onChanged: (value) => selectedType = value ?? 'Task',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (titleController.text.isNotEmpty) {
+                final navigator = Navigator.of(context);
+                final res = await _databaseService.createTicket(
+                  sprintId: _selectedSprintId!,
+                  title: titleController.text,
+                  description: descriptionController.text,
+                  assignee: assigneeController.text.isNotEmpty ? assigneeController.text : null,
+                  priority: selectedPriority,
+                  type: selectedType,
+                );
+                if (res != null) {
+                  _showSnackBar('Ticket created');
+                  await _loadTickets();
+                } else {
+                  _showSnackBar('Failed to create ticket', isError: true);
+                }
+                navigator.pop();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: FlownetColors.electricBlue,
+              foregroundColor: FlownetColors.pureWhite,
+            ),
+            child: const Text('Create Ticket'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _createProject(String name, String key, String description) async {

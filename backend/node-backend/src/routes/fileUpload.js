@@ -2,6 +2,7 @@
 
 const express = require('express');
 const multer = require('multer');
+const path = require('path');
 const fileUploadService = require('../services/fileUploadService');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -9,6 +10,7 @@ const router = express.Router();
 
 // Configure multer for file uploads
 const upload = multer({
+    storage: multer.memoryStorage(),
     limits: {
         fileSize: 10 * 1024 * 1024, // 10MB limit
     },
@@ -18,19 +20,46 @@ const upload = multer({
             'image/png', 
             'image/gif',
             'image/webp',
-            'application/pdf'
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain',
+            'application/octet-stream'
         ];
-        
-        if (allowedTypes.includes(file.mimetype)) {
+
+        const mt = file.mimetype || '';
+        if (allowedTypes.includes(mt)) {
             cb(null, true);
         } else {
-            cb(new Error('File type not allowed'), false);
+            cb(new Error(`File type not allowed: ${mt}`), false);
         }
     }
 });
 
+const handleMulterSingle = (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        next();
+    });
+};
+
+const handleMulterArray = (req, res, next) => {
+    upload.array('files')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        next();
+    });
+};
+
 // Upload single file
-router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
+router.post('/upload', authenticateToken, handleMulterSingle, async (req, res) => {
     try {
         const { prefix = '' } = req.body;
         
@@ -41,6 +70,26 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
         }
         
         const uploadResult = await fileUploadService.uploadFile(req.file, prefix);
+        try {
+            if (global && global.realtimeEvents) {
+                const ext = String(path.extname(uploadResult.filename || uploadResult.originalName || '')).replace('.', '').toLowerCase();
+                const sizeInMB = Math.round(((uploadResult.size || 0) / (1024 * 1024)) * 100) / 100;
+                const repoDoc = {
+                    id: uploadResult.filename,
+                    name: uploadResult.originalName || uploadResult.filename,
+                    fileType: ext || 'file',
+                    uploaded_at: new Date().toISOString(),
+                    uploaded_by: (req.user && req.user.id) || 'system',
+                    size: uploadResult.size,
+                    size_in_mb: sizeInMB,
+                    description: (req.body && req.body.description) || '',
+                    tags: (req.body && req.body.tags) || '',
+                    file_path: uploadResult.url,
+                    uploader_name: (req.user && (req.user.name || req.user.email)) || 'System',
+                };
+                global.realtimeEvents.emit('document_uploaded', repoDoc);
+            }
+        } catch (_) {}
         res.status(200).json(uploadResult);
         
     } catch (error) {
@@ -53,7 +102,7 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
 });
 
 // Upload multiple files
-router.post('/upload-multiple', authenticateToken, upload.array('files'), async (req, res) => {
+router.post('/upload-multiple', authenticateToken, handleMulterArray, async (req, res) => {
     try {
         const { prefix = '' } = req.body;
         

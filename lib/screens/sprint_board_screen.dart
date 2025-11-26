@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../services/sprint_database_service.dart';
+import '../services/backend_api_service.dart';
+import '../services/realtime_service.dart';
+import '../services/auth_service.dart';
 import '../services/jira_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/sprint_board_widget.dart';
@@ -24,6 +28,7 @@ class SprintBoardScreen extends ConsumerStatefulWidget {
 
 class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   final SprintDatabaseService _databaseService = SprintDatabaseService();
+  late RealtimeService _realtime;
   
   // Data
   List<JiraIssue> _issues = [];
@@ -32,11 +37,14 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   // UI State
   bool _isLoading = false;
   bool _isCreatingTicket = false;
+  bool _useAiForTicket = false;
+  bool _isGeneratingAi = false;
 
   @override
   void initState() {
     super.initState();
     _loadSprintData();
+    _setupRealtime();
   }
 
   Future<void> _loadSprintData() async {
@@ -60,6 +68,35 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _setupRealtime() {
+    _realtime = RealtimeService();
+    _realtime.initialize(authToken: AuthService().accessToken);
+    _realtime.on('ticket_created', (data) {
+      try {
+        final sid = (data['sprint_id'] ?? data['sprintId'] ?? '').toString();
+        if (sid == widget.sprintId) {
+          _loadSprintTickets();
+        }
+      } catch (_) {}
+    });
+    _realtime.on('ticket_updated', (data) {
+      try {
+        final sid = (data['sprint_id'] ?? data['sprintId'] ?? '').toString();
+        if (sid == widget.sprintId) {
+          _loadSprintTickets();
+        }
+      } catch (_) {}
+    });
+    _realtime.on('ticket_deleted', (data) {
+      try {
+        final sid = (data['sprint_id'] ?? data['sprintId'] ?? '').toString();
+        if (sid == widget.sprintId) {
+          _loadSprintTickets();
+        }
+      } catch (_) {}
+    });
   }
 
   Future<void> _loadSprintTickets() async {
@@ -151,6 +188,7 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
     final assigneeController = TextEditingController();
+    final aiPromptController = TextEditingController();
     String selectedPriority = 'Medium';
     String selectedType = 'Task';
 
@@ -166,6 +204,94 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: SwitchListTile(
+                      value: _useAiForTicket,
+                      onChanged: (v) {
+                        setState(() {
+                          _useAiForTicket = v;
+                        });
+                      },
+                      title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
+                    ),
+                  ),
+                ],
+              ),
+              if (_useAiForTicket) ...[
+                TextField(
+                  controller: aiPromptController,
+                  maxLines: 3,
+                  style: const TextStyle(color: FlownetColors.pureWhite),
+                  decoration: const InputDecoration(
+                    labelText: 'AI Prompt (requirements/context)',
+                    labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(color: FlownetColors.electricBlue),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: _isGeneratingAi
+                        ? null
+                        : () async {
+                            setState(() { _isGeneratingAi = true; });
+                            try {
+                              final backend = BackendApiService();
+                              final messages = [
+                                {
+                                  'role': 'system',
+                                  'content': 'You generate concise sprint tickets. Return JSON with keys: title, description.'
+                                },
+                                {
+                                  'role': 'user',
+                                  'content': 'Sprint: ${widget.sprintName}. Context: ${_sprintDetails?['description'] ?? ''}. Requirements: ${aiPromptController.text}'.trim()
+                                }
+                              ];
+                              final resp = await backend.aiChat(messages, temperature: 0.4, maxTokens: 256);
+                              if (resp.isSuccess && resp.data != null) {
+                                final data = resp.data as Map<String, dynamic>;
+                                final content = (data['content'] ?? '').toString();
+                                String t = '';
+                                String d = '';
+                                try {
+                                  final parsed = content.startsWith('{') ? jsonDecode(content) : null;
+                                  if (parsed is Map) {
+                                    t = (parsed['title'] ?? '').toString();
+                                    d = (parsed['description'] ?? '').toString();
+                                  }
+                                } catch (_) {}
+                                if (t.isEmpty) {
+                                  final lines = content.split('\n').where((e) => e.trim().isNotEmpty).toList();
+                                  t = lines.isNotEmpty ? lines.first.trim() : 'New Sprint Ticket';
+                                  d = lines.skip(1).join('\n').trim();
+                                  if (d.isEmpty) d = content.trim();
+                                }
+                                titleController.text = t;
+                                descriptionController.text = d;
+                              }
+                            } catch (_) {}
+                            setState(() { _isGeneratingAi = false; });
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: FlownetColors.electricBlue,
+                      foregroundColor: FlownetColors.pureWhite,
+                    ),
+                    icon: _isGeneratingAi
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.auto_awesome),
+                    label: const Text('Generate with AI'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               TextField(
                 controller: titleController,
                 style: const TextStyle(color: FlownetColors.pureWhite),
@@ -332,6 +458,7 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
     }
   }
 
+
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -339,6 +466,14 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
         backgroundColor: isError ? FlownetColors.crimsonRed : FlownetColors.electricBlue,
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _realtime.offAll('ticket_created');
+    _realtime.offAll('ticket_updated');
+    _realtime.offAll('ticket_deleted');
+    super.dispose();
   }
 
   Widget _buildSprintHeader() {
@@ -555,7 +690,9 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   String _formatDate(String dateString) {
     try {
       final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
+      final tz = date.toUtc().add(const Duration(hours: 2));
+      String two(int n) => n < 10 ? '0$n' : '$n';
+      return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
     } catch (e) {
       return dateString;
     }

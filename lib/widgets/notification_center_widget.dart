@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/notification_service.dart';
+import '../services/realtime_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 
@@ -14,6 +15,7 @@ class NotificationCenterWidget extends StatefulWidget {
 class _NotificationCenterWidgetState extends State<NotificationCenterWidget> {
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
+  late RealtimeService _realtime;
   
   int _unreadCount = 0;
   bool _isLoading = true;
@@ -21,6 +23,9 @@ class _NotificationCenterWidgetState extends State<NotificationCenterWidget> {
   @override
   void initState() {
     super.initState();
+    _realtime = RealtimeService();
+    _realtime.initialize(authToken: _authService.accessToken);
+    _realtime.on('notification_received', (_) => _loadUnreadCount());
     _loadUnreadCount();
   }
 
@@ -45,6 +50,12 @@ class _NotificationCenterWidgetState extends State<NotificationCenterWidget> {
         });
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _realtime.offAll('notification_received');
+    super.dispose();
   }
 
   @override

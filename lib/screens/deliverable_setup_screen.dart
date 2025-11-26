@@ -208,23 +208,60 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         setState(() => _isSaving = false);
         
         if (response.isSuccess) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ Deliverable "${_titleController.text}" created successfully!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          
-          // Clear form
-          _titleController.clear();
-          _descriptionController.clear();
-          _dodController.clear();
-          _evidenceLinksController.clear();
-          setState(() {
-            _dueDate = null;
-            _selectedSprints.clear();
-          });
+          try {
+            Deliverable? created;
+            if (response.data is Map<String, dynamic>) {
+              final m = response.data as Map<String, dynamic>;
+              if (m['deliverable'] is Deliverable) {
+                created = m['deliverable'] as Deliverable;
+              } else if (m['deliverable'] is Map) {
+                created = Deliverable.fromJson(Map<String, dynamic>.from(m['deliverable'] as Map));
+              } else if (m['id'] != null) {
+                created = Deliverable(
+                  id: m['id'].toString(),
+                  title: _titleController.text,
+                  description: _descriptionController.text,
+                  definitionOfDone: _dodController.text,
+                  priority: _priority,
+                  status: _status,
+                  dueDate: _dueDate,
+                  createdBy: '',
+                  assignedTo: null,
+                  sprintId: _selectedSprints.isNotEmpty ? _selectedSprints.first : null,
+                  createdByName: null,
+                  assignedToName: null,
+                  sprintName: null,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                );
+              }
+
+              if (created != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('✅ Deliverable "${created.title}" created'),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+                final Deliverable d = created;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _DeliverableDetailScreen(deliverable: d),
+                  ),
+                );
+              }
+            }
+
+            _titleController.clear();
+            _descriptionController.clear();
+            _dodController.clear();
+            _evidenceLinksController.clear();
+            setState(() {
+              _dueDate = null;
+              _selectedSprints.clear();
+            });
+          } catch (_) {}
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -501,5 +538,36 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
     _dodController.dispose();
     _evidenceLinksController.dispose();
     super.dispose();
+  }
+
+}
+
+class _DeliverableDetailScreen extends StatelessWidget {
+  final Deliverable deliverable;
+  const _DeliverableDetailScreen({required this.deliverable});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(deliverable.title)),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Priority: ${deliverable.priority}'),
+            const SizedBox(height: 8),
+            Text('Status: ${deliverable.status}'),
+            const SizedBox(height: 8),
+            if (deliverable.description != null) Text(deliverable.description!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Back'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

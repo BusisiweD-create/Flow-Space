@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 import '../models/repository_file.dart';
 import '../services/document_service.dart';
 import '../services/auth_service.dart';
 import '../services/sprint_database_service.dart';
+import '../services/realtime_service.dart';
 import '../services/deliverable_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -13,7 +15,8 @@ import '../widgets/document_preview_widget.dart';
 import '../widgets/audit_history_widget.dart';
 
 class RepositoryScreen extends StatefulWidget {
-  const RepositoryScreen({super.key});
+  final String? projectKey;
+  const RepositoryScreen({super.key, this.projectKey});
 
   @override
   State<RepositoryScreen> createState() => _RepositoryScreenState();
@@ -48,6 +51,38 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
       try {
         await AuthService().initialize();
       } catch (_) {}
+      try {
+        final token = AuthService().accessToken;
+        if (token != null && token.isNotEmpty) {
+          await RealtimeService().initialize(authToken: token);
+          RealtimeService().on('document_uploaded', (data) {
+            try {
+              final doc = RepositoryFile.fromJson(Map<String, dynamic>.from(data));
+              setState(() {
+                _documents = [doc, ..._documents];
+              });
+              _filterDocuments();
+            } catch (_) {
+              _loadDocuments();
+            }
+          });
+          RealtimeService().on('document_deleted', (data) {
+            try {
+              final id = (data is Map && data['id'] != null) ? data['id'].toString() : null;
+              if (id != null) {
+                setState(() {
+                  _documents.removeWhere((d) => d.id == id);
+                  _filteredDocuments.removeWhere((d) => d.id == id);
+                });
+              } else {
+                _loadDocuments();
+              }
+            } catch (_) {
+              _loadDocuments();
+            }
+          });
+        }
+      } catch (_) {}
       if (!mounted) return;
       await _loadFilters();
       await _loadDocuments();
@@ -67,6 +102,17 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
           _deliverables = deliverablesResponse.data!['deliverables'] as List? ?? [];
         }
       });
+
+      if (widget.projectKey != null && widget.projectKey!.isNotEmpty) {
+        for (final p in _projects) {
+          final key = (p['key'] ?? '').toString();
+          if (key == widget.projectKey) {
+            _selectedProjectId = p['id']?.toString();
+            _selectedSprintId = null;
+            break;
+          }
+        }
+      }
     } catch (e) {
       // Silently fail - filters will just be empty
     }
@@ -80,6 +126,8 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
         fileType: _selectedFileType != 'all' ? _selectedFileType : null,
         projectId: _selectedProjectId,
+        sprintId: _selectedSprintId,
+        deliverableId: _selectedDeliverableId,
         from: _dateFrom?.toIso8601String(),
         to: _dateTo?.toIso8601String(),
       );
@@ -406,26 +454,11 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         final matchesFileType = _selectedFileType == 'all' ||
             doc.fileType.toLowerCase() == _selectedFileType.toLowerCase();
 
-        final matchesProject = _selectedProjectId == null ||
-            (doc.tags?.contains(_selectedProjectId!) == true ||
-             doc.description.contains(_selectedProjectId!) ||
-             doc.filePath?.contains(_selectedProjectId!) == true);
-
-        final matchesSprint = _selectedSprintId == null ||
-            (doc.tags?.contains(_selectedSprintId!) == true ||
-             doc.description.contains(_selectedSprintId!) ||
-             doc.filePath?.contains(_selectedSprintId!) == true);
-
-        final matchesDeliverable = _selectedDeliverableId == null ||
-            (doc.tags?.contains(_selectedDeliverableId!) == true ||
-             doc.description.contains(_selectedDeliverableId!) ||
-             doc.filePath?.contains(_selectedDeliverableId!) == true);
-
         final inDateRange = (_dateFrom == null && _dateTo == null) ||
             ((_dateFrom == null || doc.uploadDate.isAfter(_dateFrom!)) &&
              (_dateTo == null || doc.uploadDate.isBefore(_dateTo!)));
 
-        return matchesSearch && matchesFileType && matchesProject && matchesSprint && matchesDeliverable && inDateRange;
+        return matchesSearch && matchesFileType && inDateRange;
       }).toList();
     });
   }
@@ -528,8 +561,18 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                         onChanged: (value) {
                           setState(() {
                             _selectedProjectId = value;
-                            _selectedSprintId = null; // Reset sprint when project changes
+                            _selectedSprintId = null;
                           });
+                          try {
+                            final proj = _projects.firstWhere(
+                              (p) => p['id']?.toString() == value,
+                              orElse: () => {},
+                            );
+                            final key = proj.isNotEmpty ? (proj['key'] ?? '').toString() : '';
+                            if (key.isNotEmpty) {
+                              GoRouter.of(context).go('/repository/$key');
+                            }
+                          } catch (_) {}
                           _loadDocuments();
                         },
                       ),
@@ -777,7 +820,9 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
   }
 
   String _formatDateShort(DateTime date) {

@@ -17,7 +17,7 @@ function toRepositoryFile(file) {
     size: file.size,
     size_in_mb: sizeInMB,
     description: '',
-    tags: [],
+    tags: '',
     file_path: file.url,
     uploader_name: 'System',
   };
@@ -83,6 +83,7 @@ router.delete('/:id', authenticateToken, requireRole(['system_admin', 'project_m
   try {
     const ok = await fileUploadService.deleteFile(req.params.id);
     if (!ok) return res.status(404).json({ success: false, error: 'File not found' });
+    try { if (global.realtimeEvents) { global.realtimeEvents.emit('document_deleted', { id: req.params.id }); } } catch (_) {}
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message || 'Delete failed' });

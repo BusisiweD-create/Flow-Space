@@ -6,7 +6,7 @@ import '../widgets/flownet_logo.dart';
 import '../providers/notification_provider.dart';
 import 'report_repository_screen.dart';
 import 'client_review_workflow_screen.dart';
-import 'approvals_screen.dart';
+import 'approval_requests_screen.dart';
 import 'repository_screen.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -64,19 +64,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         }
         break;
       case NotificationType.approval:
-        if (notification.relatedId != null && notification.relatedId!.isNotEmpty) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ApprovalsScreen(reportId: notification.relatedId!),
-            ),
-          );
-        } else {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ApprovalsScreen()),
-          );
-        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ApprovalRequestsScreen()),
+        );
         break;
       case NotificationType.repository:
       case NotificationType.file:

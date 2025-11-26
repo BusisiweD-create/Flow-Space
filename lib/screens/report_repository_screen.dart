@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../services/sign_off_report_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
+import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/document_preview_widget.dart';
@@ -41,6 +42,47 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     super.initState();
     _loadReports();
     _loadReportDocuments();
+    Future.microtask(() async {
+      try {
+        await AuthService().initialize();
+      } catch (_) {}
+      try {
+        final token = AuthService().accessToken;
+        if (token != null && token.isNotEmpty) {
+          await RealtimeService().initialize(authToken: token);
+          RealtimeService().on('document_uploaded', (data) {
+            try {
+              final doc = RepositoryFile.fromJson(Map<String, dynamic>.from(data));
+              setState(() {
+                _reportDocuments = [doc, ..._reportDocuments];
+              });
+            } catch (_) {
+              _loadReportDocuments();
+            }
+          });
+          RealtimeService().on('document_deleted', (data) {
+            try {
+              final id = (data is Map && data['id'] != null) ? data['id'].toString() : null;
+              if (id != null) {
+                setState(() {
+                  _reportDocuments.removeWhere((d) => d.id == id);
+                });
+              } else {
+                _loadReportDocuments();
+              }
+            } catch (_) {
+              _loadReportDocuments();
+            }
+          });
+          RealtimeService().on('report_created', (_) => _loadReports());
+          RealtimeService().on('report_submitted', (_) => _loadReports());
+          RealtimeService().on('report_approved', (_) => _loadReports());
+          RealtimeService().on('report_change_requested', (_) => _loadReports());
+          RealtimeService().on('report_updated', (_) => _loadReports());
+          RealtimeService().on('report_deleted', (_) => _loadReports());
+        }
+      } catch (_) {}
+    });
   }
 
   Future<void> _loadReportDocuments() async {
@@ -1023,7 +1065,9 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
   }
 
   Future<void> _downloadDocument(RepositoryFile document) async {

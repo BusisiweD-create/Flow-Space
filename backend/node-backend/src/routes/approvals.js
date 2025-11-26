@@ -145,8 +145,9 @@ router.post('/', async (req, res) => {
 
       let roles = [];
       const target = (send_to || '').toLowerCase();
-      if (target === 'system_admin') roles = ['system_admin'];
-      else roles = ['client_reviewer'];
+      if (target === 'system_admin') roles = ['system_admin','systemAdmin','SystemAdmin'];
+      else if (target === 'delivery_lead') roles = ['delivery_lead','deliveryLead','DeliveryLead'];
+      else roles = ['client_reviewer','clientReviewer','ClientReviewer','delivery_lead','deliveryLead','DeliveryLead'];
 
       const recipients = await User.findAll({ where: { role: { [Op.in]: roles } } });
       if (recipients && recipients.length > 0) {
@@ -307,8 +308,9 @@ router.put('/:id/remind', async (req, res) => {
 
       const target = (send_to || '').toLowerCase();
       let roles = [];
-      if (target === 'system_admin') roles = ['system_admin'];
-      else roles = ['client_reviewer'];
+      if (target === 'system_admin') roles = ['system_admin','systemAdmin','SystemAdmin'];
+      else if (target === 'delivery_lead') roles = ['delivery_lead','deliveryLead','DeliveryLead'];
+      else roles = ['client_reviewer','clientReviewer','ClientReviewer','delivery_lead','deliveryLead','DeliveryLead'];
 
       const recipients = await User.findAll({ where: { role: { [Op.in]: roles } } });
 

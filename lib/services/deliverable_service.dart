@@ -173,6 +173,7 @@ class DeliverableService {
         'priority': priority,
         'status': status,
         'due_date': dueDate?.toIso8601String(),
+        'created_by': _authService.currentUser?.id,
         'assigned_to': assignedTo,
         'sprint_id': sprintId,
       };

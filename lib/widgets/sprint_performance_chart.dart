@@ -73,29 +73,48 @@ class SprintPerformanceChart extends StatelessWidget {
 
   Widget _buildVelocityChart() {
     final spots = <FlSpot>[];
+    double maxY = 0;
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      spots.add(FlSpot(
-        i.toDouble(),
-        (sprint['completed_points'] ?? 0).toDouble(),
-      ),);
+      final y = _toDouble(sprint['completed_points'] ?? sprint['velocity'] ?? sprint['completed'] ?? 0);
+      if (y > maxY) maxY = y;
+      spots.add(FlSpot(i.toDouble(), y));
     }
+
+    final interval = maxY <= 10
+        ? 2.0
+        : maxY <= 50
+            ? 5.0
+            : 10.0;
 
     return LineChart(
       LineChartData(
+        minY: 0,
+        maxY: maxY == 0 ? 10 : maxY * 1.2,
         gridData: const FlGridData(show: true),
         titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              interval: interval,
+              getTitlesWidget: (value, meta) => Text(value.toInt().toString()),
+            ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 40,
               getTitlesWidget: (value, meta) {
-                if (value.toInt() < sprints.length) {
-                  return Text('Sprint ${value.toInt() + 1}');
+                final i = value.toInt();
+                if (i >= 0 && i < sprints.length) {
+                  final label = _sprintLabel(i);
+                  return Transform.rotate(
+                    angle: -0.6,
+                    child: Text(label, overflow: TextOverflow.ellipsis),
+                  );
                 }
-                return const Text('');
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -116,33 +135,44 @@ class SprintPerformanceChart extends StatelessWidget {
             ),
           ),
         ],
+        lineTouchData: const LineTouchData(enabled: true),
       ),
     );
   }
 
   Widget _buildBurndownChart() {
     final spots = <FlSpot>[];
+    double maxY = 0;
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      final remaining = (sprint['planned_points'] ?? 0) - (sprint['completed_points'] ?? 0);
-      spots.add(FlSpot(i.toDouble(), remaining.toDouble()));
+      final remaining = _toDouble(sprint['planned_points'] ?? 0) - _toDouble(sprint['completed_points'] ?? 0);
+      if (remaining > maxY) maxY = remaining;
+      spots.add(FlSpot(i.toDouble(), remaining));
     }
 
     return LineChart(
       LineChartData(
         gridData: const FlGridData(show: true),
         titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              interval: maxY <= 10 ? 2.0 : (maxY <= 50 ? 5.0 : 10.0),
+              getTitlesWidget: (value, meta) => Text(value.toInt().toString()),
+            ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 40,
               getTitlesWidget: (value, meta) {
-                if (value.toInt() < sprints.length) {
-                  return Text('Sprint ${value.toInt() + 1}');
+                final i = value.toInt();
+                if (i >= 0 && i < sprints.length) {
+                  final label = _sprintLabel(i);
+                  return Transform.rotate(angle: -0.6, child: Text(label, overflow: TextOverflow.ellipsis));
                 }
-                return const Text('');
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -166,9 +196,11 @@ class SprintPerformanceChart extends StatelessWidget {
   Widget _buildBurnupChart() {
     final spots = <FlSpot>[];
     double cumulative = 0;
+    double maxY = 0;
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      cumulative += (sprint['completed_points'] ?? 0).toDouble();
+      cumulative += _toDouble(sprint['completed_points'] ?? 0);
+      if (cumulative > maxY) maxY = cumulative;
       spots.add(FlSpot(i.toDouble(), cumulative));
     }
 
@@ -176,17 +208,25 @@ class SprintPerformanceChart extends StatelessWidget {
       LineChartData(
         gridData: const FlGridData(show: true),
         titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              interval: maxY <= 10 ? 2.0 : (maxY <= 50 ? 5.0 : 10.0),
+              getTitlesWidget: (value, meta) => Text(value.toInt().toString()),
+            ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 40,
               getTitlesWidget: (value, meta) {
-                if (value.toInt() < sprints.length) {
-                  return Text('Sprint ${value.toInt() + 1}');
+                final i = value.toInt();
+                if (i >= 0 && i < sprints.length) {
+                  final label = _sprintLabel(i);
+                  return Transform.rotate(angle: -0.6, child: Text(label, overflow: TextOverflow.ellipsis));
                 }
-                return const Text('');
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -213,27 +253,37 @@ class SprintPerformanceChart extends StatelessWidget {
 
   Widget _buildDefectsChart() {
     final spots = <FlSpot>[];
+    double maxY = 0;
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      final defectCount = (sprint['defects_opened'] ?? sprint['defect_count'] ?? 0) as num;
-      spots.add(FlSpot(i.toDouble(), defectCount.toDouble()));
+      final defectCount = _toDouble(sprint['defects_opened'] ?? sprint['defect_count'] ?? 0);
+      if (defectCount > maxY) maxY = defectCount;
+      spots.add(FlSpot(i.toDouble(), defectCount));
     }
 
     return LineChart(
       LineChartData(
         gridData: const FlGridData(show: true),
         titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              interval: maxY <= 10 ? 2.0 : (maxY <= 50 ? 5.0 : 10.0),
+              getTitlesWidget: (value, meta) => Text(value.toInt().toString()),
+            ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 40,
               getTitlesWidget: (value, meta) {
-                if (value.toInt() < sprints.length) {
-                  return Text('Sprint ${value.toInt() + 1}');
+                final i = value.toInt();
+                if (i >= 0 && i < sprints.length) {
+                  final label = _sprintLabel(i);
+                  return Transform.rotate(angle: -0.6, child: Text(label, overflow: TextOverflow.ellipsis));
                 }
-                return const Text('');
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -258,7 +308,9 @@ class SprintPerformanceChart extends StatelessWidget {
     final spots = <FlSpot>[];
     for (int i = 0; i < sprints.length; i++) {
       final sprint = sprints[i];
-      final passRate = ((sprint['test_pass_rate'] ?? 0) as num).clamp(0, 100).toDouble();
+      double passRate = _toDouble(sprint['test_pass_rate'] ?? 0);
+      if (passRate > 100) passRate = 100;
+      if (passRate < 0) passRate = 0;
       spots.add(FlSpot(i.toDouble(), passRate));
     }
 
@@ -266,17 +318,25 @@ class SprintPerformanceChart extends StatelessWidget {
       LineChartData(
         gridData: const FlGridData(show: true),
         titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              interval: 20,
+              getTitlesWidget: (value, meta) => Text('${value.toInt()}%'),
+            ),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 40,
               getTitlesWidget: (value, meta) {
-                if (value.toInt() < sprints.length) {
-                  return Text('Sprint ${value.toInt() + 1}');
+                final i = value.toInt();
+                if (i >= 0 && i < sprints.length) {
+                  final label = _sprintLabel(i);
+                  return Transform.rotate(angle: -0.6, child: Text(label, overflow: TextOverflow.ellipsis));
                 }
-                return const Text('');
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -299,6 +359,22 @@ class SprintPerformanceChart extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  double _toDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
+  String _sprintLabel(int index) {
+    final s = sprints[index];
+    final name = s['name']?.toString() ?? s['title']?.toString() ?? '';
+    if (name.isNotEmpty) return name;
+    final start = s['start_date']?.toString() ?? s['startDate']?.toString() ?? '';
+    final end = s['end_date']?.toString() ?? s['endDate']?.toString() ?? '';
+    if (start.isNotEmpty && end.isNotEmpty) return '${start.substring(0, 10)}→${end.substring(0, 10)}';
+    return 'Sprint ${index + 1}';
   }
 }
 

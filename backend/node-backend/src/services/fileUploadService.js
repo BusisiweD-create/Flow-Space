@@ -23,6 +23,7 @@ class FileUploadService {
     
     async uploadFile(file, prefix = '') {
         try {
+            await this.ensureStorageDirectory();
             // Generate unique filename
             const fileExtension = path.extname(file.originalname) || '.bin';
             const uniqueFilename = `${uuidv4().replace(/-/g, '')}${fileExtension}`;
@@ -42,6 +43,13 @@ class FileUploadService {
             
             // Write file to storage
             await fs.writeFile(storagePath, file.buffer);
+            const metadata = {
+                originalName: file.originalname,
+                uploadDate: new Date().toISOString()
+            };
+            try {
+                await fs.writeFile(`${storagePath}.meta.json`, JSON.stringify(metadata));
+            } catch (error) {}
             
             return {
                 filename: uniqueFilename,
@@ -107,11 +115,19 @@ class FileUploadService {
                     const stats = await fs.stat(filePath);
                     
                     if (stats.isFile()) {
+                        let originalName = file;
+                        let uploadDate = stats.mtime;
+                        try {
+                            const metaRaw = await fs.readFile(`${filePath}.meta.json`, 'utf8');
+                            const meta = JSON.parse(metaRaw);
+                            if (meta && meta.originalName) originalName = meta.originalName;
+                            if (meta && meta.uploadDate) uploadDate = new Date(meta.uploadDate);
+                        } catch (_) {}
                         fileDetails.push({
                             filename: file,
-                            originalName: file, // For simplicity, use filename as original name
+                            originalName: originalName,
                             size: stats.size,
-                            uploadDate: stats.mtime,
+                            uploadDate: uploadDate,
                             url: `${this.baseUrl}/${prefix ? prefix + '/' : ''}${file}`,
                             storageProvider: 'local'
                         });

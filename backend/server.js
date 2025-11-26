@@ -8,6 +8,9 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -619,13 +622,30 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
 // Sprints routes
 app.get('/api/v1/sprints', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT s.id, s.name, s.description, s.status, s.created_by, s.created_at, s.updated_at,
-             u.name as created_by_name
-      FROM sprints s
-      LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
-      ORDER BY s.created_at DESC
-    `);
+    let result;
+    try {
+      result = await pool.query(`
+        SELECT s.id, s.name, s.description, s.status, s.created_by, s.created_at, s.updated_at,
+               s.project_id,
+               u.name as created_by_name
+        FROM sprints s
+        LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
+        ORDER BY s.created_at DESC
+      `);
+    } catch (err) {
+      if (err.code === '42703') {
+        // Column project_id missing; fallback without it
+        result = await pool.query(`
+          SELECT s.id, s.name, s.description, s.status, s.created_by, s.created_at, s.updated_at,
+                 u.name as created_by_name
+          FROM sprints s
+          LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
+          ORDER BY s.created_at DESC
+        `);
+      } else {
+        throw err;
+      }
+    }
     
     const sprints = result.rows.map(row => ({
       id: row.id,
@@ -636,6 +656,7 @@ app.get('/api/v1/sprints', async (req, res) => {
       created_at: row.created_at,
       updated_at: row.updated_at,
       created_by_name: row.created_by_name || 'Unknown',
+      project_id: row.project_id || null,
     }));
     
     res.json({
@@ -666,7 +687,7 @@ app.get('/api/v1/sprints', async (req, res) => {
 
 app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
   try {
-    const { name, description, start_date, end_date, plannedPoints, completedPoints } = req.body;
+    const { name, description, start_date, end_date, plannedPoints, completedPoints, project_id } = req.body;
     const userId = req.user.id;
     
     if (!name || !start_date || !end_date) {
@@ -676,12 +697,36 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
       });
     }
     
-    const result = await pool.query(
-      `INSERT INTO sprints (name, description, start_date, end_date, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [name, description || '', start_date, end_date, userId, new Date().toISOString(), new Date().toISOString()]
-    );
+    let result;
+    try {
+      if (project_id) {
+        result = await pool.query(
+          `INSERT INTO sprints (name, description, start_date, end_date, created_by, project_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6::uuid, $7, $8)
+           RETURNING *`,
+          [name, description || '', start_date, end_date, userId, project_id, new Date().toISOString(), new Date().toISOString()]
+        );
+      } else {
+        result = await pool.query(
+          `INSERT INTO sprints (name, description, start_date, end_date, created_by, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [name, description || '', start_date, end_date, userId, new Date().toISOString(), new Date().toISOString()]
+        );
+      }
+    } catch (err) {
+      if (err.code === '42703') {
+        // Column project_id missing; retry without project_id
+        result = await pool.query(
+          `INSERT INTO sprints (name, description, start_date, end_date, created_by, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [name, description || '', start_date, end_date, userId, new Date().toISOString(), new Date().toISOString()]
+        );
+      } else {
+        throw err;
+      }
+    }
     
     res.json({
       success: true,
@@ -697,12 +742,28 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
 app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(`
-      SELECT s.*, u.name as created_by_name
-      FROM sprints s
-      LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
-      WHERE s.id = $1
-    `, [id]);
+    let result;
+    try {
+      result = await pool.query(`
+        SELECT s.*, u.name as created_by_name
+        FROM sprints s
+        LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
+        WHERE s.id = $1::uuid
+      `, [id]);
+    } catch (err) {
+      if (err.code === '42P01' || err.code === '42703') {
+        // Fallback without assuming project_id column exists
+        result = await pool.query(`
+          SELECT s.id, s.name, s.description, s.status, s.created_by, s.created_at, s.updated_at,
+                 u.name as created_by_name
+          FROM sprints s
+          LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
+          WHERE s.id = $1::uuid
+        `, [id]);
+      } else {
+        throw err;
+      }
+    }
     
     if (result.rows.length === 0) {
       return res.status(404).json({ 
@@ -752,6 +813,28 @@ app.get('/api/v1/sprints/:id/tickets', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Get sprint tickets error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update sprint status only
+app.put('/api/v1/sprints/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'status is required' });
+    }
+    const result = await pool.query(
+      `UPDATE sprints SET status = $1, updated_at = $2 WHERE id = $3::uuid RETURNING *`,
+      [status, new Date().toISOString(), id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Sprint not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Update sprint status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -854,27 +937,27 @@ app.put('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
 app.post('/api/v1/sprints/:id/tickets', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, assignee, priority, type } = req.body;
-    
+    const { title, description, assignee, priority, type, project_id } = req.body;
+
     const result = await pool.query(`
       INSERT INTO tickets (ticket_id, ticket_key, summary, description, status, issue_type, priority, assignee, reporter, sprint_id, project_id, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::uuid, $11, $12)
       RETURNING *
     `, [
       `TICK-${Date.now()}`,
       `FLOW-${Date.now()}`,
       title,
-      description,
+      description || '',
       'To Do',
       type || 'Task',
       priority || 'Medium',
       assignee,
       'system',
       id,
-      null, // project_id
+      project_id || null,
       new Date().toISOString()
     ]);
-    
+
     res.status(201).json({
       success: true,
       data: result.rows[0]
@@ -895,7 +978,8 @@ app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
       description,
       assignee,
       priority,
-      type
+      type,
+      project_id
     } = req.body;
     const sprint_id = sprintIdSnake || sprintIdCamel;
     if (!req.user || !req.user.id) {
@@ -919,7 +1003,7 @@ app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
       assignee,
       'system',
       sprint_id,
-      null,
+      project_id || null,
       new Date().toISOString(),
       req.user.id
     ]);

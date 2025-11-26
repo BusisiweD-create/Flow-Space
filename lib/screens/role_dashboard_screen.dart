@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/user_role.dart';
@@ -7,6 +8,8 @@ import '../services/auth_service.dart';
 import '../services/realtime_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/api_service.dart';
+import '../services/sign_off_report_service.dart';
+import '../widgets/sprint_performance_chart.dart';
 
 class RoleDashboardScreen extends ConsumerStatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -19,23 +22,24 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   User? _currentUser;
   final AuthService _authService = AuthService();
   late RealtimeService realtimeService;
+  final SignOffReportService _reportService = SignOffReportService(AuthService());
   bool _isLoadingDashboardDeliverables = false;
   bool _isLoadingDashboardSprints = false;
-  bool _isLoadingDashboardApprovals = false;
   bool _isLoadingDashboardProjects = false;
   List<Map<String, dynamic>> _dashboardDeliverables = [];
   List<Map<String, dynamic>> _dashboardSprints = [];
-  List<Map<String, dynamic>> _dashboardApprovals = [];
   List<Map<String, dynamic>> _dashboardProjects = [];
   List<Map<String, dynamic>> _auditLogs = [];
   List<Map<String, dynamic>> _filteredAuditLogs = [];
   final BackendApiService _backendService = BackendApiService();
-  Map<String, dynamic> _systemMetrics = {};
-  bool _isLoadingSystemMetrics = false;
-  String? _systemMetricsError;
-  List<Map<String, dynamic>> _users = [];
-  bool _isLoadingUsers = false;
-  String? _usersError;
+  List<Map<String, dynamic>> _pendingReports = [];
+  bool _isLoadingPendingReports = false;
+  String? _pendingReportsError;
+  Map<String, dynamic> _clientReviewMetrics = {};
+  bool _isLoadingClientMetrics = false;
+  Map<String, dynamic> _teamMetrics = {};
+  bool _isLoadingTeamMetrics = false;
+  String _selectedChartType = 'velocity';
   bool _isLoadingAuditLogs = false;
   String? _auditLogsError;
 
@@ -45,14 +49,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     realtimeService = RealtimeService();
     realtimeService.initialize(authToken: _authService.accessToken);
     _loadCurrentUser();
-    _loadUsers();
     _loadDashboardSprints();
-    _loadDashboardApprovals();
     _loadDashboardDeliverables();
     _loadDashboardProjects();
     _loadReviewHistoryReports();
-    _loadSystemMetrics();
-    _loadSystemHealth();
+    _loadPendingReports();
+    _loadClientReviewMetrics();
+    _computeTeamMetrics();
     _setupRealtimeListeners();
   }
 
@@ -71,67 +74,29 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     realtimeService.offAll('deliverable_updated');
     realtimeService.offAll('approval_created');
     realtimeService.offAll('approval_updated');
+    realtimeService.offAll('project_created');
+    realtimeService.offAll('project_updated');
+    realtimeService.offAll('notification_received');
     super.dispose();
   }
 
-  
-  Future<void> _loadUsers() async {
-    setState(() {
-      _isLoadingUsers = true;
-      _usersError = null;
-    });
-    try {
-      final resp = await _backendService.getUsers(page: 1, limit: 100);
-      if (resp.isSuccess && resp.data != null) {
-        final dynamic raw = resp.data;
-        final List<dynamic> items = raw is Map ? (raw['data'] ?? raw['users'] ?? raw['items'] ?? []) : (raw is List ? raw : []);
-        setState(() {
-          _users = items.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
-        });
-      } else {
-        setState(() {
-          _users = [];
-          _usersError = resp.error ?? 'Failed to load users';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _usersError = 'Failed to load users';
-        _users = [];
-      });
-    } finally {
-      if (mounted) setState(() => _isLoadingUsers = false);
-    }
-  }
   Future<void> _loadDashboardSprints() async {
     setState(() => _isLoadingDashboardSprints = true);
     try {
       final items = await ApiService.getSprints();
       _dashboardSprints = items;
+      _computeTeamMetrics();
     } finally {
       if (mounted) setState(() => _isLoadingDashboardSprints = false);
     }
   }
-  Future<void> _loadDashboardApprovals() async {
-    setState(() => _isLoadingDashboardApprovals = true);
-    try {
-      final resp = await _backendService.getApprovalRequests(status: 'pending', page: 1, limit: 100);
-      if (resp.isSuccess && resp.data != null) {
-        final dynamic raw = resp.data;
-        final List<dynamic> items = raw is Map ? (raw['data'] ?? raw['requests'] ?? raw['items'] ?? []) : (raw is List ? raw : []);
-        _dashboardApprovals = items.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
-      } else {
-        _dashboardApprovals = [];
-      }
-    } finally {
-      if (mounted) setState(() => _isLoadingDashboardApprovals = false);
-    }
-  }
+  
   Future<void> _loadDashboardDeliverables() async {
     setState(() => _isLoadingDashboardDeliverables = true);
     try {
       final items = await ApiService.getDeliverables();
       _dashboardDeliverables = items;
+      _computeTeamMetrics();
     } finally {
       if (mounted) setState(() => _isLoadingDashboardDeliverables = false);
     }
@@ -147,6 +112,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       } else {
         _dashboardProjects = [];
       }
+      _computeTeamMetrics();
     } finally {
       if (mounted) setState(() => _isLoadingDashboardProjects = false);
     }
@@ -183,47 +149,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       if (mounted) setState(() => _isLoadingAuditLogs = false);
     }
   }
-  Future<void> _loadSystemMetrics() async {
-    setState(() {
-      _isLoadingSystemMetrics = true;
-      _systemMetricsError = null;
-    });
-    try {
-      final data = await ApiService.getDashboardData();
-      setState(() {
-        _systemMetrics = data;
-        _isLoadingSystemMetrics = false;
-      });
-    } catch (e) {
-      setState(() {
-        _systemMetricsError = 'Failed to load system metrics';
-        _isLoadingSystemMetrics = false;
-      });
-    }
-  }
+  
 
   Future<void> _loadCurrentUser() async {
     try {
       // Get the current user from AuthService
       final user = await _authService.getCurrentUser();
-      if (user != null && user.isActive) {
+      if (user != null && (user.isActive || user.isSystemAdmin)) {
         setState(() {
           _currentUser = user;
         });
         debugPrint('✅ Loaded user: ${user.name} (${user.email})');
       } else {
-        debugPrint('❌ Inactive or no user found, redirecting to login');
-        if (mounted) {
-          final messenger = ScaffoldMessenger.of(context);
-          final router = GoRouter.of(context);
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Your account is inactive. Please contact support.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          await _authService.signOut();
-          router.go('/');
+        if (!_authService.isAuthenticated) {
+          debugPrint('❌ Inactive or no user found, redirecting to login');
+          if (mounted) {
+            final messenger = ScaffoldMessenger.of(context);
+            final router = GoRouter.of(context);
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Your account is inactive. Please contact support.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            router.go('/');
+          }
         }
       }
     } catch (e) {
@@ -361,6 +311,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           const SizedBox(height: 24),
           _buildSprintOverview(),
           const SizedBox(height: 24),
+          _buildDeliverablesOverview(),
+          const SizedBox(height: 24),
           _buildProjectsOverview(),
           const SizedBox(height: 24),
           _buildPendingReviews(),
@@ -399,15 +351,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         children: [
           _buildWelcomeCard(),
           const SizedBox(height: 24),
+          _buildAdminFeatures(),
+          const SizedBox(height: 24),
           _buildReminderQuickActions(),
-          const SizedBox(height: 24),
-          _buildSystemMetrics(),
-          const SizedBox(height: 24),
-          _buildUserManagement(),
-          const SizedBox(height: 24),
-          _buildSystemHealth(),
-          const SizedBox(height: 24),
-          _buildAuditLogs(),
         ],
       ),
     );
@@ -423,7 +369,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCardHeader(Icons.notifications_active, 'Approval Reminders', route: '/approvals'),
+            _buildCardHeader(Icons.notifications_active, 'Approval Reminders', route: '/approval-requests'),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -446,13 +392,47 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     try {
       final resp = await _backendService.getSignOffReports(page: 1, limit: 50);
       final raw = resp.data;
-      final List<dynamic> items = raw is List
-          ? raw
-          : (raw is Map ? (raw['data'] ?? raw['reports'] ?? raw['items'] ?? []) : []);
+      List<dynamic> items = const [];
+      if (raw is List) {
+        items = raw;
+      } else if (raw is Map) {
+        final d = raw['data'];
+        if (d is List) {
+          items = d;
+        } else if (d is Map) {
+          final inner = d['reports'] ?? d['items'] ?? d['data'];
+          if (inner is List) {
+            items = inner;
+          } else {
+            items = const [];
+          }
+        } else {
+          final r = raw['reports'];
+          if (r is List) {
+            items = r;
+          } else if (r is Map) {
+            final inner = r['items'] ?? r['data'];
+            if (inner is List) items = inner;
+          } else {
+            final i = raw['items'];
+            if (i is List) items = i;
+          }
+        }
+      }
 
       final reports = items
           .whereType<Map>()
-          .map((e) => e.cast<String, dynamic>())
+          .map((e) {
+            final m = e.cast<String, dynamic>();
+            final c = m['content'];
+            if (c is String) {
+              try {
+                final decoded = jsonDecode(c);
+                if (decoded is Map) m['content'] = Map<String, dynamic>.from(decoded);
+              } catch (_) {}
+            }
+            return m;
+          })
           .toList();
       String? selectedReportId = reports.isNotEmpty ? (reports.first['id']?.toString()) : null;
       String recipientRole = 'client_reviewer';
@@ -572,13 +552,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.people_outline),
-                    title: const Text('User Management'),
-                    onTap: () {
-                      context.go('/user-management');
-                    },
-                  ),
-                  ListTile(
                     leading: const Icon(Icons.admin_panel_settings),
                     title: const Text('Role Management'),
                     onTap: () {
@@ -607,11 +580,52 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildQuickActions() {
-    return const Row(
+    final canCreate = _authService.canCreateDeliverable();
+    return Row(
       children: [
-        Expanded(child: Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Quick Action 1')))),
-        SizedBox(width: 12),
-        Expanded(child: Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Quick Action 2')))),
+        Expanded(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildActionButton(
+                icon: Icons.assignment_outlined,
+                label: 'Create Deliverable',
+                onTap: () => context.go('/deliverable-setup'),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildActionButton(
+                icon: Icons.flag_outlined,
+                label: 'Open Sprint Console',
+                onTap: () => context.go('/sprint-console'),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        if (canCreate)
+          Expanded(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildActionButton(
+                  icon: Icons.description_outlined,
+                  label: 'Build Report',
+                  onTap: () {
+                    final first = _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                    final id = first != null ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '') : '';
+                    if (id.isNotEmpty) context.go('/report-builder/$id');
+                  },
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -625,26 +639,155 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildCardHeader(Icons.assignment_outlined, 'My Deliverables (${_dashboardDeliverables.length})', route: '/repository'),
+                  _buildCardHeader(Icons.assignment_outlined, 'My Deliverables', route: '/repository'),
                   const SizedBox(height: 8),
-                  ..._dashboardDeliverables.take(5).map((d) {
+                  Builder(builder: (context) {
+                    final uid = _currentUser?.id.toString() ?? '';
+                    final my = _dashboardDeliverables.where((d) {
+                      final assigned = (d['assigned_to'] ?? d['assignedTo'] ?? '').toString();
+                      final created = (d['created_by'] ?? d['createdBy'] ?? '').toString();
+                      return assigned == uid || created == uid;
+                    }).toList();
+                    if (my.isEmpty) {
+                      return const Text('No deliverables yet');
+                    }
+                    return Column(
+                      children: my.take(5).map((d) {
+                        final title = d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Untitled Deliverable';
+                        final status = (d['status'] ?? d['reviewStatus'] ?? '').toString();
+                        final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.assignment_turned_in, size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text(status.isNotEmpty ? '$title • $status' : title)),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: [
+                                  _priorityChip((d['priority'] ?? '').toString()),
+                                  _dueDateChip(d['due_date'] ?? d['dueDate'] ?? d['deadline']),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: id.isEmpty ? null : () => _updateDeliverableStatus(id, 'in_progress'),
+                                    icon: const Icon(Icons.play_circle_outline, size: 18),
+                                    label: const Text('Start'),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  TextButton.icon(
+                                    onPressed: id.isEmpty ? null : () => _updateDeliverableStatus(id, 'completed'),
+                                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                                    label: const Text('Complete'),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  TextButton.icon(
+                                    onPressed: id.isEmpty ? null : () => context.go('/report-builder/$id'),
+                                    icon: const Icon(Icons.description_outlined, size: 18),
+                                    label: const Text('Report'),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  TextButton.icon(
+                                    onPressed: id.isEmpty ? null : () => _editDeliverable(d),
+                                    icon: const Icon(Icons.edit_outlined, size: 18),
+                                    label: const Text('Edit'),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    onPressed: () {
+                                      final route = id.isNotEmpty ? '/report-editor/$id' : '/repository';
+                                      context.go(route);
+                                    },
+                                    icon: const Icon(Icons.open_in_new),
+                                    tooltip: 'Open',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  }),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildDeliverablesOverview() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _isLoadingDashboardDeliverables
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCardHeader(Icons.assignment_outlined, 'Deliverables Overview (${_dashboardDeliverables.length})', route: '/repository'),
+                  const SizedBox(height: 8),
+                  ..._dashboardDeliverables.take(6).map((d) {
                     final title = d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Untitled Deliverable';
-                    final status = d['status'] ?? d['reviewStatus'] ?? '';
+                    final status = (d['status'] ?? d['reviewStatus'] ?? '').toString();
+                    final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: InkWell(
-                        onTap: () {
-                          final id = d['id']?.toString() ?? d['uuid']?.toString() ?? '';
-                          final route = id.isNotEmpty ? '/report-editor/$id' : '/repository';
-                          context.go(route);
-                        },
-                        child: Row(
-                          children: [
-                            const Icon(Icons.assignment_turned_in, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(status.toString().isNotEmpty ? '$title • $status' : title)),
-                          ],
-                        ),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.assignment_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(status.isNotEmpty ? '$title • $status' : title)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              _priorityChip((d['priority'] ?? '').toString()),
+                              _dueDateChip(d['due_date'] ?? d['dueDate'] ?? d['deadline']),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              TextButton.icon(
+                                onPressed: id.isEmpty ? null : () => _editDeliverable(d),
+                                icon: const Icon(Icons.edit_outlined, size: 18),
+                                label: const Text('Edit'),
+                              ),
+                              const SizedBox(width: 4),
+                              TextButton.icon(
+                                onPressed: id.isEmpty ? null : () => _updateDeliverableStatus(id, 'completed'),
+                                icon: const Icon(Icons.check_circle_outline, size: 18),
+                                label: const Text('Complete'),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                onPressed: () {
+                                  final route = id.isNotEmpty ? '/report-editor/$id' : '/repository';
+                                  context.go(route);
+                                },
+                                icon: const Icon(Icons.open_in_new),
+                                tooltip: 'Open',
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     );
                   }),
@@ -665,25 +808,37 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildCardHeader(Icons.history, 'Recent Activity (${_filteredAuditLogs.length})', route: '/notifications'),
+                      _buildCardHeader(Icons.history, 'Recent Activity', route: '/notifications'),
                       const SizedBox(height: 8),
-                      ..._filteredAuditLogs.take(5).map((a) {
-                        final action = a['action'] ?? a['event'] ?? a['type'] ?? 'Activity';
-                        final actor = a['actor'] ?? a['user'] ?? '';
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: InkWell(
-                            onTap: () {
-                              context.go('/notifications');
-                            },
-                            child: Row(
-                              children: [
-                                const Icon(Icons.history, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(actor.toString().isNotEmpty ? '$action • $actor' : action)),
-                              ],
-                            ),
-                          ),
+                      Builder(builder: (context) {
+                        final userId = _currentUser?.id.toString() ?? '';
+                        final userName = _currentUser?.name ?? '';
+                        final my = _filteredAuditLogs.where((a) {
+                          final actor = (a['actor'] ?? a['user'] ?? '').toString();
+                          final uid = (a['user_id'] ?? a['actor_id'] ?? '').toString();
+                          return actor == userName || uid == userId;
+                        }).toList();
+                        if (my.isEmpty) return const Text('No recent activity');
+                        return Column(
+                          children: my.take(5).map((a) {
+                            final action = a['action'] ?? a['event'] ?? a['type'] ?? 'Activity';
+                            final actor = a['actor'] ?? a['user'] ?? '';
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: InkWell(
+                                onTap: () {
+                                  context.go('/notifications');
+                                },
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.history, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(actor.toString().isNotEmpty ? '$action • $actor' : action)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         );
                       }),
                     ],
@@ -696,7 +851,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: _buildCardHeader(Icons.group_outlined, 'Team Metrics', route: '/sprint-console'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCardHeader(Icons.group_outlined, 'Team Metrics', route: '/sprint-console'),
+            const SizedBox(height: 12),
+            if (_isLoadingTeamMetrics)
+              const Center(child: CircularProgressIndicator())
+            else if (_teamMetrics.isEmpty)
+              const Text('No team data available')
+            else
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _metricTile('Deliverables', _teamMetrics['deliverables'] ?? 0, Icons.assignment_outlined, Colors.blue),
+                  _metricTile('In Progress', _teamMetrics['in_progress'] ?? 0, Icons.play_circle_outline, Colors.orange),
+                  _metricTile('Completed', _teamMetrics['completed'] ?? 0, Icons.check_circle_outline, Colors.green),
+                  _metricTile('Overdue', _teamMetrics['overdue'] ?? 0, Icons.warning_amber_outlined, Colors.red),
+                  _metricTile('Active Sprints', _teamMetrics['active_sprints'] ?? 0, Icons.flag_outlined, Colors.purple),
+                  _metricTile('Pending Reviews', _teamMetrics['pending_reviews'] ?? 0, Icons.rule_folder_outlined, Colors.blueGrey),
+                  _metricTile('Completion Rate', _teamMetrics['completion_rate'] ?? '-', Icons.pie_chart_outline, Colors.teal),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -784,44 +963,90 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: _isLoadingDashboardApprovals
+        child: _isLoadingPendingReports
             ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardHeader(Icons.fact_check_outlined, 'Pending Reviews (${_dashboardApprovals.length})', route: '/approvals'),
-                  const SizedBox(height: 8),
-                  ..._dashboardApprovals.take(5).map((a) {
-                    final title = a['title'] ?? a['requestTitle'] ?? a['deliverableTitle'] ?? 'Approval Request';
-                    final requester = a['requester'] ?? a['createdBy'] ?? a['user'] ?? '';
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: InkWell(
-                        onTap: () {
-                          context.go('/approvals');
-                        },
-                        child: Row(
-                          children: [
-                            const Icon(Icons.check_circle_outline, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(requester.toString().isNotEmpty ? '$title • $requester' : title)),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
+            : (_pendingReportsError != null
+                ? Text(_pendingReportsError!)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCardHeader(Icons.fact_check_outlined, 'Pending Reviews (${_pendingReports.length})', route: '/report-repository'),
+                      const SizedBox(height: 8),
+                      ..._pendingReports.take(5).map((r) {
+                        final title = (r['reportTitle'] ?? r['report_title'] ?? (r['content'] is Map ? (r['content']['reportTitle'] ?? r['content']['title']) : null) ?? r['title'] ?? 'Sign-Off Report').toString();
+                        final createdBy = (r['createdBy'] ?? r['created_by_name'] ?? r['created_by'] ?? '').toString();
+                        final id = (r['id'] ?? r['report_id'] ?? '').toString();
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    if (id.isNotEmpty) context.go('/client-review/$id');
+                                  },
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.description_outlined, size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text(createdBy.isNotEmpty ? '$title • $createdBy' : title)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: id.isEmpty ? null : () => _approveReport(id),
+                                icon: const Icon(Icons.check_circle_outline, size: 18),
+                                label: const Text('Approve'),
+                              ),
+                              const SizedBox(width: 4),
+                              TextButton.icon(
+                                onPressed: id.isEmpty ? null : () => _promptChangeRequest(r),
+                                icon: const Icon(Icons.edit_note, size: 18),
+                                label: const Text('Request Changes'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  )),
       ),
     );
   }
 
   Widget _buildTeamPerformance() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _buildCardHeader(Icons.insights_outlined, 'Team Performance', route: '/sprint-console'),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(child: _buildCardHeader(Icons.insights_outlined, 'Team Performance', route: '/sprint-console')),
+                const SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: _selectedChartType,
+                  items: const [
+                    DropdownMenuItem(value: 'velocity', child: Text('Velocity')),
+                    DropdownMenuItem(value: 'burndown', child: Text('Burndown')),
+                    DropdownMenuItem(value: 'burnup', child: Text('Burnup')),
+                    DropdownMenuItem(value: 'defects', child: Text('Defects')),
+                    DropdownMenuItem(value: 'test_pass_rate', child: Text('Test Pass Rate')),
+                  ],
+                  onChanged: (v) { if (v != null) setState(() { _selectedChartType = v; }); },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SprintPerformanceChart(sprints: _dashboardSprints, chartType: _selectedChartType),
+        const SizedBox(height: 12),
+        _teamPerformanceSummary(),
+      ],
     );
   }
 
@@ -829,7 +1054,29 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: _buildCardHeader(Icons.rate_review_outlined, 'Review Metrics', route: '/report-repository'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCardHeader(Icons.rate_review_outlined, 'Review Metrics', route: '/report-repository'),
+            const SizedBox(height: 12),
+            if (_isLoadingClientMetrics)
+              const Center(child: CircularProgressIndicator())
+            else if (_clientReviewMetrics.isEmpty)
+              const Text('No metrics available')
+            else
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _metricTile('Submitted', _clientReviewMetrics['submitted'] ?? 0, Icons.upload_outlined, Colors.orange),
+                  _metricTile('Approved', _clientReviewMetrics['approved'] ?? 0, Icons.check_circle_outline, Colors.green),
+                  _metricTile('Changes Requested', _clientReviewMetrics['changes'] ?? 0, Icons.edit_note, Colors.blueGrey),
+                  _metricTile('Rejected', _clientReviewMetrics['rejected'] ?? 0, Icons.cancel_outlined, Colors.red),
+                  _metricTile('Avg Review Time', _clientReviewMetrics['avg_review_time'] ?? '-', Icons.schedule_outlined, Colors.blue),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -838,34 +1085,55 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: _isLoadingDashboardApprovals
+        child: _isLoadingPendingReports
             ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardHeader(Icons.rule_folder_outlined, 'Pending Approvals (${_dashboardApprovals.length})', route: '/approval-requests'),
-                  const SizedBox(height: 8),
-                  ..._dashboardApprovals.take(5).map((a) {
-                    final title = a['title'] ?? a['requestTitle'] ?? a['deliverableTitle'] ?? 'Approval Request';
-                    final requester = a['requester'] ?? a['createdBy'] ?? a['user'] ?? '';
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: InkWell(
-                        onTap: () {
-                          context.go('/approval-requests');
-                        },
-                        child: Row(
-                          children: [
-                            const Icon(Icons.check_circle_outline, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(requester.toString().isNotEmpty ? '$title • $requester' : title)),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
+            : (_pendingReportsError != null
+                ? Text(_pendingReportsError!)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCardHeader(Icons.rule_folder_outlined, 'Pending Approvals (${_pendingReports.length})', route: '/report-repository'),
+                      const SizedBox(height: 8),
+                      ..._pendingReports.take(5).map((r) {
+                        final title = (r['reportTitle'] ?? r['report_title'] ?? (r['content'] is Map ? (r['content']['reportTitle'] ?? r['content']['title']) : null) ?? r['title'] ?? 'Sign-Off Report').toString();
+                        final createdBy = (r['createdBy'] ?? r['created_by_name'] ?? r['created_by'] ?? '').toString();
+                        final id = (r['id'] ?? r['report_id'] ?? '').toString();
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    if (id.isNotEmpty) context.go('/client-review/$id');
+                                  },
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.assignment_turned_in_outlined, size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text(createdBy.isNotEmpty ? '$title • $createdBy' : title)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: id.isEmpty ? null : () => _approveReport(id),
+                                icon: const Icon(Icons.check_circle_outline, size: 18),
+                                label: const Text('Approve'),
+                              ),
+                              const SizedBox(width: 4),
+                              TextButton.icon(
+                                onPressed: id.isEmpty ? null : () => _promptChangeRequest(r),
+                                icon: const Icon(Icons.edit_note, size: 18),
+                                label: const Text('Request Changes'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  )),
       ),
     );
   }
@@ -874,7 +1142,37 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: _buildCardHeader(Icons.upload_outlined, 'Recent Submissions', route: '/report-repository'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCardHeader(Icons.upload_outlined, 'Recent Submissions', route: '/report-repository'),
+            const SizedBox(height: 8),
+            if (_isLoadingPendingReports)
+              const Center(child: CircularProgressIndicator())
+            else if (_pendingReports.isEmpty)
+              const Text('No recent submissions')
+            else
+              ..._pendingReports.take(5).map((r) {
+                final title = (r['reportTitle'] ?? r['report_title'] ?? (r['content'] is Map ? (r['content']['reportTitle'] ?? r['content']['title']) : null) ?? r['title'] ?? 'Sign-Off Report').toString();
+                final createdAtStr = (r['created_at'] ?? r['createdAt'] ?? r['created'] ?? '').toString();
+                String ts = createdAtStr;
+                try {
+                  final dt = DateTime.tryParse(createdAtStr);
+                  if (dt != null) ts = '${dt.toLocal()}';
+                } catch (_) {}
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.upload_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(ts.isNotEmpty ? '$title • $ts' : title)),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }
@@ -917,257 +1215,529 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildSystemMetrics() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingSystemMetrics
-            ? const Center(child: CircularProgressIndicator())
-            : (_systemMetricsError != null
-                ? Text(_systemMetricsError!)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildCardHeader(Icons.dashboard_outlined, 'System Metrics (${_systemMetrics.keys.length})', route: '/settings'),
-                      const SizedBox(height: 12),
-                      if (_systemMetrics.isEmpty)
-                        const Text('No metrics available')
-                      else
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: _systemMetrics.entries.take(6).map((e) {
-                            final key = e.key.toString();
-                            final value = e.value;
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Theme.of(context).dividerColor),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(_iconForMetricKey(key)),
-                                  const SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(_labelForMetricKey(key), style: Theme.of(context).textTheme.bodyMedium),
-                                      Text(_stringValue(value), style: Theme.of(context).textTheme.titleMedium),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                    ],
-                  )),
+
+
+  
+
+  
+
+
+
+  Widget _metricTile(String label, dynamic value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.bodyMedium),
+              Text(value is String ? value : value.toString(), style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildUserManagement() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingUsers
-            ? const Center(child: CircularProgressIndicator())
-            : (_usersError != null
-                ? Text(_usersError!)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildCardHeader(Icons.people_outline, 'User Management (${_users.length})', route: '/role-management'),
-                      const SizedBox(height: 8),
-                      ..._users.take(5).map((u) {
-                        final rawName = (u['name'] ?? u['fullName'] ?? u['full_name'] ?? '').toString();
-                        final first = (u['firstName'] ?? u['first_name'] ?? '').toString();
-                        final last = (u['lastName'] ?? u['last_name'] ?? '').toString();
-                        final username = (u['username'] ?? '').toString();
-                        final displayName = rawName.trim().isNotEmpty
-                            ? rawName
-                            : (('$first $last').trim().isNotEmpty
-                                ? [first, last].where((s) => s.trim().isNotEmpty).join(' ')
-                                : (username.isNotEmpty ? username : 'User'));
-                        final roleRaw = u['roleDisplayName'] ?? u['role'];
-                        final roleStr = roleRaw?.toString() ?? '';
-                        String roleDisplay = roleStr;
-                        try {
-                          final match = UserRole.values.firstWhere((r) => r.name == roleStr);
-                          roleDisplay = match.displayName;
-                        } catch (_) {
-                          roleDisplay = roleStr.isNotEmpty ? roleStr : '';
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: InkWell(
-                            onTap: () {
-                              context.go('/role-management');
-                            },
-                            child: Row(
-                              children: [
-                                const Icon(Icons.person_outline, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(roleDisplay.isNotEmpty ? '$displayName • $roleDisplay' : displayName)),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  )),
+  Widget _priorityChip(String priority) {
+    final p = priority.toLowerCase();
+    Color c;
+    if (p == 'high') { c = Colors.red; }
+    else if (p == 'medium') { c = Colors.orange; }
+    else if (p == 'low') { c = Colors.green; }
+    else { c = Colors.blueGrey; }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.local_fire_department, size: 14),
+          const SizedBox(width: 4),
+          Text(p.isNotEmpty ? p : 'priority'),
+        ],
       ),
     );
   }
 
-  Map<String, dynamic> _systemHealth = {};
-  bool _isLoadingSystemHealth = false;
-  String? _systemHealthError;
+  Widget _dueDateChip(dynamic dueRaw) {
+    String label = '';
+    if (dueRaw != null) {
+      final s = dueRaw.toString();
+      final dt = DateTime.tryParse(s);
+      if (dt != null) { label = dt.toLocal().toString(); }
+      else { label = s; }
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.12),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.event, size: 14),
+          const SizedBox(width: 4),
+          Text(label.isNotEmpty ? label : 'due date'),
+        ],
+      ),
+    );
+  }
 
-  Future<void> _loadSystemHealth() async {
-    setState(() {
-      _isLoadingSystemHealth = true;
-      _systemHealthError = null;
-    });
-    try {
-      final resp = await _backendService.getSystemHealth();
-      if (resp.isSuccess && resp.data != null) {
-        final dynamic raw = resp.data;
-        Map<String, dynamic> map;
-        if (raw is Map<String, dynamic>) {
-          map = raw;
-        } else if (raw is Map) {
-          map = Map<String, dynamic>.from(raw);
-        } else {
-          map = {};
-        }
-        setState(() {
-          _systemHealth = map;
-        });
-      } else {
-        setState(() {
-          _systemHealthError = resp.error ?? 'Failed to load system health';
-          _systemHealth = {};
-        });
-      }
-    } catch (e) {
+  Future<void> _editDeliverable(Map<String, dynamic> d) async {
+    final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
+    if (id.isEmpty) return;
+    final titleController = TextEditingController(text: (d['title'] ?? d['name'] ?? '').toString());
+    final descriptionController = TextEditingController(text: (d['description'] ?? '').toString());
+    final dodController = TextEditingController(text: (d['definition_of_done'] ?? d['definitionOfDone'] ?? '').toString());
+    String priority = (d['priority'] ?? '').toString().toLowerCase();
+    final dueController = TextEditingController(text: (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Deliverable'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder())),
+                const SizedBox(height: 8),
+                TextField(controller: descriptionController, maxLines: 3, decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder())),
+                const SizedBox(height: 8),
+                TextField(controller: dodController, maxLines: 2, decoration: const InputDecoration(labelText: 'Definition of Done', border: OutlineInputBorder())),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: priority.isNotEmpty ? priority : null,
+                  items: const [
+                    DropdownMenuItem(value: 'low', child: Text('Low')),
+                    DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                    DropdownMenuItem(value: 'high', child: Text('High')),
+                  ],
+                  onChanged: (v) { if (v != null) priority = v; },
+                  decoration: const InputDecoration(labelText: 'Priority', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: dueController,
+                  readOnly: true,
+                  decoration: const InputDecoration(labelText: 'Due Date', border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today)),
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final initial = dueController.text.isNotEmpty ? (DateTime.tryParse(dueController.text) ?? now) : now;
+                    final date = await showDatePicker(context: context, initialDate: initial, firstDate: now.subtract(const Duration(days: 365)), lastDate: now.add(const Duration(days: 365 * 3)),);
+                    if (date != null) dueController.text = date.toIso8601String();
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => context.pop(false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => context.pop(true), child: const Text('Save')),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    final updates = <String, dynamic>{};
+    if (titleController.text.trim().isNotEmpty) updates['title'] = titleController.text.trim();
+    if (descriptionController.text.trim().isNotEmpty) updates['description'] = descriptionController.text.trim();
+    if (dodController.text.trim().isNotEmpty) updates['definition_of_done'] = dodController.text.trim();
+    if (priority.isNotEmpty) updates['priority'] = priority;
+    if (dueController.text.trim().isNotEmpty) updates['due_date'] = dueController.text.trim();
+    if (updates.isEmpty) return;
+    final resp = await _backendService.updateDeliverable(id, updates);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (resp.isSuccess) {
       setState(() {
-        _systemHealthError = 'Failed to load system health';
-        _systemHealth = {};
+        _dashboardDeliverables = _dashboardDeliverables.map((e) {
+          final eId = (e['id']?.toString() ?? e['uuid']?.toString() ?? '');
+          if (eId == id) {
+            final m = Map<String, dynamic>.from(e);
+            updates.forEach((k, v) { m[k] = v; });
+            return m;
+          }
+          return e;
+        }).toList();
       });
-    } finally {
-      if (mounted) setState(() => _isLoadingSystemHealth = false);
+      messenger.showSnackBar(const SnackBar(content: Text('Deliverable updated')));
+      _computeTeamMetrics();
+    } else {
+      messenger.showSnackBar(SnackBar(content: Text(resp.error ?? 'Failed to update deliverable')));
     }
   }
 
-  Color _statusColor(String status) {
-    final s = status.toLowerCase();
-    if (s.contains('healthy') || s.contains('ok') || s.contains('up')) return Colors.green;
-    if (s.contains('warn') || s.contains('degrade')) return Colors.orange;
-    if (s.contains('critical') || s.contains('down') || s.contains('error') || s.contains('fail')) return Colors.red;
-    return Colors.grey;
+  Future<void> _updateDeliverableStatus(String id, String status) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ApiService.updateDeliverableStatus(id: id, status: status);
+      setState(() {
+        _dashboardDeliverables = _dashboardDeliverables.map((d) {
+          final dId = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
+          if (dId == id) {
+            final m = Map<String, dynamic>.from(d);
+            m['status'] = status;
+            return m;
+          }
+          return d;
+        }).toList();
+      });
+      messenger.showSnackBar(SnackBar(content: Text('Status updated to $status')));
+      _computeTeamMetrics();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+    }
   }
 
-  Widget _buildSystemHealth() {
+  void _computeTeamMetrics() {
+    setState(() => _isLoadingTeamMetrics = true);
+    try {
+      final int totalDeliverables = _dashboardDeliverables.length;
+      int completed = 0;
+      int inProgress = 0;
+      int overdue = 0;
+      for (final d in _dashboardDeliverables) {
+        final status = (d['status'] ?? d['state'] ?? '').toString().toLowerCase();
+        if (status == 'completed' || status == 'done' || status == 'approved') completed++;
+        if (status == 'in_progress' || status == 'in-progress' || status == 'progress') inProgress++;
+        final dueStr = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+        final due = DateTime.tryParse(dueStr);
+        if (due != null && due.isBefore(DateTime.now()) && status != 'completed' && status != 'done' && status != 'approved') {
+          overdue++;
+        }
+      }
+      int activeSprints = 0;
+      for (final s in _dashboardSprints) {
+        final status = (s['status'] ?? s['state'] ?? '').toString().toLowerCase();
+        if (status == 'active' || status == 'in_progress' || status == 'in-progress') activeSprints++;
+      }
+      final pendingReviews = _pendingReports.length;
+      String completionRateStr;
+      if (totalDeliverables > 0) {
+        final rate = (completed / totalDeliverables * 100).toStringAsFixed(1);
+        completionRateStr = '$rate%';
+      } else {
+        completionRateStr = '-';
+      }
+      final m = <String, dynamic>{
+        'deliverables': totalDeliverables,
+        'completed': completed,
+        'in_progress': inProgress,
+        'overdue': overdue,
+        'active_sprints': activeSprints,
+        'pending_reviews': pendingReviews,
+        'completion_rate': completionRateStr,
+      };
+      setState(() {
+        _teamMetrics = m;
+      });
+    } catch (_) {
+      setState(() => _teamMetrics = {});
+    } finally {
+      if (mounted) setState(() => _isLoadingTeamMetrics = false);
+    }
+  }
+
+  Future<void> _loadPendingReports() async {
+    setState(() {
+      _isLoadingPendingReports = true;
+      _pendingReportsError = null;
+    });
+    try {
+      final resp = await _reportService.getSignOffReports(status: 'submitted');
+      if (resp.isSuccess && resp.data != null) {
+        final raw = resp.data;
+        List<dynamic> items = const [];
+        if (raw is List) {
+          items = raw;
+        } else if (raw is Map) {
+          final d = raw['data'];
+          if (d is List) {
+            items = d;
+          } else if (d is Map) {
+            final inner = d['reports'] ?? d['items'] ?? d['data'];
+            if (inner is List) {
+              items = inner;
+            }
+          } else {
+            final r = raw['reports'];
+            if (r is List) {
+              items = r;
+            } else if (r is Map) {
+              final inner = r['items'] ?? r['data'];
+              if (inner is List) items = inner;
+            } else {
+              final i = raw['items'];
+              if (i is List) items = i;
+            }
+          }
+        }
+        setState(() {
+          _pendingReports = items.whereType<Map>().map((e) {
+            final m = e.cast<String, dynamic>();
+            final c = m['content'];
+            if (c is String) {
+              try {
+                final decoded = jsonDecode(c);
+                if (decoded is Map) m['content'] = Map<String, dynamic>.from(decoded);
+              } catch (_) {}
+            }
+            return m;
+          }).toList();
+        });
+        _computeTeamMetrics();
+      } else {
+        setState(() {
+          _pendingReports = [];
+          _pendingReportsError = resp.error ?? 'Failed to load pending reports';
+        });
+      }
+    } catch (_) {
+      setState(() {
+        _pendingReports = [];
+        _pendingReportsError = 'Failed to load pending reports';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingPendingReports = false);
+    }
+  }
+
+  Future<void> _loadClientReviewMetrics() async {
+    setState(() {
+      _isLoadingClientMetrics = true;
+    });
+    try {
+      final resp = await _reportService.getSignOffReports();
+      final m = {
+        'submitted': 0,
+        'approved': 0,
+        'changes': 0,
+        'rejected': 0,
+        'avg_review_time': '-',
+      };
+      if (resp.isSuccess && resp.data != null) {
+        final raw = resp.data;
+        List<dynamic> items = const [];
+        if (raw is List) {
+          items = raw;
+        } else if (raw is Map) {
+          final d = raw['data'];
+          if (d is List) {
+            items = d;
+          } else if (d is Map) {
+            final inner = d['reports'] ?? d['items'] ?? d['data'];
+            if (inner is List) {
+              items = inner;
+            } else {
+              items = const [];
+            }
+          } else {
+            final r = raw['reports'];
+            if (r is List) {
+              items = r;
+            } else if (r is Map) {
+              final inner = r['items'] ?? r['data'];
+              if (inner is List) items = inner;
+            } else {
+              final i = raw['items'];
+              if (i is List) items = i;
+            }
+          }
+        }
+        int submitted = 0;
+        int approved = 0;
+        int changes = 0;
+        int rejected = 0;
+        final durations = <double>[];
+        for (final r in items.whereType<Map>()) {
+          final s = (r['status'] ?? '').toString().toLowerCase();
+          if (s == 'submitted') submitted++;
+          if (s == 'approved') approved++;
+          if (s.contains('change')) changes++;
+          if (s == 'rejected' || s == 'declined') rejected++;
+          final createdStr = (r['created_at'] ?? r['createdAt'] ?? '').toString();
+          final approvedStr = (r['approved_at'] ?? r['approvedAt'] ?? r['reviewed_at'] ?? '').toString();
+          final created = DateTime.tryParse(createdStr);
+          final approvedDt = DateTime.tryParse(approvedStr);
+          if (created != null && approvedDt != null && approvedDt.isAfter(created)) {
+            final hours = approvedDt.difference(created).inMinutes / 60.0;
+            durations.add(hours);
+          }
+        }
+        m['submitted'] = submitted;
+        m['approved'] = approved;
+        m['changes'] = changes;
+        m['rejected'] = rejected;
+        if (durations.isNotEmpty) {
+          final avg = durations.reduce((a, b) => a + b) / durations.length;
+          m['avg_review_time'] = '${avg.toStringAsFixed(1)}h';
+        }
+      }
+      setState(() {
+        _clientReviewMetrics = m;
+      });
+    } catch (_) {
+      setState(() {
+        _clientReviewMetrics = {};
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingClientMetrics = false);
+    }
+  }
+
+  Widget _teamPerformanceSummary() {
+    double planned = 0;
+    double completed = 0;
+    double defects = 0;
+    for (final s in _dashboardSprints) {
+      final p = s['planned_points'] ?? s['planned'] ?? 0;
+      final c = s['completed_points'] ?? s['completed'] ?? 0;
+      final d = s['defects_opened'] ?? s['defect_count'] ?? 0;
+      planned += (p is num) ? p.toDouble() : double.tryParse(p.toString()) ?? 0;
+      completed += (c is num) ? c.toDouble() : double.tryParse(c.toString()) ?? 0;
+      defects += (d is num) ? d.toDouble() : double.tryParse(d.toString()) ?? 0;
+    }
+    final avgVelocity = _dashboardSprints.isNotEmpty ? (completed / _dashboardSprints.length) : 0;
+    final carryover = planned - completed;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _metricTile('Avg Velocity', avgVelocity.toStringAsFixed(1), Icons.speed, Colors.blue),
+          _metricTile('Planned', planned.toStringAsFixed(1), Icons.trending_up, Colors.orange),
+          _metricTile('Completed', completed.toStringAsFixed(1), Icons.check_circle_outline, Colors.green),
+          _metricTile('Carryover', carryover.toStringAsFixed(1), Icons.sync_problem, Colors.red),
+          _metricTile('Defects', defects.toStringAsFixed(0), Icons.bug_report, Colors.purple),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminFeatures() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            _buildCardHeader(Icons.settings_applications, 'Admin Features', route: '/settings'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                const Icon(Icons.health_and_safety_outlined),
-                const SizedBox(width: 8),
-                Text('System Health', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _loadSystemHealth,
-                  tooltip: 'Refresh',
-                ),
+                _featureTile(Icons.dashboard_outlined, 'System Metrics', () => context.go('/system-metrics')),
+                _featureTile(Icons.security, 'Role Management', () => context.go('/role-management')),
+                _featureTile(Icons.health_and_safety, 'System Health', () => context.go('/system-health')),
+                _featureTile(Icons.receipt_long, 'Audit Logs', () => context.go('/audit-logs')),
               ],
             ),
-            const SizedBox(height: 12),
-            if (_isLoadingSystemHealth)
-              const Center(child: CircularProgressIndicator())
-            else if (_systemHealthError != null)
-              Text(_systemHealthError!)
-            else if (_systemHealth.isEmpty)
-              const Text('No health data available')
-            else
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  for (final entry in _systemHealth.entries.take(8))
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Theme.of(context).dividerColor),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, color: _statusColor(entry.value is Map && (entry.value['status'] ?? '').toString().isNotEmpty ? entry.value['status'].toString() : entry.value.toString()), size: 12),
-                          const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(_labelForMetricKey(entry.key), style: Theme.of(context).textTheme.bodyMedium),
-                              Text(_stringValue(entry.value is Map ? entry.value['status'] ?? entry.value['value'] ?? entry.value['state'] ?? entry.value : entry.value), style: Theme.of(context).textTheme.titleMedium),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAuditLogs() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingAuditLogs
-            ? const Center(child: CircularProgressIndicator())
-            : (_auditLogsError != null
-                ? Text(_auditLogsError!)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildCardHeader(Icons.receipt_long, 'Audit Logs (${_filteredAuditLogs.length})', route: '/notifications'),
-                      const SizedBox(height: 8),
-                      ..._filteredAuditLogs.take(5).map((a) {
-                        final action = a['action'] ?? a['event'] ?? a['type'] ?? 'Log';
-                        final actor = a['actor'] ?? a['user'] ?? '';
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: InkWell(
-                            onTap: () {
-                              context.go('/notifications');
-                            },
-                            child: Row(
-                              children: [
-                                const Icon(Icons.receipt_long, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(actor.toString().isNotEmpty ? '$action • $actor' : action)),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  )),
+  Widget _featureTile(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).dividerColor),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon),
+            const SizedBox(width: 8),
+            Text(label),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _approveReport(String reportId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final resp = await _reportService.approveReport(reportId);
+      if (resp.isSuccess) {
+        setState(() {
+          _pendingReports = _pendingReports.where((e) => (e['id']?.toString() ?? e['report_id']?.toString() ?? '') != reportId).toList();
+        });
+        messenger.showSnackBar(const SnackBar(content: Text('Report approved')));
+        _loadClientReviewMetrics();
+      } else {
+        messenger.showSnackBar(SnackBar(content: Text(resp.error ?? 'Failed to approve report')));
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> _requestChanges(String reportId, String details) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final resp = await _reportService.requestChanges(reportId, details);
+      if (resp.isSuccess) {
+        setState(() {
+          _pendingReports = _pendingReports.where((e) => (e['id']?.toString() ?? e['report_id']?.toString() ?? '') != reportId).toList();
+        });
+        messenger.showSnackBar(const SnackBar(content: Text('Change request sent')));
+        _loadClientReviewMetrics();
+      } else {
+        messenger.showSnackBar(SnackBar(content: Text(resp.error ?? 'Failed to request changes')));
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> _promptChangeRequest(Map<String, dynamic> report) async {
+    final id = (report['id'] ?? report['report_id'] ?? '').toString();
+    if (id.isEmpty) return;
+    String details = '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Request Changes'),
+          content: TextField(
+            onChanged: (v) => details = v,
+            decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Details'),
+            maxLines: 4,
+          ),
+          actions: [
+            TextButton(onPressed: () => context.pop(false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => context.pop(true), child: const Text('Send')),
+          ],
+        );
+      },
+    );
+    if (confirmed == true && details.trim().isNotEmpty) {
+      await _requestChanges(id, details.trim());
+    }
   }
 
   Widget _buildDeveloperDashboard() => _buildTeamMemberDashboard();
@@ -1177,13 +1747,25 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildStakeholderDashboard() => _buildClientReviewerDashboard();
 
   Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
-    return ElevatedButton.icon(onPressed: onTap, icon: Icon(icon), label: Text(label));
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(
+        icon,
+        color: _currentUser?.isSystemAdmin == true ? Theme.of(context).colorScheme.primary : null,
+      ),
+      label: Text(label),
+    );
   }
 
   Widget _buildCardHeader(IconData icon, String label, {String? route}) {
     final row = Row(
       children: [
-        Icon(icon),
+        Icon(
+          icon,
+          color: _currentUser?.isSystemAdmin == true
+              ? Theme.of(context).colorScheme.secondary
+              : null,
+        ),
         const SizedBox(width: 8),
         Text(label, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
       ],
@@ -1192,40 +1774,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return InkWell(onTap: () => context.go(route), child: row);
   }
 
-  IconData _iconForMetricKey(String key) {
-    final k = key.toLowerCase();
-    if (k.contains('uptime')) return Icons.schedule_outlined;
-    if (k.contains('cpu')) return Icons.memory;
-    if (k.contains('mem') || k.contains('ram')) return Icons.sd_storage_outlined;
-    if (k.contains('user')) return Icons.person_outline;
-    if (k.contains('session')) return Icons.login;
-    if (k.contains('request') || k.contains('api')) return Icons.cloud_outlined;
-    if (k.contains('latency')) return Icons.speed;
-    if (k.contains('error') || k.contains('fail')) return Icons.error_outline;
-    if (k.contains('queue') || k.contains('job')) return Icons.work_outline;
-    if (k.contains('db') || k.contains('database')) return Icons.storage;
-    if (k.contains('socket')) return Icons.power_outlined;
-    if (k.contains('mqtt')) return Icons.sensors;
-    if (k.contains('cache')) return Icons.cached;
-    return Icons.analytics_outlined;
-  }
-
-  String _labelForMetricKey(String key) {
-    final s = key.replaceAll('_', ' ').replaceAll('-', ' ');
-    return s.isEmpty ? 'Metric' : s[0].toUpperCase() + s.substring(1);
-  }
-
-  String _stringValue(dynamic v) {
-    if (v == null) return '—';
-    if (v is num) {
-      if (v is int) return v.toString();
-      return v.toStringAsFixed(2);
-    }
-    if (v is bool) return v ? 'Yes' : 'No';
-    if (v is List) return '${v.length}';
-    if (v is Map) return '${v.length}';
-    return v.toString();
-  }
+  
 
   void _showProfileDialog() {
     showDialog(
@@ -1259,8 +1808,27 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     realtimeService.on('sprint_updated', (_) => _loadDashboardSprints());
     realtimeService.on('deliverable_created', (_) => _loadDashboardDeliverables());
     realtimeService.on('deliverable_updated', (_) => _loadDashboardDeliverables());
-    realtimeService.on('approval_created', (_) => _loadDashboardApprovals());
-    realtimeService.on('approval_updated', (_) => _loadDashboardApprovals());
+    realtimeService.on('approval_created', (_) { _loadPendingReports(); _loadClientReviewMetrics(); _loadDashboardDeliverables(); });
+    realtimeService.on('approval_updated', (_) { _loadPendingReports(); _loadClientReviewMetrics(); _loadDashboardDeliverables(); });
+    realtimeService.on('report_submitted', (_) { _loadPendingReports(); _loadClientReviewMetrics(); _loadDashboardDeliverables(); });
+    realtimeService.on('report_approved', (_) { _loadPendingReports(); _loadClientReviewMetrics(); _loadDashboardDeliverables(); });
+    realtimeService.on('report_change_requested', (_) { _loadPendingReports(); _loadClientReviewMetrics(); _loadDashboardDeliverables(); });
+    realtimeService.on('project_created', (_) => _loadDashboardProjects());
+    realtimeService.on('project_updated', (_) => _loadDashboardProjects());
+    realtimeService.on('notification_received', (data) {
+      try {
+        final type = (data['type'] ?? '').toString();
+        if (type == 'project') {
+          _loadDashboardProjects();
+        } else if (type == 'sprint') {
+          _loadDashboardSprints();
+        } else if (type == 'deliverable' || type == 'approval' || type == 'change_request') {
+          _loadDashboardDeliverables();
+          _loadPendingReports();
+          _loadClientReviewMetrics();
+        }
+      } catch (_) {}
+    });
   }
 
   void _handleRoleChanged(dynamic _) {

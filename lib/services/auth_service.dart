@@ -51,7 +51,7 @@ class AuthService {
       final response = await _apiService.getCurrentUser();
       if (response.isSuccess && response.data != null) {
         _currentUser = _apiService.parseUserFromResponse(response);
-        if (_currentUser != null && _currentUser!.isActive) {
+        if (_currentUser != null && (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
           debugPrint('User session restored: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
         } else {
@@ -80,7 +80,7 @@ class AuthService {
         final userResponse = ApiResponse.success(userData, response.statusCode);
         
         _currentUser = _apiService.parseUserFromResponse(userResponse);
-        if (_currentUser != null && _currentUser!.isActive) {
+        if (_currentUser != null && (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
           debugPrint('User signed in: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
           return true;
@@ -110,7 +110,7 @@ class AuthService {
       
       if (response.isSuccess && response.data != null) {
         _currentUser = _apiService.parseUserFromResponse(response);
-        if (_currentUser != null && _currentUser!.isActive) {
+        if (_currentUser != null && (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
           debugPrint('User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
           return {'success': true};
@@ -245,6 +245,43 @@ class AuthService {
   }
 
   bool canAccessRoute(String route) {
-    return _isAuthenticated;
-  }
+    if (!_isAuthenticated) return false;
+    final String r = route.trim().toLowerCase();
+    // Permission-based routing for sensitive pages
+    switch (r) {
+      case '/deliverable-setup':
+      case '/enhanced-deliverable-setup':
+        return canCreateDeliverable();
+      case '/role-management':
+      case '/approvals':
+      case '/approval-requests':
+        return hasPermission('view_approvals');
+      case '/sprint-console':
+        return hasPermission('create_sprint');
+      case '/report-builder':
+      case '/report-editor':
+        return hasPermission('submit_for_review');
+      case '/client-review':
+      case '/enhanced-client-review':
+        return hasPermission('view_client_review');
+      case '/report-repository':
+        return hasPermission('view_all_deliverables');
+      case '/repository':
+        return hasPermission('view_all_deliverables');
+      case '/sprint-metrics':
+        return hasPermission('view_team_dashboard');
+      case '/sprint-board':
+        return hasPermission('manage_sprints');
+      case '/system-metrics':
+        return hasPermission('view_team_dashboard') || (_currentUser?.isSystemAdmin ?? false);
+      case '/system-health':
+        return _currentUser?.isSystemAdmin ?? false;
+      case '/audit-logs':
+        return hasPermission('view_audit_logs') || (_currentUser?.isSystemAdmin ?? false);
+      case '/notifications':
+        return _isAuthenticated;
+      default:
+        return true;
+      }
+    }
 }

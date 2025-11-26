@@ -5,6 +5,7 @@ import '../models/sign_off_report.dart';
 import '../services/backend_api_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/signature_capture_widget.dart';
 
 class ClientReviewScreen extends ConsumerStatefulWidget {
   final String reportId;
@@ -21,6 +22,8 @@ class ClientReviewScreen extends ConsumerStatefulWidget {
 class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
   final _commentController = TextEditingController();
   final _changeRequestController = TextEditingController();
+  final GlobalKey<SignatureCaptureWidgetState> _signatureKey = GlobalKey<SignatureCaptureWidgetState>();
+  String? _capturedSignature;
   
   SignOffReport? _report;
   Deliverable? _deliverable;
@@ -95,18 +98,29 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
 
     try {
       final backendService = BackendApiService();
-      
       if (_selectedAction == 'approve') {
-        // Approve the deliverable
-        final response = await backendService.approveDeliverable(
-          _deliverable!.id,
+        String? signature = _capturedSignature;
+        signature ??= await _signatureKey.currentState?.getSignature();
+        if (signature == null || signature.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Digital signature is required to approve this report.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+        final response = await backendService.approveSignOffReport(
+          widget.reportId,
           _commentController.text.isNotEmpty ? _commentController.text : null,
+          signature,
         );
-        
         if (response.isSuccess && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Deliverable approved successfully!'),
+              content: Text('Report approved successfully!'),
               backgroundColor: Colors.green,
             ),
           );
@@ -114,18 +128,16 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to approve deliverable: ${response.error}'),
+              content: Text('Failed to approve report: ${response.error}'),
               backgroundColor: Colors.red,
             ),
           );
         }
       } else if (_selectedAction == 'changeRequest') {
-        // Request changes
-        final response = await backendService.requestChanges(
-          _deliverable!.id,
+        final response = await backendService.requestSignOffChanges(
+          widget.reportId,
           _changeRequestController.text,
         );
-        
         if (response.isSuccess && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -390,41 +402,13 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: FlownetColors.slate,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: FlownetColors.electricBlue),
-              ),
-              child: const Column(
-                children: [
-                  Icon(
-                    Icons.draw,
-                    color: Colors.grey,
-                    size: 48,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Digital Signature',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'By submitting this review, you digitally sign and approve this deliverable',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+            SignatureCaptureWidget(
+              key: _signatureKey,
+              onSignatureCaptured: (sig) {
+                setState(() {
+                  _capturedSignature = sig;
+                });
+              },
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -441,7 +425,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
                         _selectedAction == 'approve' 
-                            ? 'Approve Deliverable'
+                            ? 'Approve Report'
                             : 'Submit Change Request',
                         style: const TextStyle(fontSize: 16),
                       ),
@@ -454,7 +438,9 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
   }
 
   String formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
   }
 
   @override

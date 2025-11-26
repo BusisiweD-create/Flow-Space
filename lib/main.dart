@@ -19,17 +19,20 @@ import 'screens/client_review_screen.dart';
 import 'screens/enhanced_client_review_screen.dart';
 import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
-import 'screens/approvals_screen.dart';
+// Approvals unified: use ApprovalRequestsScreen
 import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
-import 'screens/user_management_screen.dart';
+// import 'screens/user_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
+import 'screens/system_metrics_screen.dart';
+import 'screens/system_health_screen.dart';
+import 'screens/audit_logs_screen.dart';
 // Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
 //
@@ -285,9 +288,9 @@ final GoRouter _router = GoRouter(
   GoRoute(
     path: '/approvals',
     builder: (context, state) => const RouteGuard(
-      route: '/approvals',
+      route: '/approval-requests',
       child: SidebarScaffold(
-        child: ApprovalsScreen(),
+        child: ApprovalRequestsScreen(),
       ),
     ),
   ),
@@ -311,10 +314,10 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/repository/:projectKey',
-      builder: (context, state) => const RouteGuard(
+      builder: (context, state) => RouteGuard(
         route: '/repository',
         child: SidebarScaffold(
-          child: RepositoryScreen(),
+          child: RepositoryScreen(projectKey: state.pathParameters['projectKey']),
         ),
       ),
     ),
@@ -340,15 +343,7 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
-    GoRoute(
-      path: '/user-management',
-      builder: (context, state) => const RouteGuard(
-        route: '/user-management',
-        child: SidebarScaffold(
-          child: UserManagementScreen(),
-        ),
-      ),
-    ),
+    // Removed redundant user-management route; role-management covers it
     
     GoRoute(
       path: '/profile',
@@ -365,6 +360,33 @@ final GoRouter _router = GoRouter(
         route: '/settings',
         child: SidebarScaffold(
           child: SettingsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/system-metrics',
+      builder: (context, state) => const RouteGuard(
+        route: '/system-metrics',
+        child: SidebarScaffold(
+          child: SystemMetricsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/system-health',
+      builder: (context, state) => const RouteGuard(
+        route: '/system-health',
+        child: SidebarScaffold(
+          child: SystemHealthScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/audit-logs',
+      builder: (context, state) => const RouteGuard(
+        route: '/audit-logs',
+        child: SidebarScaffold(
+          child: AuditLogsScreen(),
         ),
       ),
     ),

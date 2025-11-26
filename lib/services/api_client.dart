@@ -132,7 +132,7 @@ class ApiClient {
   Future<ApiResponse> uploadFile(String endpoint, String filePath, String fileName, String fileType, {Map<String, String>? fields}) async {
     try {
       // Check if token needs refresh
-      if (isAuthenticated && !_isTokenValid()) {
+      if (_accessToken != null && !_isTokenValid()) {
         final refreshed = await _refreshAccessToken();
         if (!refreshed) {
           await clearTokens();
@@ -193,7 +193,7 @@ class ApiClient {
   }) async {
     try {
       // Check if token needs refresh
-      if (isAuthenticated && !_isTokenValid()) {
+      if (_accessToken != null && !_isTokenValid()) {
         final refreshed = await _refreshAccessToken();
         if (!refreshed) {
           await clearTokens();
@@ -260,6 +260,10 @@ class ApiClient {
 
   ApiResponse _handleResponse(http.Response response) {
     try {
+      final rawBody = response.body;
+      if (response.statusCode == 204 || rawBody.trim().isEmpty) {
+        return ApiResponse.success(null, response.statusCode);
+      }
       // Check if response is HTML (error pages) instead of JSON
       final contentType = response.headers['content-type'] ?? '';
       if (contentType.contains('text/html') || response.body.trim().startsWith('<!DOCTYPE')) {

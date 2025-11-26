@@ -302,6 +302,15 @@ router.put('/:id', async (req, res) => {
         createdAt: row.created_at,
         createdBy: (row.created_by || '').toString()
       };
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('report_updated', {
+          id: report.id,
+          deliverableId: report.deliverableId,
+          reportTitle: report.reportTitle,
+          created_by: report.createdBy,
+          status: report.status
+        });
+      }
       return res.json(report);
     }
     const updateData = req.body;
@@ -331,6 +340,9 @@ router.delete('/:id', async (req, res) => {
       const [rows] = await sequelize.query('DELETE FROM sign_off_reports WHERE id = $1 RETURNING id', { bind: [id] });
       if (!rows || rows.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
+      }
+      if (global.realtimeEvents) {
+        global.realtimeEvents.emit('report_deleted', { id });
       }
       return res.status(204).send();
     }

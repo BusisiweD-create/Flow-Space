@@ -15,6 +15,7 @@ class ApprovalService {
     String? status,
     String? priority,
     String? category,
+    String? deliverableId,
   }) async {
     try {
       final token = _authService.accessToken;
@@ -27,6 +28,7 @@ class ApprovalService {
           if (status != null) 'status': status,
           if (priority != null) 'priority': priority,
           if (category != null) 'category': category,
+          if (deliverableId != null && deliverableId.isNotEmpty) 'deliverable_id': deliverableId,
         },
       );
 
@@ -141,7 +143,7 @@ class ApprovalService {
 
       final uri = Uri.parse('$_baseUrl/approvals/$requestId/approve');
       final approvedBy = _authService.currentUser?.id.toString() ?? '';
-      final response = await http.post(
+      final response = await http.put(
         uri,
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +178,7 @@ class ApprovalService {
 
       final uri = Uri.parse('$_baseUrl/approvals/$requestId/reject');
       final approvedBy = _authService.currentUser?.id.toString() ?? '';
-      final response = await http.post(
+      final response = await http.put(
         uri,
         headers: {
           'Content-Type': 'application/json',

@@ -57,12 +57,22 @@ class SignOffReportService {
       }
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return ApiResponse.success(data['data'] ?? data, response.statusCode);
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return ApiResponse.success(decoded, response.statusCode);
+        }
+        if (decoded is Map<String, dynamic>) {
+          final data = decoded.containsKey('data') ? decoded['data'] : decoded;
+          return ApiResponse.success(data, response.statusCode);
+        }
+        return ApiResponse.success(decoded, response.statusCode);
       } else {
         try {
-          final data = jsonDecode(response.body);
-          return ApiResponse.error(data['error'] ?? data['message'] ?? 'Failed to load sign-off reports', response.statusCode);
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map<String, dynamic>) {
+            return ApiResponse.error(decoded['error'] ?? decoded['message'] ?? 'Failed to load sign-off reports', response.statusCode);
+          }
+          return ApiResponse.error('Failed to load sign-off reports', response.statusCode);
         } catch (e) {
           return ApiResponse.error('Failed to load sign-off reports (${response.statusCode})', response.statusCode);
         }

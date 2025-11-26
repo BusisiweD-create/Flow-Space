@@ -25,6 +25,8 @@ class DocumentService {
     String? fileType,
     String? uploader,
     String? projectId,
+    String? sprintId,
+    String? deliverableId,
     String? from,
     String? to,
   }) async {
@@ -40,6 +42,8 @@ class DocumentService {
           if (fileType != null && fileType.isNotEmpty) 'fileType': fileType,
           if (uploader != null && uploader.isNotEmpty) 'uploader': uploader,
           if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
+          if (sprintId != null && sprintId.isNotEmpty) 'sprintId': sprintId,
+          if (deliverableId != null && deliverableId.isNotEmpty) 'deliverableId': deliverableId,
           if (from != null && from.isNotEmpty) 'from': from,
           if (to != null && to.isNotEmpty) 'to': to,
         },

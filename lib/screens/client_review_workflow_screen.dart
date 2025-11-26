@@ -615,7 +615,9 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
   }
 
   String _getSignatureTitle(String? role) {

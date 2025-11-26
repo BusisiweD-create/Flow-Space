@@ -332,10 +332,40 @@ class DatabaseNotificationService extends EventEmitter {
             broadcastAll('deliverable_created', data);
         });
 
+        global.realtimeEvents.on('deliverable_updated', async (data) => {
+            const title = data && data.title ? data.title : 'Deliverable';
+            await notifyRoles(['deliveryLead','scrumMaster','developer','qaEngineer','projectManager'], 'deliverable', `Deliverable updated: ${title}`, { deliverable_id: data && data.id });
+            broadcastAll('deliverable_updated', data);
+        });
+
+        global.realtimeEvents.on('ticket_created', async (data) => {
+            const summary = data && (data.summary || data.title) ? (data.summary || data.title) : 'Ticket';
+            await notifyRoles(['deliveryLead','scrumMaster','developer','qaEngineer','projectManager'], 'ticket', `Ticket created: ${summary}`, { ticket_id: data && (data.ticket_id || data.id), sprint_id: data && data.sprint_id });
+            broadcastAll('ticket_created', data);
+        });
+
+        global.realtimeEvents.on('ticket_updated', async (data) => {
+            const summary = data && (data.summary || data.title) ? (data.summary || data.title) : 'Ticket';
+            await notifyRoles(['deliveryLead','scrumMaster','developer','qaEngineer','projectManager'], 'ticket', `Ticket updated: ${summary}`, { ticket_id: data && (data.ticket_id || data.id), sprint_id: data && data.sprint_id });
+            broadcastAll('ticket_updated', data);
+        });
+
+        global.realtimeEvents.on('ticket_deleted', async (data) => {
+            const summary = data && (data.summary || data.title) ? (data.summary || data.title) : 'Ticket';
+            await notifyRoles(['deliveryLead','scrumMaster','developer','qaEngineer','projectManager'], 'ticket', `Ticket deleted: ${summary}`, { ticket_id: data && (data.ticket_id || data.id), sprint_id: data && data.sprint_id });
+            broadcastAll('ticket_deleted', data);
+        });
+
         global.realtimeEvents.on('sprint_created', async (data) => {
             const name = data && data.name ? data.name : 'Sprint';
             await notifyAll('sprint', `Sprint created: ${name}`, { sprint_id: data && data.id });
             broadcastAll('sprint_created', data);
+        });
+
+        global.realtimeEvents.on('sprint_updated', async (data) => {
+            const name = data && data.name ? data.name : 'Sprint';
+            await notifyRoles(['deliveryLead','scrumMaster','developer','qaEngineer','projectManager'], 'sprint', `Sprint updated: ${name}`, { sprint_id: data && data.id });
+            broadcastAll('sprint_updated', data);
         });
 
         global.realtimeEvents.on('project_created', async (data) => {
@@ -344,10 +374,33 @@ class DatabaseNotificationService extends EventEmitter {
             broadcastAll('project_created', data);
         });
 
+        global.realtimeEvents.on('project_updated', async (data) => {
+            const name = data && data.name ? data.name : 'Project';
+            await notifyRoles(['deliveryLead','projectManager','scrumMaster','developer','qaEngineer'], 'project', `Project updated: ${name}`, { project_id: data && data.id });
+            broadcastAll('project_updated', data);
+        });
+
         global.realtimeEvents.on('report_created', async (data) => {
             const title = data && data.reportTitle ? data.reportTitle : 'Sign-Off Report';
             const senderId = data && data.created_by && /^[0-9a-fA-F-]{36}$/.test(data.created_by) ? data.created_by : null;
             await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report created: ${title}`, { report_id: data && data.id, action_url: `/enhanced-client-review/${data && data.id}` }, senderId);
+        });
+
+        global.realtimeEvents.on('document_uploaded', async (data) => {
+            const name = data && (data.name || data.originalName || data.filename) ? (data.name || data.originalName || data.filename) : 'Document';
+            const senderId = data && data.uploaded_by && /^[0-9a-fA-F-]{36}$/.test(String(data.uploaded_by)) ? String(data.uploaded_by) : null;
+            try {
+                await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'document', `Document uploaded: ${name}`, { document_id: data && (data.id || data.filename), url: data && (data.file_path || data.url) }, senderId);
+            } catch (_) {}
+            broadcastAll('document_uploaded', data);
+        });
+
+        global.realtimeEvents.on('document_deleted', async (data) => {
+            const docId = data && (data.id || data.document_id);
+            try {
+                await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'document', `Document deleted`, { document_id: docId }, null);
+            } catch (_) {}
+            broadcastAll('document_deleted', data);
         });
 
         global.realtimeEvents.on('report_submitted', async (data) => {
@@ -417,3 +470,17 @@ module.exports = {
     DatabaseNotificationService,
     databaseNotificationService
 };
+        global.realtimeEvents.on('report_updated', async (data) => {
+            const title = data && data.reportTitle ? data.reportTitle : 'Sign-Off Report';
+            try {
+                await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report updated: ${title}`, { report_id: data && data.id, status: data && data.status }, null);
+            } catch (_) {}
+            broadcastAll('report_updated', data);
+        });
+
+        global.realtimeEvents.on('report_deleted', async (data) => {
+            try {
+                await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report deleted`, { report_id: data && data.id }, null);
+            } catch (_) {}
+            broadcastAll('report_deleted', data);
+        });

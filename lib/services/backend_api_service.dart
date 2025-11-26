@@ -609,6 +609,16 @@ class BackendApiService {
         return n.isNotEmpty ? n : emailLocal;
       }();
 
+      final isActiveRaw = userData['is_active'] ?? userData['isActive'] ?? userData['isactive'];
+      bool isActiveComputed;
+      if (isActiveRaw == null) {
+        final statusStr = (userData['status'] ?? '').toString().toLowerCase();
+        isActiveComputed = statusStr.isEmpty ? true : statusStr == 'active';
+      } else {
+        final s = isActiveRaw.toString().toLowerCase();
+        isActiveComputed = s == 'true' || s == '1';
+      }
+
       final userJsonForParsing = {
         'id': userData['id']?.toString(),
         'email': userData['email'],
@@ -617,7 +627,7 @@ class BackendApiService {
         'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'] ?? userData['avatarurl'],
         'createdAt': userData['created_at'] ?? userData['createdAt'] ?? userData['createdat'] ?? DateTime.now().toIso8601String(),
         'lastLoginAt': userData['last_login'] ?? userData['last_login_at'] ?? userData['lastLoginAt'] ?? userData['lastlogin'] ?? userData['lastLogin'],
-        'isActive': userData['is_active'] ?? userData['isActive'] ?? userData['isactive'] ?? (userData['status'] == 'active') ?? true,
+        'isActive': isActiveComputed,
         'projectIds': userData['project_ids'] ?? userData['projectIds'] ?? userData['projectids'] ?? [],
         'preferences': userData['preferences'] ?? {},
         'emailVerified': userData['email_verified'] ?? userData['emailVerified'] ?? userData['emailverified'] ?? false,

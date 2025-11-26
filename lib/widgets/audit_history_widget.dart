@@ -147,7 +147,9 @@ class _AuditHistoryWidgetState extends State<AuditHistoryWidget> {
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'Unknown';
-    return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
   }
 
   @override
