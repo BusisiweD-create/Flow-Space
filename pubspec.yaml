@@ -84,6 +84,17 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  assets:
+    - assets/Icons/khono_bg.png  # Background image
+    - assets/Icons/khono.png
+    - assets/logo.png
+    - assets/logo_icon.png
+    - assets/fonts/
+    - assets/images/
+    - assets/videos/
+    - assets/audios/
+    - assets/Icons/Red_Khono_Discs.png
 
   fonts:
     - family: Poppins
@@ -135,11 +146,3 @@ flutter:
         - asset: assets/fonts/fonts/poppins/Poppins-BlackItalic.ttf
           weight: 900
           style: italic
-
-  assets:
-    - assets/fonts/
-    - assets/images/
-    - assets/videos/
-    - assets/audios/
-    - assets/logo.png
-    - assets/logo_icon.png

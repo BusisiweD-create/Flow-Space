@@ -11,6 +11,7 @@ import '../services/sign_off_report_service.dart';
 import '../services/report_export_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import '../widgets/audit_history_widget.dart';
 import 'report_editor_screen.dart';
@@ -683,13 +684,16 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+    return AppScaffold(
+      useBackgroundImage: true,
+      centered: false,
+      scrollable: false,
       appBar: AppBar(
         title: const FlownetLogo(showText: true),
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
+        elevation: 0,
       ),
       body: Column(
         children: [
@@ -840,7 +844,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   Widget _buildDocumentCard(RepositoryFile document) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      color: FlownetColors.graphiteGray,
+      color: FlownetColors.graphiteGray.withValues(alpha: 0.6),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: _getFileTypeColor(document.fileType),
@@ -978,7 +982,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   Widget _buildReportCard(SignOffReport report) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: FlownetColors.graphiteGray,
+      color: FlownetColors.graphiteGray.withValues(alpha: 0.6),
       child: InkWell(
         onTap: () => _showReportDetails(report),
         borderRadius: BorderRadius.circular(8),

@@ -9,6 +9,7 @@ import '../services/sprint_database_service.dart';
 import '../services/deliverable_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import '../widgets/audit_history_widget.dart';
 
@@ -419,13 +420,17 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+    return AppScaffold(
+      useBackgroundImage: true,
+      centered: false,
+      scrollable: false,
+      useGlassContainer: false,
       appBar: AppBar(
         title: const FlownetLogo(showText: true),
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -632,10 +637,10 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   Widget _buildDocumentCard(RepositoryFile document) {
-                return Card(
+    return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      color: FlownetColors.graphiteGray,
-                  child: ListTile(
+      color: FlownetColors.graphiteGray.withValues(alpha: 0.6),
+      child: ListTile(
                     leading: CircleAvatar(
           backgroundColor: _getFileTypeColor(document.fileType),
                       child: Text(

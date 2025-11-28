@@ -37,14 +37,21 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 // Email Configuration
 let emailTransporter = null;
 
-if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+// Support both EMAIL_USER/EMAIL_PASS and SMTP_USER/SMTP_PASS for compatibility
+const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+const smtpPort = parseInt(process.env.SMTP_PORT) || 587;
+const smtpSecure = process.env.SMTP_SECURE === 'true' || false;
+
+if (emailUser && emailPass) {
   emailTransporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      user: emailUser,
+      pass: emailPass
     }
   });
   
@@ -143,17 +150,37 @@ const authenticateToken = (req, res, next) => {
 
 // PostgreSQL connection
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'flow_space',
-  password: 'postgres',
-  port: 5432,
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'flow_space',
+  password: process.env.DB_PASSWORD || 'postgres',
+  port: parseInt(process.env.DB_PORT) || 5432,
 });
 
 // Test database connection
 pool.on('connect', () => {
   console.log('Connected to PostgreSQL database');
 });
+
+// Initialize or update database schema
+async function initializeDatabase() {
+  try {
+    await pool.query(`
+      ALTER TABLE sprints
+        ADD COLUMN IF NOT EXISTS start_date TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS end_date TIMESTAMP;
+    `);
+    console.log('✅ Verified sprints table has start_date and end_date columns');
+  } catch (error) {
+    if (error.code === '42P01') {
+      console.warn('⚠️ sprints table does not exist yet; skipping sprint column migration');
+    } else {
+      console.error('❌ Error initializing database schema:', error.message || error);
+    }
+  }
+}
+
+initializeDatabase();
 
 // Auth routes
 // Register endpoint (matching frontend expectations)
@@ -219,7 +246,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     try {
       if (emailTransporter) {
         const mailOptions = {
-          from: process.env.EMAIL_USER,
+          from: emailUser || process.env.EMAIL_FROM_ADDRESS || 'noreply@flowspace.com',
           to: email,
           subject: 'Flow-Space Email Verification',
           html: `
@@ -638,7 +665,16 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
 app.get('/api/v1/sprints', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT s.id, s.name, s.description, s.status, s.project_id, s.created_by, s.created_at, s.updated_at,
+      SELECT s.id,
+             s.name,
+             s.description,
+             s.status,
+             s.project_id,
+             s.start_date,
+             s.end_date,
+             s.created_by,
+             s.created_at,
+             s.updated_at,
              u.name as created_by_name
       FROM sprints s
       LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
@@ -651,6 +687,8 @@ app.get('/api/v1/sprints', async (req, res) => {
       description: row.description || '',
       status: row.status || 'planning',
       project_id: row.project_id,
+      start_date: row.start_date,
+      end_date: row.end_date,
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -1056,7 +1094,7 @@ app.get('/api/v1/projects', authenticateToken, async (req, res) => {
 
 app.post('/api/v1/projects', authenticateToken, async (req, res) => {
   try {
-    const { name, key, description, projectType, start_date, end_date } = req.body;
+    const { name, key, description, projectType, start_date, end_date, client_email } = req.body;
     const userId = req.user.id;
     
     console.log('📝 Creating project:', { name, key, userId });
@@ -1084,12 +1122,38 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
       start_date || null,
       end_date || null
     ]);
-    
-    console.log('✅ Project created successfully:', result.rows[0].id);
+    const project = result.rows[0];
+
+    // If a client email is provided, add them as a client member on this project
+    if (client_email) {
+      try {
+        const clientResult = await pool.query(
+          'SELECT id FROM users WHERE email = $1',
+          [client_email]
+        );
+
+        if (clientResult.rows.length > 0) {
+          const clientId = clientResult.rows[0].id;
+          await pool.query(
+            `INSERT INTO project_members (project_id, user_id, role)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (project_id, user_id) DO NOTHING`,
+            [project.id, clientId, 'client']
+          );
+          console.log(`✅ Added client ${client_email} to project ${project.id}`);
+        } else {
+          console.warn(`⚠️ Client email ${client_email} not found in users table`);
+        }
+      } catch (memberError) {
+        console.error('⚠️ Error adding client as project member:', memberError.message || memberError);
+      }
+    }
+
+    console.log('✅ Project created successfully:', project.id);
     
     res.json({
       success: true,
-      data: result.rows[0]
+      data: project
     });
   } catch (error) {
     console.error('❌ Create project error:', error);

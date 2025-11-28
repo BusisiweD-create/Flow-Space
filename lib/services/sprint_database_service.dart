@@ -172,6 +172,9 @@ class SprintDatabaseService {
     String? key,
     String? description,
     String? projectType,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? clientEmail,
   }) async {
     try {
       final body = {
@@ -179,6 +182,9 @@ class SprintDatabaseService {
         if (key != null) 'key': key,
         if (description != null) 'description': description,
         if (projectType != null) 'projectType': projectType,
+        if (startDate != null) 'start_date': startDate.toIso8601String(),
+        if (endDate != null) 'end_date': endDate.toIso8601String(),
+        if (clientEmail != null) 'client_email': clientEmail,
       };
 
       final response = await http.post(

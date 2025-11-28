@@ -16,11 +16,18 @@ class AppContainer extends StatelessWidget {
       return child;
     }
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF121212), // Dark background color
-      ),
-      child: child,
+    return Stack(
+      children: [
+        // Background image
+        Positioned.fill(
+          child: Image.asset(
+            'assets/Icons/khono_bg.png',
+            fit: BoxFit.cover,
+          ),
+        ),
+        // Content
+        child,
+      ],
     );
   }
 }

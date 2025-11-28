@@ -1,182 +1,114 @@
-// ignore_for_file: deprecated_member_use
- 
 import 'package:flutter/material.dart';
-import 'dart:async'; // For Timer
 import 'package:go_router/go_router.dart';
-import '../widgets/app_container.dart';
- 
-// The main entry point for the Flutter application.
-// void main() {
-//   runApp(const MyApp());
-// }
- 
-// A StatelessWidget that sets up the MaterialApp.
-// class MyApp extends StatelessWidget {
-//   const MyApp({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       title: 'Personal Development Hub',
-//       theme: ThemeData(
-//         brightness: Brightness.dark,
-//         primarySwatch: Colors.blue,
-//         fontFamily: 'Inter',
-//       ),
-//       home: const PersonalDevelopmentHubScreen(),
-//       debugShowCheckedModeBanner: false,
-//     );
-//   }
-// }
- 
-// The main screen widget for the Personal Development Hub.
-class PersonalDevelopmentHubScreen extends StatefulWidget {
-  const PersonalDevelopmentHubScreen({super.key});
- 
-  @override
-  State<PersonalDevelopmentHubScreen> createState() => _PersonalDevelopmentHubScreenState();
-}
- 
-class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScreen> {
-  late List<String> inspirationalLines;
-  int _currentLineIndex = 0;
-  late Timer _timer;
- 
-  @override
-  void initState() {
-    super.initState();
-    inspirationalLines = const [
-      'Cultivate your mind, blossom your potential.',
-      'Every step forward is a victory.',
-      'Organize your life, clarify your purpose.',
-      'Knowledge is the compass of growth.',
-      'Build strong habits, build a strong future.',
-      'Financial wisdom empowers freedom.',
-      'Unlock your inner creativity.',
-      'Mindfulness lights the path to peace.',
-      'Fitness fuels your ambition.',
-      'Learn relentlessly, live boundlessly.',
-      'Your journey, your rules, your growth.',
-      'Small changes, significant impact.',
-      'Embrace the challenge, find your strength.',
-      'Beyond limits, lies growth.',
-      'Master your days, master your destiny.',
-      'Innovate, iterate, inspire.',
-      'The best investment is in yourself.',
-      'Find your balance, elevate your being.',
-      'Progress, not perfection.',
-      'Dream big, start small, act now.',
-    ];
-    _startTimer();
-  }
+import '../widgets/app_scaffold.dart';
 
-  void _startTimer() {
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      setState(() {
-        _currentLineIndex = (_currentLineIndex + 1) % inspirationalLines.length;
-      });
-    });
-  }
- 
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
- 
+class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
-        fontFamily: 'Poppins',
-      ),
-      home: Scaffold(
-        body: AppContainer(
-          child: Stack(
-            children: [
-              // Solid color background
-              Container(
-                color: Colors.black,
-              ),
-              // Content overlay
-              Positioned.fill(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Text-based logo
-                      const Center(
-                        child: Text(
-                          'FLOWSPACE',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2.0,
-                          ),
+    return AppScaffold(
+      useBackgroundImage: true,
+      useGlassContainer: true,
+      centered: false,
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const SizedBox(height: 140),
+
+            // Logo / Title
+            Text(
+              'Deliverables and Sprints Sign Off Hub',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 12),
+
+            // Red subtitle
+            Text(
+              'Your Growth Journey, Simplified',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFFC10D00),
+                    fontWeight: FontWeight.w600,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 16),
+
+            // Tagline / description
+            Text(
+              'Build strong habits, build a strong future.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: const Color.fromRGBO(255, 255, 255, 0.85),
+                  ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 40),
+
+            // Primary and secondary actions
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: SizedBox(
+                    width: 260,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () => context.go('/login'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC10D00),
+                        foregroundColor: Colors.white,
+                        shape: const StadiumBorder(),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'GET STARTED',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      // Tagline - Centered
-                      const Center(
-                        child: Text(
-                          'Your Growth Journey, Simplified',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFC10D00),
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Inspirational message - Centered
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                          child: Text(
-                            inspirationalLines[_currentLineIndex],
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 20,
-                              color: Colors.white.withAlpha(204),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // Button - Centered
-                      Center(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            GoRouter.of(context).push('/login');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            // ignore: prefer_const_constructors
-                            backgroundColor: Color(0xFFC10D00), // Use the new red color
-                            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                            shape: const StadiumBorder(), // Changed to StadiumBorder
-                          ),
-                          child: const Text(
-                            'GET STARTED',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(height: 12),
+                Center(
+                  child: SizedBox(
+                    width: 260,
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => context.go('/register'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                        shape: const StadiumBorder(),
+                      ),
+                      child: const Text(
+                        'Create Account',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ],
         ),
       ),
     );

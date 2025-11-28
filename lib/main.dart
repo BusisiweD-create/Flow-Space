@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'widgets/app_container.dart';
+import 'screens/welcome_screen.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
-import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/email_verification_screen.dart';
@@ -16,7 +16,6 @@ import 'screens/sprint_metrics_screen.dart';
 import 'screens/report_builder_screen.dart';
 import 'screens/client_review_screen.dart';
 import 'screens/enhanced_client_review_screen.dart';
-import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
 import 'screens/approvals_screen.dart';
 import 'screens/repository_screen.dart';
@@ -85,7 +84,7 @@ final GoRouter _router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const PersonalDevelopmentHubScreen(),
+      builder: (context, state) => const WelcomeScreen(),
     ),
     GoRoute(
       path: '/login',
@@ -181,12 +180,7 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/notification-center',
-      builder: (context, state) => const RouteGuard(
-        route: '/notification-center',
-        child: SidebarScaffold(
-          child: NotificationCenterScreen(),
-        ),
-      ),
+      redirect: (context, state) => '/notifications',
     ),
     GoRoute(
       path: '/report-repository',

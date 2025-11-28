@@ -8,6 +8,7 @@ import '../models/user_role.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
+import '../widgets/background_image.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -271,8 +272,14 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
-      body: _buildRoleSpecificContent(),
+      body: BackgroundImage(
+        imagePath: 'assets/Icons/khono_bg.png',
+        withGlassEffect: false,
+        overlayOpacity: 0.25,
+        child: _buildRoleSpecificContent(),
+      ),
       floatingActionButton: _buildRoleSpecificFAB(),
     );
   }

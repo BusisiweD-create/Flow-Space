@@ -105,13 +105,30 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
         ),
         const SizedBox(height: 24),
 
-        // Kanban Board
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: _columns.map((column) => _buildColumn(column)).toList(),
-          ),
+        // Kanban Board - responsive columns, no horizontal scroll
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // 4 columns with 16px spacing between them
+            const double spacing = 16;
+            final double totalSpacing = spacing * (_columns.length - 1);
+            final double columnWidth =
+                (constraints.maxWidth - totalSpacing).clamp(220.0, double.infinity) /
+                    _columns.length;
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < _columns.length; i++)
+                  Padding(
+                    padding: EdgeInsets.only(right: i == _columns.length - 1 ? 0 : spacing),
+                    child: SizedBox(
+                      width: columnWidth,
+                      child: _buildColumn(_columns[i]),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -159,8 +176,7 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
     final issues = _groupedIssues[status] ?? [];
 
     return Container(
-      width: 300,
-      margin: const EdgeInsets.only(right: 16),
+      margin: const EdgeInsets.only(right: 0),
       child: DragTarget<JiraIssue>(
         onAcceptWithDetails: (details) {
           final issue = details.data;
