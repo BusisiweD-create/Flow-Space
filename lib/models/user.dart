@@ -1,5 +1,3 @@
-// ignore_for_file: unnecessary_import
-
 import 'package:flutter/material.dart';
 import 'user_role.dart';
 
@@ -80,9 +78,14 @@ class User {
   }
 
   factory User.fromJson(Map<String, dynamic> json) {
-    // Debug logging removed for production
+    debugPrint('Parsing User from JSON: $json');
     
     try {
+      debugPrint('ID: ${json['id']} (type: ${json['id'].runtimeType})');
+      debugPrint('Email: ${json['email']} (type: ${json['email'].runtimeType})');
+      debugPrint('Name: ${json['name']} (type: ${json['name'].runtimeType})');
+      debugPrint('Role: ${json['role']} (type: ${json['role'].runtimeType})');
+      debugPrint('CreatedAt: ${json['createdAt']} (type: ${json['createdAt'].runtimeType})');
       
       return User(
         id: json['id'] as String,
@@ -104,7 +107,7 @@ class User {
         emailVerifiedAt: json['emailVerifiedAt'] != null ? DateTime.parse(json['emailVerifiedAt'] as String) : null,
       );
     } catch (e) {
-      // Error logging removed for production
+      debugPrint('Error in User.fromJson: $e');
       rethrow;
     }
   }

@@ -1,12 +1,4 @@
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'flow_space',
-  password: 'postgres',
-  port: 5432,
-});
+const pool = require('./db');
 
 async function deleteTestUsers() {
   try {

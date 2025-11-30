@@ -5,6 +5,8 @@ import '../services/notification_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/glass/glass_card.dart';
+import '../widgets/glass/glass_panel.dart';
 
 class RealNotificationsScreen extends ConsumerStatefulWidget {
   const RealNotificationsScreen({super.key});
@@ -56,44 +58,46 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           // Header
-          Container(
+          Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const FlownetLogo(),
-                const Spacer(),
-                const Text(
-                  'Notifications',
-                  style: TextStyle(
-                    color: FlownetColors.electricBlue,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    decoration: TextDecoration.underline,
-                    decorationColor: FlownetColors.electricBlue,
+            child: GlassPanel(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              borderRadius: 24,
+              child: Row(
+                children: [
+                  const FlownetLogo(),
+                  const SizedBox(width: 16),
+                  const Text(
+                    'Notifications',
+                    style: TextStyle(
+                      color: FlownetColors.electricBlue,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(
-                    Icons.mark_email_read,
-                    color: FlownetColors.electricBlue,
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.mark_email_read,
+                      color: FlownetColors.electricBlue,
+                    ),
+                    onPressed: _markAllAsRead,
+                    tooltip: 'Mark all as read',
                   ),
-                  onPressed: _markAllAsRead,
-                  tooltip: 'Mark all as read',
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.refresh,
-                    color: FlownetColors.electricBlue,
+                  IconButton(
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: FlownetColors.electricBlue,
+                    ),
+                    onPressed: _loadNotifications,
+                    tooltip: 'Refresh notifications',
                   ),
-                  onPressed: _loadNotifications,
-                  tooltip: 'Refresh notifications',
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -103,12 +107,7 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
             child: Row(
               children: [
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: FlownetColors.amberOrange,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  child: GlassCard(
                     child: Column(
                       children: [
                         Text(
@@ -132,12 +131,7 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: FlownetColors.electricBlue,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  child: GlassCard(
                     child: Column(
                       children: [
                         Text(
@@ -187,14 +181,13 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
                         itemCount: _notifications.length,
                         itemBuilder: (context, index) {
                           final notification = _notifications[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            color: notification.isRead
-                                ? FlownetColors.graphiteGray
-                                : FlownetColors.slate,
+                          return GlassCard(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 4),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: _getNotificationTypeColor(notification.type),
+                                backgroundColor:
+                                    _getNotificationTypeColor(notification.type),
                                 child: Icon(
                                   _getNotificationTypeIcon(notification.type),
                                   color: FlownetColors.pureWhite,
@@ -239,7 +232,8 @@ class _RealNotificationsScreenState extends ConsumerState<RealNotificationsScree
                                         Icons.mark_email_read,
                                         color: FlownetColors.electricBlue,
                                       ),
-                                      onPressed: () => _markAsRead(notification.id),
+                                      onPressed: () =>
+                                          _markAsRead(notification.id),
                                       tooltip: 'Mark as read',
                                     ),
                               isThreeLine: true,

@@ -164,16 +164,16 @@ class SprintDatabaseService {
   /// Create a new project
   Future<Map<String, dynamic>?> createProject({
     required String name,
-    String? key,
+    required String key,
     String? description,
     String? projectType,
   }) async {
     try {
       final body = {
         'name': name,
-        if (key != null) 'key': key,
-        if (description != null) 'description': description,
-        if (projectType != null) 'projectType': projectType,
+        'key': key,
+        'description': description,
+        'projectType': projectType ?? 'software',
       };
 
       final response = await http.post(

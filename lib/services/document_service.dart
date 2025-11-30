@@ -15,7 +15,7 @@ import 'document_service_stub.dart'
 
 class DocumentService {
   final AuthService _authService;
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  static const String _baseUrl = 'http://localhost:3007/api/v1';
 
   DocumentService(this._authService);
 
@@ -394,33 +394,6 @@ class DocumentService {
       }
     } catch (e) {
       return ApiResponse.error('Error deleting document: $e');
-    }
-  }
-
-  // Track document view
-  Future<ApiResponse> trackDocumentView(String documentId) async {
-    try {
-      final token = _authService.accessToken;
-      if (token == null) {
-        return ApiResponse.error('Not authenticated');
-      }
-
-      final response = await http.post(
-        Uri.parse('$_baseUrl/documents/$documentId/view'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        return ApiResponse.success(<String, dynamic>{}, response.statusCode);
-      } else {
-        final data = jsonDecode(response.body);
-        return ApiResponse.error(data['error'] ?? 'Failed to track view');
-      }
-    } catch (e) {
-      return ApiResponse.error('Error tracking view: $e');
     }
   }
 

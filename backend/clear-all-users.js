@@ -1,12 +1,4 @@
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  host: 'localhost',
-  user: 'postgres',
-  password: 'postgres',
-  database: 'flow_space',
-  port: 5432,
-});
+const pool = require('./db');
 
 async function clearAllUsers() {
   try {

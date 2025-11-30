@@ -18,6 +18,11 @@ const emailService = new ProfessionalEmailService();
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/v1', (req, res) => {
+  res.send('Flow-Space API v1 is running');
+});
+
+
 // PostgreSQL connection using shared database config
 const pool = new Pool(dbConfig);
 

@@ -3,7 +3,6 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
@@ -12,9 +11,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const ProfessionalEmailService = require('./emailServiceProfessional');
-const dbConfig = require('./database-config');
-require('dotenv').config();
+const pool = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -90,28 +87,53 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
+
+    try {
+      // Check if token has been revoked
+      const revokedResult = await pool.query(
+        'SELECT token FROM revoked_tokens WHERE token = $1 AND expires_at > NOW()',
+        [token],
+      );
+      if (revokedResult.rows.length > 0) {
+        return res.status(401).json({ error: 'Token has been revoked. Please log in again.' });
+      }
+    } catch (checkError) {
+      console.error('Error checking revoked tokens:', checkError);
+      // Fail closed – treat failures as invalid auth
+      return res.status(401).json({ error: 'Authentication check failed' });
+    }
+
     req.user = user;
     next();
   });
 };
 
-// PostgreSQL connection
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'flow_space',
-  password: 'postgres',
-  port: 5432,
-});
+// Ensure revoked_tokens table exists
+async function ensureRevokedTokensTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS revoked_tokens (
+        token TEXT PRIMARY KEY,
+        user_id UUID,
+        revoked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+    `);
 
-// Test database connection
-pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
-});
+    // Periodic cleanup of expired revoked tokens
+    await pool.query('DELETE FROM revoked_tokens WHERE expires_at < NOW()');
+
+    console.log('✅ revoked_tokens table is ready');
+  } catch (error) {
+    console.error('Error ensuring revoked_tokens table:', error);
+  }
+}
+
+ensureRevokedTokensTable();
 
 // Auth routes
 // Register endpoint (matching frontend expectations)
@@ -406,22 +428,48 @@ app.post('/api/v1/auth/login', async (req, res) => {
   }
 });
 
-// Logout endpoint
+// Logout endpoint – revokes the current access token
 app.post('/api/v1/auth/logout', authenticateToken, async (req, res) => {
   try {
-    // Since we're using stateless JWT, logout is mainly client-side
-    // But we can log the logout event or invalidate tokens if needed
-    console.log(`✅ User logged out: ${req.user.email}`);
-    
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        error: 'No token provided for logout',
+      });
+    }
+
+    const decoded = jwt.decode(token);
+    let expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // default 24h
+    if (decoded && typeof decoded === 'object' && decoded.exp != null) {
+      const expSeconds = decoded.exp;
+      if (typeof expSeconds === 'number') {
+        expiresAt = new Date(expSeconds * 1000);
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO revoked_tokens (token, user_id, expires_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (token) DO UPDATE
+       SET expires_at = EXCLUDED.expires_at,
+           revoked_at = NOW()`,
+      [token, req.user.id, expiresAt],
+    );
+
+    await pool.query('DELETE FROM revoked_tokens WHERE expires_at < NOW()');
+
     res.json({
       success: true,
-      message: 'Logout successful'
+      message: 'Logout successful',
     });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Internal server error' 
+      error: 'Failed to logout',
     });
   }
 });
@@ -521,51 +569,6 @@ app.get('/api/v1/auth/me', authenticateToken, async (req, res) => {
     });
   }
 });
-// Deliverables routes - REMOVED: This endpoint is duplicated below with authentication
-// The authenticated version at line 1262 should be used instead
-// User settings endpoint
-app.get('/api/user/settings', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    
-    // Get user settings/preferences from database
-    const result = await pool.query(
-      'SELECT id, email, name, role, is_active, created_at FROM users WHERE id = $1',
-      [userId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'User not found' 
-      });
-    }
-    
-    const user = result.rows[0];
-    
-    res.json({
-      success: true,
-      data: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        isActive: user.is_active,
-        createdAt: user.created_at,
-        // Default settings
-        theme: 'light',
-        notifications: true,
-        language: 'en'
-      }
-    });
-  } catch (error) {
-    console.error('Get user settings error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal server error' 
-    });
-  }
-});
 
 // Deliverables routes
 app.get('/api/v1/deliverables', async (req, res) => {
@@ -600,9 +603,23 @@ app.get('/api/v1/deliverables', async (req, res) => {
   }
 });
 
-// REMOVED: Unauthenticated POST /api/v1/deliverables endpoint
-// This endpoint is duplicated below with authentication at line 1274
-// The authenticated version should be used instead
+app.post('/api/v1/deliverables', async (req, res) => {
+  try {
+    const { title, description, definitionOfDone, status, assignedTo, createdBy } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO deliverables (title, description, definition_of_done, status, assigned_to, created_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [title, description, definitionOfDone, status, assignedTo, createdBy, new Date().toISOString()]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create deliverable error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 app.put('/api/v1/deliverables/:id', async (req, res) => {
   try {
@@ -610,7 +627,7 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
     let { status } = req.body;
     
     await pool.query(
-      'UPDATE deliverables SET status = $1, updated_at = $2 WHERE id = $3::uuid',
+      'UPDATE deliverables SET status = $1, updated_at = $2 WHERE id = $3',
       [status, new Date().toISOString(), id]
     );
     
@@ -625,22 +642,23 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
 app.get('/api/v1/sprints', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT s.id, s.name, s.description, s.status, s.created_by, s.created_at, s.updated_at,
-             u.name as created_by_name
+      SELECT s.*, u.name as created_by_name
       FROM sprints s
-      LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
+      LEFT JOIN users u ON s.created_by = u.id
       ORDER BY s.created_at DESC
     `);
     
     const sprints = result.rows.map(row => ({
       id: row.id,
-      name: row.name || 'Unnamed Sprint',
-      description: row.description || '',
-      status: row.status || 'planning',
+      name: row.name,
+      description: row.description,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      status: row.status,
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      created_by_name: row.created_by_name || 'Unknown',
+      created_by_name: row.created_by_name,
     }));
     
     res.json({
@@ -649,23 +667,7 @@ app.get('/api/v1/sprints', async (req, res) => {
     });
   } catch (error) {
     console.error('Get sprints error:', error);
-    console.error('Error code:', error.code);
-    console.error('Error detail:', error.detail);
-    
-    // If table doesn't exist or column error, return empty array
-    if (error.code === '42P01' || error.code === '42703') {
-      console.log('Sprints table or column does not exist, returning empty array');
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
-    
-    // Return empty array for any error instead of 500
-    res.json({
-      success: true,
-      data: []
-    });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -705,15 +707,12 @@ app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
     const result = await pool.query(`
       SELECT s.*, u.name as created_by_name
       FROM sprints s
-      LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
-      WHERE s.id = $1
+      LEFT JOIN users u ON s.created_by = u.id
+      WHERE s.id = $1::uuid
     `, [id]);
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Sprint not found' 
-      });
+      return res.status(404).json({ error: 'Sprint not found' });
     }
     
     res.json({
@@ -721,22 +720,8 @@ app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('Get sprint by ID error:', error);
-    console.error('Error code:', error.code);
-    console.error('Error detail:', error.detail);
-    
-    // If table doesn't exist, return 404
-    if (error.code === '42P01' || error.code === '42703') {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Sprint not found' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal server error' 
-    });
+    console.error('Get sprint error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -758,101 +743,6 @@ app.get('/api/v1/sprints/:id/tickets', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Get sprint tickets error:', error);
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Update sprint
-app.put('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, name, description, start_date, end_date } = req.body;
-    
-    // Build dynamic update query
-    const updates = [];
-    const values = [];
-    let paramCounter = 1;
-    
-    if (status !== undefined) {
-      updates.push(`status = $${paramCounter}`);
-      values.push(status);
-      paramCounter++;
-    }
-    if (name !== undefined) {
-      updates.push(`name = $${paramCounter}`);
-      values.push(name);
-      paramCounter++;
-    }
-    if (description !== undefined) {
-      updates.push(`description = $${paramCounter}`);
-      values.push(description);
-      paramCounter++;
-    }
-    if (start_date !== undefined) {
-      updates.push(`start_date = $${paramCounter}`);
-      values.push(start_date);
-      paramCounter++;
-    }
-    if (end_date !== undefined) {
-      updates.push(`end_date = $${paramCounter}`);
-      values.push(end_date);
-      paramCounter++;
-    }
-    
-    if (updates.length === 0) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'No fields to update' 
-      });
-    }
-    
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
-    values.push(id);
-    
-    const result = await pool.query(`
-      UPDATE sprints 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramCounter}
-      RETURNING *
-    `, values);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Sprint not found' 
-      });
-    }
-    
-    console.log(`✅ Sprint ${id} updated successfully`);
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Update sprint error:', error);
-    console.error('Error code:', error.code);
-    console.error('Error detail:', error.detail);
-    console.error('Error message:', error.message);
-    
-    // If table doesn't exist, return 404
-    if (error.code === '42P01') {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Sprint not found' 
-      });
-    }
-    
-    // If column doesn't exist, return 400
-    if (error.code === '42703') {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Invalid field to update' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false,
-      error: error.message || 'Internal server error' 
-    });
   }
 });
 
@@ -964,56 +854,22 @@ app.put('/api/v1/tickets/:id/status', authenticateToken, async (req, res) => {
 // Projects routes
 app.get('/api/v1/projects', authenticateToken, async (req, res) => {
   try {
-    console.log('📂 Fetching projects from database...');
-    
     const result = await pool.query(`
-      SELECT p.id, p.name, p.key, p.description, p.project_type, p.status, 
-             p.start_date, p.end_date,
-             p.owner_id, p.created_at, p.updated_at,
-             u.name as created_by_name
+      SELECT p.*, u.name as created_by_name
       FROM projects p
-      LEFT JOIN users u ON p.owner_id::uuid = u.id::uuid
+      LEFT JOIN users u ON p.created_by = u.id
       ORDER BY p.created_at DESC
     `);
-    
-    console.log(`✅ Found ${result.rows.length} projects in database`);
-    if (result.rows.length > 0) {
-      console.log('Project names:', result.rows.map(p => p.name).join(', '));
-    }
     
     res.json({
       success: true,
       data: result.rows
     });
   } catch (error) {
-    console.error('❌ Get projects error:', error);
-    console.error('Error code:', error.code);
-    console.error('Error detail:', error.detail);
-    console.error('Error message:', error.message);
-    
-    // If table doesn't exist or column error, return empty array
-    if (error.code === '42P01') {
-      console.log('⚠️ Projects table does not exist, returning empty array');
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
-    
-    if (error.code === '42703') {
-      console.log('⚠️ Column does not exist in projects table, returning empty array');
-      console.log('Available columns might not match query. Error:', error.message);
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
-    
-    // For other errors, log and return empty array
-    console.log('⚠️ Returning empty array due to unexpected error');
-    res.json({
-      success: true,
-      data: []
+    console.error('Get projects error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
     });
   }
 });
@@ -1023,47 +879,37 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     const { name, key, description, projectType, start_date, end_date } = req.body;
     const userId = req.user.id;
     
-    console.log('📝 Creating project:', { name, key, userId });
-    
     if (!name) {
-      console.log('❌ Project name is required');
       return res.status(400).json({ 
         success: false,
         error: 'Name is required' 
       });
     }
     
-    // Insert with all available columns
+    const projectId = uuidv4();
     const result = await pool.query(`
-      INSERT INTO projects (name, key, description, project_type, status, owner_id, start_date, end_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO projects (id, name, description, status, created_by, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `, [
+      projectId, 
       name, 
-      key || null,
       description || '', 
-      projectType || 'agile',
       'active',
-      userId,
-      start_date || null,
-      end_date || null
+      userId, 
+      new Date().toISOString(), 
+      new Date().toISOString()
     ]);
-    
-    console.log('✅ Project created successfully:', result.rows[0].id);
     
     res.json({
       success: true,
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('❌ Create project error:', error);
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    console.error('Error detail:', error.detail);
-    
+    console.error('Create project error:', error);
     res.status(500).json({ 
       success: false,
-      error: error.message || 'Internal server error' 
+      error: 'Internal server error' 
     });
   }
 });
@@ -1071,142 +917,6 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Flow-Space API is running' });
-});
-
-// Audit logs endpoint
-app.get('/api/audit-logs', async (req, res) => {
-  try {
-    const { skip = 0, limit = 100 } = req.query;
-    const offset = parseInt(skip);
-    const parsedLimit = parseInt(limit);
-    
-    // Get audit logs with pagination
-    const auditLogsResult = await pool.query(
-      `SELECT al.*, u.name as user_name, u.email as user_email
-       FROM audit_logs al
-       LEFT JOIN users u ON al.user_id = u.id
-       ORDER BY al.created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [parsedLimit, offset]
-    );
-    
-    // Get total count for pagination
-    const totalCountResult = await pool.query('SELECT COUNT(*) as total FROM audit_logs');
-    const totalCount = parseInt(totalCountResult.rows[0].total);
-    
-    const auditLogs = auditLogsResult.rows.map(log => ({
-      id: log.id,
-      user_id: log.user_id,
-      user_name: log.user_name,
-      user_email: log.user_email,
-      action: log.action,
-      resource_type: log.resource_type,
-      resource_id: log.resource_id,
-      details: log.details,
-      ip_address: log.ip_address,
-      user_agent: log.user_agent,
-      created_at: log.created_at
-    }));
-    
-    res.json({
-      audit_logs: auditLogs,
-      items: auditLogs, // For backward compatibility
-      logs: auditLogs,  // For backward compatibility
-      total: totalCount,
-      total_count: totalCount,
-      skip: offset,
-      limit: parsedLimit,
-      has_more: offset + auditLogs.length < totalCount
-    });
-  } catch (error) {
-    if (error.code === '42P01') { // Table doesn't exist
-       console.log('Audit logs table does not exist yet, returning empty response');
-       res.json({
-         audit_logs: [],
-         items: [],
-         logs: [],
-         total: 0,
-         total_count: 0,
-         skip: 0,
-         limit: 100,
-         has_more: false
-       });
-    } else {
-      console.error('Error fetching audit logs:', error);
-      res.status(500).json({ 
-        success: false,
-        error: 'Internal server error' 
-      });
-    }
-  }
-});
-
-// Audit logs endpoint (v1)
-app.get('/api/v1/audit-logs', async (req, res) => {
-  try {
-    const { skip = 0, limit = 100 } = req.query;
-    const offset = parseInt(skip);
-    const parsedLimit = parseInt(limit);
-    
-    // Get audit logs with pagination
-    const auditLogsResult = await pool.query(
-      `SELECT al.*, u.name as user_name, u.email as user_email
-       FROM audit_logs al
-       LEFT JOIN users u ON al.user_id = u.id
-       ORDER BY al.created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [parsedLimit, offset]
-    );
-    
-    // Get total count for pagination
-    const totalCountResult = await pool.query('SELECT COUNT(*) as total FROM audit_logs');
-    const totalCount = parseInt(totalCountResult.rows[0].total);
-    
-    const auditLogs = auditLogsResult.rows.map(log => ({
-      id: log.id,
-      user_id: log.user_id,
-      user_name: log.user_name,
-      user_email: log.user_email,
-      action: log.action,
-      resource_type: log.resource_type,
-      resource_id: log.resource_id,
-      details: log.details,
-      ip_address: log.ip_address,
-      user_agent: log.user_agent,
-      created_at: log.created_at
-    }));
-    
-    res.json({
-      audit_logs: auditLogs,
-      items: auditLogs,
-      logs: auditLogs,
-      total: totalCount,
-      total_count: totalCount,
-      skip: offset,
-      limit: parsedLimit,
-      has_more: offset + auditLogs.length < totalCount
-    });
-  } catch (error) {
-    if (error.code === '42P01') { // Table doesn't exist
-       console.log('Audit logs table does not exist yet, returning empty response');
-       res.json({
-         audit_logs: [],
-         items: [],
-         logs: [],
-         total: 0,
-         total_count: 0,
-         skip: 0,
-         limit: 100,
-         has_more: false
-       });
-    } else {
-      console.error('Error fetching audit logs:', error);
-      res.status(500).json({ 
-        success: false,
-        error: 'Internal server error' 
-      });
-    }
-  }
 });
 
 // Test database connection
@@ -1224,143 +934,6 @@ app.get('/api/test-db', async (req, res) => {
       status: 'ERROR', 
       message: 'Database connection failed',
       error: error.message
-    });
-  }
-});
-
-// User management endpoints
-app.get('/api/v1/users', authenticateToken, async (req, res) => {
-  try {
-    // Check if user is admin
-    const { role } = req.user;
-    if (role !== 'systemAdmin') {
-      return res.status(403).json({ 
-        success: false,
-        error: 'Admin access required' 
-      });
-    }
-    
-    const result = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role, u.is_active, u.created_at, u.last_login_at,
-              ur.display_name, ur.color, ur.icon
-       FROM users u
-       LEFT JOIN user_roles ur ON u.role = ur.name
-       ORDER BY u.created_at DESC`
-    );
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-    
-  } catch (error) {
-    console.error('Get users error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal server error' 
-    });
-  }
-});
-
-app.put('/api/v1/users/:userId/role', authenticateToken, async (req, res) => {
-  try {
-    // Check if user is admin
-    const { role } = req.user;
-    if (role !== 'systemAdmin') {
-      return res.status(403).json({ 
-        success: false,
-        error: 'Admin access required' 
-      });
-    }
-    
-    const { userId } = req.params;
-    const { role: newRole } = req.body;
-    
-    if (!newRole) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Role is required' 
-      });
-    }
-    
-    // Validate role
-    const validRoles = ['teamMember', 'deliveryLead', 'clientReviewer', 'systemAdmin'];
-    if (!validRoles.includes(newRole)) {
-      return res.status(400).json({ 
-        success: false,
-        error: `Invalid role. Must be one of: ${validRoles.join(', ')}` 
-      });
-    }
-    
-    const result = await pool.query(
-      'UPDATE users SET role = $1, updated_at = $2 WHERE id = $3 RETURNING *',
-      [newRole, new Date().toISOString(), userId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'User not found' 
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-    
-  } catch (error) {
-    console.error('Update user role error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal server error' 
-    });
-  }
-});
-
-app.put('/api/v1/users/:userId/status', authenticateToken, async (req, res) => {
-  try {
-    // Check if user is admin
-    const { role } = req.user;
-    if (role !== 'systemAdmin') {
-      return res.status(403).json({ 
-        success: false,
-        error: 'Admin access required' 
-      });
-    }
-    
-    const { userId } = req.params;
-    const { isActive } = req.body;
-    
-    if (typeof isActive !== 'boolean') {
-      return res.status(400).json({ 
-        success: false,
-        error: 'isActive must be a boolean' 
-      });
-    }
-    
-    const result = await pool.query(
-      'UPDATE users SET is_active = $1, updated_at = $2 WHERE id = $3 RETURNING *',
-      [isActive, new Date().toISOString(), userId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'User not found' 
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-    
-  } catch (error) {
-    console.error('Update user status error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal server error' 
     });
   }
 });
@@ -1517,10 +1090,8 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         n.type,
         n.is_read,
         n.created_at,
-        n.updated_at,
-        u.name as created_by_name
+        n.created_at as updated_at
       FROM notifications n
-      LEFT JOIN users u ON n.created_by = u.id
       WHERE n.user_id = $1 OR n.user_id IS NULL
       ORDER BY n.created_at DESC
     `, [userId]);
@@ -1535,7 +1106,7 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         isRead: row.is_read,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        createdByName: row.created_by_name,
+        createdByName: null,
         timestamp: row.created_at,
         date: row.created_at,
         description: row.message
@@ -1543,21 +1114,10 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching notifications:', error);
-    console.error('Error code:', error.code);
-    
-    // If table doesn't exist, return empty array
-    if (error.code === '42P01') {
-      console.log('Notifications table does not exist, returning empty array');
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
-    
-    // Return empty array for any error instead of 500
-    res.json({
-      success: true,
-      data: []
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Failed to fetch notifications' 
     });
   }
 });
@@ -1608,19 +1168,19 @@ app.post('/api/v1/notifications', authenticateToken, async (req, res) => {
     // If user_id is provided, create for specific user, otherwise create for all users
     if (user_id) {
       const notificationId = uuidv4();
-      await pool.query(`
-        INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-      `, [notificationId, title, message, type, user_id, createdBy]);
+        await pool.query(`
+          INSERT INTO notifications (id, title, message, type, user_id, is_read, created_at)
+          VALUES ($1, $2, $3, $4, $5, false, NOW())
+        `, [notificationId, title, message, type, user_id]);
     } else {
       // Create notification for all users
       const usersResult = await pool.query('SELECT id FROM users');
       for (const user of usersResult.rows) {
         const notificationId = uuidv4();
         await pool.query(`
-          INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-        `, [notificationId, title, message, type, user.id, createdBy]);
+          INSERT INTO notifications (id, title, message, type, user_id, is_read, created_at)
+          VALUES ($1, $2, $3, $4, $5, false, NOW())
+        `, [notificationId, title, message, type, user.id]);
       }
     }
 
@@ -1808,22 +1368,7 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching deliverables:', error);
-    console.error('Error code:', error.code);
-    
-    // If table doesn't exist, return empty array
-    if (error.code === '42P01') {
-      console.log('Deliverables table does not exist, returning empty array');
-      return res.json({
-        success: true,
-        data: []
-      });
-    }
-    
-    // Return empty array for any error instead of 500
-    res.json({
-      success: true,
-      data: []
-    });
+    res.status(500).json({ error: 'Failed to fetch deliverables' });
   }
 });
 
@@ -1861,8 +1406,8 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
     // Create notification for assigned user
     if (assigned_to && assigned_to !== userId) {
       await pool.query(`
-        INSERT INTO notifications (title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
+        INSERT INTO notifications (title, message, type, user_id, is_read, created_at)
+        VALUES ($1, $2, $3, $4, false, NOW())
       `, [
         'New Deliverable Assigned',
         `You have been assigned a new deliverable: ${title}`,
@@ -2555,40 +2100,50 @@ app.post('/api/v1/documents', authenticateToken, upload.single('file'), async (r
 app.get('/api/v1/documents/:id/download', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
     
-    console.log(`📥 Document download requested for ID: ${id}`);
-    
-    // Simplified query - just check if document exists
-    const query = `
+    // Get document details with authorization check
+    let query = `
       SELECT d.*, u.name as uploader_name
       FROM repository_files d
-      LEFT JOIN users u ON d.uploaded_by::uuid = u.id::uuid
-      WHERE d.id::text = $1
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      WHERE d.id = $1
     `;
     
-    const result = await pool.query(query, [id]);
+    let params = [id];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2
+      ))`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2 AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
-      console.log(`❌ Document not found for download: ${id}`);
       return res.status(404).json({ 
         success: false,
-        error: 'Document not found' 
+        error: 'Document not found or access denied' 
       });
     }
     
     const document = result.rows[0];
-    console.log(`✅ Document found for download: ${document.file_name}`);
     
     // Check if file exists
-    if (!document.file_path || !fs.existsSync(document.file_path)) {
-      console.log(`❌ File not found on server: ${document.file_path}`);
+    if (!fs.existsSync(document.file_path)) {
       return res.status(404).json({ 
         success: false,
         error: 'File not found on server' 
       });
     }
-    
-    console.log(`✅ Streaming file: ${document.file_path}`);
     
     // Set appropriate headers
     res.setHeader('Content-Disposition', `attachment; filename="${document.file_name}"`);
@@ -2784,91 +2339,74 @@ app.put('/api/v1/documents/:id', authenticateToken, async (req, res) => {
 app.get('/api/v1/documents/:id/preview', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
     
-    console.log(`📄 Document preview requested for ID: ${id}`);
-    
-    // Simplified query - just check if document exists
-    const query = `
+    // Get document details with authorization check
+    let query = `
       SELECT d.*, u.name as uploader_name
       FROM repository_files d
-      LEFT JOIN users u ON d.uploaded_by::uuid = u.id::uuid
-      WHERE d.id::text = $1
+      LEFT JOIN users u ON d.uploaded_by = u.id
+      WHERE d.id = $1
     `;
     
-    const result = await pool.query(query, [id]);
+    let params = [id];
+    
+    // Role-based filtering
+    if (userRole === 'teamMember') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2
+      ))`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (d.uploaded_by = $2 OR d.project_id IN (
+        SELECT project_id FROM project_members WHERE user_id = $2 AND role IN ('manager', 'owner')
+      ))`;
+      params.push(userId);
+    }
+    
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
-      console.log(`❌ Document not found: ${id}`);
       return res.status(404).json({ 
         success: false,
-        error: 'Document not found' 
+        error: 'Document not found or access denied' 
       });
     }
     
     const document = result.rows[0];
-    console.log(`✅ Document found: ${document.file_name}`);
     
-    // Check if file path exists and file is on disk
-    if (document.file_path && fs.existsSync(document.file_path)) {
-      console.log(`✅ File exists on disk: ${document.file_path}`);
-      
-      // Return file info for preview with actual file data
-      res.json({
-        success: true,
-        data: {
-          id: document.id,
-          name: document.file_name,
-          fileType: document.file_type,
-          size: document.file_size,
-          sizeInMB: (document.file_size / (1024 * 1024)).toFixed(2),
-          uploadDate: document.uploaded_at,
-          uploaderName: document.uploader_name,
-          description: document.description,
-          tags: document.tags,
-          previewAvailable: true,
-          downloadUrl: `/api/v1/documents/${id}/download`,
-          previewUrl: `/api/v1/documents/${id}/preview`
-        }
-      });
-    } else {
-      // File doesn't exist on disk but record exists - return mock preview
-      console.log(`⚠️ File not on disk, returning metadata only`);
-      
-      res.json({
-        success: true,
-        data: {
-          id: document.id,
-          name: document.file_name || 'Document',
-          fileType: document.file_type || 'pdf',
-          size: document.file_size || 0,
-          sizeInMB: '0.00',
-          uploadDate: document.uploaded_at,
-          uploaderName: document.uploader_name || 'Unknown',
-          description: document.description || 'No description',
-          tags: document.tags || [],
-          previewAvailable: false,
-          previewMessage: 'Preview not available - file not found on server',
-          downloadUrl: `/api/v1/documents/${id}/download`
-        }
-      });
-    }
-  } catch (error) {
-    console.error('❌ Error getting document preview:', error);
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    
-    // If table doesn't exist, return friendly error
-    if (error.code === '42P01') {
+    // Check if file exists
+    if (!fs.existsSync(document.file_path)) {
       return res.status(404).json({ 
         success: false,
-        error: 'Document repository not available' 
+        error: 'File not found on server' 
       });
     }
     
+    // For now, return file info for preview
+    // In a real implementation, you would generate thumbnails or extract text content
+    res.json({
+      success: true,
+      data: {
+        id: document.id,
+        name: document.file_name,
+        fileType: document.file_type,
+        size: document.file_size,
+        sizeInMB: (document.file_size / (1024 * 1024)).toFixed(2),
+        uploadDate: document.uploaded_at,
+        uploaderName: document.uploader_name,
+        description: document.description,
+        tags: document.tags,
+        previewAvailable: ['pdf', 'txt', 'md', 'json', 'xml'].includes(document.file_type.toLowerCase()),
+        downloadUrl: `/api/v1/documents/${id}/download`
+      }
+    });
+  } catch (error) {
+    console.error('Error getting document preview:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Failed to get document preview',
-      message: error.message 
+      error: 'Failed to get document preview' 
     });
   }
 });
@@ -3081,453 +2619,13 @@ app.get('/api/v1/approval-requests/:id', authenticateToken, async (req, res) => 
   }
 });
 
-// ==================== SIGN-OFF REPORTS ENDPOINTS ====================
-
-// Get all sign-off reports with filters
-app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
-  try {
-    const { status, search, deliverableId, projectId, sprintId, from, to } = req.query;
-    const userId = req.user.id;
-    const userRole = req.user.role;
-
-    let query = `
-      SELECT 
-        r.id,
-        r.deliverable_id,
-        r.created_by,
-        r.status,
-        r.content,
-        r.evidence,
-        r.created_at,
-        r.updated_at,
-        u.name as created_by_name,
-        d.title as deliverable_title,
-        d.project_id,
-        p.name as project_name,
-        cr.reviewer_id,
-        cr.status as review_status,
-        cr.feedback,
-        cr.approved_at,
-        u2.name as reviewer_name
-      FROM sign_off_reports r
-      LEFT JOIN users u ON r.created_by = u.id
-      LEFT JOIN deliverables d ON r.deliverable_id = d.id
-      LEFT JOIN projects p ON d.project_id = p.id
-      LEFT JOIN client_reviews cr ON r.id = cr.report_id
-      LEFT JOIN users u2 ON cr.reviewer_id = u2.id
-      WHERE 1=1
-    `;
-    const params = [];
-    let paramCount = 0;
-
-    // Role-based filtering
-    if (userRole === 'teamMember') {
-      query += ` AND (r.created_by = $${++paramCount} OR d.assigned_to = $${paramCount})`;
-      params.push(userId);
-    } else if (userRole === 'clientReviewer') {
-      // Client reviewers can see all reports
-    }
-
-    if (status) {
-      query += ` AND r.status = $${++paramCount}`;
-      params.push(status);
-    }
-    if (deliverableId) {
-      query += ` AND r.deliverable_id = $${++paramCount}::uuid`;
-      params.push(deliverableId);
-    }
-    if (projectId) {
-      query += ` AND d.project_id = $${++paramCount}::uuid`;
-      params.push(projectId);
-    }
-    if (sprintId) {
-      query += ` AND EXISTS (
-        SELECT 1 FROM sprint_deliverables sd 
-        WHERE sd.deliverable_id = r.deliverable_id AND sd.sprint_id = $${++paramCount}::uuid
-      )`;
-      params.push(sprintId);
-    }
-    if (from) {
-      query += ` AND r.created_at >= $${++paramCount}`;
-      params.push(new Date(from));
-    }
-    if (to) {
-      query += ` AND r.created_at <= $${++paramCount}`;
-      params.push(new Date(to));
-    }
-    if (search) {
-      query += ` AND (
-        (r.content->>'reportTitle')::text ILIKE $${++paramCount} OR
-        (r.content->>'reportContent')::text ILIKE $${paramCount} OR
-        d.title ILIKE $${paramCount}
-      )`;
-      params.push(`%${search}%`);
-    }
-
-    query += ' ORDER BY r.created_at DESC';
-
-    const result = await pool.query(query, params);
-    
-    // Transform results to include review info
-    const reportsMap = new Map();
-    result.rows.forEach(row => {
-      if (!reportsMap.has(row.id)) {
-        reportsMap.set(row.id, {
-          id: row.id,
-          deliverableId: row.deliverable_id,
-          deliverableTitle: row.deliverable_title,
-          projectId: row.project_id,
-          projectName: row.project_name,
-          createdBy: row.created_by,
-          createdByName: row.created_by_name,
-          status: row.status,
-          content: row.content || {},
-          evidence: row.evidence || [],
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          reviews: []
-        });
-      }
-      if (row.reviewer_id) {
-        reportsMap.get(row.id).reviews.push({
-          reviewerId: row.reviewer_id,
-          reviewerName: row.reviewer_name,
-          reviewStatus: row.review_status,
-          feedback: row.feedback,
-          approvedAt: row.approved_at
-        });
-      }
-    });
-
-    res.json({ 
-      success: true, 
-      data: Array.from(reportsMap.values())
-    });
-  } catch (error) {
-    console.error('Error fetching sign-off reports:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch sign-off reports' });
-  }
-});
-
-// Get single sign-off report
-app.get('/api/v1/sign-off-reports/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    // Log view action in audit
-    await pool.query(`
-      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'view_report', 'sign_off_report', $2, '{}', NOW())
-    `, [userId, id]);
-
-    const result = await pool.query(`
-      SELECT 
-        r.*,
-        u.name as created_by_name,
-        d.title as deliverable_title,
-        d.project_id,
-        p.name as project_name
-      FROM sign_off_reports r
-      LEFT JOIN users u ON r.created_by = u.id
-      LEFT JOIN deliverables d ON r.deliverable_id = d.id
-      LEFT JOIN projects p ON d.project_id = p.id
-      WHERE r.id = $1::uuid
-    `, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Report not found' });
-    }
-
-    // Get reviews
-    const reviewsResult = await pool.query(`
-      SELECT cr.*, u.name as reviewer_name
-      FROM client_reviews cr
-      LEFT JOIN users u ON cr.reviewer_id = u.id
-      WHERE cr.report_id = $1::uuid
-      ORDER BY cr.created_at DESC
-    `, [id]);
-
-    const report = result.rows[0];
-    report.reviews = reviewsResult.rows;
-
-    res.json({ success: true, data: report });
-  } catch (error) {
-    console.error('Error fetching sign-off report:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch sign-off report' });
-  }
-});
-
-// Create sign-off report
-app.post('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
-  try {
-    const { deliverableId, reportTitle, reportContent, sprintIds, sprintPerformanceData, knownLimitations, nextSteps } = req.body;
-    const userId = req.user.id;
-
-    if (!deliverableId || !reportTitle || !reportContent) {
-      return res.status(400).json({ success: false, error: 'Deliverable ID, report title, and content are required' });
-    }
-
-    const content = {
-      reportTitle,
-      reportContent,
-      sprintPerformanceData: sprintPerformanceData || null,
-      knownLimitations: knownLimitations || null,
-      nextSteps: nextSteps || null,
-      sprintIds: sprintIds || []
-    };
-
-    const result = await pool.query(`
-      INSERT INTO sign_off_reports (deliverable_id, created_by, status, content, created_at, updated_at)
-      VALUES ($1::uuid, $2::uuid, 'draft', $3::jsonb, NOW(), NOW())
-      RETURNING *
-    `, [deliverableId, userId, JSON.stringify(content)]);
-
-    const reportId = result.rows[0].id;
-
-    // Log creation in audit
-    await pool.query(`
-      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'create_report', 'sign_off_report', $2, $3::jsonb, NOW())
-    `, [userId, reportId, JSON.stringify({ deliverableId, reportTitle })]);
-
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error creating sign-off report:', error);
-    res.status(500).json({ success: false, error: 'Failed to create sign-off report' });
-  }
-});
-
-// Update sign-off report
-app.put('/api/v1/sign-off-reports/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { reportTitle, reportContent, sprintPerformanceData, knownLimitations, nextSteps, sprintIds } = req.body;
-    const userId = req.user.id;
-
-    // Get existing report
-    const existingResult = await pool.query(`
-      SELECT * FROM sign_off_reports WHERE id = $1::uuid
-    `, [id]);
-
-    if (existingResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Report not found' });
-    }
-
-    const existing = existingResult.rows[0];
-    const existingContent = existing.content || {};
-    
-    const updatedContent = {
-      ...existingContent,
-      ...(reportTitle && { reportTitle }),
-      ...(reportContent && { reportContent }),
-      ...(sprintPerformanceData !== undefined && { sprintPerformanceData }),
-      ...(knownLimitations !== undefined && { knownLimitations }),
-      ...(nextSteps !== undefined && { nextSteps }),
-      ...(sprintIds && { sprintIds })
-    };
-
-    const result = await pool.query(`
-      UPDATE sign_off_reports 
-      SET content = $1::jsonb, updated_at = NOW()
-      WHERE id = $2::uuid
-      RETURNING *
-    `, [JSON.stringify(updatedContent), id]);
-
-    // Log update in audit
-    await pool.query(`
-      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'update_report', 'sign_off_report', $2, '{}', NOW())
-    `, [userId, id]);
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error updating sign-off report:', error);
-    res.status(500).json({ success: false, error: 'Failed to update sign-off report' });
-  }
-});
-
-// Submit sign-off report
-app.post('/api/v1/sign-off-reports/:id/submit', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    const result = await pool.query(`
-      UPDATE sign_off_reports 
-      SET status = 'submitted', updated_at = NOW()
-      WHERE id = $1::uuid AND created_by = $2::uuid
-      RETURNING *
-    `, [id, userId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Report not found or unauthorized' });
-    }
-
-    // Log submission in audit
-    await pool.query(`
-      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'submit_report', 'sign_off_report', $2, '{}', NOW())
-    `, [userId, id]);
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error submitting sign-off report:', error);
-    res.status(500).json({ success: false, error: 'Failed to submit sign-off report' });
-  }
-});
-
-// Approve sign-off report
-app.post('/api/v1/sign-off-reports/:id/approve', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { comment, digitalSignature } = req.body;
-    const userId = req.user.id;
-    const userRole = req.user.role;
-
-    // Only client reviewers can approve
-    if (userRole !== 'clientReviewer') {
-      return res.status(403).json({ success: false, error: 'Only client reviewers can approve reports' });
-    }
-
-    // Update report status
-    const result = await pool.query(`
-      UPDATE sign_off_reports 
-      SET status = 'approved', updated_at = NOW()
-      WHERE id = $1::uuid
-      RETURNING *
-    `, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Report not found' });
-    }
-
-    // Create client review record with digital signature
-    await pool.query(`
-      INSERT INTO client_reviews (report_id, reviewer_id, status, feedback, approved_at, created_at)
-      VALUES ($1::uuid, $2::uuid, 'approved', $3, NOW(), NOW())
-    `, [id, userId, comment || null]);
-    
-    // Store digital signature in the report's content if provided
-    if (digitalSignature) {
-      const currentContent = result.rows[0].content || {};
-      const updatedContent = {
-        ...(typeof currentContent === 'object' && currentContent !== null ? currentContent : {}),
-        digitalSignature: digitalSignature,
-        signatureDate: new Date().toISOString(),
-        signerId: userId,
-      };
-      
-      await pool.query(`
-        UPDATE sign_off_reports 
-        SET content = $1::jsonb 
-        WHERE id = $2::uuid
-      `, [JSON.stringify(updatedContent), id]);
-    }
-
-    // Log approval in audit
-    await pool.query(`
-      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'approve_report', 'sign_off_report', $2, $3::jsonb, NOW())
-    `, [userId, id, JSON.stringify({ comment, hasDigitalSignature: !!digitalSignature })]);
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error approving sign-off report:', error);
-    res.status(500).json({ success: false, error: 'Failed to approve sign-off report' });
-  }
-});
-
-// Request changes (decline with feedback)
-app.post('/api/v1/sign-off-reports/:id/request-changes', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { changeRequestDetails } = req.body;
-    const userId = req.user.id;
-    const userRole = req.user.role;
-
-    // Only client reviewers can request changes
-    if (userRole !== 'clientReviewer') {
-      return res.status(403).json({ success: false, error: 'Only client reviewers can request changes' });
-    }
-
-    if (!changeRequestDetails) {
-      return res.status(400).json({ success: false, error: 'Change request details are required' });
-    }
-
-    // Update report status
-    const result = await pool.query(`
-      UPDATE sign_off_reports 
-      SET status = 'change_requested', updated_at = NOW()
-      WHERE id = $1::uuid
-      RETURNING *
-    `, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Report not found' });
-    }
-
-    // Create client review record
-    await pool.query(`
-      INSERT INTO client_reviews (report_id, reviewer_id, status, feedback, created_at)
-      VALUES ($1::uuid, $2::uuid, 'change_requested', $3, NOW())
-    `, [id, userId, changeRequestDetails]);
-
-    // Log change request in audit
-    await pool.query(`
-      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'request_changes', 'sign_off_report', $2, $3::jsonb, NOW())
-    `, [userId, id, JSON.stringify({ changeRequestDetails })]);
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error requesting changes:', error);
-    res.status(500).json({ success: false, error: 'Failed to request changes' });
-  }
-});
-
-// Get audit history for sign-off report
-app.get('/api/v1/sign-off-reports/:id/audit', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      SELECT 
-        a.*,
-        u.name as actor_name,
-        u.email as actor_email
-      FROM audit_logs a
-      LEFT JOIN users u ON a.user_id = u.id
-      WHERE a.resource_type = 'sign_off_report' AND a.resource_id = $1::uuid
-      ORDER BY a.created_at DESC
-    `, [id]);
-
-    res.json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error fetching report audit:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch audit history' });
-  }
-});
-
-// Track document view for audit
-app.post('/api/v1/documents/:id/view', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    // Log view in audit
-    await pool.query(`
-      INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, created_at)
-      VALUES ($1, 'view_document', 'repository_file', $2, '{}', NOW())
-    `, [userId, id]);
-
-    res.json({ success: true, message: 'View tracked' });
-  } catch (error) {
-    console.error('Error tracking document view:', error);
-    res.status(500).json({ success: false, error: 'Failed to track view' });
-  }
+// Root API health route
+app.get('/api/v1', (req, res) => {
+  res.send('Flow-Space API v1 is running');
 });
 
 app.listen(PORT, () => {
   console.log(`Flow-Space API server running on port ${PORT}`);
 });
+
+module.exports = app;

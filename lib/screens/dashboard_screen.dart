@@ -292,24 +292,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                 ),
-                Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () {
-                        _showSprintManagementDialog();
-                      },
-                      icon: const Icon(Icons.timeline),
-                      label: const Text('View Details'),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.analytics),
-                      onPressed: () {
-                        context.go('/performance-dashboard');
-                      },
-                      tooltip: 'Performance Dashboard',
-                    ),
-                  ],
+                TextButton.icon(
+                  onPressed: () {
+                    _showSprintManagementDialog();
+                  },
+                  icon: const Icon(Icons.timeline),
+                  label: const Text('View Details'),
                 ),
               ],
             ),

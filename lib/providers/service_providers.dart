@@ -1,11 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/api_client.dart';
 import '../services/error_handler.dart';
 import '../models/user.dart';
-import '../theme/flownet_theme.dart';
 
 // Service providers for dependency injection
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -56,25 +54,3 @@ class AuthNotifier extends Notifier<bool> {
     state = isAuthenticated;
   }
 }
-
-// Theme state notifier
-class ThemeNotifier extends Notifier<ThemeData> {
-  @override
-  ThemeData build() => FlownetTheme.darkTheme;
-  
-  void setDarkTheme() {
-    state = FlownetTheme.darkTheme;
-  }
-  
-  void setLightTheme() {
-    state = FlownetTheme.lightTheme;
-  }
-  
-  void toggleTheme(bool isDarkMode) {
-    state = isDarkMode ? FlownetTheme.darkTheme : FlownetTheme.lightTheme;
-  }
-}
-
-final themeProvider = NotifierProvider<ThemeNotifier, ThemeData>(() {
-  return ThemeNotifier();
-});

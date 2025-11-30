@@ -72,8 +72,6 @@ class _FlownetLogoState extends State<FlownetLogo> {
   Widget _buildFullLogo() {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // 3x3 Grid Logo
         _buildGridLogo(size: 16),

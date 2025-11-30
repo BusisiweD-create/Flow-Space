@@ -5,6 +5,9 @@ import '../services/approval_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/glass/glass_card.dart';
+import '../widgets/glass/glass_panel.dart';
+import '../widgets/glass/glass_search_bar.dart';
 
 class ApprovalsScreen extends ConsumerStatefulWidget {
   const ApprovalsScreen({super.key});
@@ -161,10 +164,10 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const FlownetLogo(showText: true),
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
         actions: [
@@ -175,155 +178,169 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Search and filter bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: FlownetColors.graphiteGray,
-              border: Border(
-                bottom: BorderSide(color: FlownetColors.slate, width: 1),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            GlassPanel(
+              padding: const EdgeInsets.all(16),
+              borderRadius: 24,
+              child: Column(
+                children: [
+                  GlassSearchBar(
+                    controller: TextEditingController(text: _searchQuery),
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    hintText: 'Search approval requests...',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButton<String>(
+                          value: _selectedStatus,
+                          onChanged: (value) =>
+                              setState(() => _selectedStatus = value!),
+                          dropdownColor: FlownetColors.charcoalBlack,
+                          style: const TextStyle(
+                            color: FlownetColors.pureWhite,
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'all', child: Text('All Status')),
+                            DropdownMenuItem(
+                                value: 'pending', child: Text('Pending')),
+                            DropdownMenuItem(
+                                value: 'approved', child: Text('Approved')),
+                            DropdownMenuItem(
+                                value: 'rejected', child: Text('Rejected')),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            child: Column(
-              children: [
-                // Search bar
-                TextField(
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: const InputDecoration(
-                    hintText: 'Search approval requests...',
-                    hintStyle: TextStyle(color: FlownetColors.coolGray),
-                    prefixIcon: Icon(Icons.search, color: FlownetColors.coolGray),
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: FlownetColors.charcoalBlack,
-                  ),
-                  style: const TextStyle(color: FlownetColors.pureWhite),
-                ),
-                const SizedBox(height: 16),
-                // Filter row
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButton<String>(
-                        value: _selectedStatus,
-                        onChanged: (value) => setState(() => _selectedStatus = value!),
-                        dropdownColor: FlownetColors.graphiteGray,
-                        style: const TextStyle(color: FlownetColors.pureWhite),
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('All Status')),
-                          DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                          DropdownMenuItem(value: 'approved', child: Text('Approved')),
-                          DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          
-          // Approval requests list
-          Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(FlownetColors.crimsonRed),
-                    ),
-                  )
-                : _filteredRequests.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No approval requests found',
-                          style: TextStyle(color: FlownetColors.coolGray, fontSize: 18),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          FlownetColors.crimsonRed,
                         ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filteredRequests.length,
-                        itemBuilder: (context, index) {
-                          final request = _filteredRequests[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            color: FlownetColors.graphiteGray,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.all(16),
-                              title: Text(
-                                request.title,
-                                style: const TextStyle(
-                                  color: FlownetColors.pureWhite,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
+                      ),
+                    )
+                  : _filteredRequests.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No approval requests found',
+                            style: TextStyle(
+                              color: FlownetColors.coolGray,
+                              fontSize: 18,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          itemCount: _filteredRequests.length,
+                          itemBuilder: (context, index) {
+                            final request = _filteredRequests[index];
+                            return GlassCard(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.all(16),
+                                title: Text(
+                                  request.title,
+                                  style: const TextStyle(
+                                    color: FlownetColors.pureWhite,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
                                 ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Requested by: ${request.requestedByName}',
-                                    style: const TextStyle(color: FlownetColors.coolGray),
-                                  ),
-                                  Text(
-                                    'Date: ${request.requestedAt.day}/${request.requestedAt.month}/${request.requestedAt.year}',
-                                    style: const TextStyle(color: FlownetColors.coolGray),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    request.description,
-                                    style: const TextStyle(color: FlownetColors.pureWhite),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Status chip
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: request.isPending
-                                          ? FlownetColors.amberOrange
-                                          : request.isApproved
-                                              ? FlownetColors.electricBlue
-                                              : FlownetColors.crimsonRed,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Text(
-                                      request.statusDisplay,
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Requested by: ${request.requestedByName}',
                                       style: const TextStyle(
-                                        color: FlownetColors.pureWhite,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+                                        color: FlownetColors.coolGray,
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  // Action buttons
-                                  if (request.isPending) ...[
-                                    IconButton(
-                                      icon: const Icon(Icons.check, color: FlownetColors.electricBlue),
-                                      onPressed: () => _approveRequest(request),
-                                      tooltip: 'Approve',
+                                    Text(
+                                      'Date: ${request.requestedAt.day}/${request.requestedAt.month}/${request.requestedAt.year}',
+                                      style: const TextStyle(
+                                        color: FlownetColors.coolGray,
+                                      ),
                                     ),
-                                    IconButton(
-                                      icon: const Icon(Icons.close, color: FlownetColors.crimsonRed),
-                                      onPressed: () => _rejectRequest(request),
-                                      tooltip: 'Reject',
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      request.description,
+                                      style: const TextStyle(
+                                        color: FlownetColors.pureWhite,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
-                                ],
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: request.isPending
+                                            ? FlownetColors.amberOrange
+                                            : request.isApproved
+                                                ? FlownetColors.electricBlue
+                                                : FlownetColors.crimsonRed,
+                                        borderRadius:
+                                            BorderRadius.circular(16),
+                                      ),
+                                      child: Text(
+                                        request.statusDisplay,
+                                        style: const TextStyle(
+                                          color: FlownetColors.pureWhite,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (request.isPending) ...[
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.check,
+                                          color: FlownetColors.electricBlue,
+                                        ),
+                                        onPressed: () =>
+                                            _approveRequest(request),
+                                        tooltip: 'Approve',
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.close,
+                                          color: FlownetColors.crimsonRed,
+                                        ),
+                                        onPressed: () =>
+                                            _rejectRequest(request),
+                                        tooltip: 'Reject',
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }

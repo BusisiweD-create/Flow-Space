@@ -282,10 +282,6 @@ class EmailService {
   // Send collaborator invitation email
   async sendCollaboratorInvitation({ to, role, projectName, inviterName }) {
     try {
-      // Use configurable base URL from environment variable, fallback to localhost for development
-      const baseUrl = process.env.APP_URL || process.env.BASE_URL || 'http://localhost:3000';
-      const invitationUrl = `${baseUrl}/accept-invitation?email=${encodeURIComponent(to)}&project=${encodeURIComponent(projectName)}`;
-      
       const subject = `You've been invited to collaborate on ${projectName}`;
       
       const html = `
@@ -304,7 +300,7 @@ class EmailService {
           <p>Click the button below to accept the invitation and start collaborating:</p>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${invitationUrl}" 
+            <a href="http://localhost:3000/accept-invitation?email=${encodeURIComponent(to)}&project=${encodeURIComponent(projectName)}" 
                style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
               Accept Invitation
             </a>
@@ -312,8 +308,8 @@ class EmailService {
           
           <p style="color: #6c757d; font-size: 14px;">
             If you can't click the button, copy and paste this link into your browser:<br>
-            <a href="${invitationUrl}">
-              ${invitationUrl}
+            <a href="http://localhost:3000/accept-invitation?email=${encodeURIComponent(to)}&project=${encodeURIComponent(projectName)}">
+              http://localhost:3000/accept-invitation?email=${encodeURIComponent(to)}&project=${encodeURIComponent(projectName)}
             </a>
           </p>
           

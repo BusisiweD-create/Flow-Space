@@ -49,10 +49,6 @@ class ApiAuthProvider with ChangeNotifier {
         _user = response['user'];
         notifyListeners();
         return true;
-      } else if (response != null && response['error'] != null) {
-        // Handle error response from API
-        _setError(response['message'] ?? response['error'] ?? 'Failed to create account');
-        return false;
       } else {
         _setError('Failed to create account');
         return false;

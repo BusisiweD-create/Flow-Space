@@ -45,7 +45,7 @@ class ApiClient {
     }
   }
 
-  Future<void> saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
+  Future<void> _saveTokens(String accessToken, String refreshToken, DateTime expiry) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', accessToken);
@@ -101,7 +101,7 @@ class ApiClient {
         final newRefreshToken = data['refresh_token'] ?? _refreshToken;
         final expiry = DateTime.now().add(Duration(seconds: data['expires_in'] ?? 3600));
         
-        await saveTokens(newAccessToken, newRefreshToken, expiry);
+        await _saveTokens(newAccessToken, newRefreshToken, expiry);
         return true;
       }
     } catch (e) {
@@ -200,19 +200,6 @@ class ApiClient {
 
   ApiResponse _handleResponse(http.Response response) {
     try {
-      // Check if response is HTML (error pages) instead of JSON
-      final contentType = response.headers['content-type'] ?? '';
-      if (contentType.contains('text/html') || response.body.trim().startsWith('<!DOCTYPE')) {
-        // Server returned HTML (likely a 404 or error page)
-        String errorMsg = 'Server returned HTML instead of JSON';
-        if (response.statusCode == 404) {
-          errorMsg = 'Endpoint not found (404). Check the API endpoint path.';
-        } else if (response.statusCode >= 500) {
-          errorMsg = 'Server error (${response.statusCode})';
-        }
-        return ApiResponse.error(errorMsg, response.statusCode);
-      }
-      
       final responseBody = jsonDecode(response.body);
       
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -225,12 +212,7 @@ class ApiClient {
         return ApiResponse.error(errorMessage, response.statusCode);
       }
     } catch (e) {
-      // If JSON parsing fails, provide a more helpful error message
-      String errorMsg = 'Invalid response format: $e';
-      if (response.body.trim().startsWith('<!DOCTYPE')) {
-        errorMsg = 'Server returned HTML instead of JSON. Check if the endpoint exists.';
-      }
-      return ApiResponse.error(errorMsg, response.statusCode);
+      return ApiResponse.error('Invalid response format: $e', response.statusCode);
     }
   }
 
@@ -244,45 +226,26 @@ class ApiClient {
 
     if (response.isSuccess && response.data != null) {
       final data = response.data!;
-      final accessToken = data['token'] ?? data['access_token']; // Handle both 'token' and 'access_token'
+      final accessToken = data['token']; // Backend returns 'token', not 'access_token'
       final refreshToken = data['refresh_token'] ?? ''; // Handle null refresh token
       final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
       final expiry = DateTime.now().add(Duration(seconds: expiresIn));
       
-      await saveTokens(accessToken, refreshToken, expiry);
+      await _saveTokens(accessToken, refreshToken, expiry);
     }
 
     return response;
   }
 
   Future<ApiResponse> register(String email, String password, String name, String role) async {
-    // Parse the full name into firstName and lastName for the backend
-    final nameParts = name.trim().split(' ');
-    final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
-    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
-    final response = await post('/auth/register', body: {
+    return await post('/auth/register', body: {
       'email': email,
       'password': password,
-      'firstName': firstName,
-      'lastName': lastName,
+      'firstName': name.split(' ').first,
+      'lastName': name.split(' ').skip(1).join(' '),
       'role': role,
     },);
-
-    // Save tokens if registration is successful
-    if (response.isSuccess && response.data != null) {
-      final data = response.data!;
-      final accessToken = data['token']; // Backend returns 'token' in registration
-      if (accessToken != null) {
-        final refreshToken = data['refresh_token'] ?? '';
-        final expiresIn = data['expires_in'] ?? 86400; // Default to 24 hours
-        final expiry = DateTime.now().add(Duration(seconds: expiresIn));
-        
-        await saveTokens(accessToken, refreshToken, expiry);
-      }
-    }
-
-    return response;
   }
 
   Future<ApiResponse> logout() async {
@@ -324,7 +287,7 @@ class ApiClient {
 
 class ApiResponse {
   final bool isSuccess;
-  final dynamic data; // Changed to dynamic to support both Map and List
+  final Map<String, dynamic>? data;
   final String? error;
   final int statusCode;
 
@@ -335,7 +298,7 @@ class ApiResponse {
     required this.statusCode,
   });
 
-  factory ApiResponse.success(dynamic data, int statusCode) {
+  factory ApiResponse.success(Map<String, dynamic> data, int statusCode) {
     return ApiResponse._(
       isSuccess: true,
       data: data,

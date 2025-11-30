@@ -49,11 +49,7 @@ class AuthService {
       final response = await _apiService.signIn(email, password);
       
       if (response.isSuccess && response.data != null) {
-        // Extract user data from the nested "user" field in login response
-        final userData = response.data!['user'] ?? response.data!;
-        final userResponse = ApiResponse.success(userData, response.statusCode);
-        
-        _currentUser = _apiService.parseUserFromResponse(userResponse);
+        _currentUser = _apiService.parseUserFromResponse(response);
         _isAuthenticated = _currentUser != null;
         
         if (_isAuthenticated) {
@@ -70,7 +66,7 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> signUp(String email, String password, String name, UserRole role) async {
+  Future<bool> signUp(String email, String password, String name, UserRole role) async {
     try {
       final response = await _apiService.signUp(email, password, name, role);
       
@@ -80,16 +76,15 @@ class AuthService {
         
         if (_isAuthenticated) {
           debugPrint('User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
-          return {'success': true};
+          return true;
         }
       } else {
         debugPrint('Sign up failed: ${response.error}');
-        return {'success': false, 'error': response.error ?? 'Registration failed'};
       }
-      return {'success': false, 'error': 'Registration failed'};
+      return false;
     } catch (e) {
       debugPrint('Sign up error: $e');
-      return {'success': false, 'error': 'Registration failed: $e'};
+      return false;
     }
   }
 
@@ -229,28 +224,10 @@ class AuthService {
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
     try {
       final response = await _apiService.verifyEmail(email, verificationCode);
-      if (response.isSuccess && response.data != null) {
+      if (response.isSuccess) {
         debugPrint('Email verified successfully');
-        
-        // Extract JWT token from verification response
-        final data = response.data!;
-        final token = data['token'];
-        final userData = data['user'];
-        final expiresIn = data['expires_in'] ?? 86400;
-        
-        if (token != null) {
-          // Save the JWT token
-          final expiry = DateTime.now().add(Duration(seconds: expiresIn));
-          await _apiService.saveTokens(token, '', expiry);
-          debugPrint('JWT token saved after email verification');
-        }
-        
-        // Set current user
-        if (userData != null) {
-          _currentUser = User.fromJson(userData);
-          _isAuthenticated = true;
-          debugPrint('✅ Loaded user: ${_currentUser!.name} (${_currentUser!.email})');
-        }
+        // Update current user if they're logged in
+        await _loadCurrentUser();
       }
       return response;
     } catch (e) {

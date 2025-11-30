@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../models/user_role.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../theme/flownet_theme.dart';
+import '../widgets/glass/glass_card.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -49,11 +51,19 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   Widget build(BuildContext context) {
     if (_currentUser == null) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Colors.transparent,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(
+              FlownetColors.crimsonRed,
+            ),
+          ),
+        ),
       );
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
       body: _buildRoleSpecificContent(),
       floatingActionButton: _buildRoleSpecificFAB(),
@@ -218,82 +228,76 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildWelcomeCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: _currentUser!.roleColor,
-              child: Icon(
-                _currentUser!.roleIcon,
-                size: 30,
-                color: Colors.white,
-              ),
+    return GlassCard(
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: _currentUser!.roleColor,
+            child: Icon(
+              _currentUser!.roleIcon,
+              size: 30,
+              color: Colors.white,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome back, ${_currentUser!.name.split(' ').first}!',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _currentUser!.roleDescription,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome back, ${_currentUser!.name.split(' ').first}!',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _currentUser!.roleDescription,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: FlownetColors.coolGray,
+                      ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildQuickActions() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Quick Actions',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.add_task,
-                    label: 'New Deliverable',
-                    onTap: () => context.go('/deliverable-setup'),
-                  ),
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick Actions',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.timeline,
-                    label: 'Sprint Console',
-                    onTap: () => context.go('/sprint-console'),
-                  ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  icon: Icons.add_task,
+                  label: 'New Deliverable',
+                  onTap: () => context.go('/deliverable-setup'),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionButton(
+                  icon: Icons.timeline,
+                  label: 'Sprint Console',
+                  onTap: () => context.go('/sprint-console'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -330,43 +334,40 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildMyDeliverables() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'My Deliverables',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                TextButton(
-                  onPressed: () => context.go('/repository'),
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildDeliverableItem(
-              title: 'User Authentication System',
-              status: 'In Progress',
-              progress: 0.75,
-              dueDate: DateTime.now().add(const Duration(days: 2)),
-            ),
-            const SizedBox(height: 12),
-            _buildDeliverableItem(
-              title: 'Payment Integration',
-              status: 'Draft',
-              progress: 0.25,
-              dueDate: DateTime.now().add(const Duration(days: 7)),
-            ),
-          ],
-        ),
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'My Deliverables',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              TextButton(
+                onPressed: () => context.go('/repository'),
+                child: const Text('View All'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildDeliverableItem(
+            title: 'User Authentication System',
+            status: 'In Progress',
+            progress: 0.75,
+            dueDate: DateTime.now().add(const Duration(days: 2)),
+          ),
+          const SizedBox(height: 12),
+          _buildDeliverableItem(
+            title: 'Payment Integration',
+            status: 'Draft',
+            progress: 0.25,
+            dueDate: DateTime.now().add(const Duration(days: 7)),
+          ),
+        ],
       ),
     );
   }
@@ -380,8 +381,11 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,9 +400,10 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                     ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withValues(alpha: 0.1),
+                  color: _getStatusColor(status).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -415,14 +420,15 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: progress,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(_currentUser!.roleColor),
+            backgroundColor: Colors.white.withValues(alpha: 0.08),
+            valueColor:
+                AlwaysStoppedAnimation<Color>(_currentUser!.roleColor),
           ),
           const SizedBox(height: 8),
           Text(
             'Due: ${_formatDate(dueDate)}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
+                  color: FlownetColors.coolGray,
                 ),
           ),
         ],
@@ -431,41 +437,38 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   }
 
   Widget _buildRecentActivity() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Recent Activity',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            _buildActivityItem(
-              icon: Icons.check_circle,
-              title: 'Deliverable approved',
-              subtitle: 'User Authentication System',
-              time: '2 hours ago',
-            ),
-            const SizedBox(height: 12),
-            _buildActivityItem(
-              icon: Icons.edit,
-              title: 'Deliverable updated',
-              subtitle: 'Payment Integration',
-              time: '1 day ago',
-            ),
-            const SizedBox(height: 12),
-            _buildActivityItem(
-              icon: Icons.add,
-              title: 'New deliverable created',
-              subtitle: 'Mobile App Release',
-              time: '3 days ago',
-            ),
-          ],
-        ),
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Recent Activity',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 16),
+          _buildActivityItem(
+            icon: Icons.check_circle,
+            title: 'Deliverable approved',
+            subtitle: 'User Authentication System',
+            time: '2 hours ago',
+          ),
+          const SizedBox(height: 12),
+          _buildActivityItem(
+            icon: Icons.edit,
+            title: 'Deliverable updated',
+            subtitle: 'Payment Integration',
+            time: '1 day ago',
+          ),
+          const SizedBox(height: 12),
+          _buildActivityItem(
+            icon: Icons.add,
+            title: 'New deliverable created',
+            subtitle: 'Mobile App Release',
+            time: '3 days ago',
+          ),
+        ],
       ),
     );
   }
@@ -535,27 +538,24 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
   Widget _buildAuditLogs() => _buildPlaceholderCard('Audit Logs');
 
   Widget _buildPlaceholderCard(String title) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$title content will be implemented here.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-            ),
-          ],
-        ),
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '$title content will be implemented here.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: FlownetColors.coolGray,
+                ),
+          ),
+        ],
       ),
     );
   }
