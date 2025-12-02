@@ -5,6 +5,8 @@ const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const env = require('./config/env-loader');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 
@@ -95,6 +97,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(loggingMiddleware);
 app.use(performanceMiddleware);
 app.use(morgan('combined'));
+
+try {
+  const baseUploadDir = path.join(__dirname, '..', 'uploads');
+  const profilePicturesDir = path.join(baseUploadDir, 'profile_pictures');
+  fs.mkdirSync(profilePicturesDir, { recursive: true });
+  app.use('/uploads', express.static(baseUploadDir));
+} catch (e) {}
 
 // Routes
 app.use('/api/v1/auth', authRoutes);

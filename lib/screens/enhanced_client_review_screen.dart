@@ -76,6 +76,17 @@ class _EnhancedClientReviewScreenState extends ConsumerState<EnhancedClientRevie
                 _deliverable = deliverable;
                 _sprintMetrics = metrics;
               });
+              try {
+                final approved = (_report?.status == ReportStatus.approved);
+                if (approved) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Report approved successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (_) {}
             }
           }
         }
@@ -122,6 +133,17 @@ class _EnhancedClientReviewScreenState extends ConsumerState<EnhancedClientRevie
                   _deliverable = deliverable;
                   _sprintMetrics = metrics;
                 });
+                try {
+                  final approved = (_report?.status == ReportStatus.approved);
+                  if (approved) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Report approved successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (_) {}
               }
             }
           }

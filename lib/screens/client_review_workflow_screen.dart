@@ -54,8 +54,16 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
   @override
   void initState() {
     super.initState();
-    _loadReportData();
-    _loadDocuSignConfig();
+    Future.microtask(() async {
+      try {
+        await AuthService().initialize();
+      } catch (_) {}
+      try {
+        await _apiService.initialize();
+      } catch (_) {}
+      await _loadReportData();
+      await _loadDocuSignConfig();
+    });
   }
 
   Future<void> _loadReportData() async {
@@ -129,6 +137,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
   Future<void> _loadSignatures() async {
     try {
       final ApiClient apiClient = ApiClient();
+      await apiClient.initialize();
       final response = await apiClient.get('/sign-off-reports/${widget.reportId}/signatures');
       
       if (response.isSuccess && response.data != null) {

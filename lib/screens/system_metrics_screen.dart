@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../models/system_metrics.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/system_health_indicator.dart';
+import '../services/realtime_service.dart';
 
 class SystemMetricsScreen extends StatefulWidget {
   const SystemMetricsScreen({super.key});
@@ -18,6 +19,8 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
   bool _isLoading = true;
   bool _hasError = false;
   Timer? _refreshTimer;
+  RealtimeService? _realtime;
+  
 
   @override
   void initState() {
@@ -27,18 +30,21 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _loadMetrics();
     });
+    _setupRealtime();
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    try {
+      _realtime?.offAll('analytics_updated');
+    } catch (_) {}
     super.dispose();
   }
 
   Future<void> _loadMetrics() async {
     try {
       final metrics = await ApiService.getSystemMetrics();
-      
       if (mounted) {
         setState(() {
           _metrics = metrics;
@@ -55,6 +61,72 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
       }
       debugPrint('Error loading system metrics: \$error');
     }
+  }
+
+
+  void _setupRealtime() {
+    try {
+      _realtime = RealtimeService();
+      _realtime!.initialize();
+      _realtime!.on('analytics_updated', (data) {
+        try {
+          final m = _toSystemMetrics(data);
+          if (mounted) {
+            setState(() {
+              _metrics = m;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
+
+  SystemMetrics _toSystemMetrics(dynamic data) {
+    final Map<String, dynamic> d = data is Map<String, dynamic>
+        ? data
+        : (data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{});
+    double parseDoubleLocal(dynamic v) {
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      if (v is String) return double.tryParse(v) ?? 0.0;
+      return 0.0;
+    }
+    int parseIntLocal(dynamic v) {
+      if (v is int) return v;
+      if (v is double) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+    final perf = PerformanceMetrics(
+      cpuUsage: parseDoubleLocal(d['cpuUsage'] ?? d['cpu_usage']),
+      memoryUsage: parseDoubleLocal(d['memoryUsage'] ?? d['memory_usage']),
+      diskUsage: parseDoubleLocal(d['diskUsage'] ?? d['disk_usage']),
+      responseTime: parseIntLocal(d['responseTime'] ?? d['response_time']),
+      uptime: parseDoubleLocal(d['uptime']),
+    );
+    final db = DatabaseMetrics(
+      totalRecords: parseIntLocal(d['totalEntities'] ?? d['total_records']),
+      activeConnections: parseIntLocal(d['activeConnections'] ?? d['active_connections']),
+      cacheHitRatio: parseDoubleLocal(d['cacheHitRatio'] ?? d['cache_hit_ratio']),
+      queryCount: parseIntLocal(d['queryCount'] ?? d['query_count']),
+      slowQueries: parseIntLocal(d['slowQueries'] ?? d['slow_queries']),
+    );
+    final ua = UserActivityMetrics(
+      activeUsers: parseIntLocal(d['activeUsers'] ?? d['active_users']),
+      totalSessions: parseIntLocal(d['totalSessions'] ?? d['total_sessions']),
+      newRegistrations: parseIntLocal(d['newRegistrations'] ?? d['new_users']),
+      failedLogins: parseIntLocal(d['failedLogins'] ?? d['failed_logins']),
+      avgSessionDuration: parseDoubleLocal(d['avgSessionDuration'] ?? d['avg_session_duration']),
+    );
+    return SystemMetrics(
+      systemHealth: SystemHealthStatus.healthy,
+      performance: perf,
+      database: db,
+      userActivity: ua,
+      lastUpdated: DateTime.now(),
+    );
   }
 
   @override
@@ -102,10 +174,10 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // System Health Overview
-                      _buildHealthOverview(),
-                      const SizedBox(height: 24),
+                  children: [
+                    // System Health Overview
+                    _buildHealthOverview(),
+                    const SizedBox(height: 24),
 
                       // Performance Metrics
                       _buildPerformanceMetrics(),
@@ -120,10 +192,10 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                       const SizedBox(height: 24),
 
                       // System Resources
-                      _buildSystemResources(),
-                    ],
-                  ),
+                    _buildSystemResources(),
+                  ],
                 ),
+              ),
     );
   }
 
@@ -179,6 +251,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
       ),
     );
   }
+
 
   Widget _buildPerformanceMetrics() {
     return Card(

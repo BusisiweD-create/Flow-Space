@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/deliverable.dart';
 import '../models/sign_off_report.dart';
 import '../services/backend_api_service.dart';
@@ -158,6 +159,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
           setState(() {
             _report = _report?.copyWith(status: ReportStatus.approved);
           });
+          context.go('/enhanced-client-review/${widget.reportId}');
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
