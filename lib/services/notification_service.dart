@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/notification_item.dart';
+import '../config/environment.dart';
 
 class NotificationService {
-  static const String _baseUrl = 'http://localhost:8000/api/v1';
+  static const String _baseUrl = Environment.apiBaseUrl;
   String? _authToken;
 
   void setAuthToken(String token) {

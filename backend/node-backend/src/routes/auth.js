@@ -71,15 +71,42 @@ router.post('/register', async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create user
+    const cleanRole = String(role || 'user')
+      .toLowerCase()
+      .replace('userrole.', '')
+      .replace(/[_\s-]+/g, '');
+    const roleMap = {
+      'stakeholder': 'systemAdmin',
+      'systemadmin': 'systemAdmin',
+      'admin': 'systemAdmin',
+      'deliverylead': 'deliveryLead',
+      'clientreviewer': 'clientReviewer',
+      'scrummaster': 'teamMember',
+      'qaengineer': 'teamMember',
+      'developer': 'teamMember',
+      'teammember': 'teamMember',
+      'user': 'user'
+    };
+    const normalizedRole = roleMap[cleanRole] || 'user';
+
     const user = await User.create({
       email,
       hashed_password: hashedPassword,
       first_name: firstName,
       last_name: lastName,
-      role,
+      role: normalizedRole,
       is_active: true
     });
+
+    const enabled = (process.env.ENABLE_EMAIL_VERIFICATION === 'true') || (process.env.EMAIL_VERIFICATION_ENABLED === 'true') || (process.env.EMAIL_SERVICE_ENABLED === 'true');
+    let emailVerificationSent = false;
+    if (enabled) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      await user.update({ verification_token: code });
+      const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email;
+      const result = await emailService.sendVerificationEmail(user.email, name, code);
+      emailVerificationSent = !!(result && result.success);
+    }
 
     // Generate JWT token
     const token = jwt.sign(
@@ -98,7 +125,9 @@ router.post('/register', async (req, res) => {
         role: user.role,
         is_active: user.is_active
       },
-      token
+      token,
+      expires_in: 86400,
+      emailVerificationSent
     });
 
   } catch (error) {
@@ -210,6 +239,14 @@ router.get('/me', authenticateToken, async (req, res) => {
       });
     }
 
+    let avatarUrl = null;
+    try {
+      const profile = await UserProfile.findOne({ where: { user_id: user.id } });
+      if (profile && profile.profile_picture) {
+        avatarUrl = profile.profile_picture;
+      }
+    } catch (_) {}
+
     res.json({
       user: {
         id: user.id,
@@ -218,7 +255,8 @@ router.get('/me', authenticateToken, async (req, res) => {
         role: user.role,
         status: user.status,
         last_login: user.last_login,
-        created_at: user.created_at
+        created_at: user.created_at,
+        avatar_url: avatarUrl
       }
     });
 

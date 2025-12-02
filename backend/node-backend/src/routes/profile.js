@@ -1,14 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { UserProfile } = require('../models');
+const { UserProfile, User } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 // Configure multer for file uploads
+const uploadBaseDir = path.join(__dirname, '..', 'uploads', 'profile_pictures');
+try { fs.mkdirSync(uploadBaseDir, { recursive: true }); } catch (_) {}
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/profile_pictures/')
+    cb(null, uploadBaseDir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -79,11 +82,15 @@ router.get('/:user_id', authenticateToken, async (req, res) => {
  */
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const profileData = req.body;
+    const profileData = req.body || {};
+    const bodyUserId = profileData.user_id || (req.user && req.user.id);
+    if (!bodyUserId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
     
     // Check if profile already exists
     const existingProfile = await UserProfile.findOne({ 
-      where: { user_id: profileData.user_id } 
+      where: { user_id: bodyUserId } 
     });
     if (existingProfile) {
       return res.status(400).json({ 
@@ -92,18 +99,53 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
     
-    // Check if email is already taken
-    const existingEmail = await UserProfile.findOne({ 
-      where: { email: profileData.email } 
-    });
-    if (existingEmail) {
-      return res.status(400).json({ 
-        error: 'Email already registered',
-        message: 'Email already registered'
-      });
+    // Resolve required fields (email, first_name, last_name)
+    let email = (profileData.email || '').toString();
+    let firstName = (profileData.first_name || profileData.firstName || '').toString();
+    let lastName = (profileData.last_name || profileData.lastName || '').toString();
+
+    if (!email || !firstName || !lastName) {
+      try {
+        const user = await User.findByPk(bodyUserId);
+        if (user) {
+          email = email || user.email || '';
+          firstName = firstName || user.first_name || '';
+          lastName = lastName || user.last_name || '';
+        }
+      } catch (_) {}
     }
-    
-    const profile = await UserProfile.create(profileData);
+
+    if (!email) {
+      email = `${bodyUserId}@local.invalid`;
+    }
+
+    // Check if email is already taken by a different user
+    if (email) {
+      const existingEmail = await UserProfile.findOne({ where: { email } });
+      if (existingEmail && existingEmail.user_id !== bodyUserId) {
+        return res.status(409).json({ 
+          error: 'Email already registered',
+          message: 'Email already registered by another user'
+        });
+      }
+    }
+
+    const finalData = {
+      user_id: bodyUserId,
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      phone_number: profileData.phone_number || profileData.phoneNumber || null,
+      profile_picture: profileData.profile_picture || profileData.profilePicture || null,
+      bio: profileData.bio || '',
+      job_title: profileData.job_title || profileData.jobTitle || '',
+      company: profileData.company || '',
+      location: profileData.location || '',
+      website: profileData.website || '',
+      date_of_birth: profileData.date_of_birth || profileData.dateOfBirth || null
+    };
+
+    const profile = await UserProfile.create(finalData);
     
     res.status(201).json(profile);
   } catch (error) {
@@ -168,10 +210,39 @@ router.post('/:user_id/upload-picture', authenticateToken, upload.single('file')
   try {
     const { user_id } = req.params;
     
-    // Check if user exists
-    const profile = await UserProfile.findOne({ where: { user_id } });
+    // Ensure profile exists; create minimal profile if missing
+    let profile = await UserProfile.findOne({ where: { user_id } });
     if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
+      try {
+        let email = (req.user && req.user.email) || '';
+        let firstName = '';
+        let lastName = '';
+        try {
+          const user = await User.findByPk(user_id);
+          if (user) {
+            email = email || user.email || '';
+            firstName = user.first_name || '';
+            lastName = user.last_name || '';
+          }
+        } catch (_) {}
+
+        if (!email) {
+          email = `${user_id}@local.invalid`;
+        }
+
+        profile = await UserProfile.create({
+          user_id,
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          job_title: '',
+          company: '',
+          bio: ''
+        });
+      } catch (createErr) {
+        console.error('Failed to create minimal profile for upload:', createErr);
+        return res.status(404).json({ error: 'Profile not found' });
+      }
     }
     
     if (!req.file) {
@@ -184,8 +255,9 @@ router.post('/:user_id/upload-picture', authenticateToken, upload.single('file')
     // Update profile with picture URL
     await profile.update({ profile_picture: fileUrl });
     
-    res.json({
+  res.json({
       url: fileUrl,
+      absolute_url: `${req.protocol}://${req.get('host')}${fileUrl}`,
       filename: req.file.filename,
       originalname: req.file.originalname,
       size: req.file.size
@@ -193,6 +265,36 @@ router.post('/:user_id/upload-picture', authenticateToken, upload.single('file')
     
   } catch (error) {
     console.error('Error uploading profile picture:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * @route GET /api/profile/:user_id/picture
+ * @desc Stream the user's current profile picture
+ * @access Private
+ */
+router.get('/:user_id/picture', authenticateToken, async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const profile = await UserProfile.findOne({ where: { user_id } });
+    if (!profile || !profile.profile_picture) {
+      return res.status(404).json({ error: 'Profile picture not found' });
+    }
+    const picUrl = profile.profile_picture.toString();
+    const filename = path.basename(picUrl);
+    const fullPath = path.join(__dirname, '..', 'uploads', 'profile_pictures', filename);
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Profile picture file missing' });
+    }
+    const ext = path.extname(filename).toLowerCase();
+    const ct = ext === '.png' ? 'image/png'
+      : (ext === '.gif' ? 'image/gif'
+      : (ext === '.webp' ? 'image/webp' : 'image/jpeg'));
+    res.setHeader('Content-Type', ct);
+    res.sendFile(fullPath);
+  } catch (error) {
+    console.error('Error streaming profile picture:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/repository_file.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../config/environment.dart';
 
 // Conditional imports for web download
 import 'document_service_stub.dart'
@@ -15,7 +16,7 @@ import 'document_service_stub.dart'
 
 class DocumentService {
   final AuthService _authService;
-  static const String _baseUrl = 'http://localhost:8000/api/v1';
+  static const String _baseUrl = Environment.apiBaseUrl;
 
   DocumentService(this._authService);
 

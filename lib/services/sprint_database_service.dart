@@ -4,9 +4,10 @@ import 'package:http/http.dart' as http;
 import 'notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
+import '../config/environment.dart';
 
 class SprintDatabaseService {
-  static const String _baseUrl = 'http://localhost:8000/api/v1';
+  static const String _baseUrl = Environment.apiBaseUrl;
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   
@@ -298,7 +299,7 @@ class SprintDatabaseService {
       debugPrint('🎫 Creating ticket: $title for sprint $sprintId');
       
       final body = {
-        'sprintId': sprintId,
+        'sprintId': int.tryParse(sprintId) ?? sprintId,
         'title': title,
         'description': description,
         'assignee': assignee,

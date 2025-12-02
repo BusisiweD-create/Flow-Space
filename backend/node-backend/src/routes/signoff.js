@@ -280,13 +280,22 @@ router.put('/:id', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const updates = req.body || {};
-      const [results] = await sequelize.query(
-        'UPDATE sign_off_reports SET status = COALESCE(?, status), content = COALESCE(?::jsonb, content), updated_at = NOW() WHERE id = ? RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at',
-        { replacements: [updates.status ?? null, JSON.stringify(updates), id] }
+      const [existing] = await sequelize.query(
+        'SELECT id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
       );
-      if (!results || results.length === 0) {
+      if (!existing || existing.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
       }
+      const ownerId = existing[0].created_by ? String(existing[0].created_by) : null;
+      const isAdmin = req.user && ['system_admin', 'systemAdmin', 'admin'].includes(String(req.user.role || '').toLowerCase());
+      if (ownerId && req.user && String(req.user.id) !== ownerId && !isAdmin) {
+        return res.status(403).json({ error: 'Not authorized to update this report' });
+      }
+      const [results] = await sequelize.query(
+        "UPDATE sign_off_reports SET status = COALESCE($2, status), content = COALESCE(content, '{}'::jsonb) || $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, updates.status ?? null, JSON.stringify(updates)] }
+      );
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
       const report = {
@@ -422,13 +431,28 @@ router.post('/:id/submit', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
-      const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW()), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
-        { bind: [id, 'submitted'] }
+      const [existing] = await sequelize.query(
+        'SELECT id, created_by, status, content FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
       );
-      if (!results || results.length === 0) {
+      if (!existing || existing.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
       }
+      const cur = existing[0];
+      const ownerId = cur.created_by ? String(cur.created_by) : null;
+      const isAdmin = req.user && ['system_admin', 'systemAdmin', 'admin'].includes(String(req.user.role || '').toLowerCase());
+      if (ownerId && req.user && String(req.user.id) !== ownerId && !isAdmin) {
+        return res.status(403).json({ error: 'Not authorized to submit this report' });
+      }
+      const curStatus = (cur.status || 'draft').toString();
+      if (!['draft', 'change_requested'].includes(curStatus)) {
+        return res.status(409).json({ error: 'Report cannot be submitted from current state' });
+      }
+      const submittedBy = (req.user && req.user.id) ? String(req.user.id) : null;
+      const [results] = await sequelize.query(
+        "UPDATE sign_off_reports SET status = 'submitted', content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $2::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, submittedBy] }
+      );
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
       const report = {

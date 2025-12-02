@@ -5,8 +5,9 @@ const fs = require('fs');
 // Try a few sensible locations for a .env file (node-backend/.env, backend/.env, repo root)
 const candidates = [
 	path.resolve(__dirname, '..', '..', '.env'),            // node-backend/.env
-	path.resolve(__dirname, '..', '..', '..', '.env'),       // backend/.env
-	path.resolve(__dirname, '..', '..', '..', '..', '.env')  // repo root .env (fallback)
+	path.resolve(__dirname, '..', '..', '..', '.env'),       // Flow-Space backend/.env
+	path.resolve(__dirname, '..', '..', '..', '..', '.env'), // Flow-Space repo root .env (fallback)
+	path.resolve(__dirname, '..', '..', '..', '..', '..', 'backend', '.env') // root backend/.env (c:\Flow\backend\.env)
 ];
 
 let loadedPath = null;

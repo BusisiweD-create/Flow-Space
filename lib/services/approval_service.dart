@@ -3,10 +3,11 @@ import 'package:http/http.dart' as http;
 import '../models/approval_request.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../config/environment.dart';
 
 class ApprovalService {
   final AuthService _authService;
-  final String _baseUrl = 'http://localhost:8000/api/v1';
+  final String _baseUrl = Environment.apiBaseUrl;
 
   ApprovalService(this._authService);
 

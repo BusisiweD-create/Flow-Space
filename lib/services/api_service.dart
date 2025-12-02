@@ -5,9 +5,10 @@ import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 import '../models/system_metrics.dart';
 import 'backend_api_service.dart';
+import '../config/environment.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  static const String baseUrl = Environment.apiBaseUrl;
   
   // Get auth headers with token
   static Future<Map<String, String>> _getHeaders() async {

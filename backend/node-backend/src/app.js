@@ -4,7 +4,9 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+require('./config/env-loader');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 
@@ -57,13 +59,38 @@ const { databaseNotificationService } = require('./services/DatabaseNotification
 // Middleware
 app.use(helmet());
 app.use(compression());
+const defaultAllowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5500',
+  'http://localhost:8080',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:8080',
+];
+const envAllowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const allowedOrigins = envAllowedOrigins.length > 0 ? envAllowedOrigins : defaultAllowedOrigins;
+
 app.use(cors({
-  origin: '*',
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (/^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['*'],
-  exposedHeaders: ['*']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Type', 'Authorization']
 }));
+app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -71,6 +98,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(loggingMiddleware);
 app.use(performanceMiddleware);
 app.use(morgan('combined'));
+
+// Ensure upload directories exist and serve static files
+try {
+  const baseUploadDir = path.join(__dirname, '..', 'uploads');
+  const profilePicturesDir = path.join(baseUploadDir, 'profile_pictures');
+  fs.mkdirSync(profilePicturesDir, { recursive: true });
+  app.use('/uploads', express.static(baseUploadDir));
+} catch (e) {
+  // noop
+}
 
 // Routes
 app.use('/api/v1/auth', authRoutes);

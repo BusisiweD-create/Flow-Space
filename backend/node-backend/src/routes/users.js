@@ -9,7 +9,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
  * @desc Get all users with pagination and search
  * @access Private (Admin only)
  */
-router.get('/', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+router.get('/', authenticateToken, requireRole(['admin', 'system_admin', 'deliveryLead']), async (req, res) => {
   try {
     const { page = 1, limit = 20, search } = req.query;
     const offset = (page - 1) * limit;
@@ -65,7 +65,7 @@ router.get('/', authenticateToken, requireRole(['admin', 'system_admin']), async
  * @desc Get user by ID
  * @access Private (Admin only)
  */
-router.get('/:id', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+router.get('/:id', authenticateToken, requireRole(['admin', 'system_admin', 'deliveryLead']), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -268,6 +268,54 @@ router.delete('/:id', authenticateToken, requireRole(['admin', 'system_admin']),
       error: 'Internal server error',
       message: 'Failed to delete user'
     });
+  }
+});
+
+// Purge users except specified keepers and protected roles
+router.delete('/purge', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+  try {
+    const { keep_email, keep_first_name, keep_last_name } = req.query || {};
+
+    const protectedRoles = ['system_admin', 'systemAdmin', 'admin'];
+    const keepIds = new Set();
+
+    if (keep_email && typeof keep_email === 'string') {
+      const u = await User.findOne({ where: { email: keep_email } });
+      if (u) keepIds.add(u.id);
+    }
+
+    // Default keeper: Thabang Nkabinde (case-insensitive)
+    const firstName = (keep_first_name && String(keep_first_name)) || 'Thabang';
+    const lastName = (keep_last_name && String(keep_last_name)) || 'Nkabinde';
+    const keeper = await User.findOne({
+      where: {
+        [Op.and]: [
+          { first_name: { [Op.iLike]: firstName } },
+          { last_name: { [Op.iLike]: lastName } }
+        ]
+      }
+    });
+    if (keeper) keepIds.add(keeper.id);
+
+    // Determine deletable users (exclude protected roles and keepers)
+    const deletableUsers = await User.findAll({
+      where: {
+        role: { [Op.notIn]: protectedRoles },
+        id: { [Op.notIn]: Array.from(keepIds) }
+      },
+      attributes: ['id']
+    });
+
+    const idsToDelete = deletableUsers.map(u => u.id);
+    if (idsToDelete.length === 0) {
+      return res.json({ message: 'No users eligible for deletion', deletedCount: 0 });
+    }
+
+    const deletedCount = await User.destroy({ where: { id: { [Op.in]: idsToDelete } } });
+    return res.json({ message: 'Users purged successfully', deletedCount });
+  } catch (error) {
+    console.error('Purge users error:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'Failed to purge users' });
   }
 });
 

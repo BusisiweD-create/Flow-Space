@@ -237,17 +237,21 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
       final totalCommitted = _sprintMetrics.fold(0, (sum, metric) => sum + metric.committedPoints);
       final totalCompleted = _sprintMetrics.fold(0, (sum, metric) => sum + metric.completedPoints);
       final avgTestPassRate = _sprintMetrics.isEmpty ? 0.0 : _sprintMetrics.fold(0.0, (sum, m) => sum + m.testPassRate) / _sprintMetrics.length;
+      final avgDefectResolution = _sprintMetrics.isEmpty ? 0.0 : _sprintMetrics.fold(0.0, (sum, m) => sum + m.defectResolutionRate) / _sprintMetrics.length;
+      final sprintSummaries = _sprintMetrics.map((m) =>
+        'Sprint ${m.sprintId}: committed=${m.committedPoints}, completed=${m.completedPoints}, carriedOver=${m.carriedOverPoints}, testPassRate=${m.testPassRate.toStringAsFixed(1)}%, defectsOpened=${m.defectsOpened}, defectsClosed=${m.defectsClosed}, codeReview=${m.codeReviewCompletion.toStringAsFixed(1)}%, documentation=${m.documentationStatus.toStringAsFixed(1)}%'
+      ).join('\n');
       final messages = [
         {
           'role': 'system',
-          'content': 'Draft a structured report content with sections and concise language.'
+          'content': 'Draft a comprehensive sign-off report with clear headings and sufficient detail for client approval. Include sections: Executive Summary; Scope and Deliverables; Sprint-by-Sprint Performance; Velocity and Completion; Quality and Testing; Defects and Resolutions; Risks and Mitigations; Scope Changes; UAT Notes; Known Limitations; Next Steps; Approval Readiness. Use bullet lists where helpful and include specific numbers and percentages provided. Keep tone professional and concise.'
         },
         {
           'role': 'user',
-          'content': 'Title: ${_deliverable!.title}\nDescription: ${_deliverable!.description}\nCommitted: $totalCommitted\nCompleted: $totalCompleted\nAvgTestPassRate: ${avgTestPassRate.toStringAsFixed(1)}%\nDefinitionOfDone: ${_deliverable!.definitionOfDone.join('; ')}'
+          'content': 'Deliverable Title: ${_deliverable!.title}\nDeliverable Description: ${_deliverable!.description}\nTotal Committed Points: $totalCommitted\nTotal Completed Points: $totalCompleted\nAverage Test Pass Rate: ${avgTestPassRate.toStringAsFixed(1)}%\nAverage Defect Resolution Rate: ${avgDefectResolution.toStringAsFixed(1)}%\nDefinition of Done: ${_deliverable!.definitionOfDone.join('; ')}\nSprint Performance Summary:\n$sprintSummaries'
         }
       ];
-      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 600);
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.5, maxTokens: 1000);
       if (resp.isSuccess && resp.data != null) {
         final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
         final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
@@ -268,14 +272,14 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
       final messages = [
         {
           'role': 'system',
-          'content': 'List concise known limitations and risks, one per line.'
+          'content': 'List concise known limitations and risks with context and impact. Provide one per line, include severity (Low/Medium/High), affected areas, and brief rationale.'
         },
         {
           'role': 'user',
           'content': 'Deliverable: ${_deliverable!.title}\nMetrics: ${_sprintMetrics.map((m) => 'D:${m.totalDefects}/R:${m.defectsClosed}/TPR:${m.testPassRate.toStringAsFixed(1)}').join(', ')}'
         }
       ];
-      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 160);
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.5, maxTokens: 300);
       if (resp.isSuccess && resp.data != null) {
         final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
         final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
@@ -296,14 +300,14 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
       final messages = [
         {
           'role': 'system',
-          'content': 'Suggest actionable next steps for stakeholders, one per line.'
+          'content': 'Suggest actionable next steps with owners and timeframes. Provide one per line, include priority (P1–P3), responsible role, and target date. Focus on closing gaps and preparing for client sign-off.'
         },
         {
           'role': 'user',
           'content': 'Title: ${_deliverable!.title}\nStatus: ${_deliverable!.statusDisplayName}\nDefinitionOfDone: ${_deliverable!.definitionOfDone.join('; ')}'
         }
       ];
-      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 160);
+      final resp = await BackendApiService().aiChat(messages, temperature: 0.5, maxTokens: 280);
       if (resp.isSuccess && resp.data != null) {
         final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
         final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';

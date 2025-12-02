@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'services/auth_service.dart';
+import 'config/environment.dart';
 
 void main() async {
   final authService = AuthService();
@@ -8,7 +9,7 @@ void main() async {
   final token = authService.accessToken;
 
   final httpClient = HttpClient();
-  final request = await httpClient.getUrl(Uri.parse('http://localhost:8000/api/v1/system/stats'));
+  final request = await httpClient.getUrl(Uri.parse('${Environment.apiBaseUrl}/system/stats'));
   request.headers.add('Authorization', 'Bearer $token');
   final response = await request.close();
 

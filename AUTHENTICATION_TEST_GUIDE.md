@@ -22,19 +22,19 @@ npm install
 cd backend\node-backend && npm start
 ```
 
-The server should start on `http://localhost:3001`
+The server should start on `http://localhost:8000`
 
 ### 2. Test Backend Endpoints
 
 ```bash
 # Test server health
-curl http://localhost:3001/api/health
+curl http://localhost:8000/health
 
 # Test database connection
-curl http://localhost:3001/api/test-db
+curl http://localhost:8000/api/test-db
 
 # Test registration
-curl -X POST http://localhost:3001/api/v1/auth/register \
+curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -46,7 +46,7 @@ curl -X POST http://localhost:3001/api/v1/auth/register \
   }'
 
 # Test login
-curl -X POST http://localhost:3001/api/v1/auth/login \
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -102,7 +102,7 @@ flutter test test_auth_integration.dart
 
 ### ✅ Successful Authentication Flow
 
-1. **Backend Server**: Starts without errors on port 3001
+1. **Backend Server**: Starts without errors on port 8000
 2. **Database Connection**: Health check returns success
 3. **Registration**: Returns success with user data and token
 4. **Login**: Returns success with user data and token
@@ -118,8 +118,8 @@ flutter test test_auth_integration.dart
 
 2. **"Network error" in Flutter**
    - Ensure backend server is running
-   - Check if Flutter app can reach `localhost:3001`
-   - Try using `10.0.2.2:3001` for Android emulator
+   - Check if Flutter app can reach `localhost:8000`
+   - Try using `10.0.2.2:8000` for Android emulator
 
 3. **"Invalid credentials" always**
    - Check if user exists in database
