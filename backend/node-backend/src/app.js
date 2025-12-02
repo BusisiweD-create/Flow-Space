@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+const env = require('./config/env-loader');
 
 const app = express();
 
@@ -57,13 +57,37 @@ const { databaseNotificationService } = require('./services/DatabaseNotification
 // Middleware
 app.use(helmet());
 app.use(compression());
+const defaultAllowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5500',
+  'http://localhost:8080',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:8080',
+];
+const envAllowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const allowedOrigins = envAllowedOrigins.length > 0 ? envAllowedOrigins : defaultAllowedOrigins;
+
 app.use(cors({
-  origin: '*',
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (/^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['*'],
-  exposedHeaders: ['*']
+  optionsSuccessStatus: 204
 }));
+app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -93,7 +117,7 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/monitoring', monitoringRoutes);
 app.use('/api/v1/system', systemRoutes);
 app.use('/api/v1/users', usersRoutes);
-app.use('/api/v1/approvals', approvalsRoutes);
+app.use('/api/v1/approvals', authenticateToken, approvalsRoutes);
 app.use('/api/v1/audit-logs', auditRoutes);
 app.use('/api/v1/documents', documentsRoutes);
 app.post('/api/v1/iot/ingest', (req, res) => {
@@ -372,10 +396,19 @@ async function startServer() {
       sendPendingReportReminders();
       setInterval(sendPendingReportReminders, 30 * 60 * 1000);
     });
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use; another instance is running. Continuing without starting a new server.`);
+        return;
+      }
+      console.error('Server error:', err);
+    });
     
   } catch (error) {
     console.error('❌ Failed to start server:', error);
-    process.exit(1);
+    setTimeout(() => {
+      try { startServer(); } catch (_) {}
+    }, 5000);
   }
 }
 
@@ -410,3 +443,14 @@ process.on('SIGINT', async () => {
 startServer();
 
 module.exports = app;
+process.on('uncaughtException', (err) => {
+  try {
+    console.error('Uncaught exception:', err);
+  } catch (_) {}
+});
+
+process.on('unhandledRejection', (reason) => {
+  try {
+    console.error('Unhandled rejection:', reason);
+  } catch (_) {}
+});

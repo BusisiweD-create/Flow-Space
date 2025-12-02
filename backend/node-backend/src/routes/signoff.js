@@ -280,9 +280,20 @@ router.put('/:id', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const updates = req.body || {};
+      const [existing] = await sequelize.query(
+        'SELECT id, created_by FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
+      );
+      if (!existing || existing.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const ownerId = existing[0].created_by ? String(existing[0].created_by) : null;
+      if (ownerId && req.user && String(req.user.id) !== ownerId) {
+        return res.status(403).json({ error: 'Not authorized to update this report' });
+      }
       const [results] = await sequelize.query(
-        'UPDATE sign_off_reports SET status = COALESCE(?, status), content = COALESCE(?::jsonb, content), updated_at = NOW() WHERE id = ? RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at',
-        { replacements: [updates.status ?? null, JSON.stringify(updates), id] }
+        `UPDATE sign_off_reports SET status = COALESCE($2, status), content = COALESCE(content, '{}'::jsonb) || $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [id, updates.status ?? null, JSON.stringify(updates)] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -393,6 +404,39 @@ router.post('/:id/approve', async (req, res) => {
         clientComment: c.clientComment || c.client_comment,
         digitalSignature: c.digitalSignature || c.digital_signature
       };
+      try {
+        const did = parseInt(row.deliverable_id);
+        if (Number.isFinite(did)) {
+          const { Deliverable, Notification } = require('../models');
+          const d = await Deliverable.findByPk(did);
+          if (d) {
+            await d.update({ status: 'approved' });
+          }
+          if (Notification) {
+            await Notification.create({
+              recipient_id: (row.created_by || null),
+              sender_id: (req.user && req.user.id) || null,
+              type: 'approval',
+              message: `Report approved: "${report.reportTitle}"`,
+              payload: { report_id: report.id, deliverable_id: did },
+              is_read: false,
+              created_at: new Date()
+            });
+          }
+          try {
+            const { ApprovalRequest } = require('../models');
+            await ApprovalRequest.update(
+              {
+                status: 'approved',
+                approved_by: (req.user && req.user.id) || null,
+                approved_at: new Date(),
+                comments: comment ?? null
+              },
+              { where: { deliverable_id: did, status: 'pending' } }
+            );
+          } catch (_) {}
+        }
+      } catch (_) {}
       if (global.realtimeEvents) {
         global.realtimeEvents.emit('report_approved', {
           id: report.id,
@@ -422,9 +466,25 @@ router.post('/:id/submit', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
+      const [existing] = await sequelize.query(
+        'SELECT id, created_by, status FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
+      );
+      if (!existing || existing.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const cur = existing[0];
+      const ownerId = cur.created_by ? String(cur.created_by) : null;
+      if (ownerId && req.user && String(req.user.id) !== ownerId) {
+        return res.status(403).json({ error: 'Not authorized to submit this report' });
+      }
+      const curStatus = String(cur.status || 'draft');
+      if (curStatus !== 'draft' && curStatus !== 'change_requested') {
+        return res.status(409).json({ error: 'Invalid report state for submission' });
+      }
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW()), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
-        { bind: [id, 'submitted'] }
+        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, 'submitted', (req.user && req.user.id) || null] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -509,6 +569,157 @@ router.get('/:id/signatures', async (req, res) => {
   }
 });
 
+router.get('/:id/download', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const base = req.baseUrl || '';
+    if (!base.endsWith('/sign-off-reports')) {
+      return res.status(404).json({ error: 'Endpoint not found' });
+    }
+    await ensureReportsTable();
+    const [results] = await sequelize.query(
+      'SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+      { bind: [id] }
+    );
+    if (!results || results.length === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    const row = results[0];
+    const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+    const title = (c.reportTitle || c.report_title || 'Sign-Off Report');
+    const lines = [];
+    lines.push(`# ${title}`);
+    lines.push('');
+    lines.push(`Status: ${row.status || 'draft'}`);
+    lines.push(`Deliverable ID: ${row.deliverable_id || ''}`);
+    lines.push('');
+    if (c.reportContent || c.report_content) {
+      lines.push('## Report Content');
+      lines.push(String(c.reportContent || c.report_content));
+      lines.push('');
+    }
+    if (Array.isArray(c.sprintIds || c.sprint_ids) && (c.sprintIds || c.sprint_ids).length > 0) {
+      lines.push('## Sprints');
+      for (const sid of (c.sprintIds || c.sprint_ids)) {
+        lines.push(`- Sprint ${sid}`);
+      }
+      lines.push('');
+    }
+    if (c.knownLimitations || c.known_limitations) {
+      lines.push('## Known Limitations');
+      lines.push(String(c.knownLimitations || c.known_limitations));
+      lines.push('');
+    }
+    if (c.nextSteps || c.next_steps) {
+      lines.push('## Next Steps');
+      lines.push(String(c.nextSteps || c.next_steps));
+      lines.push('');
+    }
+    if (Array.isArray(c.signatures)) {
+      lines.push('## Signatures');
+      for (const s of c.signatures) {
+        const name = s.signer_name || 'Unknown';
+        const role = s.signer_role || '';
+        const when = s.signed_at || row.updated_at;
+        lines.push(`- ${name}${role ? ' ('+role+')' : ''} at ${when}`);
+      }
+      lines.push('');
+    }
+    const content = lines.join('\n');
+    const safeName = String(title).replace(/[^a-z0-9-_]+/gi, '_').replace(/_+/g, '_');
+    res.setHeader('Content-Type', 'text/markdown');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName || 'report'}_${id}.md"`);
+    return res.status(200).send(content);
+  } catch (error) {
+    console.error('Error generating report download:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/signature', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const base = req.baseUrl || '';
+    if (base.endsWith('/sign-off-reports')) {
+      await ensureReportsTable();
+      const { signatureData, signatureType } = req.body || {};
+      const [existing] = await sequelize.query(
+        'SELECT id, content, updated_at FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
+      );
+      if (!existing || existing.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const row = existing[0];
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const signatures = Array.isArray(c.signatures) ? c.signatures : [];
+      const signerName = req.user && (req.user.first_name || req.user.last_name) ? `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() : null;
+      const signerRole = req.user && req.user.role ? String(req.user.role) : null;
+      const newSig = {
+        signature_data: signatureData || null,
+        signer_name: signerName,
+        signer_role: signerRole,
+        signed_at: new Date().toISOString(),
+        is_valid: true,
+        signature_type: signatureType || 'manual'
+      };
+      const newContent = { ...c, signatures: [...signatures, newSig] };
+      const [updated] = await sequelize.query(
+        'UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id',
+        { bind: [id, JSON.stringify(newContent)] }
+      );
+      if (!updated || updated.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      return res.json({ success: true });
+    }
+    return res.status(404).json({ error: 'Endpoint not found' });
+  } catch (error) {
+    console.error('Error storing report signature:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/export', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const base = req.baseUrl || '';
+    if (base.endsWith('/sign-off-reports')) {
+      await ensureReportsTable();
+      const { exportFormat, exportType, fileSize, fileHash, metadata } = req.body || {};
+      const [existing] = await sequelize.query(
+        'SELECT id, content FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
+      );
+      if (!existing || existing.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const row = existing[0];
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const exportsArr = Array.isArray(c.exports) ? c.exports : [];
+      const exportEntry = {
+        format: exportFormat || 'pdf',
+        type: exportType || 'download',
+        fileSize: fileSize || null,
+        fileHash: fileHash || null,
+        metadata: metadata || {},
+        exportedAt: new Date().toISOString(),
+        exportedBy: req.user ? String(req.user.id) : null
+      };
+      const newContent = { ...c, exports: [...exportsArr, exportEntry], lastExport: exportEntry };
+      await sequelize.query(
+        'UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE id = $1',
+        { bind: [id, JSON.stringify(newContent)] }
+      );
+      return res.json({ success: true });
+    }
+    return res.status(404).json({ error: 'Endpoint not found' });
+  } catch (error) {
+    console.error('Error tracking report export:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/:id/request-changes', async (req, res) => {
   try {
     const { id } = req.params;
@@ -548,6 +759,39 @@ router.post('/:id/request-changes', async (req, res) => {
         createdBy: (row.created_by || '').toString(),
         changeRequestDetails: c.changeRequestDetails || c.change_request_details
       };
+      try {
+        const did = parseInt(row.deliverable_id);
+        if (Number.isFinite(did)) {
+          const { Deliverable, Notification } = require('../models');
+          const d = await Deliverable.findByPk(did);
+          if (d) {
+            await d.update({ status: 'change_requested' });
+          }
+          if (Notification) {
+            await Notification.create({
+              recipient_id: (row.created_by || null),
+              sender_id: (req.user && req.user.id) || null,
+              type: 'approval',
+              message: `Changes requested: "${report.reportTitle}"`,
+              payload: { report_id: report.id, deliverable_id: did },
+              is_read: false,
+              created_at: new Date()
+            });
+          }
+          try {
+            const { ApprovalRequest } = require('../models');
+            await ApprovalRequest.update(
+              {
+                status: 'rejected',
+                approved_by: (req.user && req.user.id) || null,
+                rejected_at: new Date(),
+                comments: changeRequestDetails ?? null
+              },
+              { where: { deliverable_id: did, status: 'pending' } }
+            );
+          } catch (_) {}
+        }
+      } catch (_) {}
       if (global.realtimeEvents) {
         global.realtimeEvents.emit('report_change_requested', {
           id: report.id,

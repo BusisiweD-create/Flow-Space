@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khono/models/user_role.dart';
 
-import 'services/auth_service.dart';
+import 'package:khono/services/auth_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

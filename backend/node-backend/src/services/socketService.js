@@ -68,11 +68,14 @@ class SocketService {
 
   async authenticateSocket(socket, next) {
     try {
-      const token = socket.handshake.auth.token || socket.handshake.query.token;
+      const h = socket.handshake || {};
+      const authHeader = (h.headers && (h.headers.authorization || h.headers.Authorization)) || '';
+      const bearer = authHeader && authHeader.split(' ')[0].toLowerCase() === 'bearer' ? authHeader.split(' ').slice(1).join(' ') : '';
+      const token = (h.auth && h.auth.token) || (h.query && h.query.token) || bearer;
       if (!token) {
         return next(new Error('Authentication error: No token provided'));
       }
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production');
       socket.userId = decoded.sub || decoded.userId;
       socket.userRole = decoded.role || decoded.userRole;
       socket.email = decoded.email || decoded.userEmail;
@@ -153,6 +156,26 @@ class SocketService {
 
   setupEventHandlers(socket) {
     const { userId, userRole, email } = socket;
+
+    socket.on('join_role_room', (data = {}) => {
+      try {
+        const role = String(data.role || userRole || '').trim();
+        if (role) {
+          socket.join(`role:${role}`);
+          socket.emit('joined_role_room', { role });
+        }
+      } catch (_) {}
+    });
+
+    socket.on('leave_role_room', (data = {}) => {
+      try {
+        const role = String(data.role || userRole || '').trim();
+        if (role) {
+          socket.leave(`role:${role}`);
+          socket.emit('left_role_room', { role });
+        }
+      } catch (_) {}
+    });
 
     // Deliverable events
     socket.on('deliverable_created', (data) => {

@@ -13,7 +13,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8000;
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
@@ -62,10 +62,8 @@ app.use(cors({
     // Allow specific origins
     const allowedOrigins = [
       'http://localhost:3000',
-      'http://localhost:3001', 
       'http://localhost:8080',
       'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
       'http://127.0.0.1:8080'
     ];
     

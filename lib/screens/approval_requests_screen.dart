@@ -5,9 +5,10 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/sign_off_report_service.dart';
 import '../services/realtime_service.dart';
-import 'client_review_workflow_screen.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import 'package:go_router/go_router.dart';
+import 'client_review_workflow_screen.dart';
 
 class ApprovalRequestsScreen extends StatefulWidget {
   const ApprovalRequestsScreen({super.key});
@@ -265,29 +266,70 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
 
   Future<void> _openAssociatedReport(core.ApprovalRequest request) async {
     try {
-      final deliverableId = request.deliverableId;
-      if (deliverableId == null || deliverableId.isEmpty) {
-        _showErrorSnackBar('No associated deliverable for this approval');
-        return;
+      String? reportId;
+      final rid = request.id;
+      if (rid.toLowerCase().startsWith('report:')) {
+        final parts = rid.split(':');
+        if (parts.length >= 2) {
+          reportId = parts.sublist(1).join(':');
+        }
       }
-      final resp = await _reportService.getSignOffReports(deliverableId: deliverableId);
-      if (resp.isSuccess && resp.data != null) {
-        final list = resp.data is List ? (resp.data as List) : (resp.data['data'] as List? ?? []);
-        if (list.isNotEmpty) {
-          final reportId = (list.first['id'] ?? '').toString();
-          if (reportId.isNotEmpty) {
-            if (!mounted) return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ClientReviewWorkflowScreen(reportId: reportId),
-              ),
-            );
-            return;
+
+      if ((reportId == null || reportId.isEmpty) && request.category.toLowerCase().contains('sign-off')) {
+        final did = request.deliverableId?.toString() ?? '';
+        if (did.isNotEmpty) {
+          final resp = await _reportService.getSignOffReports(status: 'submitted', deliverableId: did);
+          if (resp.isSuccess && resp.data != null) {
+            final raw = resp.data;
+            List<dynamic> items = const [];
+            if (raw is List) {
+              items = raw;
+            } else if (raw is Map) {
+              final d = raw['data'];
+              if (d is List) {
+                items = d;
+              } else if (d is Map) {
+                final inner = d['reports'] ?? d['items'] ?? d['data'];
+                if (inner is List) items = inner;
+              } else {
+                final r = raw['reports'];
+                if (r is List) {
+                  items = r;
+                } else if (r is Map) {
+                  final inner = r['items'] ?? r['data'];
+                  if (inner is List) items = inner;
+                } else {
+                  final i = raw['items'];
+                  if (i is List) items = i;
+                }
+              }
+            }
+            if (items.isNotEmpty) {
+              final m = items.first;
+              if (m is Map) {
+                final map = m.cast<String, dynamic>();
+                reportId = (map['id'] ?? map['report_id'])?.toString();
+              }
+            }
           }
         }
       }
-      _showErrorSnackBar('No associated report found');
+
+      if (reportId != null && reportId.isNotEmpty) {
+        if (!mounted) return;
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ClientReviewWorkflowScreen(reportId: reportId!),
+          ),
+        );
+        if (result == true) {
+          await _loadApprovalRequests();
+        }
+      } else {
+        if (!mounted) return;
+        GoRouter.of(context).go('/report-repository');
+      }
     } catch (e) {
       _showErrorSnackBar('Failed to open associated report: $e');
     }
@@ -558,6 +600,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                   children: [
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedStatus,
                         onChanged: (value) {
                           setState(() => _selectedStatus = value!);
@@ -576,6 +619,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedPriority,
                         onChanged: (value) {
                           setState(() => _selectedPriority = value!);
@@ -595,6 +639,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedCategory,
                         onChanged: (value) {
                           setState(() => _selectedCategory = value!);
@@ -617,6 +662,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                   children: [
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedSprintId,
                         onChanged: (value) {
                           if (value == null) return;
@@ -642,6 +688,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedDeliverableId,
                         onChanged: (value) {
                           if (value == null) return;
@@ -779,7 +826,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                                   ),
                                 ],
                               ),
-                              onTap: () => _showRequestDetails(request),
+                              onTap: () => _openAssociatedReport(request),
                             ),
                           );
                         },

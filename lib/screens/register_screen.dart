@@ -565,16 +565,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
           userRole = UserRole.deliveryLead;
           break;
         case 'scrum master':
-          userRole = UserRole.deliveryLead;
+          userRole = UserRole.teamMember;
           break;
         case 'qa engineer':
-          userRole = UserRole.qaEngineer;
+          userRole = UserRole.teamMember;
           break;
         case 'client':
           userRole = UserRole.clientReviewer;
           break;
         case 'stakeholder':
           userRole = UserRole.systemAdmin;
+          break;
+        case 'developer':
+          userRole = UserRole.teamMember;
           break;
         default:
           userRole = UserRole.teamMember;

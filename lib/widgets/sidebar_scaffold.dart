@@ -4,6 +4,9 @@ import '../theme/flownet_theme.dart';
 import 'flownet_logo.dart';
 import 'notification_center_widget.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 
 class SidebarScaffold extends StatefulWidget {
   final Widget child;
@@ -287,6 +290,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                           const Spacer(),
                           const NotificationCenterWidget(),
                           const SizedBox(width: 12),
+                          const _UserAvatarButton(),
+                          const SizedBox(width: 12),
                           Text(
                             _getPageTitle(routeLocation),
                             style: const TextStyle(
@@ -319,6 +324,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 tooltip: 'Back',
               ),
             const NotificationCenterWidget(),
+            const SizedBox(width: 8),
+            const _UserAvatarButton(),
           ],
         ),
         drawer: Drawer(
@@ -463,6 +470,50 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         return 'Profile';
       default:
         return 'Flownet Workspaces';
+    }
+  }
+}
+
+class _UserAvatarButton extends StatelessWidget {
+  const _UserAvatarButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = AuthService();
+    final user = auth.currentUser;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: () => context.go('/profile?mode=view'),
+        borderRadius: BorderRadius.circular(20),
+        child: FutureBuilder<Uint8List?>(
+          future: _loadAvatarBytes(user?.id),
+          builder: (context, snapshot) {
+            final hasImage = snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
+            return CircleAvatar(
+              radius: 16,
+              backgroundImage: hasImage ? MemoryImage(snapshot.data!) : null,
+              child: hasImage ? null : const Icon(Icons.person, size: 18),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<Uint8List?> _loadAvatarBytes(String? userId) async {
+    try {
+      if (userId == null || userId.isEmpty) return null;
+      final base = Uri.parse(ApiService.baseUrl);
+      final url = '${base.scheme}://${base.host}:${base.port}/api/v1/profile/$userId/picture?t=${DateTime.now().millisecondsSinceEpoch}';
+      final headers = await ApiService.getAuthHeaders();
+      final resp = await http.get(Uri.parse(url), headers: headers);
+      if (resp.statusCode == 200) {
+        return resp.bodyBytes;
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 }

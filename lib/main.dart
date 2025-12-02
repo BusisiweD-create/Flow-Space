@@ -16,6 +16,8 @@ import 'screens/sprint_metrics_screen.dart';
 import 'screens/report_builder_screen.dart';
 import 'screens/report_editor_screen.dart';
 import 'screens/client_review_screen.dart';
+import 'models/sign_off_report.dart';
+import 'models/deliverable.dart';
 import 'screens/enhanced_client_review_screen.dart';
 import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
@@ -212,10 +214,21 @@ final GoRouter _router = GoRouter(
       path: '/client-review/:reportId',
       builder: (context, state) {
         final reportId = state.pathParameters['reportId']!;
+        final extra = state.extra;
+        SignOffReport? initialReport;
+        Deliverable? initialDeliverable;
+        if (extra is Map) {
+          try { initialReport = extra['report'] as SignOffReport?; } catch (_) {}
+          try { initialDeliverable = extra['deliverable'] as Deliverable?; } catch (_) {}
+        }
         return RouteGuard(
           route: '/client-review',
           child: SidebarScaffold(
-            child: ClientReviewScreen(reportId: reportId),
+            child: ClientReviewScreen(
+              reportId: reportId,
+              initialReport: initialReport,
+              initialDeliverable: initialDeliverable,
+            ),
           ),
         );
       },
@@ -262,10 +275,12 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/sprint-console',
-            builder: (context, state) => const RouteGuard(
+            builder: (context, state) => RouteGuard(
               route: '/sprint-console',
               child: SidebarScaffold(
-                child: SprintConsoleScreen(),
+                child: SprintConsoleScreen(
+                  initialProjectKey: state.uri.queryParameters['projectKey'],
+                ),
               ),
             ),
     ),

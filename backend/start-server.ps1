@@ -6,7 +6,7 @@ Write-Host "🚀 Flow-Space Backend Server" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "📋 Database: flow_space @ localhost" -ForegroundColor White
 Write-Host "🔧 Environment: local" -ForegroundColor White
-Write-Host "🌐 Port: 3001" -ForegroundColor White
+Write-Host "🌐 Port: 8000" -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -18,15 +18,15 @@ Set-Location $PSScriptRoot
 
 # Function to check if server is running
 function Test-ServerRunning {
-    $listening = netstat -ano | Select-String "3001.*LISTENING"
+    $listening = netstat -ano | Select-String "8000.*LISTENING"
     return $null -ne $listening
 }
 
-# Stop any existing Node processes on port 3001
+# Stop any existing Node processes on port 8000
 Write-Host "🛑 Stopping any existing servers..." -ForegroundColor Yellow
 Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object {
     $procId = $_.Id
-    $connections = netstat -ano | Select-String "3001.*LISTENING.*$procId"
+    $connections = netstat -ano | Select-String "8000.*LISTENING.*$procId"
     return $null -ne $connections
 } | ForEach-Object {
     Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue

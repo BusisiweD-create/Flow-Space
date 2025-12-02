@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
+import '../services/backend_settings_service.dart';
 import '../services/error_handler.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -42,6 +43,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       if (success && mounted) {
+        final user = authService.currentUser;
+        if (user != null) {
+          await BackendSettingsService.saveUserId(user.id);
+        }
+        // ignore: use_build_context_synchronously
         ErrorHandler().showSuccessSnackBar(context, 'Login successful!');
         if (mounted) {
           context.go('/dashboard');

@@ -5,9 +5,10 @@ import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 import '../models/system_metrics.dart';
 import 'backend_api_service.dart';
+import '../config/environment.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  static const String baseUrl = Environment.apiBaseUrl;
   
   // Get auth headers with token
   static Future<Map<String, String>> _getHeaders() async {
@@ -24,6 +25,10 @@ class ApiService {
     }
     
     return headers;
+  }
+  
+  static Future<Map<String, String>> getAuthHeaders() async {
+    return _getHeaders();
   }
   
   // Initialize the service
@@ -251,22 +256,23 @@ class ApiService {
   }
   
   // Database methods for sprints
-  static Future<List<Map<String, dynamic>>> getSprints() async {
+  static Future<List<Map<String, dynamic>>> getSprints({String? projectId, String? projectKey}) async {
     try {
       debugPrint('Fetching sprints from database');
       
       final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/sprints'),
-        headers: headers,
-      );
+      final uri = Uri.parse('$baseUrl/sprints').replace(queryParameters: {
+        if (projectId != null && projectId.isNotEmpty) 'project_id': projectId,
+        if (projectKey != null && projectKey.isNotEmpty) 'project_key': projectKey,
+      });
+      final response = await http.get(uri, headers: headers);
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
           debugPrint('✅ Fetched ${data['data'].length} sprints from database');
           return List<Map<String, dynamic>>.from(data['data']);
-        }
+      }
       }
       
       debugPrint('❌ Failed to fetch sprints: ${response.statusCode}');
@@ -726,6 +732,48 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('Error uploading file: $e');
+      return null;
+    }
+  }
+
+  // Tickets
+  static Future<Map<String, dynamic>?> createTicket({
+    required String sprintId,
+    required String title,
+    required String description,
+    String? assignee,
+    required String priority,
+    required String type,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final body = {
+        'sprintId': sprintId,
+        'title': title,
+        'description': description,
+        'assignee': assignee,
+        'priority': priority,
+        'type': type,
+        'status': 'To Do',
+      };
+      final response = await http.post(
+        Uri.parse('$baseUrl/tickets'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final dynamic raw = jsonDecode(response.body);
+        if (raw is Map) {
+          final data = raw['data'] ?? raw;
+          if (data is Map) return Map<String, dynamic>.from(data);
+        }
+        return null;
+      } else {
+        debugPrint('Failed to create ticket: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error creating ticket: $e');
       return null;
     }
   }

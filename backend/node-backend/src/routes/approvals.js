@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { ApprovalRequest, Deliverable, User, Notification } = require('../models');
+const { ApprovalRequest, Deliverable, User, Notification, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 /**
@@ -197,10 +197,79 @@ router.post('/', async (req, res) => {
 router.put('/:id/approve', async (req, res) => {
   try {
     const { id } = req.params;
-    const { approved_by, comments } = req.body;
+    let { approved_by, comments } = req.body || {};
+    if ((!approved_by || String(approved_by).trim() === '') && req.user && req.user.id) {
+      approved_by = req.user.id;
+    }
     
     if (!approved_by) {
       return res.status(400).json({ error: 'Approver ID is required' });
+    }
+    if (typeof id === 'string' && id.startsWith('report:')) {
+      const rid = parseInt(id.split(':')[1]);
+      if (!Number.isFinite(rid)) {
+        return res.status(400).json({ error: 'Invalid report ID' });
+      }
+      try {
+        await sequelize.query(
+          "CREATE TABLE IF NOT EXISTS sign_off_reports (\n        id SERIAL PRIMARY KEY,\n        deliverable_id VARCHAR(255),\n        created_by VARCHAR(255),\n        status VARCHAR(50) DEFAULT 'draft',\n        content JSONB,\n        created_at TIMESTAMP DEFAULT NOW(),\n        updated_at TIMESTAMP DEFAULT NOW()\n      )"
+        );
+      } catch (_) {}
+      const [rows] = await sequelize.query(
+        'SELECT id, deliverable_id, created_by, status, content FROM sign_off_reports WHERE id = $1',
+        { bind: [rid] }
+      );
+      const row = rows && rows[0];
+      if (!row) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      if (String(row.status) === 'approved') {
+        return res.json({ success: true, data: { report_id: rid, status: 'approved' } });
+      }
+      const t = await sequelize.transaction();
+      try {
+        await sequelize.query(
+          "UPDATE sign_off_reports SET status = 'approved', updated_at = NOW() WHERE id = $1",
+          { bind: [rid], transaction: t }
+        );
+        const did = parseInt(row.deliverable_id);
+        if (Number.isFinite(did)) {
+          const deliverable = await Deliverable.findByPk(did, { transaction: t });
+          if (deliverable) {
+            await deliverable.update({ status: 'approved' }, { transaction: t });
+          }
+          await ApprovalRequest.update(
+            {
+              status: 'approved',
+              approved_by,
+              approved_at: new Date(),
+              comments: comments ?? null
+            },
+            { where: { deliverable_id: did, status: { [Op.in]: ['pending','reminder_sent'] } }, transaction: t }
+          );
+        }
+        await t.commit();
+      } catch (err) {
+        await t.rollback();
+        console.error('Report approval transaction failed:', err);
+        return res.status(500).json({ error: 'Failed to approve report' });
+      }
+      try {
+        const rec = row.created_by && /^[0-9a-fA-F-]{36}$/.test(String(row.created_by)) ? String(row.created_by) : null;
+        const snd = approved_by && /^[0-9a-fA-F-]{36}$/.test(String(approved_by)) ? String(approved_by) : null;
+        if (rec) {
+          await Notification.create({
+            recipient_id: rec,
+            sender_id: snd,
+            type: 'approval',
+            message: `Report approved`,
+            payload: { report_id: rid, deliverable_id: row.deliverable_id },
+            is_read: false,
+            created_at: new Date()
+          });
+        }
+      } catch (_) {}
+      return res.json({ success: true, data: { report_id: rid, status: 'approved' } });
     }
     
     const approvalRequest = await ApprovalRequest.findByPk(id);
@@ -209,24 +278,49 @@ router.put('/:id/approve', async (req, res) => {
       return res.status(404).json({ error: 'Approval request not found' });
     }
     
-    if (approvalRequest.status !== 'pending') {
-      return res.status(400).json({ error: 'Approval request is not in pending status' });
+    if (!['pending','reminder_sent'].includes(String(approvalRequest.status))) {
+      return res.status(409).json({ error: 'Approval request is not in approvable status' });
     }
     
-    await approvalRequest.update({
-      status: 'approved',
-      approved_by,
-      approved_at: new Date(),
-      comments: comments || approvalRequest.comments
-    });
-    
-    // Update deliverable status to approved
-    const deliverable = await Deliverable.findByPk(approvalRequest.deliverable_id);
-    if (deliverable) {
-      await deliverable.update({ status: 'approved' });
+    const t = await sequelize.transaction();
+    try {
+      await approvalRequest.update({
+        status: 'approved',
+        approved_by,
+        approved_at: new Date(),
+        comments: comments || approvalRequest.comments
+      }, { transaction: t });
+      const did = parseInt(approvalRequest.deliverable_id);
+      if (Number.isFinite(did)) {
+        const deliverable = await Deliverable.findByPk(did, { transaction: t });
+        if (deliverable) {
+          await deliverable.update({ status: 'approved' }, { transaction: t });
+        }
+      }
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      console.error('Approval transaction failed:', err);
+      return res.status(500).json({ error: 'Failed to approve request' });
     }
     
-    res.json(approvalRequest);
+    try {
+      const rec = approvalRequest.requested_by && /^[0-9a-fA-F-]{36}$/.test(String(approvalRequest.requested_by)) ? String(approvalRequest.requested_by) : null;
+      const snd = approved_by && /^[0-9a-fA-F-]{36}$/.test(String(approved_by)) ? String(approved_by) : null;
+      if (rec) {
+        await Notification.create({
+          recipient_id: rec,
+          sender_id: snd,
+          type: 'approval',
+          message: `Approval granted for deliverable #${approvalRequest.deliverable_id}`,
+          payload: { approval_request_id: approvalRequest.id, deliverable_id: approvalRequest.deliverable_id },
+          is_read: false,
+          created_at: new Date()
+        });
+      }
+    } catch (_) {}
+    
+    res.json({ success: true, data: approvalRequest });
   } catch (error) {
     console.error('Error approving request:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -241,15 +335,16 @@ router.put('/:id/approve', async (req, res) => {
 router.put('/:id/reject', async (req, res) => {
   try {
     const { id } = req.params;
-    const { approved_by, comments } = req.body;
+    let { approved_by, comments } = req.body || {};
+    if ((!approved_by || String(approved_by).trim() === '') && req.user && req.user.id) {
+      approved_by = req.user.id;
+    }
     
     if (!approved_by) {
       return res.status(400).json({ error: 'Approver ID is required' });
     }
     
-    if (!comments) {
-      return res.status(400).json({ error: 'Comments are required for rejection' });
-    }
+    comments = comments || 'Changes requested';
     
     const approvalRequest = await ApprovalRequest.findByPk(id);
     
@@ -257,18 +352,44 @@ router.put('/:id/reject', async (req, res) => {
       return res.status(404).json({ error: 'Approval request not found' });
     }
     
-    if (approvalRequest.status !== 'pending') {
-      return res.status(400).json({ error: 'Approval request is not in pending status' });
+    if (!['pending','reminder_sent'].includes(String(approvalRequest.status))) {
+      return res.status(409).json({ error: 'Approval request is not in rejectable status' });
     }
     
-    await approvalRequest.update({
-      status: 'rejected',
-      approved_by,
-      rejected_at: new Date(),
-      comments
-    });
+    const t = await sequelize.transaction();
+    try {
+      await approvalRequest.update({
+        status: 'rejected',
+        approved_by,
+        rejected_at: new Date(),
+        comments
+      }, { transaction: t });
+      const did = parseInt(approvalRequest.deliverable_id);
+      if (Number.isFinite(did)) {
+        const deliverable = await Deliverable.findByPk(did, { transaction: t });
+        if (deliverable) {
+          await deliverable.update({ status: 'change_requested' }, { transaction: t });
+        }
+      }
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      console.error('Reject transaction failed:', err);
+      return res.status(500).json({ error: 'Failed to reject request' });
+    }
+    try {
+      await Notification.create({
+        recipient_id: approvalRequest.requested_by,
+        sender_id: approved_by,
+        type: 'approval',
+        message: `Approval rejected for deliverable #${approvalRequest.deliverable_id}`,
+        payload: { approval_request_id: approvalRequest.id, deliverable_id: approvalRequest.deliverable_id },
+        is_read: false,
+        created_at: new Date()
+      });
+    } catch (_) {}
     
-    res.json(approvalRequest);
+    res.json({ success: true, data: approvalRequest });
   } catch (error) {
     console.error('Error rejecting request:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -363,9 +484,17 @@ router.put('/:id/remind', async (req, res) => {
  */
 router.get('/stats/metrics', async (req, res) => {
   try {
-    const totalPending = await ApprovalRequest.count({
-      where: { status: 'pending' }
-    });
+    // Align dashboard pending count with reports pending approval
+    // Count sign_off_reports where status indicates awaiting client approval
+    let totalPending = 0;
+    try {
+      const [rows] = await sequelize.query(
+        "SELECT COUNT(*)::int AS cnt FROM sign_off_reports WHERE status IN ('submitted','under_review')"
+      );
+      totalPending = (rows && rows[0] && rows[0].cnt) || 0;
+    } catch (_) {
+      totalPending = await ApprovalRequest.count({ where: { status: 'pending' } });
+    }
     
     const overdueApprovals = await ApprovalRequest.count({
       where: {

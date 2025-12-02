@@ -9,10 +9,14 @@ import '../widgets/signature_capture_widget.dart';
 
 class ClientReviewScreen extends ConsumerStatefulWidget {
   final String reportId;
+  final SignOffReport? initialReport;
+  final Deliverable? initialDeliverable;
   
   const ClientReviewScreen({
     super.key,
     required this.reportId,
+    this.initialReport,
+    this.initialDeliverable,
   });
 
   @override
@@ -33,7 +37,20 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
   @override
   void initState() {
     super.initState();
-    _loadReportData();
+    if (widget.initialReport != null) {
+      _report = widget.initialReport;
+      _deliverable = widget.initialDeliverable;
+      final needsFullFetch = (_report?.reportContent.isEmpty ?? true) || (_report?.deliverableId.isEmpty ?? true);
+      if (needsFullFetch) {
+        // Fetch full report details in background
+        _loadReportData();
+      } else if (_deliverable == null && _report != null && _report!.deliverableId.isNotEmpty) {
+        // Fetch deliverable in background without blocking initial render
+        _loadDeliverable(_report!.deliverableId);
+      }
+    } else {
+      _loadReportData();
+    }
   }
 
   Future<void> _loadReportData() async {
@@ -69,6 +86,20 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
         _deliverable = null;
       });
     }
+  }
+
+  Future<void> _loadDeliverable(String deliverableId) async {
+    try {
+      final api = BackendApiService();
+      final delivResp = await api.getDeliverable(deliverableId);
+      if (!mounted) return;
+      if (delivResp.isSuccess && delivResp.data != null) {
+        final dJson = delivResp.data!['data'] ?? delivResp.data!['deliverable'] ?? delivResp.data!;
+        setState(() {
+          _deliverable = Deliverable.fromJson(dJson);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _submitApproval() async {
@@ -124,7 +155,9 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context);
+          setState(() {
+            _report = _report?.copyWith(status: ReportStatus.approved);
+          });
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -145,7 +178,9 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context);
+          setState(() {
+            _report = _report?.copyWith(status: ReportStatus.changeRequested);
+          });
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -199,27 +234,33 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: buildStatusItem('Title', _deliverable!.title),
-                ),
-                Expanded(
-                  child: buildStatusItem('Status', _deliverable!.statusDisplayName),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: buildStatusItem('Due Date', formatDate(_deliverable!.dueDate)),
-                ),
-                Expanded(
-                  child: buildStatusItem('Submitted By', _deliverable!.submittedBy ?? 'Unknown'),
-                ),
-              ],
-            ),
+            if (_deliverable == null && (_report?.deliverableId.isEmpty ?? true)) ...[
+              buildStatusItem('Linked Deliverable', 'None'),
+            ] else if (_deliverable == null) ...[
+              const LinearProgressIndicator(),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: buildStatusItem('Title', _deliverable!.title),
+                  ),
+                  Expanded(
+                    child: buildStatusItem('Status', _deliverable!.statusDisplayName),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: buildStatusItem('Due Date', formatDate(_deliverable!.dueDate)),
+                  ),
+                  Expanded(
+                    child: buildStatusItem('Submitted By', _deliverable!.submittedBy ?? 'Unknown'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -445,12 +486,6 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_report == null || _deliverable == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
@@ -486,7 +521,10 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
             const SizedBox(height: 24),
 
             // Report Content
-            buildReportContent(),
+            if (_report == null || (_report!.reportContent.isEmpty))
+              const Center(child: CircularProgressIndicator())
+            else
+              buildReportContent(),
             const SizedBox(height: 24),
 
             // Review Actions

@@ -8,8 +8,17 @@ const { verifyToken } = require('../utils/authUtils');
  */
 const authenticateToken = async (req, res, next) => {
   try {
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    let token = authHeader && authHeader.split(' ')[1];
+    if (!token && req.headers['x-access-token']) {
+      token = String(req.headers['x-access-token']);
+    }
+    if (!token && req.query && (req.query.access_token || req.query.token)) {
+      token = String(req.query.access_token || req.query.token);
+    }
     
     if (!token) {
       return res.status(401).json({
@@ -36,9 +45,9 @@ const authenticateToken = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Authentication error:', error);
-    return res.status(500).json({
+    return res.status(401).json({
       error: 'Authentication failed',
-      message: 'An error occurred during authentication'
+      message: 'Invalid or missing token'
     });
   }
 };
@@ -86,10 +95,11 @@ const requireRole = (allowedRoles) => {
       }
       
       // Normalize role names for comparison
-      const userRole = req.user.role.toLowerCase().replace('_', '');
-      const normalizedAllowedRoles = allowedRoles.map(role => 
-        role.toLowerCase().replace('_', '')
-      );
+      const normalize = (r) => String(r || '')
+        .toLowerCase()
+        .replace(/[_\s-]+/g, '');
+      const userRole = normalize(req.user.role);
+      const normalizedAllowedRoles = allowedRoles.map(role => normalize(role));
       
       if (!normalizedAllowedRoles.includes(userRole)) {
         return res.status(403).json({

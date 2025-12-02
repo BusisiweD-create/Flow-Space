@@ -201,11 +201,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: MetricsCard(
-            title: 'Pending Review',
-            value: pendingDeliverables.toString(),
-            icon: Icons.pending,
-            color: Colors.orange,
+          child: InkWell(
+            onTap: () => context.go('/approval-requests'),
+            child: MetricsCard(
+              title: 'Pending Review',
+              value: pendingDeliverables.toString(),
+              icon: Icons.pending,
+              color: Colors.orange,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -328,7 +331,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: DeliverableCard(
                   deliverable: deliverable,
                   onTap: () {
-                    _showDeliverableDetailsDialog(deliverable);
+                    context.go('/report-editor/${deliverable.id}');
                   },
                 ),
               ),),
@@ -426,21 +429,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  void _showDeliverableDetailsDialog(Deliverable deliverable) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(deliverable.title),
-        content: Text(deliverable.description),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
   void _handleLogout() {
     showDialog(

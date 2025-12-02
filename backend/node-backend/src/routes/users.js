@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
-const { User } = require('../models');
+const { User, UserProfile } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 
 /**
@@ -9,7 +9,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
  * @desc Get all users with pagination and search
  * @access Private (Admin only)
  */
-router.get('/', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+router.get('/', authenticateToken, requireRole(['systemAdmin', 'admin', 'deliveryLead']), async (req, res) => {
   try {
     const { page = 1, limit = 20, search } = req.query;
     const offset = (page - 1) * limit;
@@ -65,7 +65,7 @@ router.get('/', authenticateToken, requireRole(['admin', 'system_admin']), async
  * @desc Get user by ID
  * @access Private (Admin only)
  */
-router.get('/:id', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+router.get('/:id', authenticateToken, requireRole(['systemAdmin', 'admin', 'deliveryLead']), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -101,7 +101,7 @@ router.get('/:id', authenticateToken, requireRole(['admin', 'system_admin']), as
   }
 });
 
-router.put('/:id/role', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+router.put('/:id/role', authenticateToken, requireRole(['systemAdmin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     const { role } = req.body || {};
@@ -166,7 +166,7 @@ router.put('/:id/role', authenticateToken, requireRole(['admin', 'system_admin']
  * @desc Update user information
  * @access Private (Admin only)
  */
-router.put('/:id', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+router.put('/:id', authenticateToken, requireRole(['systemAdmin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     const { 
@@ -235,7 +235,7 @@ router.put('/:id', authenticateToken, requireRole(['admin', 'system_admin']), as
  * @desc Delete user
  * @access Private (Admin only)
  */
-router.delete('/:id', authenticateToken, requireRole(['admin', 'system_admin']), async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(['systemAdmin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -248,14 +248,15 @@ router.delete('/:id', authenticateToken, requireRole(['admin', 'system_admin']),
       });
     }
     
-    // Prevent deletion of own account
-    if (user.id === req.user.id) {
+    const allowSelf = String(req.query.allow_self || '').toLowerCase() === 'true';
+    if (user.id === req.user.id && !allowSelf) {
       return res.status(400).json({
         error: 'Cannot delete own account',
         message: 'You cannot delete your own account'
       });
     }
     
+    await UserProfile.destroy({ where: { user_id: user.id } });
     await user.destroy();
     
     res.json({
@@ -268,6 +269,61 @@ router.delete('/:id', authenticateToken, requireRole(['admin', 'system_admin']),
       error: 'Internal server error',
       message: 'Failed to delete user'
     });
+  }
+});
+
+// Purge users except specified keepers and protected roles
+router.delete('/purge', authenticateToken, requireRole(['systemAdmin', 'admin']), async (req, res) => {
+  try {
+    const { keep_email, keep_first_name, keep_last_name, include_protected, disable_keeper } = req.query || {};
+    const includeProtected = String(include_protected || '').toLowerCase() === 'true';
+    const disableKeeper = String(disable_keeper || '').toLowerCase() === 'true';
+
+    const protectedRoles = includeProtected ? [] : ['system_admin', 'systemAdmin', 'admin'];
+    const keepIds = new Set();
+
+    if (keep_email && typeof keep_email === 'string') {
+      const u = await User.findOne({ where: { email: keep_email } });
+      if (u) keepIds.add(u.id);
+    }
+
+    if (!disableKeeper) {
+      const firstName = (keep_first_name && String(keep_first_name)) || 'Thabang';
+      const lastName = (keep_last_name && String(keep_last_name)) || 'Nkabinde';
+      const keeper = await User.findOne({
+        where: {
+          [Op.and]: [
+            { first_name: { [Op.iLike]: firstName } },
+            { last_name: { [Op.iLike]: lastName } }
+          ]
+        }
+      });
+      if (keeper) keepIds.add(keeper.id);
+    }
+
+    // Determine deletable users (exclude protected roles and keepers)
+    const whereClause = {
+      id: { [Op.notIn]: Array.from(keepIds) }
+    };
+    if (protectedRoles.length > 0) {
+      whereClause.role = { [Op.notIn]: protectedRoles };
+    }
+    const deletableUsers = await User.findAll({
+      where: whereClause,
+      attributes: ['id']
+    });
+
+    const idsToDelete = deletableUsers.map(u => u.id);
+    if (idsToDelete.length === 0) {
+      return res.json({ message: 'No users eligible for deletion', deletedCount: 0 });
+    }
+
+    await UserProfile.destroy({ where: { user_id: { [Op.in]: idsToDelete } } });
+    const deletedCount = await User.destroy({ where: { id: { [Op.in]: idsToDelete } } });
+    return res.json({ message: 'Users purged successfully', deletedCount });
+  } catch (error) {
+    console.error('Purge users error:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'Failed to purge users' });
   }
 });
 

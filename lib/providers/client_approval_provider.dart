@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../models/client_approval_request.dart';
+import '../models/client_approval_request.dart';
 import '../providers/service_providers.dart';
 
 class ClientApprovalState {

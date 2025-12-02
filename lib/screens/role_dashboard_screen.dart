@@ -9,7 +9,12 @@ import '../services/realtime_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/api_service.dart';
 import '../services/sign_off_report_service.dart';
+import '../models/sign_off_report.dart';
+import '../services/notification_service.dart';
+import '../models/notification_item.dart';
 import '../widgets/sprint_performance_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 
 class RoleDashboardScreen extends ConsumerStatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -244,12 +249,21 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ),
             ),
           ],
-          child: CircleAvatar(
-            backgroundColor: Colors.white,
-            child: Icon(
-              _currentUser!.roleIcon,
-              color: _currentUser!.roleColor,
-            ),
+          child: FutureBuilder<Uint8List?>(
+            future: _loadAvatarBytes(_currentUser!.id),
+            builder: (context, snapshot) {
+              final hasImage = snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
+              return CircleAvatar(
+                backgroundColor: Colors.white,
+                backgroundImage: hasImage ? MemoryImage(snapshot.data!) : null,
+                child: hasImage
+                    ? null
+                    : Icon(
+                        _currentUser!.roleIcon,
+                        color: _currentUser!.roleColor,
+                      ),
+              );
+            },
           ),
         ),
       ],
@@ -572,11 +586,35 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildWelcomeCard() {
     return Card(
       child: ListTile(
-        leading: Icon(_currentUser?.roleIcon ?? Icons.person),
+        leading: FutureBuilder<Uint8List?>(
+          future: _loadAvatarBytes(_currentUser!.id),
+          builder: (context, snapshot) {
+            final hasImage = snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
+            return CircleAvatar(
+              backgroundImage: hasImage ? MemoryImage(snapshot.data!) : null,
+              child: hasImage ? null : Icon(_currentUser?.roleIcon ?? Icons.person),
+            );
+          },
+        ),
         title: Text('Welcome, ${_currentUser?.name ?? 'User'}'),
         subtitle: Text('${_currentUser?.roleDisplayName ?? 'Member'} Dashboard'),
       ),
     );
+  }
+
+  Future<Uint8List?> _loadAvatarBytes(String userId) async {
+    try {
+      final base = Uri.parse(ApiService.baseUrl);
+      final url = '${base.scheme}://${base.host}:${base.port}/api/v1/profile/$userId/picture?t=${DateTime.now().millisecondsSinceEpoch}';
+      final headers = await ApiService.getAuthHeaders();
+      final resp = await http.get(Uri.parse(url), headers: headers);
+      if (resp.statusCode == 200) {
+        return resp.bodyBytes;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Widget _buildQuickActions() {
@@ -930,7 +968,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildCardHeader(Icons.folder_outlined, 'Projects (${_dashboardProjects.length})', route: '/repository'),
+                  _buildCardHeader(Icons.folder_outlined, 'Projects (${_dashboardProjects.length})', route: '/sprint-console'),
                   const SizedBox(height: 8),
                   ..._dashboardProjects.take(5).map((p) {
                     final name = p['name'] ?? p['title'] ?? p['projectName'] ?? 'Untitled Project';
@@ -940,7 +978,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       child: InkWell(
                         onTap: () {
                           final projectKey = p['projectKey']?.toString() ?? p['key']?.toString() ?? p['slug']?.toString() ?? '';
-                          final route = projectKey.isNotEmpty ? '/repository/$projectKey' : '/repository';
+                          final route = projectKey.isNotEmpty ? '/sprint-console?projectKey=${Uri.encodeComponent(projectKey)}' : '/sprint-console';
                           context.go(route);
                         },
                         child: Row(
@@ -970,7 +1008,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildCardHeader(Icons.fact_check_outlined, 'Pending Reviews (${_pendingReports.length})', route: '/report-repository'),
+                      _buildCardHeader(Icons.fact_check_outlined, 'Pending Reviews (${_pendingReports.length})', route: '/approval-requests'),
                       const SizedBox(height: 8),
                       ..._pendingReports.take(5).map((r) {
                         final title = (r['reportTitle'] ?? r['report_title'] ?? (r['content'] is Map ? (r['content']['reportTitle'] ?? r['content']['title']) : null) ?? r['title'] ?? 'Sign-Off Report').toString();
@@ -983,7 +1021,21 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                               Expanded(
                                 child: InkWell(
                                   onTap: () {
-                                    if (id.isNotEmpty) context.go('/client-review/$id');
+                                    if (id.isEmpty) return;
+                                    final titleText = title.isNotEmpty ? title : 'Sign-Off Report';
+                                    final createdByName = createdBy.isNotEmpty ? createdBy : 'Unknown';
+                                    final deliverableId = (r['deliverableId']?.toString() ?? r['deliverable_id']?.toString() ?? '').toString();
+                                    final report = SignOffReport(
+                                      id: id,
+                                      deliverableId: deliverableId,
+                                      reportTitle: titleText,
+                                      reportContent: '',
+                                      sprintIds: const [],
+                                      status: ReportStatus.submitted,
+                                      createdAt: DateTime.now(),
+                                      createdBy: createdByName,
+                                    );
+                                    GoRouter.of(context).push('/client-review/$id', extra: {'report': report});
                                   },
                                   child: Row(
                                     children: [
@@ -1407,6 +1459,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   void _computeTeamMetrics() {
+    if (!mounted) return;
     setState(() => _isLoadingTeamMetrics = true);
     try {
       final int totalDeliverables = _dashboardDeliverables.length;
@@ -1445,11 +1498,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         'pending_reviews': pendingReviews,
         'completion_rate': completionRateStr,
       };
-      setState(() {
-        _teamMetrics = m;
-      });
+      if (mounted) {
+        setState(() {
+          _teamMetrics = m;
+        });
+      }
     } catch (_) {
-      setState(() => _teamMetrics = {});
+      if (mounted) setState(() => _teamMetrics = {});
     } finally {
       if (mounted) setState(() => _isLoadingTeamMetrics = false);
     }
@@ -1490,7 +1545,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           }
         }
         setState(() {
-          _pendingReports = items.whereType<Map>().map((e) {
+          final parsed = items.whereType<Map>().map((e) {
             final m = e.cast<String, dynamic>();
             final c = m['content'];
             if (c is String) {
@@ -1500,6 +1555,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               } catch (_) {}
             }
             return m;
+          });
+          _pendingReports = parsed.where((m) {
+            final content = m['content'];
+            final statusRaw = (m['status'] ?? m['review_status'] ?? (content is Map ? content['status'] : null) ?? '').toString().toLowerCase();
+            if (statusRaw.isEmpty) return true; // Default to include when unknown
+            return statusRaw == 'submitted' || statusRaw == 'under_review' || statusRaw == 'underreview';
           }).toList();
         });
         _computeTeamMetrics();
@@ -1686,6 +1747,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         setState(() {
           _pendingReports = _pendingReports.where((e) => (e['id']?.toString() ?? e['report_id']?.toString() ?? '') != reportId).toList();
         });
+        await _notifyReportSender(reportId, approved: true);
         messenger.showSnackBar(const SnackBar(content: Text('Report approved')));
         _loadClientReviewMetrics();
       } else {
@@ -1704,6 +1766,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         setState(() {
           _pendingReports = _pendingReports.where((e) => (e['id']?.toString() ?? e['report_id']?.toString() ?? '') != reportId).toList();
         });
+        await _notifyReportSender(reportId, approved: false, details: details);
         messenger.showSnackBar(const SnackBar(content: Text('Change request sent')));
         _loadClientReviewMetrics();
       } else {
@@ -1712,6 +1775,72 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     }
+  }
+
+  Future<void> _notifyReportSender(String reportId, {required bool approved, String? details}) async {
+    try {
+      final token = _authService.accessToken;
+      final ns = NotificationService();
+      if (token != null) ns.setAuthToken(token);
+      final resp = await _backendService.getSignOffReport(reportId);
+      String title = approved ? 'Report Approved' : 'Report Changes Requested';
+      String message = approved ? '${_currentUser?.name ?? 'Reviewer'} approved "Report"' : '${_currentUser?.name ?? 'Reviewer'} requested changes on "Report"';
+      String? targetUserId;
+      if (resp.isSuccess && resp.data != null) {
+        final raw = resp.data;
+        Map<String, dynamic> m = {};
+        if (raw is Map<String, dynamic>) {
+          final d = raw['data'];
+          if (d is Map<String, dynamic>) {
+            m = d;
+          } else {
+            m = raw;
+          }
+        }
+        final content = m['content'];
+        final String reportTitle = (m['reportTitle'] ?? m['report_title'] ?? (content is Map ? (content['reportTitle'] ?? content['title']) : null) ?? m['title'] ?? 'Report').toString();
+        title = approved ? 'Report Approved' : 'Report Changes Requested';
+        message = approved ? '${_currentUser?.name ?? 'Reviewer'} approved "$reportTitle"' : '${_currentUser?.name ?? 'Reviewer'} requested changes for "$reportTitle"';
+        final createdByRaw = (m['createdBy'] ?? m['created_by'] ?? '').toString();
+        final createdByName = (m['createdByName'] ?? m['created_by_name'] ?? '').toString();
+        if (createdByRaw.isNotEmpty) {
+          final isUuidLike = RegExp(r'^[a-f0-9-]{8,}$', caseSensitive: false).hasMatch(createdByRaw);
+          final looksLikeEmail = createdByRaw.contains('@');
+          final hasSpaces = createdByRaw.contains(' ');
+          if (isUuidLike && !looksLikeEmail && !hasSpaces) {
+            targetUserId = createdByRaw;
+          }
+        }
+        if (targetUserId == null && createdByName.isNotEmpty) {
+          try {
+            final usersResp = await _backendService.getUsers(page: 1, limit: 200);
+            final rawUsers = usersResp.isSuccess ? usersResp.data : null;
+            final List<dynamic> items = rawUsers is List
+                ? rawUsers
+                : (rawUsers is Map<String, dynamic> ? (rawUsers['data'] ?? rawUsers['users'] ?? rawUsers['items'] ?? []) : []);
+            for (final u in items) {
+              if (u is Map) {
+                final um = Map<String, dynamic>.from(u);
+                final name = (um['name'] ?? '').toString();
+                final first = (um['first_name'] ?? um['firstName'] ?? '').toString();
+                final last = (um['last_name'] ?? um['lastName'] ?? '').toString();
+                final combined = ('$first $last').trim();
+                if (name.toLowerCase() == createdByName.toLowerCase() || (combined.isNotEmpty && combined.toLowerCase() == createdByName.toLowerCase())) {
+                  targetUserId = (um['id'] ?? '').toString();
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+      await ns.createNotification(title: title, message: message, type: approved ? NotificationType.reportApproved : NotificationType.reportChangesRequested, userId: targetUserId);
+      try {
+        final event = approved ? 'report_approved' : 'report_change_requested';
+        realtimeService.emit(event, {'reportId': reportId});
+        realtimeService.emit('approval_updated', {'reportId': reportId});
+      } catch (_) {}
+    } catch (_) {}
   }
 
   Future<void> _promptChangeRequest(Map<String, dynamic> report) async {

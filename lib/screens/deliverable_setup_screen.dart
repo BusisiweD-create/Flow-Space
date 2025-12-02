@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../services/deliverable_service.dart';
 import '../services/backend_api_service.dart';
 
@@ -244,12 +245,11 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
                     duration: const Duration(seconds: 2),
                   ),
                 );
-                final Deliverable d = created;
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => _DeliverableDetailScreen(deliverable: d),
-                  ),
-                );
+                try {
+                  GoRouter.of(context).go('/report-editor/${created.id}');
+                } catch (_) {
+                  Navigator.of(context).pushNamed('/report-editor/${created.id}');
+                }
               }
             }
 
@@ -542,32 +542,3 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
 
 }
 
-class _DeliverableDetailScreen extends StatelessWidget {
-  final Deliverable deliverable;
-  const _DeliverableDetailScreen({required this.deliverable});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(deliverable.title)),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Priority: ${deliverable.priority}'),
-            const SizedBox(height: 8),
-            Text('Status: ${deliverable.status}'),
-            const SizedBox(height: 8),
-            if (deliverable.description != null) Text(deliverable.description!),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Back'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

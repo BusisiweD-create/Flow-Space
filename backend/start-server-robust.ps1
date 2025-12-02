@@ -18,7 +18,7 @@ function Start-Server {
     Write-Host "`n🚀 Starting server..." -ForegroundColor Green
     Write-Host "📋 Database: flow_space @ localhost" -ForegroundColor White
     Write-Host "🔧 Environment: local" -ForegroundColor White
-    Write-Host "🌐 Port: 3001" -ForegroundColor White
+    Write-Host "🌐 Port: 8000" -ForegroundColor White
     Write-Host ""
     
     try {

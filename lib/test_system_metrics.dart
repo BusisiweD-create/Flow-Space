@@ -1,7 +1,7 @@
 // ignore_for_file: avoid_print
 
-import '../services/api_service.dart';
-import '../services/auth_service.dart';
+import 'package:khono/services/api_service.dart';
+import 'package:khono/services/auth_service.dart';
 
 void main() async {
   print('🔧 Testing System Metrics Integration...\n');

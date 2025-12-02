@@ -2,14 +2,24 @@
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/environment.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
 
 class ProfileService {
   static const String _userIdKey = 'current_user_id';
 
   static Future<String> _getUserId() async {
+    try {
+      final auth = AuthService();
+      final user = await auth.getCurrentUser();
+      final id = user?.id;
+      if (id != null && id.isNotEmpty) {
+        return id;
+      }
+    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString(_userIdKey);
     if (userId == null || userId.isEmpty) {
@@ -23,7 +33,7 @@ class ProfileService {
       final userId = await _getUserId();
       final response = await http.get(
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await ApiService.getAuthHeaders(),
       );
 
       if (response.statusCode == 200) {
@@ -33,7 +43,7 @@ class ProfileService {
       }
     } catch (e) {
       print('Error fetching profile: $e');
-      rethrow;
+      return await _getLocalProfile();
     }
   }
 
@@ -46,12 +56,12 @@ class ProfileService {
       final response = await (existingProfile
           ? http.put(
               Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-              headers: {'Content-Type': 'application/json'},
+              headers: await ApiService.getAuthHeaders(),
               body: json.encode(profile),
             )
           : http.post(
               Uri.parse('${Environment.apiBaseUrl}/profile/'),
-              headers: {'Content-Type': 'application/json'},
+              headers: await ApiService.getAuthHeaders(),
               body: json.encode({...profile, 'user_id': userId}),
             ));
 
@@ -73,7 +83,7 @@ class ProfileService {
     try {
       final response = await http.get(
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await ApiService.getAuthHeaders(),
       );
       return response.statusCode == 200;
     } catch (e) {
@@ -90,11 +100,30 @@ class ProfileService {
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId/upload-picture'),
       );
       
+      // Infer content type from filename extension
+      final lower = fileName.toLowerCase();
+      MediaType ct;
+      if (lower.endsWith('.png')) {
+        ct = MediaType('image', 'png');
+      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+        ct = MediaType('image', 'jpeg');
+      } else if (lower.endsWith('.gif')) {
+        ct = MediaType('image', 'gif');
+      } else if (lower.endsWith('.webp')) {
+        ct = MediaType('image', 'webp');
+      } else {
+        ct = MediaType('image', 'jpeg');
+      }
+
       request.files.add(http.MultipartFile.fromBytes(
         'file',
         imageBytes,
         filename: fileName,
+        contentType: ct,
       ));
+      final headers = await ApiService.getAuthHeaders();
+      headers.remove('Content-Type');
+      request.headers.addAll(headers);
 
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();

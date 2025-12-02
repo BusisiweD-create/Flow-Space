@@ -2,11 +2,12 @@ import 'dart:convert';
 // ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 import 'notification_service.dart';
+import '../config/environment.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
 class SprintDatabaseService {
-  static const String _baseUrl = 'http://localhost:8000/api/v1';
+  static const String _baseUrl = Environment.apiBaseUrl;
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   
@@ -32,12 +33,13 @@ class SprintDatabaseService {
   // ===== SPRINT MANAGEMENT =====
 
   /// Get all sprints for the current user
-  Future<List<Map<String, dynamic>>> getSprints() async {
+  Future<List<Map<String, dynamic>>> getSprints({String? projectId, String? projectKey}) async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/sprints'),
-        headers: _headers,
-      );
+      final uri = Uri.parse('$_baseUrl/sprints').replace(queryParameters: {
+        if (projectId != null && projectId.isNotEmpty) 'project_id': projectId,
+        if (projectKey != null && projectKey.isNotEmpty) 'project_key': projectKey,
+      });
+      final response = await http.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final dynamic data = jsonDecode(response.body);
@@ -298,7 +300,7 @@ class SprintDatabaseService {
       debugPrint('🎫 Creating ticket: $title for sprint $sprintId');
       
       final body = {
-        'sprintId': sprintId,
+        'sprintId': int.tryParse(sprintId) ?? sprintId,
         'title': title,
         'description': description,
         'assignee': assignee,
@@ -306,6 +308,18 @@ class SprintDatabaseService {
         'type': type,
         'status': 'To Do',
       };
+
+      try {
+        final user = await _authService.getCurrentUser();
+        final reporter = (user != null)
+            ? user.email
+            : null;
+        if (reporter != null && reporter.toString().isNotEmpty) {
+          body['reporter'] = reporter;
+        }
+      } catch (e) {
+        // Continue without reporter if user retrieval fails
+      }
 
       final response = await _post('/tickets', body);
 

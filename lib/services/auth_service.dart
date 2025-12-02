@@ -3,6 +3,7 @@ import 'package:khono/models/user.dart';
 import 'package:khono/models/user_role.dart';
 import 'backend_api_service.dart';
 import 'api_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -45,6 +46,10 @@ class AuthService {
     await _loadCurrentUser();
   }
 
+  Future<void> refreshCurrentUser() async {
+    await _loadCurrentUser();
+  }
+
   // Load current user from stored session
   Future<void> _loadCurrentUser() async {
     try {
@@ -54,6 +59,10 @@ class AuthService {
         if (_currentUser != null && (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
           debugPrint('User session restored: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('current_user_id', _currentUser!.id);
+          } catch (_) {}
         } else {
           await _apiService.signOut();
           _currentUser = null;
@@ -83,6 +92,10 @@ class AuthService {
         if (_currentUser != null && (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
           debugPrint('User signed in: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('current_user_id', _currentUser!.id);
+          } catch (_) {}
           return true;
         } else {
           await _apiService.signOut();
@@ -113,6 +126,10 @@ class AuthService {
         if (_currentUser != null && (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
           debugPrint('User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('current_user_id', _currentUser!.id);
+          } catch (_) {}
           return {'success': true};
         } else {
           await _apiService.signOut();

@@ -67,11 +67,21 @@ function normalizeSprintData(body) {
 router.get('/', async (req, res) => {
   try {
     const { skip = 0, limit = 100 } = req.query;
+    const projectId = req.query.project_id || req.query.projectId;
+    const projectKey = req.query.project_key || req.query.projectKey;
+
+    const where = {};
+    if (projectId) where.project_id = projectId;
+
+    const include = [{ model: Project, as: 'project', attributes: ['id', 'name', 'key'] }];
+    if (!projectId && projectKey) include[0].where = { key: projectKey };
+
     const sprints = await Sprint.findAll({
       offset: parseInt(skip),
       limit: parseInt(limit),
       order: [['created_at', 'DESC']],
-      include: [{ model: Project, as: 'project', attributes: ['id', 'name', 'key'] }]
+      where,
+      include
     });
     
     res.json({

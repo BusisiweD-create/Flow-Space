@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/sign_off_report.dart';
@@ -30,6 +31,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   final _contentController = TextEditingController();
   final _knownLimitationsController = TextEditingController();
   final _nextStepsController = TextEditingController();
+  final _aiPromptController = TextEditingController();
   
   final BackendApiService _reportService = BackendApiService();
   final DeliverableService _deliverableService = DeliverableService();
@@ -45,6 +47,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   bool _isLoadingDeliverables = false;
   SignOffReport? _existingReport;
   final GlobalKey<SignatureCaptureWidgetState> _signatureKey = GlobalKey<SignatureCaptureWidgetState>();
+  bool _useAiAssist = false;
+  bool _isAiGenerating = false;
 
   @override
   void initState() {
@@ -512,6 +516,91 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     }
   }
 
+  Future<void> _generateAiSuggestions() async {
+    if (!_useAiAssist) return;
+    setState(() => _isAiGenerating = true);
+    try {
+      String deliverableTitle = 'Deliverable';
+      String deliverableDescription = '';
+      try {
+        final selected = _deliverables.firstWhere(
+          (d) => (d is Map ? d['id']?.toString() : d.id?.toString()) == _selectedDeliverableId,
+          orElse: () => null,
+        );
+        if (selected != null) {
+          deliverableTitle = selected is Map
+              ? (selected['title']?.toString() ?? deliverableTitle)
+              : (selected.title?.toString() ?? deliverableTitle);
+          deliverableDescription = selected is Map
+              ? (selected['description']?.toString() ?? '')
+              : (selected.description?.toString() ?? '');
+        }
+      } catch (_) {}
+
+      final sprintNames = _sprints
+          .where((s) => _selectedSprintIds.contains(s['id'].toString()))
+          .map((s) => s['name']?.toString() ?? 'Sprint')
+          .toList();
+
+      final prompt = _aiPromptController.text.trim();
+
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'You are an assistant that produces concise sign-off reports. Return ONLY JSON with keys title, content, knownLimitations, nextSteps. Do not include markdown fences.'
+        },
+        {
+          'role': 'user',
+          'content': 'Generate a sign-off report draft. Deliverable: $deliverableTitle. Description: $deliverableDescription. Linked sprints: ${sprintNames.isEmpty ? 'none' : sprintNames.join(', ')}${prompt.isNotEmpty ? '. Focus: $prompt' : ''}'
+        }
+      ];
+
+      final resp = await _reportService.aiChat(messages, temperature: 0.6, maxTokens: 800);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? resp.data as Map<String, dynamic> : {'content': resp.data.toString()};
+        final content = data['content']?.toString() ?? '';
+        Map<String, dynamic>? jsonOut;
+        try {
+          jsonOut = jsonDecode(content) as Map<String, dynamic>;
+        } catch (_) {
+          jsonOut = null;
+        }
+        if (jsonOut != null) {
+          _titleController.text = jsonOut['title']?.toString() ?? _titleController.text;
+          _contentController.text = jsonOut['content']?.toString() ?? _contentController.text;
+          _knownLimitationsController.text = jsonOut['knownLimitations']?.toString() ?? _knownLimitationsController.text;
+          _nextStepsController.text = jsonOut['nextSteps']?.toString() ?? _nextStepsController.text;
+        } else if (content.isNotEmpty) {
+          if (_titleController.text.isEmpty) {
+            final firstLine = content.split('\n').first.trim();
+            if (firstLine.length <= 120) _titleController.text = firstLine;
+          }
+          if (_contentController.text.isEmpty) {
+            _contentController.text = content;
+          }
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('AI suggestions applied'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('AI error: ${resp.error ?? "Unknown error"}'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI generation failed: $e'), backgroundColor: Colors.orange),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAiGenerating = false);
+    }
+  }
   /// Show signing dialog before submission
   Future<String?> _showSigningDialog() async {
     return showDialog<String>(
@@ -601,6 +690,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     _contentController.dispose();
     _knownLimitationsController.dispose();
     _nextStepsController.dispose();
+    _aiPromptController.dispose();
     super.dispose();
   }
 
@@ -807,6 +897,70 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                               ),
                             ],
                           ),
+                    const SizedBox(height: 16),
+
+                    // AI Assistance
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: FlownetColors.graphiteGray,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: FlownetColors.coolGray.withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SwitchListTile(
+                            value: _useAiAssist,
+                            onChanged: (v) => setState(() => _useAiAssist = v),
+                            title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
+                            subtitle: const Text('Generate draft title and content from deliverable context', style: TextStyle(color: FlownetColors.coolGray)),
+                            activeThumbColor: FlownetColors.electricBlue,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          if (_useAiAssist) ...[
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _aiPromptController,
+                              decoration: const InputDecoration(
+                                labelText: 'AI Prompt (optional)',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.smart_toy),
+                                helperText: 'Describe what the report should emphasize',
+                              ),
+                              maxLines: 3,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: _isAiGenerating ? null : _generateAiSuggestions,
+                                  icon: _isAiGenerating
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.auto_awesome),
+                                  label: Text(_isAiGenerating ? 'Generating...' : 'Generate with AI'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: FlownetColors.electricBlue,
+                                    foregroundColor: FlownetColors.pureWhite,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: _isAiGenerating ? null : () {
+                                    setState(() {
+                                      _aiPromptController.clear();
+                                    });
+                                  },
+                                  style: TextButton.styleFrom(foregroundColor: FlownetColors.coolGray),
+                                  child: const Text('Clear Prompt'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     
                     // Sprint Selection (Multi-select)

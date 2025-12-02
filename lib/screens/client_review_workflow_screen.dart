@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:convert';
 import '../models/sign_off_report.dart';
 import '../models/user_role.dart';
 import '../services/sign_off_report_service.dart';
@@ -12,6 +13,9 @@ import '../widgets/signature_capture_widget.dart';
 import '../widgets/signature_display_widget.dart';
 import '../services/docusign_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/notification_service.dart';
+import '../models/notification_item.dart';
+import '../services/realtime_service.dart';
 
 class ClientReviewWorkflowScreen extends ConsumerStatefulWidget {
   final String reportId;
@@ -68,11 +72,19 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
             : reportResponse.data as Map<String, dynamic>;
         
         final contentRaw = data['content'];
-        final content = contentRaw is Map<String, dynamic>
-            ? contentRaw
-            : contentRaw is Map
-                ? Map<String, dynamic>.from(contentRaw)
-                : <String, dynamic>{};
+        Map<String, dynamic> content;
+        if (contentRaw is String) {
+          try {
+            final decoded = jsonDecode(contentRaw);
+            content = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+          } catch (_) {
+            content = <String, dynamic>{};
+          }
+        } else if (contentRaw is Map) {
+          content = Map<String, dynamic>.from(contentRaw);
+        } else {
+          content = <String, dynamic>{};
+        }
         final reviews = data['reviews'] as List? ?? [];
         
         setState(() {
@@ -120,9 +132,21 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
       final response = await apiClient.get('/sign-off-reports/${widget.reportId}/signatures');
       
       if (response.isSuccess && response.data != null) {
-        final signaturesData = response.data!['data'] as List? ?? [];
+        final raw = response.data;
+        List<dynamic> items = const [];
+        if (raw is List) {
+          items = raw;
+        } else if (raw is Map) {
+          final d = raw['data'];
+          if (d is List) {
+            items = d;
+          } else if (d is Map) {
+            final inner = d['items'] ?? d['data'];
+            if (inner is List) items = inner;
+          }
+        }
         setState(() {
-          _signatures = signaturesData.cast<Map<String, dynamic>>();
+          _signatures = items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
         });
         debugPrint('✅ Loaded ${_signatures.length} signatures for report');
       }
@@ -268,17 +292,43 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
         if (_selectedAction == 'approve') {
           await _loadSignatures();
         }
+        try {
+          final ns = NotificationService();
+          final token = AuthService().accessToken;
+          if (token != null) ns.setAuthToken(token);
+          final actor = AuthService().currentUser?.name ?? 'User';
+          final title = _selectedAction == 'approve' ? 'Report Approved' : 'Report Changes Requested';
+          final message = _selectedAction == 'approve'
+              ? '$actor approved "${_report?.reportTitle ?? 'Report'}"'
+              : '$actor requested changes for "${_report?.reportTitle ?? 'Report'}"';
+          final type = _selectedAction == 'approve' ? NotificationType.reportApproved : NotificationType.reportChangesRequested;
+          await ns.createNotification(title: title, message: message, type: type);
+        } catch (_) {}
+        try {
+          final rt = RealtimeService();
+          await rt.initialize(authToken: AuthService().accessToken);
+          final event = _selectedAction == 'approve' ? 'report_approved' : 'report_change_requested';
+          rt.emit(event, {
+            'reportId': widget.reportId,
+            'title': _report?.reportTitle ?? 'Report',
+          });
+          rt.emit('approval_updated', {
+            'reportId': widget.reportId,
+          });
+        } catch (_) {}
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_selectedAction == 'approve' 
-                  ? '✅ Report approved successfully!' 
-                  : 'Change request submitted successfully!',),
+              content: Text(
+                _selectedAction == 'approve'
+                    ? '✅ Report approved successfully!'
+                    : 'Change request submitted successfully!'
+              ),
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context, true);
+          await _loadReportData();
         }
       } else {
         if (mounted) {
@@ -402,7 +452,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                   if (_deliverable!['description'] != null) ...[
                     const SizedBox(height: 8),
                     Text(
-                      _deliverable!['description'] as String,
+                      _deliverable!['description'].toString(),
                       style: const TextStyle(color: FlownetColors.coolGray),
                     ),
                   ],
@@ -411,7 +461,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                     children: [
                       Chip(
                         label: Text(
-                          _deliverable!['status'] as String? ?? 'Unknown',
+                          (_deliverable!['status'] as String?) ?? 'Unknown',
                           style: const TextStyle(fontSize: 12),
                         ),
                         backgroundColor: FlownetColors.electricBlue.withValues(alpha: 0.2),
@@ -420,7 +470,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                       if (_deliverable!['priority'] != null)
                         Chip(
                           label: Text(
-                            _deliverable!['priority'] as String,
+                            _deliverable!['priority'].toString(),
                             style: const TextStyle(fontSize: 12),
                           ),
                           backgroundColor: FlownetColors.graphiteGray,
@@ -663,7 +713,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                   _buildReportDisplay(),
                   
                   // Review Section (only if can review and not already approved)
-                  if (canReview && !isApproved && _report?.status == ReportStatus.submitted) ...[
+                  if (canReview && !isApproved && (_report?.status == ReportStatus.submitted || _report?.status == ReportStatus.underReview)) ...[
                     const SizedBox(height: 32),
                     const Divider(),
                     const SizedBox(height: 16),
@@ -700,7 +750,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
                             emptySelectionAllowed: true,
                             onSelectionChanged: (Set<String> newSelection) {
                               setState(() {
-                                _selectedAction = newSelection.firstOrNull;
+                                _selectedAction = newSelection.isEmpty ? null : newSelection.first;
                               });
                             },
                             style: SegmentedButton.styleFrom(

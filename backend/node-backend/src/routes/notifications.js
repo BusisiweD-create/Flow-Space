@@ -45,8 +45,13 @@ router.post('/', authenticateToken, async (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const { skip = 0, limit = 100, unread_only } = req.query;
-    
-    const where = { recipient_id: req.user.id };
+
+    const uid = req.user && req.user.id;
+    if (!uid || !/^[0-9a-fA-F-]{36}$/.test(String(uid))) {
+      return res.json([]);
+    }
+
+    const where = { recipient_id: uid };
     if (String(unread_only || '').toLowerCase() === 'true') {
       where.is_read = false;
     }
@@ -125,9 +130,14 @@ router.put('/:id/read', authenticateToken, async (req, res) => {
 
 router.put('/read-all', authenticateToken, async (req, res) => {
   try {
+    const uid = req.user && req.user.id;
+    if (!uid || !/^[0-9a-fA-F-]{36}$/.test(String(uid))) {
+      return res.json({ success: true, data: { markedCount: 0 } });
+    }
+
     const [affectedCount] = await Notification.update(
       { is_read: true },
-      { where: { recipient_id: req.user.id, is_read: false } }
+      { where: { recipient_id: uid, is_read: false } }
     );
     res.json({ success: true, data: { markedCount: affectedCount } });
   } catch (error) {
@@ -138,8 +148,13 @@ router.put('/read-all', authenticateToken, async (req, res) => {
 
 router.get('/count', authenticateToken, async (req, res) => {
   try {
+    const uid = req.user && req.user.id;
+    if (!uid || !/^[0-9a-fA-F-]{36}$/.test(String(uid))) {
+      return res.json({ success: true, data: { unreadCount: 0 } });
+    }
+
     const unreadCount = await Notification.count({
-      where: { recipient_id: req.user.id, is_read: false }
+      where: { recipient_id: uid, is_read: false }
     });
     res.json({ success: true, data: { unreadCount } });
   } catch (error) {

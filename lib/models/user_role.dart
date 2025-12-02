@@ -163,7 +163,7 @@ class PermissionManager {
     'view_client_review': Permission(
       name: 'View Client Review',
       description: 'Access client review interface',
-      allowedRoles: [UserRole.clientReviewer, UserRole.systemAdmin, UserRole.stakeholder],
+      allowedRoles: [UserRole.deliveryLead, UserRole.clientReviewer, UserRole.systemAdmin, UserRole.stakeholder],
     ),
     'manage_users': Permission(
       name: 'Manage Users',

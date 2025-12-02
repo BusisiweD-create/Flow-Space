@@ -3,6 +3,7 @@
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'dart:developer' as developer;
 import '../config/environment.dart';
+import 'auth_service.dart';
 import 'dart:async';
 
 class RealtimeService {
@@ -33,7 +34,14 @@ class RealtimeService {
       return;
     }
 
-    final token = authToken;
+    String? token = authToken;
+    if (token == null) {
+      try {
+        final auth = AuthService();
+        await auth.initialize();
+        token = auth.accessToken;
+      } catch (_) {}
+    }
     if (token == null) {
       developer.log('No authentication token provided');
       return;
@@ -51,6 +59,7 @@ class RealtimeService {
           .setTransports(['websocket'])
           .enableAutoConnect()
           .setAuth({'token': token})
+          .setExtraHeaders({'Authorization': 'Bearer $token'})
           .build(),
       );
 

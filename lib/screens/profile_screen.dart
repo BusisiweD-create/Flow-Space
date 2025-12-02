@@ -3,10 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../services/profile_service.dart';
+import '../config/environment.dart';
+import '../services/auth_service.dart';
+import 'package:http/http.dart' as http;
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -26,6 +29,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final TextEditingController _bioController = TextEditingController();
 
   File? _profileImage;
+  Uint8List? _profileImageBytes;
+  String? _profileImageUrl;
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -46,10 +51,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _titleController.text = profile['job_title'] ?? '';
         _departmentController.text = profile['company'] ?? '';
         _bioController.text = profile['bio'] ?? '';
+        final rawUrl = (profile['profile_picture'] ?? profile['profileImageUrl'] ?? profile['profile_image_url'])?.toString();
+        final uid = (profile['user_id'] ?? profile['userId'])?.toString();
+        if (rawUrl != null && rawUrl.isNotEmpty && uid != null && uid.isNotEmpty) {
+          final base = Uri.parse(Environment.apiBaseUrl);
+          final apiPic = '${base.scheme}://${base.host}:${base.port}/api/v1/profile/$uid/picture';
+          _profileImageUrl = apiPic;
+        }
       });
+      final uid = (profile['user_id'] ?? profile['userId'])?.toString();
+      if (uid != null && uid.isNotEmpty) {
+        await _fetchProfileImageBytes(uid);
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load profile: \$e')),
+        SnackBar(content: Text('Failed to load profile: $e')),
       );
     } finally {
       setState(() {
@@ -58,23 +74,63 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _fetchProfileImageBytes(String userId) async {
+    try {
+      final base = Uri.parse(Environment.apiBaseUrl);
+      final url = '${base.scheme}://${base.host}:${base.port}/api/v1/profile/$userId/picture?t=${DateTime.now().millisecondsSinceEpoch}';
+      final token = AuthService().accessToken;
+      final headers = <String, String>{
+        'Accept': 'image/*',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      final resp = await http.get(Uri.parse(url), headers: headers);
+      if (resp.statusCode == 200) {
+        setState(() {
+          _profileImageBytes = resp.bodyBytes;
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final pickedFile = await ImagePicker().pickImage(source: source);
       if (pickedFile != null) {
+        final imageBytes = await pickedFile.readAsBytes();
         setState(() {
-          _profileImage = File(pickedFile.path);
+          _profileImageBytes = imageBytes;
+          if (!kIsWeb) {
+            _profileImage = File(pickedFile.path);
+          }
         });
         // Upload image to backend
-        final imageBytes = await _profileImage!.readAsBytes();
-        await ProfileService.uploadProfilePicture(imageBytes, 'profile_picture.jpg');
+        final result = await ProfileService.uploadProfilePicture(imageBytes, (pickedFile.name.isNotEmpty ? pickedFile.name : 'profile_picture.jpg'));
+        final rawUrl = result['url']?.toString();
+        if (rawUrl != null && rawUrl.isNotEmpty) {
+          final base = Uri.parse(Environment.apiBaseUrl);
+          try {
+            final user = await AuthService().getCurrentUser();
+            final uid = user?.id;
+            if (uid != null && uid.isNotEmpty) {
+              final apiPic = '${base.scheme}://${base.host}:${base.port}/api/v1/profile/$uid/picture?t=${DateTime.now().millisecondsSinceEpoch}';
+              setState(() {
+                _profileImageUrl = apiPic;
+              });
+            } else {
+              final full = rawUrl.startsWith('http') ? rawUrl : '${base.scheme}://${base.host}:${base.port}$rawUrl';
+              setState(() { _profileImageUrl = full; });
+            }
+          } catch (_) {}
+          await ProfileService.saveUserProfile({'profile_picture': rawUrl});
+          try { await AuthService().refreshCurrentUser(); } catch (_) {}
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile picture updated')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick image: \$e')),
+        SnackBar(content: Text('Failed to upload image: $e')),
       );
     }
   }
@@ -102,9 +158,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved successfully')),
       );
+      try { await AuthService().refreshCurrentUser(); } catch (_) {}
+      context.go('/profile?mode=view');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save profile: \$e')),
+        SnackBar(content: Text('Failed to save profile: $e')),
       );
     } finally {
       setState(() {
@@ -127,6 +185,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final uri = GoRouterState.of(context).uri;
+    final mode = uri.queryParameters['mode'] ?? 'edit';
+    final isViewMode = mode.toLowerCase() == 'view';
     if (_isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -153,16 +214,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundImage: _profileImage != null
-                         ? FileImage(_profileImage!)
-                         : null,
-                    child: _profileImage == null
-                        ? SvgPicture.asset(
-                            'assets/images/google_logo.svg',
-                            width: 60,
-                            height: 60,
-                            placeholderBuilder: (context) => const Icon(Icons.person, size: 50),
-                          )
+                    backgroundImage: _profileImageBytes != null
+                        ? (MemoryImage(_profileImageBytes!) as ImageProvider<Object>)
+                        : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                            ? (NetworkImage(_profileImageUrl!) as ImageProvider<Object>)
+                            : null),
+                    child: (_profileImage == null && (_profileImageUrl == null || _profileImageUrl!.isEmpty))
+                        ? const Icon(Icons.person, size: 50)
                         : null,
                   ),
                   Positioned(
@@ -224,6 +282,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         labelText: 'First Name',
                         border: OutlineInputBorder(),
                       ),
+                      readOnly: isViewMode,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your first name';
@@ -240,6 +299,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         labelText: 'Last Name',
                         border: OutlineInputBorder(),
                       ),
+                      readOnly: isViewMode,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your last name';
@@ -259,6 +319,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,
+                readOnly: isViewMode,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your email';
@@ -278,6 +339,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
+                readOnly: isViewMode,
               ),
               const SizedBox(height: 24),
 
@@ -294,6 +356,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   labelText: 'Job Title',
                   border: OutlineInputBorder(),
                 ),
+                readOnly: isViewMode,
               ),
               const SizedBox(height: 16),
 
@@ -303,6 +366,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   labelText: 'Department',
                   border: OutlineInputBorder(),
                 ),
+                readOnly: isViewMode,
               ),
               const SizedBox(height: 16),
 
@@ -315,23 +379,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 maxLines: 4,
                 maxLength: 500,
+                readOnly: isViewMode,
               ),
               const SizedBox(height: 32),
 
               // Save Button
-              ElevatedButton(
-                onPressed: _isSaving ? null : _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
+              if (!isViewMode)
+                ElevatedButton(
+                  onPressed: _isSaving ? null : _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save Profile'),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/profile'),
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Edit Profile'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
                 ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Save Profile'),
-              ),
             ],
           ),
         ),

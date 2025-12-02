@@ -12,9 +12,12 @@ import '../widgets/sprint_board_widget.dart';
 import 'create_sprint_screen.dart';
 import 'sprint_board_screen.dart';
 import '../services/backend_api_service.dart';
+import '../services/realtime_service.dart';
+import '../services/auth_service.dart';
 
 class SprintConsoleScreen extends StatefulWidget {
-  const SprintConsoleScreen({super.key});
+  final String? initialProjectKey;
+  const SprintConsoleScreen({super.key, this.initialProjectKey});
 
   @override
   State<SprintConsoleScreen> createState() => _SprintConsoleScreenState();
@@ -33,9 +36,10 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   String? _selectedSprintId;
   bool _isAiSuggesting = false;
   bool _useAiForTicket = false;
-  bool _isGeneratingAiTicket = false;
+  final bool _isGeneratingAiTicket = false;
   
   final SprintDatabaseService _databaseService = SprintDatabaseService();
+  late RealtimeService _realtime;
   
   // ignore: strict_top_level_inference
   get id => null;
@@ -43,7 +47,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedProjectKey = widget.initialProjectKey;
     _loadData();
+    _setupRealtime();
   }
 
   Future<void> _loadData() async {
@@ -54,7 +60,12 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     try {
       // Load projects and sprints using API service
       final projects = await ApiService.getProjects();
-      final sprints = await ApiService.getSprints();
+      String? projectId;
+      if (_selectedProjectKey != null) {
+        final sel = projects.firstWhere((p) => p['key'] == _selectedProjectKey, orElse: () => {});
+        projectId = sel['id']?.toString();
+      }
+      final sprints = await ApiService.getSprints(projectId: projectId, projectKey: projectId == null ? _selectedProjectKey : null);
       
       setState(() {
         _projects = projects;
@@ -72,6 +83,43 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _setupRealtime() {
+    _realtime = RealtimeService();
+    _realtime.initialize(authToken: AuthService().accessToken);
+    _realtime.on('ticket_created', (data) {
+      try {
+        final sid = (data['sprint_id'] ?? data['sprintId'] ?? '').toString();
+        if (sid.isNotEmpty && _selectedSprintId != null && sid == _selectedSprintId) {
+          _loadTickets();
+        }
+      } catch (_) {}
+    });
+    _realtime.on('ticket_updated', (data) {
+      try {
+        final sid = (data['sprint_id'] ?? data['sprintId'] ?? '').toString();
+        if (sid.isNotEmpty && _selectedSprintId != null && sid == _selectedSprintId) {
+          _loadTickets();
+        }
+      } catch (_) {}
+    });
+    _realtime.on('ticket_deleted', (data) {
+      try {
+        final sid = (data['sprint_id'] ?? data['sprintId'] ?? '').toString();
+        if (sid.isNotEmpty && _selectedSprintId != null && sid == _selectedSprintId) {
+          _loadTickets();
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _realtime.offAll('ticket_created');
+    _realtime.offAll('ticket_updated');
+    _realtime.offAll('ticket_deleted');
+    super.dispose();
   }
 
   Future<void> _loadTickets() async {
@@ -288,6 +336,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       itemBuilder: (context, index) {
         final project = _projects[index];
         final isSelected = _selectedProjectKey == project['key'];
+        final sprintCount = _sprints.where((s) => (s['project']?['key'] ?? s['project_key'] ?? '').toString() == (project['key'] ?? '').toString()).length;
         
         return GestureDetector(
           onTap: () => _selectProject(project),
@@ -332,6 +381,25 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: FlownetColors.electricBlue.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: FlownetColors.electricBlue.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.directions_run, color: FlownetColors.electricBlue, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Sprints: $sprintCount',
+                            style: const TextStyle(color: FlownetColors.electricBlue, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -374,7 +442,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: _showCreateSprintDialog,
+              onPressed: _selectedProjectKey == null ? () { _showSnackBar('Select a project first', isError: true); } : _showCreateSprintDialog,
               icon: const Icon(Icons.add),
               label: const Text('Create Sprint'),
               style: ElevatedButton.styleFrom(
@@ -385,8 +453,10 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        if (_sprints.isEmpty)
-          _buildEmptyState('No sprints yet', 'Create your first sprint to start planning')
+        if (_selectedProjectKey == null)
+          _buildEmptyState('Select a project', 'Choose a project to view its sprints')
+        else if (_sprints.where((s) => (s['project']?['key'] ?? s['project_key'] ?? '').toString() == _selectedProjectKey).isEmpty)
+          _buildEmptyState('No sprints yet', 'Create your first sprint for this project')
         else
           _buildSprintsList(),
       ],
@@ -394,12 +464,15 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   }
 
   Widget _buildSprintsList() {
+    final filtered = _selectedProjectKey == null
+        ? <Map<String, dynamic>>[]
+        : _sprints.where((s) => (s['project']?['key'] ?? s['project_key'] ?? '').toString() == _selectedProjectKey).toList();
     return ListView.builder(
       shrinkWrap: true,
       primary: false,
-      itemCount: _sprints.length,
+      itemCount: filtered.length,
       itemBuilder: (context, index) {
-        final sprint = _sprints[index];
+        final sprint = filtered[index];
         final isSelected = _selectedSprintId == sprint['id'].toString();
         
         return Container(
@@ -615,11 +688,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       _tickets.clear();
     });
     debugPrint('🎯 Project selected: ${project['name']} (${project['key']})');
-    try {
-      GoRouter.of(context).go('/repository/${project['key']}');
-    } catch (_) {
-      Navigator.of(context).pushNamed('/repository/${project['key']}');
-    }
+    _loadData();
   }
 
   void _selectSprint(Map<String, dynamic> sprint) {
@@ -899,6 +968,10 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   }
 
   void _showCreateSprintDialog() {
+    if (_selectedProjectKey == null) {
+      _showSnackBar('Select a project first', isError: true);
+      return;
+    }
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
     final startDateController = TextEditingController();
@@ -1169,206 +1242,271 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.charcoalBlack,
-        title: const Text('Create Ticket', style: TextStyle(color: FlownetColors.pureWhite)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+      builder: (context) {
+        bool useAi = _useAiForTicket;
+        bool isGenerating = _isGeneratingAiTicket;
+        return StatefulBuilder(
+          builder: (context, dialogSetState) => AlertDialog(
+            backgroundColor: FlownetColors.charcoalBlack,
+            title: const Text('Create Ticket', style: TextStyle(color: FlownetColors.pureWhite)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: SwitchListTile(
-                      value: _useAiForTicket,
-                      onChanged: (v) { setState(() { _useAiForTicket = v; }); },
-                      title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SwitchListTile(
+                          value: useAi,
+                          onChanged: (v) { dialogSetState(() { useAi = v; }); setState(() { _useAiForTicket = v; }); },
+                          title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              if (_useAiForTicket) ...[
-                TextField(
-                  controller: aiPromptController,
-                  maxLines: 3,
-                  style: const TextStyle(color: FlownetColors.pureWhite),
-                  decoration: const InputDecoration(
-                    labelText: 'AI Prompt (requirements/context)',
-                    labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(color: FlownetColors.electricBlue),
+                  if (useAi) ...[
+                    TextField(
+                      controller: aiPromptController,
+                      maxLines: 3,
+                      style: const TextStyle(color: FlownetColors.pureWhite),
+                      decoration: const InputDecoration(
+                        labelText: 'AI Prompt (requirements/context)',
+                        labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: FlownetColors.electricBlue),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                        ),
+                      ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _isGeneratingAiTicket
-                        ? null
-                        : () async {
-                            setState(() { _isGeneratingAiTicket = true; });
-                            try {
-                              final backend = BackendApiService();
-                              final sprintName = _sprints.firstWhere(
-                                (s) => (s['id']?.toString() ?? '') == _selectedSprintId,
-                                orElse: () => {},
-                              )['name'] ?? '';
-                              final messages = [
-                                { 'role': 'system', 'content': 'You generate concise sprint tickets. Return JSON with keys: title, description.' },
-                                { 'role': 'user', 'content': 'Sprint: $sprintName. Requirements: ${aiPromptController.text}'.trim() }
-                              ];
-                              final resp = await backend.aiChat(messages, temperature: 0.4, maxTokens: 256);
-                              if (resp.isSuccess && resp.data != null) {
-                                final data = resp.data as Map<String, dynamic>;
-                                final content = (data['content'] ?? '').toString();
-                                String t = '';
-                                String d = '';
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: isGenerating
+                            ? null
+                            : () async {
+                                dialogSetState(() { isGenerating = true; });
                                 try {
-                                  final parsed = content.startsWith('{') ? jsonDecode(content) : null;
-                                  if (parsed is Map) {
-                                    t = (parsed['title'] ?? '').toString();
-                                    d = (parsed['description'] ?? '').toString();
+                                  final backend = BackendApiService();
+                                  final sprintName = _sprints.firstWhere(
+                                    (s) => (s['id']?.toString() ?? '') == _selectedSprintId,
+                                    orElse: () => {},
+                                  )['name'] ?? '';
+                                  final messages = [
+                                    { 'role': 'system', 'content': 'Generate a sprint ticket. Return JSON with keys: title, description. Include acceptance criteria as bullet points inside description. Keep language clear and actionable.' },
+                                    { 'role': 'user', 'content': 'Sprint: $sprintName. Requirements: ${aiPromptController.text}'.trim() }
+                                  ];
+                                  final resp = await backend.aiChat(messages, temperature: 0.5, maxTokens: 320);
+                                  if (resp.isSuccess && resp.data != null) {
+                                    final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+                                    final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+                                    String t = '';
+                                    String d = '';
+                                    try {
+                                      Map<String, dynamic>? parsed;
+                                      if (content.trim().startsWith('{')) {
+                                        parsed = Map<String, dynamic>.from(jsonDecode(content));
+                                      } else if (content.contains('{') && content.contains('}')) {
+                                        final start = content.indexOf('{');
+                                        final end = content.lastIndexOf('}');
+                                        if (start >= 0 && end > start) {
+                                          final jsonStr = content.substring(start, end + 1);
+                                          parsed = Map<String, dynamic>.from(jsonDecode(jsonStr));
+                                        }
+                                      }
+                                      if (parsed != null) {
+                                        t = (parsed['title'] ?? '').toString();
+                                        d = (parsed['description'] ?? '').toString();
+                                      }
+                                    } catch (_) {}
+                                    if (t.isEmpty) {
+                                      final lines = content.split('\n').where((e) => e.trim().isNotEmpty).toList();
+                                      t = lines.isNotEmpty ? lines.first.trim() : 'New Sprint Ticket';
+                                      d = lines.skip(1).join('\n').trim();
+                                      if (d.isEmpty) d = content.trim();
+                                    }
+                                    titleController.text = t;
+                                    descriptionController.text = d;
                                   }
                                 } catch (_) {}
-                                if (t.isEmpty) {
-                                  final lines = content.split('\n').where((e) => e.trim().isNotEmpty).toList();
-                                  t = lines.isNotEmpty ? lines.first.trim() : 'New Sprint Ticket';
-                                  d = lines.skip(1).join('\n').trim();
-                                  if (d.isEmpty) d = content.trim();
-                                }
-                                titleController.text = t;
-                                descriptionController.text = d;
-                              }
-                            } catch (_) {}
-                            setState(() { _isGeneratingAiTicket = false; });
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: FlownetColors.electricBlue,
-                      foregroundColor: FlownetColors.pureWhite,
-                    ),
-                    icon: _isGeneratingAiTicket
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.auto_awesome),
-                    label: const Text('Generate with AI'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              TextField(
-                controller: titleController,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Ticket Title',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                maxLines: 3,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: assigneeController,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Assignee Email',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: selectedPriority,
-                      style: const TextStyle(color: FlownetColors.pureWhite),
-                      decoration: const InputDecoration(
-                        labelText: 'Priority',
-                        labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(color: FlownetColors.electricBlue),
+                                dialogSetState(() { isGenerating = false; });
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: FlownetColors.electricBlue,
+                          foregroundColor: FlownetColors.pureWhite,
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                        icon: isGenerating
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.auto_awesome),
+                        label: const Text('Generate with AI'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  TextField(
+                    controller: titleController,
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                    decoration: const InputDecoration(
+                      labelText: 'Ticket Title',
+                      labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: FlownetColors.electricBlue),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    maxLines: 3,
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: FlownetColors.electricBlue),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: assigneeController,
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                    decoration: const InputDecoration(
+                      labelText: 'Assignee Email',
+                      labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: FlownetColors.electricBlue),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedPriority,
+                          style: const TextStyle(color: FlownetColors.pureWhite),
+                          decoration: const InputDecoration(
+                            labelText: 'Priority',
+                            labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(color: FlownetColors.electricBlue),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                            ),
+                          ),
+                          dropdownColor: FlownetColors.charcoalBlack,
+                          items: const [
+                            DropdownMenuItem(value: 'Low', child: Text('Low', style: TextStyle(color: FlownetColors.pureWhite))),
+                            DropdownMenuItem(value: 'Medium', child: Text('Medium', style: TextStyle(color: FlownetColors.pureWhite))),
+                            DropdownMenuItem(value: 'High', child: Text('High', style: TextStyle(color: FlownetColors.pureWhite))),
+                            DropdownMenuItem(value: 'Critical', child: Text('Critical', style: TextStyle(color: FlownetColors.pureWhite))),
+                          ],
+                          onChanged: (value) => selectedPriority = value ?? 'Medium',
                         ),
                       ),
-                      dropdownColor: FlownetColors.charcoalBlack,
-                      items: const [
-                        DropdownMenuItem(value: 'Low', child: Text('Low', style: TextStyle(color: FlownetColors.pureWhite))),
-                        DropdownMenuItem(value: 'Medium', child: Text('Medium', style: TextStyle(color: FlownetColors.pureWhite))),
-                        DropdownMenuItem(value: 'High', child: Text('High', style: TextStyle(color: FlownetColors.pureWhite))),
-                        DropdownMenuItem(value: 'Critical', child: Text('Critical', style: TextStyle(color: FlownetColors.pureWhite))),
-                      ],
-                      onChanged: (value) => selectedPriority = value ?? 'Medium',
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: selectedType,
-                      style: const TextStyle(color: FlownetColors.pureWhite),
-                      decoration: const InputDecoration(
-                        labelText: 'Type',
-                        labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(color: FlownetColors.electricBlue),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedType,
+                          style: const TextStyle(color: FlownetColors.pureWhite),
+                          decoration: const InputDecoration(
+                            labelText: 'Type',
+                            labelStyle: TextStyle(color: FlownetColors.electricBlue),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(color: FlownetColors.electricBlue),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
+                            ),
+                          ),
+                          dropdownColor: FlownetColors.charcoalBlack,
+                          items: const [
+                            DropdownMenuItem(value: 'Task', child: Text('Task', style: TextStyle(color: FlownetColors.pureWhite))),
+                            DropdownMenuItem(value: 'Bug', child: Text('Bug', style: TextStyle(color: FlownetColors.pureWhite))),
+                            DropdownMenuItem(value: 'Story', child: Text('Story', style: TextStyle(color: FlownetColors.pureWhite))),
+                            DropdownMenuItem(value: 'Epic', child: Text('Epic', style: TextStyle(color: FlownetColors.pureWhite))),
+                          ],
+                          onChanged: (value) => selectedType = value ?? 'Task',
                         ),
                       ),
-                      dropdownColor: FlownetColors.charcoalBlack,
-                      items: const [
-                        DropdownMenuItem(value: 'Task', child: Text('Task', style: TextStyle(color: FlownetColors.pureWhite))),
-                        DropdownMenuItem(value: 'Bug', child: Text('Bug', style: TextStyle(color: FlownetColors.pureWhite))),
-                        DropdownMenuItem(value: 'Story', child: Text('Story', style: TextStyle(color: FlownetColors.pureWhite))),
-                        DropdownMenuItem(value: 'Epic', child: Text('Epic', style: TextStyle(color: FlownetColors.pureWhite))),
-                      ],
-                      onChanged: (value) => selectedType = value ?? 'Task',
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        actions: [
+            ),
+            actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel', style: TextStyle(color: FlownetColors.pureWhite)),
           ),
           ElevatedButton(
             onPressed: () async {
-              if (titleController.text.isNotEmpty) {
-                final navigator = Navigator.of(context);
+              final navigator = Navigator.of(context);
+              try {
+                if (useAi && (titleController.text.isEmpty || descriptionController.text.isEmpty)) {
+                  dialogSetState(() { isGenerating = true; });
+                  try {
+                    final backend = BackendApiService();
+                    final sprintName = _sprints.firstWhere(
+                      (s) => (s['id']?.toString() ?? '') == _selectedSprintId,
+                      orElse: () => {},
+                    )['name'] ?? '';
+                    final messages = [
+                      { 'role': 'system', 'content': 'Generate a sprint ticket. Return JSON with keys: title, description. Include acceptance criteria as bullet points inside description. Keep language clear and actionable.' },
+                      { 'role': 'user', 'content': 'Sprint: $sprintName. Requirements: ${aiPromptController.text}'.trim() }
+                    ];
+                    final resp = await backend.aiChat(messages, temperature: 0.5, maxTokens: 320);
+                    if (resp.isSuccess && resp.data != null) {
+                      final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+                      final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+                      String t = '';
+                      String d = '';
+                      try {
+                        Map<String, dynamic>? parsed;
+                        if (content.trim().startsWith('{')) {
+                          parsed = Map<String, dynamic>.from(jsonDecode(content));
+                        } else if (content.contains('{') && content.contains('}')) {
+                          final start = content.indexOf('{');
+                          final end = content.lastIndexOf('}');
+                          if (start >= 0 && end > start) {
+                            final jsonStr = content.substring(start, end + 1);
+                            parsed = Map<String, dynamic>.from(jsonDecode(jsonStr));
+                          }
+                        }
+                        if (parsed != null) {
+                          t = (parsed['title'] ?? '').toString();
+                          d = (parsed['description'] ?? '').toString();
+                        }
+                      } catch (_) {}
+                      if (t.isEmpty) {
+                        final lines = content.split('\n').where((e) => e.trim().isNotEmpty).toList();
+                        t = lines.isNotEmpty ? lines.first.trim() : 'New Sprint Ticket';
+                        d = lines.skip(1).join('\n').trim();
+                        if (d.isEmpty) d = content.trim();
+                      }
+                      if (titleController.text.isEmpty) titleController.text = t;
+                      if (descriptionController.text.isEmpty) descriptionController.text = d;
+                    }
+                  } catch (_) {}
+                  dialogSetState(() { isGenerating = false; });
+                }
+                if (titleController.text.isEmpty) {
+                  _showSnackBar('Provide a ticket title (AI can help)', isError: true);
+                  return;
+                }
                 final res = await _databaseService.createTicket(
                   sprintId: _selectedSprintId!,
                   title: titleController.text,
@@ -1380,11 +1518,11 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 if (res != null) {
                   _showSnackBar('Ticket created');
                   await _loadTickets();
+                  navigator.pop();
                 } else {
                   _showSnackBar('Failed to create ticket', isError: true);
                 }
-                navigator.pop();
-              }
+              } catch (_) {}
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: FlownetColors.electricBlue,
@@ -1393,7 +1531,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
             child: const Text('Create Ticket'),
           ),
         ],
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1415,7 +1555,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         setState(() {
           _selectedProjectKey = key;
         });
-        await _loadData(); // Reload projects
+        if (!mounted) return;
+        try {
+          GoRouter.of(context).go('/sprint-console?projectKey=${Uri.encodeComponent(key)}');
+        } catch (_) {
+          Navigator.of(context).pushNamed('/sprint-console?projectKey=${Uri.encodeComponent(key)}');
+        }
+        await _loadData();
       } else {
         _showSnackBar('Failed to create project', isError: true);
       }

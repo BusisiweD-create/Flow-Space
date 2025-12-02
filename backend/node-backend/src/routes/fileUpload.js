@@ -61,7 +61,19 @@ const handleMulterArray = (req, res, next) => {
 // Upload single file
 router.post('/upload', authenticateToken, handleMulterSingle, async (req, res) => {
     try {
-        const { prefix = '' } = req.body;
+        let { prefix = '' } = req.body;
+        const { project_id, project_key, sprint_id, deliverable_id } = req.body || {};
+        const derivedTags = [];
+        if (project_id) derivedTags.push(`project:${project_id}`);
+        if (project_key) derivedTags.push(`projectKey:${project_key}`);
+        if (sprint_id) {
+            derivedTags.push(`sprint:${sprint_id}`);
+            if (!prefix) prefix = `sprints/${sprint_id}`;
+        }
+        if (deliverable_id) {
+            derivedTags.push(`deliverable:${deliverable_id}`);
+            if (!prefix) prefix = `deliverables/${deliverable_id}`;
+        }
         
         if (!req.file) {
             return res.status(400).json({ 
@@ -69,14 +81,23 @@ router.post('/upload', authenticateToken, handleMulterSingle, async (req, res) =
             });
         }
         
-        const uploadResult = await fileUploadService.uploadFile(req.file, prefix);
+        const uploadResult = await fileUploadService.uploadFile(
+            req.file,
+            prefix,
+            {
+                title: req.body && req.body.title,
+                description: req.body && req.body.description,
+                tags: (req.body && req.body.tags) ? req.body.tags : derivedTags,
+                uploadedBy: (req.user && req.user.id) || undefined
+            }
+        );
         try {
             if (global && global.realtimeEvents) {
                 const ext = String(path.extname(uploadResult.filename || uploadResult.originalName || '')).replace('.', '').toLowerCase();
                 const sizeInMB = Math.round(((uploadResult.size || 0) / (1024 * 1024)) * 100) / 100;
                 const repoDoc = {
                     id: uploadResult.filename,
-                    name: uploadResult.originalName || uploadResult.filename,
+                    name: uploadResult.title || uploadResult.originalName || uploadResult.filename,
                     fileType: ext || 'file',
                     uploaded_at: new Date().toISOString(),
                     uploaded_by: (req.user && req.user.id) || 'system',

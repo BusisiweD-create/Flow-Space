@@ -39,6 +39,7 @@ class QARealtimeService {
             .setTransports(['websocket'])
             .enableAutoConnect()
             .setAuth({'token': token})
+            .setExtraHeaders({'Authorization': 'Bearer $token'})
             .build(),
       );
       _setupSocketEvents();

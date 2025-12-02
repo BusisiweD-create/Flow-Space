@@ -242,16 +242,50 @@ router.post('/dev/simulate-report-reminder', async (req, res) => {
   }
 });
 
-router.get('/dev/recent-notifications', async (req, res) => {
+router.get('/dev/recent-notifications', authenticateToken, async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production') {
       return res.status(403).json({ success: false, error: 'Disabled in production' });
     }
     const { limit = 20 } = req.query;
-    const rows = await Notification.findAll({ order: [['created_at', 'DESC']], limit: parseInt(limit) });
+    const rows = await Notification.findAll({ where: { recipient_id: req.user.id }, order: [['created_at', 'DESC']], limit: parseInt(limit) });
     res.json({ success: true, data: rows });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to load notifications', details: error && error.message ? error.message : undefined });
+  }
+});
+
+// Admin: Backfill user null fields (dev utility)
+router.post('/dev/backfill-users', authenticateToken, requireRole(['system_admin']), async (req, res) => {
+  try {
+    const users = await User.findAll();
+    let updated = 0;
+    for (const u of users) {
+      const email = u.email || '';
+      const namePart = typeof email === 'string' ? email.split('@')[0] : '';
+      const splitName = namePart.includes('.') ? namePart.split('.') : [];
+      const first = u.first_name || (splitName[0] ? splitName[0] : namePart) || null;
+      const last = u.last_name || (splitName[1] ? splitName[1] : '') || null;
+      const isActive = (u.is_active === true) ? true : true;
+      const status = u.status || (isActive ? 'active' : null);
+      const lastLogin = u.last_login || u.updated_at || null;
+      const createdAt = u.created_at || (u.updated_at ? u.updated_at : new Date());
+      const updates = {};
+      if (!u.first_name && first) updates.first_name = first;
+      if (!u.last_name && last) updates.last_name = last;
+      if (u.is_active !== true) updates.is_active = true;
+      if (!u.status && status) updates.status = status;
+      if (!u.last_login && lastLogin) updates.last_login = lastLogin;
+      if (!u.created_at && createdAt) updates.created_at = createdAt;
+      if (Object.keys(updates).length > 0) {
+        await u.update(updates);
+        updated++;
+      }
+    }
+    return res.json({ success: true, updated_count: updated });
+  } catch (error) {
+    console.error('Backfill users error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to backfill users' });
   }
 });
 

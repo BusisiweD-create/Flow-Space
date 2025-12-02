@@ -28,7 +28,7 @@ class BackendApiService {
   }
 
   Future<ApiResponse> signUp(String email, String password, String name, UserRole role) async {
-    return await _apiClient.register(email, password, name, role.index.toString());
+    return await _apiClient.register(email, password, name, role.name);
   }
 
   Future<ApiResponse> signOut() async {

@@ -76,6 +76,38 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.get('/:id/overview', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deliverable = await Deliverable.findByPk(id, {
+      include: [
+        { association: 'contributing_sprints' },
+        { association: 'signoffs' },
+        { association: 'audit_logs' }
+      ]
+    });
+    if (!deliverable) {
+      return res.status(404).json({ success: false, error: 'Deliverable not found' });
+    }
+    const sprints = (deliverable.contributing_sprints || []).map(s => ({ id: s.id, name: s.name, start_date: s.start_date, end_date: s.end_date }));
+    const signoffs = (deliverable.signoffs || []).map(s => ({ id: s.id, decision: s.decision, comments: s.comments, reviewed_at: s.reviewed_at }));
+    const summary = {
+      id: deliverable.id,
+      title: deliverable.title || deliverable.name || `Deliverable ${deliverable.id}`,
+      description: deliverable.description || '',
+      status: deliverable.status || 'pending',
+      created_at: deliverable.created_at,
+      updated_at: deliverable.updated_at,
+      sprints,
+      signoffs,
+    };
+    return res.json({ success: true, data: summary });
+  } catch (error) {
+    console.error('Error fetching deliverable overview:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 /**
  * @route POST /api/deliverables
  * @desc Create a new deliverable
