@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Signoff, AuditLog, Deliverable, Sprint, User, sequelize } = require('../models');
+const { Signoff, AuditLog, Deliverable, Sprint, User, ApprovalRequest, sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
 function safeParseJson(text) {
   try { return JSON.parse(text); } catch (_) { return {}; }
@@ -440,8 +440,9 @@ router.post('/:id/submit', async (req, res) => {
       }
       const cur = existing[0];
       const ownerId = cur.created_by ? String(cur.created_by) : null;
-      const isAdmin = req.user && ['system_admin', 'systemAdmin', 'admin'].includes(String(req.user.role || '').toLowerCase());
-      if (ownerId && req.user && String(req.user.id) !== ownerId && !isAdmin) {
+      const roleStr = String((req.user && req.user.role) || '').toLowerCase();
+      const isPrivileged = ['system_admin','systemadmin','admin','delivery_lead','deliverylead'].includes(roleStr);
+      if (ownerId && req.user && String(req.user.id) !== ownerId && !isPrivileged) {
         return res.status(403).json({ error: 'Not authorized to submit this report' });
       }
       const curStatus = (cur.status || 'draft').toString();
@@ -478,6 +479,21 @@ router.post('/:id/submit', async (req, res) => {
           created_by: report.createdBy
         });
       }
+      try {
+        const deliverable = await Deliverable.findByPk(parseInt(report.deliverableId));
+        if (deliverable) {
+          let requestedBy = deliverable.created_by;
+          if (!requestedBy || String(requestedBy).trim() === '') {
+            requestedBy = report.createdBy || submittedBy;
+            await deliverable.update({ created_by: requestedBy });
+          }
+          await ApprovalRequest.create({
+            deliverable_id: deliverable.id,
+            requested_by: requestedBy,
+            status: 'pending'
+          });
+        }
+      } catch (_) {}
       return res.json(report);
     }
     return res.status(404).json({ error: 'Endpoint not found' });
@@ -529,6 +545,52 @@ router.get('/:id/signatures', async (req, res) => {
     return res.status(404).json({ error: 'Endpoint not found' });
   } catch (error) {
     console.error('Error fetching report signatures:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/signature', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const base = req.baseUrl || '';
+    if (base.endsWith('/sign-off-reports')) {
+      await ensureReportsTable();
+      const [results] = await sequelize.query(
+        'SELECT id, content, updated_at FROM sign_off_reports WHERE id = $1',
+        { bind: [id] }
+      );
+      if (!results || results.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      const row = results[0];
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const sigs = [];
+      const arr = Array.isArray(c.signatures) ? c.signatures : [];
+      for (const s of arr) {
+        sigs.push({
+          signature_data: s.signature_data || s.digitalSignature || s.digital_signature || null,
+          signer_name: s.signer_name || null,
+          signer_role: s.signer_role || null,
+          signed_at: s.signed_at || row.updated_at,
+          is_valid: s.is_valid !== undefined ? s.is_valid : true,
+          signature_type: s.signature_type || 'manual'
+        });
+      }
+      if (sigs.length === 0 && (c.digitalSignature || c.digital_signature)) {
+        sigs.push({
+          signature_data: c.digitalSignature || c.digital_signature,
+          signer_name: null,
+          signer_role: null,
+          signed_at: c.approvedAt || c.approved_at || row.updated_at,
+          is_valid: true,
+          signature_type: 'manual'
+        });
+      }
+      return res.json({ success: true, data: sigs });
+    }
+    return res.status(404).json({ error: 'Endpoint not found' });
+  } catch (error) {
+    console.error('Error fetching report signature:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

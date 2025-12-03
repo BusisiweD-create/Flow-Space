@@ -74,6 +74,11 @@ const envAllowedOrigins = (process.env.CORS_ORIGINS || '')
   .filter(Boolean);
 const allowedOrigins = envAllowedOrigins.length > 0 ? envAllowedOrigins : defaultAllowedOrigins;
 
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  next();
+});
+
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
@@ -347,6 +352,16 @@ async function startServer() {
       loggingService.start().catch(error => {
         console.error('Failed to start logging service:', error);
       });
+
+      try {
+        setInterval(async () => {
+          try {
+            const metrics = await analyticsService.getMetrics('performance');
+            socketService.broadcastToRole('systemAdmin', 'analytics_updated', metrics);
+          } catch (e) {}
+        }, 10000);
+        console.log('✅ Real-time analytics broadcasting initialized');
+      } catch (e) {}
       
   console.log('✅ Background services started successfully');
   console.log(`🔗 Access your backend at: http://localhost:${PORT}/`);

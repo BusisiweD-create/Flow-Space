@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/mock_data_service.dart';
+import '../services/realtime_service.dart';
 // Models replaced with simple maps for compatibility with API responses
 
 class DashboardState {
@@ -39,7 +40,17 @@ class DashboardState {
 }
 
 class DashboardNotifier extends StateNotifier<DashboardState> {
-  DashboardNotifier() : super(DashboardState(deliverables: [], sprints: []));
+  DashboardNotifier() : super(DashboardState(deliverables: [], sprints: [])) {
+    realtimeService.initialize();
+    realtimeService.on('analytics_updated', (data) {
+      try {
+        final Map<String, dynamic> m = data is Map<String, dynamic>
+            ? data
+            : (data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{});
+        state = state.copyWith(analyticsData: m);
+      } catch (_) {}
+    });
+  }
 
   Future<void> loadDashboardData() async {
     try {
