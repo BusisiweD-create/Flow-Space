@@ -11,29 +11,18 @@ cd backend
 
 The server will start on `http://localhost:8000`
 
-## Option 2: Use Default Port 3001
+## Option 2: Start with default settings (Port 8000)
 
-If port 8000 doesn't work, you can change the Flutter app to use port 3001:
+If the port script is unavailable, start the backend normally:
 
-1. Update `lib/services/api_client.dart` line 12:
-   ```dart
-   static const String _baseUrl = 'http://localhost:3001/api';
-   ```
-
-2. Update `lib/config/environment.dart` line 10:
-   ```dart
-   static const String apiBaseUrl = "http://localhost:3001/api/v1";
-   ```
-
-3. Then start backend normally:
-   ```powershell
-   cd backend
-   .\start-server.ps1
-   ```
+```powershell
+cd backend
+.\start-server.ps1
+```
 
 ## Verify Server is Running
 
-Open browser: `http://localhost:8000/health` (or `:3001` if using Option 2)
+Open browser: `http://localhost:8000/health`
 
 You should see a health check response.
 

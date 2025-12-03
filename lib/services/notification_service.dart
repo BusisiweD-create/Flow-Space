@@ -6,7 +6,6 @@ import '../config/environment.dart';
 
 class NotificationService {
   static const String _baseUrl = Environment.apiBaseUrl;
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
   String? _authToken;
 
   void setAuthToken(String token) {

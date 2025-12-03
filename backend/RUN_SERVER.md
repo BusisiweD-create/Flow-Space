@@ -22,8 +22,8 @@ Make sure:
 
 ### 3. Port Already in Use
 ```powershell
-# Find what's using port 3001
-netstat -ano | findstr :3001
+# Find what's using port 8000
+netstat -ano | findstr :8000
 
 # Kill the process (replace PID)
 taskkill /PID <PID> /F
@@ -33,7 +33,7 @@ taskkill /PID <PID> /F
 
 Create a `.env` file in the `backend` folder:
 ```
-PORT=3001
+PORT=8000
 NODE_ENV=development
 DB_HOST=localhost
 DB_PORT=5432
@@ -47,7 +47,7 @@ DB_PASSWORD=postgres
 When server starts successfully, you'll see:
 ```
 ✅ Database connection established successfully
-🚀 Server running on port 3001
+🚀 Server running on port 8000
 ```
 
 ## Keep Server Running

@@ -8,7 +8,6 @@ import 'auth_service.dart';
 
 class SprintDatabaseService {
   static const String _baseUrl = Environment.apiBaseUrl;
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   
@@ -63,31 +62,23 @@ class SprintDatabaseService {
   Future<Map<String, dynamic>> createSprint({
     required String name,
     String? description,
-    String? startDate,
-    String? endDate,
-    String? goal,
-    int? boardId,
-    String? projectId,
-    String description = '',
     required DateTime startDate,
     required DateTime endDate,
+    String? goal,
+    int? boardId,
     String? projectId,
     int plannedPoints = 0,
   }) async {
     try {
       final body = {
         'name': name,
-        if (description != null) 'description': description,
-        if (startDate != null) 'start_date': startDate,
-        if (endDate != null) 'end_date': endDate,
+        'description': description ?? '',
+        'start_date': startDate.toIso8601String(),
+        'end_date': endDate.toIso8601String(),
         if (goal != null) 'goal': goal,
         if (boardId != null) 'boardId': boardId,
         if (projectId != null) 'project_id': projectId,
-        'description': description,
-        'start_date': startDate.toIso8601String(),
-        'end_date': endDate.toIso8601String(),
         'planned_points': plannedPoints,
-        if (projectId != null) 'project_id': projectId,
       };
 
       debugPrint('🚀 Creating sprint with data: $body');

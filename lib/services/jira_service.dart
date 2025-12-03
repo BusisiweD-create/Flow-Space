@@ -26,7 +26,7 @@ class JiraService {
   bool get isInitialized => _domain != null && _email != null && _apiToken != null;
 
   // Get backend proxy URL for API calls (instead of direct Jira API)
-  String get _proxyBaseUrl => 'http://localhost:3001/api/jira';
+  String get _proxyBaseUrl => 'http://localhost:8000/api/jira';
 
   // Get standard headers for proxy requests
   Map<String, String> get _headers {

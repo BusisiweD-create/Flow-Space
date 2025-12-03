@@ -163,6 +163,66 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     );
   }
 
+  List<Widget> get dodCards {
+    if (_definitionOfDone.isEmpty) {
+      return [
+        const Card(
+          color: FlownetColors.graphiteGray,
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No Definition of Done items added'),
+          ),
+        ),
+      ];
+    }
+    return _definitionOfDone.map((item) {
+      return Card(
+        color: FlownetColors.graphiteGray,
+        child: ListTile(
+          title: Text(item),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete, color: Colors.redAccent),
+            onPressed: () {
+              setState(() {
+                _definitionOfDone.remove(item);
+              });
+            },
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  List<Widget> get evidenceCards {
+    if (_evidenceLinks.isEmpty) {
+      return [
+        const Card(
+          color: FlownetColors.graphiteGray,
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No evidence links added'),
+          ),
+        ),
+      ];
+    }
+    return _evidenceLinks.map((url) {
+      return Card(
+        color: FlownetColors.graphiteGray,
+        child: ListTile(
+          title: Text(url),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete, color: Colors.redAccent),
+            onPressed: () {
+              setState(() {
+                _evidenceLinks.remove(url);
+              });
+            },
+          ),
+        ),
+      );
+    }).toList();
+  }
+
 
   Future<void> _requestInternalApproval(String comment) async {
     final result = await showDialog<bool>(

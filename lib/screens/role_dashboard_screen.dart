@@ -1,11 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:csv/csv.dart';
-import 'package:pdf/widgets.dart' as pw;
 import '../models/user_role.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
@@ -17,6 +13,7 @@ import '../models/sign_off_report.dart';
 import '../services/notification_service.dart';
 import '../models/notification_item.dart';
 import '../widgets/sprint_performance_chart.dart';
+import '../widgets/background_image.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -41,6 +38,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   List<Map<String, dynamic>> _auditLogs = [];
   List<Map<String, dynamic>> _filteredAuditLogs = [];
   final BackendApiService _backendService = BackendApiService();
+  final BackendApiService _backendApiService = BackendApiService();
   List<Map<String, dynamic>> _pendingReports = [];
   bool _isLoadingPendingReports = false;
   String? _pendingReportsError;
@@ -51,6 +49,17 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String _selectedChartType = 'velocity';
   bool _isLoadingAuditLogs = false;
   String? _auditLogsError;
+  bool _isLoadingMoreAuditLogs = false;
+  int _auditLogsPage = 1;
+  final int _auditLogsPerPage = 20;
+  bool _hasMoreAuditLogs = true;
+  String? _selectedActionFilter;
+  String? _selectedUserFilter;
+  DateTime? _selectedStartDate;
+  DateTime? _selectedEndDate;
+  final String _searchQuery = '';
+  final String _sortField = 'created_at';
+  final bool _sortAscending = false;
 
   @override
   void initState() {
@@ -289,24 +298,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
-  Future<void> _loadMoreAuditLogs() async {
-    if (_isLoadingMoreAuditLogs || !_hasMoreAuditLogs) return;
-    await _loadAuditLogs(loadMore: true);
-  }
 
   void _applySearchAndSort() {
-    // Apply search filter
-    List<dynamic> filtered = _auditLogs;
+    List<Map<String, dynamic>> filtered = List<Map<String, dynamic>>.from(_auditLogs);
     
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
-      filtered = filtered.where((log) {
+      filtered = filtered.where((Map<String, dynamic> log) {
         final action = (log['action'] as String? ?? '').toLowerCase();
         final userEmail = (log['user_email'] as String? ?? '').toLowerCase();
         final entityName = (log['entity_name'] as String? ?? '').toLowerCase();
         final entityType = (log['entity_type'] as String? ?? '').toLowerCase();
         final userRole = (log['user_role'] as String? ?? '').toLowerCase();
-        
         return action.contains(query) ||
                userEmail.contains(query) ||
                entityName.contains(query) ||
@@ -316,7 +319,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
     
     // Apply sorting
-    filtered.sort((a, b) {
+    filtered.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
       final dynamic aValue = a[_sortField];
       final dynamic bValue = b[_sortField];
       
@@ -358,31 +361,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     });
   }
 
-  void _handleSearch(String query) {
-    setState(() {
-      _searchQuery = query;
-    });
-    _applySearchAndSort();
-  }
-
-  void _handleSort(String field) {
-    setState(() {
-      if (_sortField == field) {
-        _sortAscending = !_sortAscending;
-      } else {
-        _sortField = field;
-        _sortAscending = false;
-      }
-    });
-    _applySearchAndSort();
-  }
-
-  void _clearSearch() {
-    setState(() {
-      _searchQuery = '';
-    });
-    _applySearchAndSort();
-  }
 
   @override
   Widget build(BuildContext context) {

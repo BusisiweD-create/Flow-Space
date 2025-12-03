@@ -1,6 +1,6 @@
 // ignore_for_file: avoid_print
 
-import 'package:khono/services/backend_api_service.dart';
+import 'services/backend_api_service.dart';
 
 void main() async {
   print('🔌 Testing Backend Connection...\n');

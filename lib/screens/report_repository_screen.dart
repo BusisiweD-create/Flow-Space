@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import '../models/sign_off_report.dart';
 import '../models/repository_file.dart';
 import '../models/user_role.dart';
@@ -16,7 +14,6 @@ import '../widgets/flownet_logo.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import '../widgets/audit_history_widget.dart';
-import '../widgets/role_guard.dart';
 import 'report_editor_screen.dart';
 import 'client_review_workflow_screen.dart';
 
@@ -664,103 +661,8 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     }
   }
 
-  Future<void> _uploadReportDocument() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx'],
-        allowMultiple: false,
-      );
 
-      if (result != null && result.files.isNotEmpty) {
-        final pickedFile = result.files.first;
-        
-        if (kIsWeb) {
-          _showWebUploadDialog(pickedFile);
-        } else {
-          // Handle mobile/desktop upload
-          _showUploadDialog(pickedFile);
-        }
-      }
-    } catch (e) {
-      _showErrorSnackBar('Error selecting file: $e');
-    }
-  }
 
-  void _showWebUploadDialog(PlatformFile pickedFile) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.graphiteGray,
-        title: const Text('Upload Report Document', 
-                         style: TextStyle(color: FlownetColors.pureWhite),),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('File: ${pickedFile.name}',
-                 style: const TextStyle(color: FlownetColors.coolGray),),
-            const SizedBox(height: 16),
-            const TextField(
-              style: TextStyle(color: FlownetColors.pureWhite),
-              decoration: InputDecoration(
-                labelText: 'Description (optional)',
-                labelStyle: TextStyle(color: FlownetColors.coolGray),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.coolGray),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: FlownetColors.crimsonRed),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
-          ),
-          ElevatedButton(
-            onPressed: () => _performWebUpload(pickedFile),
-            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
-            child: const Text('Upload', style: TextStyle(color: FlownetColors.pureWhite)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showUploadDialog(PlatformFile pickedFile) {
-    // Similar implementation for mobile/desktop
-    _performWebUpload(pickedFile);
-  }
-
-  Future<void> _performWebUpload(PlatformFile pickedFile) async {
-    Navigator.pop(context);
-    
-    if (pickedFile.bytes == null) {
-      _showErrorSnackBar('Failed to read file. Please try again.');
-      return;
-    }
-    
-    try {
-      final response = await _documentService.uploadWebDocument(
-        fileBytes: pickedFile.bytes!,
-        fileName: pickedFile.name,
-        description: 'Report document: ${pickedFile.name}',
-        tags: 'report, document',
-      );
-      
-      if (response.isSuccess) {
-        _showSuccessSnackBar('Report document uploaded successfully!');
-        _loadReportDocuments();
-      } else {
-        _showErrorSnackBar('Upload failed: ${response.error}');
-      }
-    } catch (e) {
-      _showErrorSnackBar('Upload error: $e');
-    }
-  }
 
   Future<void> _previewDocument(RepositoryFile document) async {
     showDialog(
@@ -802,8 +704,6 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       );
     }
     
-    return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
     return AppScaffold(
       useBackgroundImage: true,
       centered: false,
@@ -933,7 +833,6 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           ),
         ],
       ),
-      
     );
   }
 

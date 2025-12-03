@@ -4,7 +4,8 @@ echo ========================================
 echo    Flow-Space Backend Server
 echo ========================================
 echo.
-echo Starting server on port 3001...
+echo Starting server on port 8000...
+set PORT=8000
 echo.
 
 REM Change to backend directory

@@ -5,11 +5,11 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Check if already running
-$portInUse = Test-NetConnection -ComputerName localhost -Port 3001 -InformationLevel Quiet
+$portInUse = Test-NetConnection -ComputerName localhost -Port 8000 -InformationLevel Quiet
 if ($portInUse) {
-    Write-Host "⚠️  Port 3001 is already in use!" -ForegroundColor Yellow
+    Write-Host "⚠️  Port 8000 is already in use!" -ForegroundColor Yellow
     Write-Host "   The server may already be running." -ForegroundColor Yellow
-    Write-Host "   Check: http://localhost:3001" -ForegroundColor Cyan
+    Write-Host "   Check: http://localhost:8000" -ForegroundColor Cyan
     Write-Host ""
     $response = Read-Host "Do you want to start anyway? (y/N)"
     if ($response -ne 'y' -and $response -ne 'Y') {
@@ -45,7 +45,8 @@ if (Test-Path "node_modules") {
 
 # Start server
 Write-Host ""
-Write-Host "🚀 Starting server on http://localhost:3001..." -ForegroundColor Green
+Write-Host "🚀 Starting server on http://localhost:8000..." -ForegroundColor Green
+${env:PORT} = "8000"
 Write-Host "   Press Ctrl+C to stop" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan

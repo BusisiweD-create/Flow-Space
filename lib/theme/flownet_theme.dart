@@ -75,7 +75,7 @@ class FlownetTheme {
         surfaceContainerHighest: FlownetColors.surfaceLight,
         onSurfaceVariant: FlownetColors.textSecondary,
         outline: FlownetColors.textTertiary,
-        outlineVariant: FlownetColors.surfaceLight,
+        
         surfaceTint: FlownetColors.primary,
       ),
       // Translucent AppBar
@@ -86,11 +86,9 @@ class FlownetTheme {
         iconTheme: IconThemeData(color: FlownetColors.pureWhite),
         titleTextStyle: TextStyle(
           color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        headlineMedium: TextStyle(
+          fontWeight: FontWeight.w600,
           fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
       // Translucent cards
@@ -197,28 +195,17 @@ class FlownetTheme {
           color: FlownetColors.textPrimary,
           fontFamily: 'Poppins',
         ),
-        unselectedIconTheme: IconThemeData(
-          color: FlownetColors.coolGray,
-          size: 24,
         titleLarge: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: FlownetColors.textPrimary,
           fontFamily: 'Poppins',
         ),
-        selectedLabelTextStyle: TextStyle(
-          color: FlownetColors.crimsonRed,
         titleMedium: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        unselectedLabelTextStyle: TextStyle(
-          color: FlownetColors.coolGray,
-          fontWeight: FontWeight.normal,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           color: FlownetColors.textPrimary,
-          fontFamily: 'Poppins',
+          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         titleSmall: TextStyle(
           fontSize: 16,
@@ -378,7 +365,7 @@ class FlownetTheme {
           color: FlownetColors.graphiteGray,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
-        outlineVariant: FlownetColors.surfaceLight,
+        
       ),
 
       // AppBar Theme
@@ -388,7 +375,6 @@ class FlownetTheme {
         elevation: 1,
         centerTitle: true,
         titleTextStyle: TextStyle(
-        titleTextStyle: GoogleFonts.poppins(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
@@ -406,7 +392,6 @@ class FlownetTheme {
             borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(
-          textStyle: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
@@ -430,7 +415,7 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.poppins(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
@@ -451,7 +436,6 @@ class FlownetTheme {
         style: TextButton.styleFrom(
           foregroundColor: FlownetColors.crimsonRed,
           textStyle: const TextStyle(
-          textStyle: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
@@ -483,13 +467,10 @@ class FlownetTheme {
           borderSide: const BorderSide(color: FlownetColors.error),
         ),
         hintStyle: const TextStyle(
-        hintStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         labelStyle: const TextStyle(
-        labelStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
         ),
@@ -543,16 +524,12 @@ class FlownetTheme {
           size: 24,
         ),
         selectedLabelTextStyle: TextStyle(
-        selectedLabelTextStyle: GoogleFonts.poppins(
           color: FlownetColors.crimsonRed,
           fontWeight: FontWeight.w600,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         unselectedLabelTextStyle: TextStyle(
-        unselectedLabelTextStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontWeight: FontWeight.normal,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
 
@@ -574,16 +551,12 @@ class FlownetTheme {
           borderRadius: BorderRadius.circular(12),
         ),
         titleTextStyle: const TextStyle(
-        titleTextStyle: GoogleFonts.poppins(
           color: FlownetColors.charcoalBlack,
           fontWeight: FontWeight.w500,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         subtitleTextStyle: const TextStyle(
-        subtitleTextStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontSize: 14,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
     );

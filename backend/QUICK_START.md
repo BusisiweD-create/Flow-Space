@@ -53,14 +53,14 @@ node server.js
 ### Step 6: Verify Server is Running
 You should see:
 ```
-Flow-Space API server running on port 3001
+Flow-Space API server running on port 8000
 Connected to PostgreSQL database
 ```
 
 ### Step 7: Test the API
 Open your browser or use curl:
 ```
-http://localhost:3001/api/v1/auth/register
+http://localhost:8000/api/v1/auth/register
 ```
 
 ## Configuration
@@ -76,8 +76,8 @@ The server uses these default settings (in `server.js`):
 **To change these**, edit `backend/server.js` lines 50-56, or create a `.env` file.
 
 ### Server Port
-- Default: `3001`
-- To change: Set `PORT` environment variable or edit `server.js` line 10
+- Default: `8000`
+- To change: Set `PORT` environment variable or edit `server.js` line 31
 
 ## Troubleshooting
 
@@ -88,8 +88,8 @@ The server uses these default settings (in `server.js`):
 
 ### Port Already in Use
 ```powershell
-# Find what's using port 3001
-netstat -ano | findstr :3001
+# Find what's using port 8000
+netstat -ano | findstr :8000
 
 # Kill the process (replace PID with actual process ID)
 taskkill /PID <PID> /F

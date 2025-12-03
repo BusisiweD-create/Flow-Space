@@ -1,16 +1,17 @@
 // ignore_for_file: use_build_context_synchronously, prefer_const_constructors
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../services/profile_service.dart';
 import '../config/environment.dart';
 import '../services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/app_scaffold.dart';
+import 'package:go_router/go_router.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -186,9 +187,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final uri = GoRouterState.of(context).uri;
-    final mode = uri.queryParameters['mode'] ?? 'edit';
-    final isViewMode = mode.toLowerCase() == 'view';
     if (_isLoading) {
       return const AppScaffold(
         useBackgroundImage: true,
@@ -235,20 +233,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 // Profile Picture Section
                 Stack(
                   children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundImage: _profileImage != null
-                          ? FileImage(_profileImage!)
-                          : null,
-                      child: _profileImage == null
-                          ? SvgPicture.asset(
-                              'assets/images/google_logo.svg',
-                              width: 60,
-                              height: 60,
-                              placeholderBuilder: (context) => const Icon(Icons.person, size: 50),
-                            )
-                          : null,
-                    ),
+                    Builder(builder: (context) {
+                      ImageProvider<Object>? avatarImage;
+                      if (_profileImageBytes != null) {
+                        avatarImage = MemoryImage(_profileImageBytes!) as ImageProvider<Object>;
+                      } else if (_profileImageUrl != null) {
+                        avatarImage = NetworkImage(_profileImageUrl!) as ImageProvider<Object>;
+                      } else if (_profileImage != null) {
+                        avatarImage = FileImage(_profileImage!) as ImageProvider<Object>;
+                      } else {
+                        avatarImage = null;
+                      }
+                      return CircleAvatar(
+                        radius: 50,
+                        backgroundImage: avatarImage,
+                        child: avatarImage == null
+                            ? Image.asset(
+                                'assets/Icons/Google_Icon.png',
+                                width: 60,
+                                height: 60,
+                              )
+                            : null,
+                      );
+                    }),
                     Positioned(
                       bottom: 0,
                       right: 0,

@@ -6,12 +6,17 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
-import '../widgets/sprint_board_widget.dart';
-import 'create_sprint_screen.dart';
+import '../widgets/project_card.dart';
+import 'sprint_board_screen.dart';
+import '../services/api_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/realtime_service.dart';
 import '../services/auth_service.dart';
+import '../services/sprint_database_service.dart';
+import '../services/jira_service.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/glass_button.dart';
 
 class SprintConsoleScreen extends StatefulWidget {
   final String? initialProjectKey;
@@ -1072,9 +1077,10 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     // Navigate to sprint detail screen
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => SprintDetailScreen(
+        builder: (context) => SprintBoardScreen(
           sprintId: sprint['id'].toString(),
-          sprintData: sprint,
+          sprintName: (sprint['name'] ?? 'Sprint').toString(),
+          projectKey: sprint['project_id']?.toString(),
         ),
       ),
     );
@@ -1302,12 +1308,14 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       );
       final projectId = selectedProject['id']?.toString();
 
-      // Create sprint via backend API
+      final parsedStartDate = DateTime.parse(startDate);
+      final parsedEndDate = DateTime.parse(endDate);
+
       final result = await _sprintService.createSprint(
         name: name,
-        description: description,
-        startDate: startDate,
-        endDate: endDate,
+        description: description.isNotEmpty ? description : null,
+        startDate: parsedStartDate,
+        endDate: parsedEndDate,
         projectId: projectId,
       );
 
