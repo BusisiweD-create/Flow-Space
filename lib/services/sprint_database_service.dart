@@ -8,6 +8,7 @@ import 'auth_service.dart';
 
 class SprintDatabaseService {
   static const String _baseUrl = Environment.apiBaseUrl;
+  static const String _baseUrl = 'http://localhost:3001/api/v1';
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   
@@ -59,7 +60,7 @@ class SprintDatabaseService {
   }
 
   /// Create a new sprint
-  Future<Map<String, dynamic>?> createSprint({
+  Future<Map<String, dynamic>> createSprint({
     required String name,
     String? description,
     String? startDate,
@@ -67,6 +68,11 @@ class SprintDatabaseService {
     String? goal,
     int? boardId,
     String? projectId,
+    String description = '',
+    required DateTime startDate,
+    required DateTime endDate,
+    String? projectId,
+    int plannedPoints = 0,
   }) async {
     try {
       final body = {
@@ -77,13 +83,21 @@ class SprintDatabaseService {
         if (goal != null) 'goal': goal,
         if (boardId != null) 'boardId': boardId,
         if (projectId != null) 'project_id': projectId,
+        'description': description,
+        'start_date': startDate.toIso8601String(),
+        'end_date': endDate.toIso8601String(),
+        'planned_points': plannedPoints,
+        if (projectId != null) 'project_id': projectId,
       };
 
+      debugPrint('🚀 Creating sprint with data: $body');
       final response = await http.post(
         Uri.parse('$_baseUrl/sprints'),
         headers: _headers,
         body: jsonEncode(body),
       );
+
+      debugPrint('📡 Sprint creation response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -100,7 +114,7 @@ class SprintDatabaseService {
               
               await _notificationService.notifySprintCreated(
                 sprintName: name,
-                projectName: 'Current Project', // You might want to pass project name
+                projectName: projectId ?? 'Current Project',
                 createdBy: userName,
               );
             }
@@ -109,14 +123,16 @@ class SprintDatabaseService {
           }
           
           return data['data'];
+        } else {
+          throw Exception(data['error'] ?? 'Failed to create sprint');
         }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ?? 'Failed to create sprint');
       }
-      
-      debugPrint('❌ Failed to create sprint: ${response.statusCode}');
-      return null;
     } catch (e) {
       debugPrint('❌ Error creating sprint: $e');
-      return null;
+      rethrow;
     }
   }
 
@@ -169,6 +185,9 @@ class SprintDatabaseService {
     String? key,
     String? description,
     String? projectType,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? clientEmail,
   }) async {
     try {
       final body = {
@@ -176,6 +195,9 @@ class SprintDatabaseService {
         if (key != null) 'key': key,
         if (description != null) 'description': description,
         if (projectType != null) 'projectType': projectType,
+        if (startDate != null) 'start_date': startDate.toIso8601String(),
+        if (endDate != null) 'end_date': endDate.toIso8601String(),
+        if (clientEmail != null) 'client_email': clientEmail,
       };
 
       final response = await http.post(

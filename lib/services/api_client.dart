@@ -12,6 +12,8 @@ class ApiClient {
   ApiClient._internal();
 
   static String get _baseUrlWithVersion => Environment.apiBaseUrl;
+  static const String _baseUrl = 'http://localhost:3001/api'; // Local backend server
+  static const String _apiVersion = '/v1';
   static const Duration _timeout = Duration(seconds: 30);
 
   String? _accessToken;

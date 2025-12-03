@@ -1,285 +1,215 @@
-// ignore_for_file: deprecated_member_use, duplicate_ignore
-
 import 'package:flutter/material.dart';
 
 class FlownetColors {
   // Primary Colors
-  static const Color crimsonRed = Color(0xFFC8102E);
-  static const Color charcoalBlack = Color(0xFF1A1A1A);
-  static const Color pureWhite = Color(0xFFFFFFFF);
-
-  // Secondary Colors
-  static const Color graphiteGray = Color(0xFF2E2E2E);
-  static const Color coolGray = Color(0xFFB3B3B3);
-  static const Color slate = Color(0xFF444444);
-
+  static const Color primary = Color(0xFFC10D00);  // Main brand red
+  static const Color background = Color(0xFF121212);  // Dark background
+  static const Color surface = Color(0xFF1E1E1E);     // Surface color
+  static const Color onSurface = Color(0xFFFFFFFF);   // Text on surface
+  
+  // Text Colors
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFFB0B0B0);
+  static const Color textTertiary = Color(0xFF8E8E93);
+  
   // Accent Colors
-  static const Color electricBlue = Color(0xFF0077B6);
-  static const Color emeraldGreen = Color(0xFF28A745);
-  static const Color amberOrange = Color(0xFFFF8800);
-  static const Color purple = Color(0xFF6F42C1);
-  static const Color red = Color(0xFFDC3545);
-  static const Color teal = Color(0xFF20C997);
-
-  // Dark theme specific
-  static const Color darkSurface = Color(0xFF1A1A1A);
-  static const Color darkSurfaceVariant = Color(0xFF2E2E2E);
-  static const Color darkOnSurface = Color(0xFFFFFFFF);
-  static const Color darkOnSurfaceVariant = Color(0xFFB3B3B3);
-
-  static Color? get successGreen => null;
-
-  static Color? get deepNavy => null;
+  static const Color accent = Color(0xFFFF3B30);
+  static const Color blue = Color(0xFF0A84FF);
+  static const Color green = Color(0xFF34C759);
+  static const Color yellow = Color(0xFFFFCC00);
+  
+  // Status Colors
+  static const Color success = Color(0xFF34C759);
+  static const Color error = Color(0xFFFF3B30);
+  static const Color warning = Color(0xFFFF9500);
+  static const Color info = Color(0xFF007AFF);
+  
+  // Surface Colors
+  static const Color surfaceLight = Color(0xFF2C2C2E);
+  static const Color surfaceHighlight = Color(0xFF3A3A3C);
+  
+  // Additional Colors from the codebase
+  static const Color pureWhite = Color(0xFFFFFFFF);
+  static const Color charcoalBlack = Color(0xFF1A1A1A);
+  static const Color graphiteGray = Color(0xFF666666);
+  static const Color coolGray = Color(0xFF8E8E93);
+  static const Color slate = Color(0xFF64748B); // Added missing slate color
+  static const Color electricBlue = Color(0xFF007AFF);
+  static const Color emeraldGreen = Color(0xFF34C759);
+  static const Color amberOrange = Color(0xFFFF9500);
+  static const Color crimsonRed = Color(0xFFC10D00);
+  
+  // Gradients
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [Color(0xFFFF3B30), Color(0xFFC10D00)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  
+  // Aliases for backward compatibility
+  static const Color onBackground = textPrimary;
+  static const Color onError = pureWhite;
+  static const Color onPrimary = pureWhite;
+  static const Color onSecondary = pureWhite;
 }
 
 class FlownetTheme {
   static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      fontFamily: 'system-ui',
-
+    return ThemeData.dark(useMaterial3: true).copyWith(
+      scaffoldBackgroundColor: FlownetColors.background,
+      
       // Color Scheme
-      colorScheme: const ColorScheme.dark(
-        primary: FlownetColors.crimsonRed,
-        onPrimary: FlownetColors.pureWhite,
-        secondary: FlownetColors.slate,
-        onSecondary: FlownetColors.pureWhite,
-        surface: FlownetColors.darkSurface,
-        onSurface: FlownetColors.darkOnSurface,
-        surfaceContainerHighest: FlownetColors.darkSurfaceVariant,
-        onSurfaceVariant: FlownetColors.darkOnSurfaceVariant,
-        error: FlownetColors.crimsonRed,
-        onError: FlownetColors.pureWhite,
-        outline: FlownetColors.slate,
-        outlineVariant: FlownetColors.coolGray,
+      colorScheme: ColorScheme.dark(
+        primary: FlownetColors.primary,
+        onPrimary: FlownetColors.onPrimary,
+        primaryContainer: Color.lerp(FlownetColors.primary, FlownetColors.background, 0.8)!,
+        onPrimaryContainer: FlownetColors.primary,
+        secondary: FlownetColors.accent,
+        onSecondary: FlownetColors.onSecondary,
+        secondaryContainer: Color.lerp(FlownetColors.accent, FlownetColors.background, 0.8)!,
+        onSecondaryContainer: FlownetColors.accent,
+        error: FlownetColors.error,
+        onError: FlownetColors.onError,
+        surface: FlownetColors.surface,
+        onSurface: FlownetColors.onSurface,
+        surfaceContainerHighest: FlownetColors.surfaceLight,
+        onSurfaceVariant: FlownetColors.textSecondary,
+        outline: FlownetColors.textTertiary,
+        outlineVariant: FlownetColors.surfaceLight,
+        surfaceTint: FlownetColors.primary,
       ),
-
-      // Typography
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        displayMedium: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        displaySmall: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        headlineLarge: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
+      // Translucent AppBar
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: IconThemeData(color: FlownetColors.pureWhite),
+        titleTextStyle: TextStyle(
           color: FlownetColors.pureWhite,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         headlineMedium: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        headlineSmall: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        bodyLarge: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.normal,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        bodyMedium: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.normal,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        bodySmall: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.normal,
-          color: FlownetColors.coolGray,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        labelLarge: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        labelMedium: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        labelSmall: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: FlownetColors.coolGray,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
       ),
-
-      // AppBar Theme
-      appBarTheme: const AppBarTheme(
-        backgroundColor: FlownetColors.charcoalBlack,
-        foregroundColor: FlownetColors.pureWhite,
-        elevation: 0,
-        centerTitle: true,
-        titleTextStyle: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          color: FlownetColors.pureWhite,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-      ),
-
-      // Card Theme
+      // Translucent cards
       cardTheme: CardThemeData(
-        color: FlownetColors.graphiteGray,
-        elevation: 4,
-        shadowColor: FlownetColors.charcoalBlack.withValues(alpha: 0.3),
+        color: Colors.white.withAlpha((0.08 * 255).round()),
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withAlpha((0.12 * 255).round())),
+        ),
+        margin: const EdgeInsets.all(8),
+      ),
+      // Dialogs (AlertDialog, SimpleDialog)
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white.withAlpha((0.12 * 255).round()),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withAlpha((0.18 * 255).round())),
         ),
       ),
-
-      // Button Themes
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: FlownetColors.crimsonRed,
-          foregroundColor: FlownetColors.pureWhite,
-          elevation: 2,
-          shadowColor: FlownetColors.crimsonRed.withValues(alpha: 0.3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-          ),
-        ).copyWith(
-          overlayColor: WidgetStateProperty.all(
-            FlownetColors.crimsonRed.withValues(alpha: 0.1),
-          ),
+      // Bottom sheets
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: Colors.white.withAlpha((0.10 * 255).round()),
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
       ),
-
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: FlownetColors.pureWhite,
-          side: const BorderSide(color: FlownetColors.slate, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-          ),
-        ).copyWith(
-          overlayColor: WidgetStateProperty.all(
-            FlownetColors.slate.withValues(alpha: 0.1),
-          ),
-        ),
-      ),
-
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: FlownetColors.crimsonRed,
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-          ),
-        ),
-      ),
-
-      // Input Decoration Theme
+      // Inputs
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: FlownetColors.graphiteGray,
+        fillColor: Colors.white.withAlpha((0.10 * 255).round()),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: FlownetColors.slate),
+          borderSide: BorderSide(color: Colors.white.withAlpha((0.30 * 255).round())),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: FlownetColors.slate),
+          borderSide: BorderSide(color: Colors.white.withAlpha((0.30 * 255).round())),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: FlownetColors.crimsonRed, width: 2),
+          borderSide: const BorderSide(color: FlownetColors.primary, width: 2),
         ),
-        errorBorder: OutlineInputBorder(
+        labelStyle: TextStyle(color: Colors.white.withAlpha((0.70 * 255).round())),
+        hintStyle: TextStyle(color: Colors.white.withAlpha((0.50 * 255).round())),
+        errorStyle: const TextStyle(color: FlownetColors.error),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      // Popup menus
+      popupMenuTheme: PopupMenuThemeData(
+        color: Colors.white.withAlpha((0.10 * 255).round()),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: FlownetColors.crimsonRed),
-        ),
-        hintStyle: const TextStyle(
-          color: FlownetColors.coolGray,
-          fontSize: 16,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-        labelStyle: const TextStyle(
-          color: FlownetColors.coolGray,
-          fontSize: 16,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
+          side: BorderSide(color: Colors.white.withAlpha((0.12 * 255).round())),
         ),
       ),
-
-      // Icon Theme
-      iconTheme: const IconThemeData(
-        color: FlownetColors.pureWhite,
-        size: 24,
+      // List tiles subtle background when needed
+      listTileTheme: ListTileThemeData(
+        tileColor: Colors.white.withAlpha((0.05 * 255).round()),
+        iconColor: FlownetColors.pureWhite,
+        textColor: FlownetColors.pureWhite,
       ),
-
-      // Divider Theme
-      dividerTheme: const DividerThemeData(
-        color: FlownetColors.slate,
-        thickness: 1,
-      ),
-
-      // Bottom Navigation Bar Theme
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: FlownetColors.charcoalBlack,
-        selectedItemColor: FlownetColors.crimsonRed,
-        unselectedItemColor: FlownetColors.coolGray,
-        type: BottomNavigationBarType.fixed,
-      ),
-
-      // Floating Action Button Theme
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: FlownetColors.crimsonRed,
-        foregroundColor: FlownetColors.pureWhite,
-        elevation: 4,
-      ),
-
-      // Navigation Rail Theme
-      navigationRailTheme: const NavigationRailThemeData(
-        backgroundColor: FlownetColors.charcoalBlack,
-        selectedIconTheme: IconThemeData(
-          color: FlownetColors.crimsonRed,
-          size: 24,
+      
+      // Typography
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontSize: 40,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.textPrimary,
+          letterSpacing: 1.5,
+          fontFamily: 'Poppins',
+        ),
+        displayMedium: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
+        ),
+        displaySmall: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
+        ),
+        headlineLarge: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
         ),
         unselectedIconTheme: IconThemeData(
           color: FlownetColors.coolGray,
           size: 24,
+        titleLarge: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
         ),
         selectedLabelTextStyle: TextStyle(
           color: FlownetColors.crimsonRed,
+        titleMedium: TextStyle(
+          fontSize: 18,
           fontWeight: FontWeight.w600,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
@@ -287,76 +217,89 @@ class FlownetTheme {
           color: FlownetColors.coolGray,
           fontWeight: FontWeight.normal,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
         ),
-      ),
-
-      // Drawer Theme
-      drawerTheme: const DrawerThemeData(
-        backgroundColor: FlownetColors.charcoalBlack,
-        elevation: 16,
-      ),
-
-      // ListTile Theme
-      listTileTheme: ListTileThemeData(
-        tileColor: FlownetColors.graphiteGray,
-        selectedTileColor: FlownetColors.crimsonRed.withValues(alpha: 0.1),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+        titleSmall: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
         ),
-        titleTextStyle: const TextStyle(
-          color: FlownetColors.pureWhite,
-          fontWeight: FontWeight.w500,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
         ),
-        subtitleTextStyle: const TextStyle(
-          color: FlownetColors.coolGray,
+        bodyMedium: TextStyle(
           fontSize: 14,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
+          color: FlownetColors.textSecondary,
+          fontFamily: 'Poppins',
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+          color: FlownetColors.textTertiary,
+          fontFamily: 'Poppins',
+        ),
+        labelLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.textPrimary,
+          fontFamily: 'Poppins',
+        ),
+        labelMedium: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.textSecondary,
+          fontFamily: 'Poppins',
+        ),
+        labelSmall: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.textTertiary,
+          fontFamily: 'Poppins',
         ),
       ),
     );
   }
-
+  
   // Utility method for status colors
   static Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'success':
       case 'approved':
       case 'completed':
-        return FlownetColors.emeraldGreen;
+        return FlownetColors.success;
       case 'warning':
       case 'pending':
-        return FlownetColors.amberOrange;
+        return FlownetColors.warning;
       case 'error':
       case 'denied':
       case 'failed':
-        return FlownetColors.crimsonRed;
+        return FlownetColors.error;
       case 'info':
       case 'active':
-        return FlownetColors.electricBlue;
+        return FlownetColors.blue;
       default:
-        return FlownetColors.coolGray;
+        return FlownetColors.textSecondary;
     }
   }
-
+  
   static ThemeData get lightTheme {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      fontFamily: 'system-ui',
-
+    return ThemeData.light(useMaterial3: true).copyWith(
+      
       // Color Scheme
       colorScheme: const ColorScheme.light(
-        primary: FlownetColors.crimsonRed,
-        onPrimary: FlownetColors.pureWhite,
-        secondary: FlownetColors.electricBlue,
-        onSecondary: FlownetColors.pureWhite,
+        primary: FlownetColors.accent,
+        onPrimary: FlownetColors.onSurface,
+        secondary: FlownetColors.blue,
+        onSecondary: FlownetColors.onSurface,
         surface: FlownetColors.pureWhite,
         onSurface: FlownetColors.charcoalBlack,
         surfaceContainerHighest: Color(0xFFF5F5F5),
-        onSurfaceVariant: FlownetColors.graphiteGray,
-        error: FlownetColors.crimsonRed,
-        onError: FlownetColors.pureWhite,
+        onSurfaceVariant: FlownetColors.surfaceLight,
+        error: FlownetColors.error,
+        onError: FlownetColors.onSurface,
         outline: Color(0xFFE0E0E0),
         outlineVariant: FlownetColors.coolGray,
       ),
@@ -435,6 +378,7 @@ class FlownetTheme {
           color: FlownetColors.graphiteGray,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
+        outlineVariant: FlownetColors.surfaceLight,
       ),
 
       // AppBar Theme
@@ -444,21 +388,11 @@ class FlownetTheme {
         elevation: 1,
         centerTitle: true,
         titleTextStyle: TextStyle(
+        titleTextStyle: GoogleFonts.poppins(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
-        ),
-      ),
-
-      // Card Theme
-      cardTheme: CardThemeData(
-        color: FlownetColors.pureWhite,
-        elevation: 2,
-        // ignore: deprecated_member_use
-        shadowColor: Colors.black.withOpacity(0.1),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
         ),
       ),
 
@@ -468,18 +402,23 @@ class FlownetTheme {
           backgroundColor: FlownetColors.crimsonRed,
           foregroundColor: FlownetColors.pureWhite,
           elevation: 2,
-          shadowColor: FlownetColors.crimsonRed.withOpacity(0.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(
+          textStyle: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ).copyWith(
-          overlayColor: WidgetStateProperty.all(
-            FlownetColors.crimsonRed.withOpacity(0.1),
+          overlayColor: WidgetStateProperty.resolveWith<Color?>(
+            (Set<WidgetState> states) {
+              if (states.contains(WidgetState.pressed)) {
+                return FlownetColors.crimsonRed.withAlpha((0.1 * 255).round());
+              }
+              return null;
+            },
           ),
         ),
       ),
@@ -491,14 +430,19 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
+          textStyle: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
           ),
         ).copyWith(
-          overlayColor: WidgetStateProperty.all(
-            Colors.black.withOpacity(0.05),
+          overlayColor: WidgetStateProperty.resolveWith<Color?>(
+            (Set<WidgetState> states) {
+              if (states.contains(WidgetState.pressed)) {
+                return Colors.black.withAlpha((0.05 * 255).round());
+              }
+              return null;
+            },
           ),
         ),
       ),
@@ -507,6 +451,7 @@ class FlownetTheme {
         style: TextButton.styleFrom(
           foregroundColor: FlownetColors.crimsonRed,
           textStyle: const TextStyle(
+          textStyle: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
@@ -528,22 +473,34 @@ class FlownetTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: FlownetColors.crimsonRed, width: 2),
+          borderSide: const BorderSide(
+            color: FlownetColors.crimsonRed,
+            width: 2,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: FlownetColors.crimsonRed),
+          borderSide: const BorderSide(color: FlownetColors.error),
         ),
         hintStyle: const TextStyle(
+        hintStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         labelStyle: const TextStyle(
+        labelStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
-          fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
+        ),
+      ),
+
+      // Card Theme
+      cardTheme: ThemeData.light().cardTheme.copyWith(
+        color: FlownetColors.pureWhite,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
 
@@ -586,11 +543,13 @@ class FlownetTheme {
           size: 24,
         ),
         selectedLabelTextStyle: TextStyle(
+        selectedLabelTextStyle: GoogleFonts.poppins(
           color: FlownetColors.crimsonRed,
           fontWeight: FontWeight.w600,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         unselectedLabelTextStyle: TextStyle(
+        unselectedLabelTextStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontWeight: FontWeight.normal,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
@@ -606,16 +565,22 @@ class FlownetTheme {
       // ListTile Theme
       listTileTheme: ListTileThemeData(
         tileColor: FlownetColors.pureWhite,
-        selectedTileColor: FlownetColors.crimsonRed.withOpacity(0.1),
+        selectedTileColor: Color.lerp(
+          FlownetColors.crimsonRed,
+          FlownetColors.pureWhite,
+          0.9,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         titleTextStyle: const TextStyle(
+        titleTextStyle: GoogleFonts.poppins(
           color: FlownetColors.charcoalBlack,
           fontWeight: FontWeight.w500,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],
         ),
         subtitleTextStyle: const TextStyle(
+        subtitleTextStyle: GoogleFonts.poppins(
           color: FlownetColors.graphiteGray,
           fontSize: 14,
           fontFamilyFallback: ['Segoe UI', 'Arial', 'sans-serif'],

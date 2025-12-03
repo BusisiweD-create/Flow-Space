@@ -8,6 +8,7 @@ import '../config/environment.dart';
 class ApprovalService {
   final AuthService _authService;
   final String _baseUrl = Environment.apiBaseUrl;
+  final String _baseUrl = 'http://localhost:3001/api/v1';
 
   ApprovalService(this._authService);
 

@@ -402,8 +402,11 @@ class ReportExportService {
   
   String _formatDateTime(String dateTimeString) {
     try {
-      final dateTime = DateTime.parse(dateTimeString);
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      final parsed = DateTime.parse(dateTimeString);
+      // Convert to the user's local timezone for accurate display
+      final dateTime = parsed.toLocal();
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year} '
+             '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
     } catch (e) {
       return dateTimeString;
     }

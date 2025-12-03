@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:csv/csv.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../models/user_role.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
@@ -158,13 +162,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   Future<void> _loadCurrentUser() async {
     try {
+      // Initialize AuthService first
+      await _authService.initialize();
+      
       // Get the current user from AuthService
       final user = await _authService.getCurrentUser();
       if (user != null && (user.isActive || user.isSystemAdmin)) {
         setState(() {
           _currentUser = user;
         });
-        debugPrint('✅ Loaded user: ${user.name} (${user.email})');
+        debugPrint('✅ Loaded user: ${user.name} (${user.email}) - Role: ${user.role}');
+        // Load audit logs after user is loaded
+        _loadAuditLogs();
       } else {
         if (!_authService.isAuthenticated) {
           debugPrint('❌ Inactive or no user found, redirecting to login');
@@ -190,6 +199,191 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
+  Future<void> _loadAuditLogs({bool loadMore = false}) async {
+    if (_isLoadingAuditLogs && !loadMore) return;
+    if (_isLoadingMoreAuditLogs && loadMore) return;
+    if (!loadMore && !_hasMoreAuditLogs) return;
+    
+    final int page = loadMore ? _auditLogsPage + 1 : 1;
+    final int skip = (page - 1) * _auditLogsPerPage;
+    
+    setState(() {
+      if (loadMore) {
+        _isLoadingMoreAuditLogs = true;
+      } else {
+        _isLoadingAuditLogs = true;
+        _auditLogsError = null;
+      }
+    });
+
+    try {
+      final response = await _backendApiService.getAuditLogs(
+        skip: skip,
+        limit: _auditLogsPerPage,
+        action: _selectedActionFilter,
+        userId: _selectedUserFilter,
+      );
+      
+      if (response.isSuccess) {
+        final data = response.data;
+        final logs = data?['audit_logs'] ?? data?['items'] ?? data?['logs'] ?? [];
+        final totalCount = data?['total'] ?? data?['total_count'] ?? logs.length;
+        
+        // Apply date filtering if dates are selected
+        List<Map<String, dynamic>> filteredLogs = List<Map<String, dynamic>>.from(logs);
+        
+        if (_selectedStartDate != null || _selectedEndDate != null) {
+          filteredLogs = filteredLogs.where((log) {
+            final createdAt = log['created_at'] as String?;
+            if (createdAt == null) return false;
+            
+            try {
+              final logDate = DateTime.parse(createdAt);
+              
+              if (_selectedStartDate != null && logDate.isBefore(_selectedStartDate!)) {
+                return false;
+              }
+              if (_selectedEndDate != null && logDate.isAfter(_selectedEndDate!)) {
+                return false;
+              }
+              
+              return true;
+            } catch (e) {
+              return false;
+            }
+          }).toList();
+        }
+        
+        setState(() {
+          if (loadMore) {
+            _auditLogs.addAll(filteredLogs);
+            _auditLogsPage = page;
+            _hasMoreAuditLogs = _auditLogs.length < totalCount;
+          } else {
+            _auditLogs = filteredLogs;
+            _auditLogsPage = 1;
+            _hasMoreAuditLogs = _auditLogs.length < totalCount && filteredLogs.length == _auditLogsPerPage;
+          }
+        });
+        
+        // Apply search and sort after loading data
+        _applySearchAndSort();
+        
+        debugPrint('✅ Loaded ${filteredLogs.length} audit logs (page $page, total ${_auditLogs.length}, has more: $_hasMoreAuditLogs)');
+      } else {
+        setState(() {
+          _auditLogsError = response.error ?? 'Failed to load audit logs';
+        });
+        debugPrint('❌ Error loading audit logs: \${_auditLogsError}');
+      }
+    } catch (e) {
+      setState(() {
+        _auditLogsError = 'Failed to load audit logs: \$e';
+      });
+      debugPrint('❌ Exception loading audit logs: \$e');
+    } finally {
+      setState(() {
+        _isLoadingAuditLogs = false;
+        _isLoadingMoreAuditLogs = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreAuditLogs() async {
+    if (_isLoadingMoreAuditLogs || !_hasMoreAuditLogs) return;
+    await _loadAuditLogs(loadMore: true);
+  }
+
+  void _applySearchAndSort() {
+    // Apply search filter
+    List<dynamic> filtered = _auditLogs;
+    
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = filtered.where((log) {
+        final action = (log['action'] as String? ?? '').toLowerCase();
+        final userEmail = (log['user_email'] as String? ?? '').toLowerCase();
+        final entityName = (log['entity_name'] as String? ?? '').toLowerCase();
+        final entityType = (log['entity_type'] as String? ?? '').toLowerCase();
+        final userRole = (log['user_role'] as String? ?? '').toLowerCase();
+        
+        return action.contains(query) ||
+               userEmail.contains(query) ||
+               entityName.contains(query) ||
+               entityType.contains(query) ||
+               userRole.contains(query);
+      }).toList();
+    }
+    
+    // Apply sorting
+    filtered.sort((a, b) {
+      final dynamic aValue = a[_sortField];
+      final dynamic bValue = b[_sortField];
+      
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return _sortAscending ? -1 : 1;
+      if (bValue == null) return _sortAscending ? 1 : -1;
+      
+      if (aValue is String && bValue is String) {
+        return _sortAscending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
+      }
+      
+      if (aValue is DateTime && bValue is DateTime) {
+        return _sortAscending ? aValue.compareTo(bValue) : bValue.compareTo(aValue);
+      }
+      
+      if (aValue is String && bValue is DateTime) {
+        try {
+          final aDate = DateTime.parse(aValue);
+          return _sortAscending ? aDate.compareTo(bValue) : bValue.compareTo(aDate);
+        } catch (e) {
+          return _sortAscending ? -1 : 1;
+        }
+      }
+      
+      if (aValue is DateTime && bValue is String) {
+        try {
+          final bDate = DateTime.parse(bValue);
+          return _sortAscending ? aValue.compareTo(bDate) : bDate.compareTo(aValue);
+        } catch (e) {
+          return _sortAscending ? 1 : -1;
+        }
+      }
+      
+      return 0;
+    });
+    
+    setState(() {
+      _filteredAuditLogs = filtered;
+    });
+  }
+
+  void _handleSearch(String query) {
+    setState(() {
+      _searchQuery = query;
+    });
+    _applySearchAndSort();
+  }
+
+  void _handleSort(String field) {
+    setState(() {
+      if (_sortField == field) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortField = field;
+        _sortAscending = false;
+      }
+    });
+    _applySearchAndSort();
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _searchQuery = '';
+    });
+    _applySearchAndSort();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_currentUser == null) {
@@ -199,8 +393,14 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
-      body: _buildRoleSpecificContent(),
+      body: BackgroundImage(
+        imagePath: 'assets/Icons/khono_bg.png',
+        withGlassEffect: false,
+        overlayOpacity: 0.25,
+        child: _buildRoleSpecificContent(),
+      ),
       floatingActionButton: _buildRoleSpecificFAB(),
     );
   }

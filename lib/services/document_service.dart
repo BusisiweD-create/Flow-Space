@@ -18,6 +18,7 @@ class DocumentService {
   final AuthService _authService;
   final ApiClient _apiClient = ApiClient();
   static const String _baseUrl = Environment.apiBaseUrl;
+  static const String _baseUrl = 'http://localhost:3001/api/v1';
 
   DocumentService(this._authService);
 

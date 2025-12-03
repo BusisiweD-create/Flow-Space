@@ -13,6 +13,7 @@ import '../services/report_export_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import '../widgets/audit_history_widget.dart';
 import '../widgets/role_guard.dart';
@@ -803,41 +804,16 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
+    return AppScaffold(
+      useBackgroundImage: true,
+      centered: false,
+      scrollable: false,
       appBar: AppBar(
         title: const FlownetLogo(showText: true),
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
-      ),
-      floatingActionButton: RoleBuilder(
-        allowedRoles: const ['deliveryLead', 'systemAdmin'],
-        builder: (context) => Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            FloatingActionButton(
-              heroTag: 'createReportFAB',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ReportEditorScreen(),
-                  ),
-                ).then((_) => _loadReports());
-              },
-              backgroundColor: FlownetColors.electricBlue,
-              tooltip: 'Create Report',
-              child: const Icon(Icons.add, color: FlownetColors.pureWhite),
-            ),
-            const SizedBox(height: 8),
-            FloatingActionButton(
-              heroTag: 'uploadDocumentFAB',
-              onPressed: _uploadReportDocument,
-              backgroundColor: FlownetColors.crimsonRed,
-              tooltip: 'Upload Document',
-              child: const Icon(Icons.upload, color: FlownetColors.pureWhite),
-            ),
-          ],
-        ),
+        elevation: 0,
       ),
       body: Column(
         children: [
@@ -964,7 +940,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   Widget _buildDocumentCard(RepositoryFile document) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      color: FlownetColors.graphiteGray,
+      color: FlownetColors.graphiteGray.withValues(alpha: 0.6),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: _getFileTypeColor(document.fileType),
@@ -1105,7 +1081,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   Widget _buildReportCard(SignOffReport report) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: FlownetColors.graphiteGray,
+      color: FlownetColors.graphiteGray.withValues(alpha: 0.6),
       child: InkWell(
         onTap: () => _showReportDetails(report),
         borderRadius: BorderRadius.circular(8),

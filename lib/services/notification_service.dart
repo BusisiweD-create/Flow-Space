@@ -6,6 +6,7 @@ import '../config/environment.dart';
 
 class NotificationService {
   static const String _baseUrl = Environment.apiBaseUrl;
+  static const String _baseUrl = 'http://localhost:3001/api/v1';
   String? _authToken;
 
   void setAuthToken(String token) {
@@ -19,7 +20,6 @@ class NotificationService {
     };
   }
 
-  // Get unread notification count
   Future<int> getUnreadCount() async {
     try {
       final response = await http.get(
@@ -40,7 +40,6 @@ class NotificationService {
     }
   }
 
-  // Get all notifications for the current user
   Future<List<NotificationItem>> getNotifications() async {
     try {
       final response = await http.get(
@@ -67,14 +66,12 @@ class NotificationService {
     }
   }
 
-  // Mark notification as read
   Future<bool> markAsRead(String notificationId) async {
     try {
       final response = await http.put(
         Uri.parse('$_baseUrl/notifications/$notificationId/read'),
         headers: _headers,
       );
-
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('Error marking notification as read: $e');
@@ -82,14 +79,12 @@ class NotificationService {
     }
   }
 
-  // Mark all notifications as read
   Future<bool> markAllAsRead() async {
     try {
       final response = await http.put(
         Uri.parse('$_baseUrl/notifications/read-all'),
         headers: _headers,
       );
-
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('Error marking all notifications as read: $e');
@@ -97,7 +92,6 @@ class NotificationService {
     }
   }
 
-  // Create a new notification
   Future<bool> createNotification({
     required String title,
     required String message,
@@ -115,7 +109,6 @@ class NotificationService {
           'user_id': userId,
         }),
       );
-
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       debugPrint('Error creating notification: $e');
@@ -123,7 +116,6 @@ class NotificationService {
     }
   }
 
-  // Create sprint status change notification
   Future<bool> notifySprintStatusChange({
     required String sprintName,
     required String oldStatus,
@@ -131,8 +123,8 @@ class NotificationService {
     required String changedBy,
   }) async {
     const title = 'Sprint Status Changed';
-    final message = '$changedBy changed "$sprintName" status from $oldStatus to $newStatus';
-    
+    final message =
+        '$changedBy changed "$sprintName" status from $oldStatus to $newStatus';
     return await createNotification(
       title: title,
       message: message,
@@ -140,15 +132,29 @@ class NotificationService {
     );
   }
 
-  // Create ticket created notification
+  Future<bool> notifySprintCreated({
+    required String sprintName,
+    required String projectName,
+    required String createdBy,
+  }) async {
+    const title = 'New Sprint Created';
+    final message =
+        '$createdBy created sprint "$sprintName" in project "$projectName"';
+    return await createNotification(
+      title: title,
+      message: message,
+      type: NotificationType.sprint,
+    );
+  }
+
   Future<bool> notifyTicketCreated({
     required String ticketTitle,
     required String sprintName,
     required String createdBy,
   }) async {
     const title = 'New Ticket Created';
-    final message = '$createdBy created ticket "$ticketTitle" in sprint "$sprintName"';
-    
+    final message =
+        '$createdBy created ticket "$ticketTitle" in sprint "$sprintName"';
     return await createNotification(
       title: title,
       message: message,
@@ -156,7 +162,6 @@ class NotificationService {
     );
   }
 
-  // Create ticket moved notification
   Future<bool> notifyTicketMoved({
     required String ticketTitle,
     required String sprintName,
@@ -165,8 +170,8 @@ class NotificationService {
     required String movedBy,
   }) async {
     const title = 'Ticket Moved';
-    final message = '$movedBy moved ticket "$ticketTitle" from $oldStatus to $newStatus in sprint "$sprintName"';
-    
+    final message =
+        '$movedBy moved ticket "$ticketTitle" from $oldStatus to $newStatus in sprint "$sprintName"';
     return await createNotification(
       title: title,
       message: message,
@@ -174,34 +179,16 @@ class NotificationService {
     );
   }
 
-  // Create project created notification
   Future<bool> notifyProjectCreated({
     required String projectName,
     required String createdBy,
   }) async {
     const title = 'New Project Created';
     final message = '$createdBy created new project "$projectName"';
-    
     return await createNotification(
       title: title,
       message: message,
       type: NotificationType.system,
-    );
-  }
-
-  // Create sprint created notification
-  Future<bool> notifySprintCreated({
-    required String sprintName,
-    required String projectName,
-    required String createdBy,
-  }) async {
-    const title = 'New Sprint Created';
-    final message = '$createdBy created sprint "$sprintName" in project "$projectName"';
-    
-    return await createNotification(
-      title: title,
-      message: message,
-      type: NotificationType.sprint,
     );
   }
 }

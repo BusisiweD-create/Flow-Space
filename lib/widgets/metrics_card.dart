@@ -5,6 +5,7 @@ class MetricsCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
 
   const MetricsCard({
     super.key,
@@ -12,12 +13,16 @@ class MetricsCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,6 +67,7 @@ class MetricsCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

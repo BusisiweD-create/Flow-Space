@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
@@ -153,12 +154,13 @@ class DeliverableService {
   Future<ApiResponse> createDeliverable({
     required String title,
     String? description,
-    String? definitionOfDone,
+    dynamic definitionOfDone, // Can be List<String> or String
     String priority = 'Medium',
     String status = 'Draft',
     DateTime? dueDate,
     String? assignedTo,
     String? sprintId,
+    List<String>? evidenceLinks,
   }) async {
     try {
       final token = _authService.accessToken;
@@ -166,16 +168,34 @@ class DeliverableService {
         return ApiResponse.error('No access token available');
       }
 
+      // Convert definitionOfDone to proper format for backend
+      dynamic dodValue;
+      if (definitionOfDone != null) {
+        if (definitionOfDone is List<String>) {
+          dodValue = definitionOfDone; // Send as array, backend will stringify
+        } else if (definitionOfDone is String) {
+          // If it's a string, try to parse it as JSON, otherwise wrap in array
+          try {
+            dodValue = jsonDecode(definitionOfDone);
+          } catch (_) {
+            dodValue = [definitionOfDone]; // Convert single string to array
+          }
+        } else {
+          dodValue = definitionOfDone;
+        }
+      }
+
       final body = {
         'title': title,
         'description': description,
-        'definition_of_done': definitionOfDone,
+        'definition_of_done': dodValue,
         'priority': priority,
         'status': status,
         'due_date': dueDate?.toIso8601String(),
         'created_by': _authService.currentUser?.id,
         'assigned_to': assignedTo,
         'sprint_id': sprintId,
+        if (evidenceLinks != null) 'evidence_links': evidenceLinks,
       };
 
       final response = await _apiClient.post('/deliverables', body: body);

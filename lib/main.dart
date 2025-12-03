@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'widgets/app_container.dart';
+import 'screens/welcome_screen.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
-import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/email_verification_screen.dart';
-import 'screens/deliverable_setup_screen.dart';
 import 'screens/enhanced_deliverable_setup_screen.dart';
 import 'screens/sprint_console_screen.dart';
 import 'screens/sprint_metrics_screen.dart';
@@ -19,7 +19,6 @@ import 'screens/client_review_screen.dart';
 import 'models/sign_off_report.dart';
 import 'models/deliverable.dart';
 import 'screens/enhanced_client_review_screen.dart';
-import 'screens/notification_center_screen.dart';
 import 'screens/report_repository_screen.dart';
 // Approvals unified: use ApprovalRequestsScreen
 import 'screens/approval_requests_screen.dart';
@@ -80,6 +79,11 @@ class KhonoApp extends StatelessWidget {
       theme: FlownetTheme.darkTheme, // Dark mode as default
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return AppContainer(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
@@ -161,7 +165,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RouteGuard(
         route: '/deliverable-setup',
         child: SidebarScaffold(
-          child: DeliverableSetupScreen(),
+          child: EnhancedDeliverableSetupScreen(),
         ),
       ),
     ),
@@ -247,12 +251,7 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/notification-center',
-      builder: (context, state) => const RouteGuard(
-        route: '/notification-center',
-        child: SidebarScaffold(
-          child: NotificationCenterScreen(),
-        ),
-      ),
+      redirect: (context, state) => '/notifications',
     ),
     GoRoute(
       path: '/report-repository',

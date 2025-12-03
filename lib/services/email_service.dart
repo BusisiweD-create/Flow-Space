@@ -11,6 +11,7 @@ class EmailService {
 
   // Email service configuration
   static const String _baseUrl = Environment.apiBaseUrl;
+  static const String _baseUrl = 'http://localhost:3001/api/v1';
   
   // Send verification email
   Future<bool> sendVerificationEmail({
