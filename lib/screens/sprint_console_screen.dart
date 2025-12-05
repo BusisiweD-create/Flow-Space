@@ -900,9 +900,25 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                             color: Theme.of(context).colorScheme.onSurface,
                           ),
                           PopupMenuButton<String>(
-                            onSelected: (value) =>
-                                _updateSprintStatus(sprint['id'].toString(), value),
+                            onSelected: (value) {
+                              if (value == 'metrics') {
+                                context.push('/sprint-metrics/${sprint['id']}');
+                              } else {
+                                _updateSprintStatus(sprint['id'].toString(), value);
+                              }
+                            },
                             itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'metrics',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.analytics, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Capture Metrics'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuDivider(),
                               PopupMenuItem(
                                 value: 'To Do',
                                 child: Text('Mark as To Do'),

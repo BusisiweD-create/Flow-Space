@@ -56,16 +56,31 @@ class ActivityItem {
   });
 
   factory ActivityItem.fromJson(Map<String, dynamic> json) {
+    // Handle activity_description which can be a Map (JSONB) or String
+    String description = '';
+    final descValue = json['activity_description'];
+    if (descValue != null) {
+      if (descValue is Map) {
+        description = descValue.toString();
+      } else if (descValue is String) {
+        description = descValue;
+      } else {
+        description = descValue.toString();
+      }
+    }
+    
     return ActivityItem(
-      id: json['id'],
-      type: json['activity_type'],
-      title: json['activity_title'],
-      description: json['activity_description'],
-      deliverableTitle: json['deliverable_title'],
-      sprintName: json['sprint_name'],
-      createdAt: DateTime.parse(json['created_at']),
-      createdByName: json['user_name'] ?? 'System',
-      actionUrl: json['action_url'],
+      id: json['id']?.toString() ?? '',
+      type: json['activity_type']?.toString() ?? 'activity',
+      title: json['activity_title']?.toString() ?? 'Activity',
+      description: description,
+      deliverableTitle: json['deliverable_title']?.toString(),
+      sprintName: json['sprint_name']?.toString(),
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at'].toString()) 
+          : DateTime.now(),
+      createdByName: json['user_name']?.toString() ?? 'System',
+      actionUrl: json['action_url']?.toString(),
     );
   }
 }
@@ -75,32 +90,63 @@ class DashboardStats {
   final int completedDeliverables;
   final int inProgressDeliverables;
   final int overdueDeliverables;
+  final int pendingDeliverables;
   final int unreadNotifications;
   final double completionRate;
+  final double avgSignoffDays;
 
   DashboardStats({
     required this.totalDeliverables,
     required this.completedDeliverables,
     required this.inProgressDeliverables,
     required this.overdueDeliverables,
+    required this.pendingDeliverables,
     required this.unreadNotifications,
     required this.completionRate,
+    required this.avgSignoffDays,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
-    final total = json['total_deliverables'] ?? 0;
-    final completed = json['completed'] ?? 0;
-    final inProgress = json['in_progress'] ?? 0;
-    final avgProgress = (json['avg_progress'] ?? 0.0).toDouble();
+    // Safely parse integers from potential string values
+    int parseIntSafe(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+    
+    // Safely parse doubles from potential string values
+    double parseDoubleSafe(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0.0;
+      return 0.0;
+    }
+    
+    final total = parseIntSafe(json['total_deliverables']);
+    final completed = parseIntSafe(json['completed']);
+    final inProgress = parseIntSafe(json['in_progress']);
+    final avgProgress = parseDoubleSafe(json['avg_progress']);
+    final pending = parseIntSafe(json['pending']);
+    final avgSignoffDays = parseDoubleSafe(json['avg_signoff_days']);
     
     return DashboardStats(
       totalDeliverables: total,
       completedDeliverables: completed,
       inProgressDeliverables: inProgress,
       overdueDeliverables: 0, // Not provided by API yet
+      pendingDeliverables: pending,
       unreadNotifications: 0, // Not provided by API yet
       completionRate: avgProgress,
+      avgSignoffDays: avgSignoffDays,
     );
+  }
+}
+
+extension DashboardStatsX on DashboardStats {
+  String get avgSignoffDaysDisplay {
+    if (avgSignoffDays <= 0) return '—';
+    return '${avgSignoffDays.toStringAsFixed(1)} days';
   }
 }
 

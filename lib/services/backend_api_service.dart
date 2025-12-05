@@ -433,11 +433,22 @@ class BackendApiService {
           break;
       }
       
+      // Build name from various possible sources
+      String userName = '';
+      if (userData['name'] != null && userData['name'].toString().isNotEmpty) {
+        userName = userData['name'].toString();
+      } else if (userData['username'] != null && userData['username'].toString().isNotEmpty) {
+        userName = userData['username'].toString();
+      } else {
+        final firstName = userData['first_name'] ?? userData['firstName'] ?? '';
+        final lastName = userData['last_name'] ?? userData['lastName'] ?? '';
+        userName = '$firstName $lastName'.trim();
+      }
+      
       final userJsonForParsing = {
         'id': userData['id']?.toString(),
         'email': userData['email'],
-        'name': userData['username'] ?? 
-               '${userData['first_name'] ?? userData['firstName'] ?? ''} ${userData['last_name'] ?? userData['lastName'] ?? ''}'.trim(),
+        'name': userName,
         'role': userRoleForParsing, // Use the converted role format
         'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'],
         'createdAt': userData['created_at'] ?? userData['createdAt'] ?? DateTime.now().toIso8601String(), // Provide default if missing

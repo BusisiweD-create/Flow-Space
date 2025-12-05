@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../services/profile_service.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -180,12 +179,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ? FileImage(_profileImage!)
                           : null,
                       child: _profileImage == null
-                          ? SvgPicture.asset(
-                              'assets/images/google_logo.svg',
-                              width: 60,
-                              height: 60,
-                              placeholderBuilder: (context) => const Icon(Icons.person, size: 50),
-                            )
+                          ? const Icon(Icons.person, size: 50, color: Colors.white70)
                           : null,
                     ),
                     Positioned(

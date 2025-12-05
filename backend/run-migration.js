@@ -1,21 +1,26 @@
+require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'flow_space',
-  password: 'postgres',
-  port: 5432,
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'flow_space',
+  password: process.env.DB_PASSWORD || 'postgres',
+  port: process.env.DB_PORT || 5432,
 });
 
 async function runMigration() {
   try {
     console.log('🚀 Starting database migration...');
     
-    // Read the SQL file
-    const sqlFilePath = path.join(__dirname, 'create_missing_tables.sql');
+    // Read the SQL file - try new migration file first, then fallback
+    let sqlFilePath = path.join(__dirname, 'database/migrations/add_missing_tables.sql');
+    if (!fs.existsSync(sqlFilePath)) {
+      sqlFilePath = path.join(__dirname, 'create_missing_tables.sql');
+    }
+    console.log(`📄 Using migration file: ${sqlFilePath}`);
     const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
     
     // Split by semicolons to execute each statement separately
@@ -59,7 +64,7 @@ async function runMigration() {
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
-      AND table_name IN ('tickets', 'activity_log', 'users', 'projects', 'sprints', 'deliverables', 'notifications')
+      AND table_name IN ('epics', 'sprint_metrics', 'digital_signatures', 'approval_requests', 'change_requests', 'documents', 'users', 'projects', 'sprints', 'deliverables', 'notifications', 'sign_off_reports')
       ORDER BY table_name
     `);
     
@@ -74,10 +79,23 @@ async function runMigration() {
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name = 'deliverables' 
-      AND column_name IN ('progress', 'sprint_id', 'priority')
+      AND column_name IN ('priority', 'sprint_id', 'sprint_ids', 'epic_id', 'evidence_links')
     `);
     
     deliverableColumns.rows.forEach(row => {
+      console.log(`   ✓ ${row.column_name}`);
+    });
+    
+    // Check epics table columns
+    console.log('\n📋 Checking epics table columns...');
+    const epicColumns = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'epics'
+      ORDER BY ordinal_position
+    `);
+    
+    epicColumns.rows.forEach(row => {
       console.log(`   ✓ ${row.column_name}`);
     });
     

@@ -117,6 +117,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         status: _status,
         dueDate: _dueDate,
         sprintId: _selectedSprints.isNotEmpty ? _selectedSprints.first : null,
+        sprintIds: _selectedSprints,
       );
 
       if (mounted) {

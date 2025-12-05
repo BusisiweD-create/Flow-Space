@@ -49,6 +49,10 @@ class SprintPerformanceChart extends StatelessWidget {
         return 'Defect Trend';
       case 'test_pass_rate':
         return 'Test Pass Rate';
+      case 'scope_change':
+        return 'Scope Changes';
+      case 'committed_vs_completed':
+        return 'Committed vs Completed';
       default:
         return 'Performance Chart';
     }
@@ -66,6 +70,10 @@ class SprintPerformanceChart extends StatelessWidget {
         return _buildDefectsChart();
       case 'test_pass_rate':
         return _buildTestPassRateChart();
+      case 'scope_change':
+        return _buildScopeChangeChart();
+      case 'committed_vs_completed':
+        return _buildCommittedVsCompletedChart();
       default:
         return _buildVelocityChart();
     }
@@ -306,6 +314,211 @@ class SprintPerformanceChart extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildScopeChangeChart() {
+    // Build bar chart showing points added vs removed per sprint
+    final barGroups = <BarChartGroupData>[];
+    
+    for (int i = 0; i < sprints.length; i++) {
+      final sprint = sprints[i];
+      final pointsAdded = (sprint['points_added'] ?? 0).toDouble();
+      final pointsRemoved = (sprint['points_removed'] ?? 0).toDouble();
+      
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: pointsAdded,
+              color: Colors.orange,
+              width: 12,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(4),
+              ),
+            ),
+            BarChartRodData(
+              toY: pointsRemoved,
+              color: Colors.blue,
+              width: 12,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(4),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: _getMaxScopeChange(),
+              barGroups: barGroups,
+              titlesData: FlTitlesData(
+                leftTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: true, reservedSize: 30),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      if (value.toInt() < sprints.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text('S${value.toInt() + 1}', style: const TextStyle(fontSize: 10)),
+                        );
+                      }
+                      return const Text('');
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: false),
+              gridData: const FlGridData(show: true, drawVerticalLine: false),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildLegendItem('Added', Colors.orange),
+            const SizedBox(width: 16),
+            _buildLegendItem('Removed', Colors.blue),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCommittedVsCompletedChart() {
+    final barGroups = <BarChartGroupData>[];
+    
+    for (int i = 0; i < sprints.length; i++) {
+      final sprint = sprints[i];
+      final committed = (sprint['planned_points'] ?? sprint['committed_points'] ?? 0).toDouble();
+      final completed = (sprint['completed_points'] ?? 0).toDouble();
+      
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: committed,
+              color: Colors.blue.withValues(alpha: 0.6),
+              width: 14,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(4),
+              ),
+            ),
+            BarChartRodData(
+              toY: completed,
+              color: Colors.green,
+              width: 14,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(4),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: _getMaxPoints(),
+              barGroups: barGroups,
+              titlesData: FlTitlesData(
+                leftTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: true, reservedSize: 30),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      if (value.toInt() < sprints.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text('Sprint ${value.toInt() + 1}', style: const TextStyle(fontSize: 10)),
+                        );
+                      }
+                      return const Text('');
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: false),
+              gridData: const FlGridData(show: true, drawVerticalLine: false),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildLegendItem('Committed', Colors.blue.withValues(alpha: 0.6)),
+            const SizedBox(width: 16),
+            _buildLegendItem('Completed', Colors.green),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  double _getMaxScopeChange() {
+    double max = 10;
+    for (final sprint in sprints) {
+      final added = (sprint['points_added'] ?? 0).toDouble();
+      final removed = (sprint['points_removed'] ?? 0).toDouble();
+      if (added > max) max = added;
+      if (removed > max) max = removed;
+    }
+    return max * 1.2;
+  }
+
+  double _getMaxPoints() {
+    double max = 10;
+    for (final sprint in sprints) {
+      final committed = (sprint['planned_points'] ?? sprint['committed_points'] ?? 0).toDouble();
+      final completed = (sprint['completed_points'] ?? 0).toDouble();
+      if (committed > max) max = committed;
+      if (completed > max) max = completed;
+    }
+    return max * 1.1;
   }
 }
 

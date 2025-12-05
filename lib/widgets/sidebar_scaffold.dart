@@ -35,6 +35,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'manage_sprints',
       ),
       const _NavItem(
+        label: 'Epics', 
+        icon: Icons.rocket_launch_outlined, 
+        route: '/epics',
+        requiredPermission: 'manage_sprints',
+      ),
+      const _NavItem(
         label: 'Notifications',
         icon: Icons.notifications_outlined,
         route: '/notifications',
@@ -49,7 +55,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       const _NavItem(
         label: 'Approval Requests',
         icon: Icons.assignment_outlined,
-        route: '/approval-requests',
+        route: '/approvals',
         requiredPermission: 'approve_deliverable',
       ),
       const _NavItem(
@@ -245,6 +251,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                               },
                             ),
                           ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                            child: _buildLogoutButton(),
+                          ),
                         ],
                       ),
                     ),
@@ -414,6 +424,23 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                     },
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.logout,
+                      color: FlownetColors.coolGray,
+                    ),
+                    title: const Text(
+                      'Logout',
+                      style: TextStyle(color: FlownetColors.pureWhite),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _handleLogout(context);
+                    },
+                  ),
+                ),
               ],
             ),
           ),
@@ -474,6 +501,36 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         ),
       );
     }
+  }
+
+  Future<void> _handleLogout(BuildContext ctx) async {
+    final router = GoRouter.of(ctx);
+    await AuthService().signOut();
+    if (!mounted) return;
+    router.go('/');
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: () => _handleLogout(context),
+        icon: const Icon(
+          Icons.logout,
+          color: FlownetColors.coolGray,
+          size: 20,
+        ),
+        label: const Text(
+          'Logout',
+          style: TextStyle(
+            color: FlownetColors.coolGray,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        ),
+      ),
+    );
   }
 
   String _getPageTitle(String route) {

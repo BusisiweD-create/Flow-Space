@@ -540,7 +540,7 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
   @override
   Widget build(BuildContext context) {
     final userRole = AuthService().currentUser?.role;
-    final canReview = userRole == UserRole.clientReviewer || userRole == UserRole.systemAdmin;
+    final canReview = userRole == UserRole.clientReviewer;
     final isApproved = _report?.status == ReportStatus.approved;
 
     return Scaffold(

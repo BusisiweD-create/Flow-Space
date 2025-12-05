@@ -72,6 +72,62 @@ class SignOffReportService {
     }
   }
 
+  // Send reminder for a sign-off report review
+  Future<ApiResponse> sendReminder(String reportId) async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null) {
+        return ApiResponse.error('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/$reportId/remind'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return ApiResponse.success(data, response.statusCode);
+      } else {
+        final data = jsonDecode(response.body);
+        return ApiResponse.error(data['error'] ?? 'Failed to send reminder');
+      }
+    } catch (e) {
+      return ApiResponse.error('Error sending reminder: $e');
+    }
+  }
+
+  // Escalate a sign-off report
+  Future<ApiResponse> escalateReport(String reportId) async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null) {
+        return ApiResponse.error('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/$reportId/escalate'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return ApiResponse.success(data, response.statusCode);
+      } else {
+        final data = jsonDecode(response.body);
+        return ApiResponse.error(data['error'] ?? 'Failed to escalate report');
+      }
+    } catch (e) {
+      return ApiResponse.error('Error escalating report: $e');
+    }
+  }
+
   // Get single sign-off report
   Future<ApiResponse> getSignOffReport(String reportId) async {
     try {

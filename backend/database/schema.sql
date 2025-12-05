@@ -123,6 +123,10 @@ CREATE TABLE sign_off_reports (
     status VARCHAR(50) DEFAULT 'draft',
     content JSONB DEFAULT '{}',
     evidence JSONB DEFAULT '[]',
+    submitted_at TIMESTAMP,
+    approved_at TIMESTAMP,
+    last_reminder_at TIMESTAMP,
+    escalated_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

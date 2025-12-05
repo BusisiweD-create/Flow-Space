@@ -9,6 +9,7 @@ import '../services/document_service.dart';
 import '../services/auth_service.dart';
 import '../services/sign_off_report_service.dart';
 import '../services/report_export_service.dart';
+import '../services/api_client.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/app_scaffold.dart';
@@ -34,11 +35,88 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
   final SignOffReportService _reportService = SignOffReportService(AuthService());
   final ReportExportService _exportService = ReportExportService();
 
+  // Advanced filters
+  String? _selectedProjectId;
+  String? _selectedSprintId;
+  String? _selectedDeliverableId;
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  bool _showAdvancedFilters = false;
+
+  // Cached filter options (loaded from backend)
+  List<Map<String, dynamic>> _projects = [];
+  List<Map<String, dynamic>> _sprints = [];
+  List<Map<String, dynamic>> _deliverables = [];
+
   @override
   void initState() {
     super.initState();
     _loadReports();
     _loadReportDocuments();
+    _loadFilterOptions();
+  }
+
+  Future<void> _loadFilterOptions() async {
+    // Load projects, sprints, and deliverables for filter dropdowns
+    try {
+      final apiClient = ApiClient();
+      final projectsResponse = await apiClient.get('/projects');
+      final sprintsResponse = await apiClient.get('/sprints');
+      final deliverablesResponse = await apiClient.get('/deliverables');
+
+      if (mounted) {
+        setState(() {
+          if (projectsResponse.isSuccess && projectsResponse.data != null) {
+            final data = projectsResponse.data;
+            _projects = (data is List ? data : (data['data'] ?? data['projects'] ?? [])).cast<Map<String, dynamic>>();
+          }
+          if (sprintsResponse.isSuccess && sprintsResponse.data != null) {
+            final data = sprintsResponse.data;
+            _sprints = (data is List ? data : (data['data'] ?? data['sprints'] ?? [])).cast<Map<String, dynamic>>();
+          }
+          if (deliverablesResponse.isSuccess && deliverablesResponse.data != null) {
+            final data = deliverablesResponse.data;
+            _deliverables = (data is List ? data : (data['data'] ?? data['deliverables'] ?? [])).cast<Map<String, dynamic>>();
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading filter options: $e');
+    }
+  }
+
+  Future<void> _sendReminder(SignOffReport report) async {
+    try {
+      final response = await _reportService.sendReminder(report.id);
+      if (mounted) {
+        if (response.isSuccess) {
+          _showSuccessSnackBar('Reminder sent successfully.');
+        } else {
+          _showErrorSnackBar('Failed to send reminder: ${response.error ?? "Unknown error"}');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Error sending reminder: $e');
+      }
+    }
+  }
+
+  Future<void> _escalateReport(SignOffReport report) async {
+    try {
+      final response = await _reportService.escalateReport(report.id);
+      if (mounted) {
+        if (response.isSuccess) {
+          _showSuccessSnackBar('Escalation sent successfully.');
+        } else {
+          _showErrorSnackBar('Failed to escalate report: ${response.error ?? "Unknown error"}');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Error escalating report: $e');
+      }
+    }
   }
 
   Future<void> _loadReportDocuments() async {
@@ -64,6 +142,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       final response = await _reportService.getSignOffReports(
         status: _selectedFilter != 'all' ? _selectedFilter : null,
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        projectId: _selectedProjectId,
+        sprintId: _selectedSprintId,
+        deliverableId: _selectedDeliverableId,
+        from: _fromDate?.toIso8601String(),
+        to: _toDate?.toIso8601String(),
       );
 
       debugPrint('📋 Load reports response: success=${response.isSuccess}, data type=${response.data?.runtimeType}');
@@ -233,6 +316,24 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             onPressed: () => Navigator.pop(context),
             child: const Text('Close', style: TextStyle(color: FlownetColors.pureWhite)),
           ),
+          if (report.status == ReportStatus.submitted || report.status == ReportStatus.underReview) ...[
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _sendReminder(report);
+              },
+              icon: const Icon(Icons.alarm, color: FlownetColors.electricBlue, size: 18),
+              label: const Text('Send Reminder'),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _escalateReport(report);
+              },
+              icon: const Icon(Icons.warning, color: FlownetColors.amberOrange, size: 18),
+              label: const Text('Escalate'),
+            ),
+          ],
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
@@ -265,7 +366,8 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               ),
             ),
           // Show review workflow for submitted reports
-          if (report.status == ReportStatus.submitted || report.status == ReportStatus.underReview)
+          if ((report.status == ReportStatus.submitted || report.status == ReportStatus.underReview) &&
+              AuthService().currentUser?.role == UserRole.clientReviewer)
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
@@ -284,9 +386,10 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               ),
             ),
           // Allow client feedback on any submitted/reviewed report
-          if (report.status == ReportStatus.submitted || 
+          if ((report.status == ReportStatus.submitted || 
               report.status == ReportStatus.underReview ||
-              report.status == ReportStatus.approved)
+              report.status == ReportStatus.approved) &&
+              AuthService().currentUser?.role == UserRole.clientReviewer)
             TextButton.icon(
               onPressed: () {
                 Navigator.pop(context);
@@ -682,6 +785,208 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     );
   }
 
+  Widget _buildAdvancedFiltersPanel() {
+    return Card(
+      color: FlownetColors.surfaceLight,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Advanced Filters',
+                  style: TextStyle(
+                    color: FlownetColors.pureWhite,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _clearAdvancedFilters,
+                  icon: const Icon(Icons.clear_all, size: 18),
+                  label: const Text('Clear All'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: FlownetColors.coolGray,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                // Project Filter
+                SizedBox(
+                  width: 200,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedProjectId,
+                    decoration: const InputDecoration(
+                      labelText: 'Project',
+                      labelStyle: TextStyle(color: FlownetColors.coolGray),
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    dropdownColor: FlownetColors.surfaceLight,
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Projects')),
+                      ..._projects.map((p) => DropdownMenuItem(
+                        value: p['id']?.toString(),
+                        child: Text(p['name']?.toString() ?? 'Unknown'),
+                      )),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _selectedProjectId = value);
+                      _loadReports();
+                    },
+                  ),
+                ),
+                // Sprint Filter
+                SizedBox(
+                  width: 200,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedSprintId,
+                    decoration: const InputDecoration(
+                      labelText: 'Sprint',
+                      labelStyle: TextStyle(color: FlownetColors.coolGray),
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    dropdownColor: FlownetColors.surfaceLight,
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Sprints')),
+                      ..._sprints.map((s) => DropdownMenuItem(
+                        value: s['id']?.toString(),
+                        child: Text(s['name']?.toString() ?? 'Unknown'),
+                      )),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _selectedSprintId = value);
+                      _loadReports();
+                    },
+                  ),
+                ),
+                // Deliverable Filter
+                SizedBox(
+                  width: 200,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedDeliverableId,
+                    decoration: const InputDecoration(
+                      labelText: 'Deliverable',
+                      labelStyle: TextStyle(color: FlownetColors.coolGray),
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    dropdownColor: FlownetColors.surfaceLight,
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Deliverables')),
+                      ..._deliverables.map((d) => DropdownMenuItem(
+                        value: d['id']?.toString(),
+                        child: Text(d['title']?.toString() ?? d['name']?.toString() ?? 'Unknown'),
+                      )),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _selectedDeliverableId = value);
+                      _loadReports();
+                    },
+                  ),
+                ),
+                // Date Range - From
+                SizedBox(
+                  width: 160,
+                  child: InkWell(
+                    onTap: () => _selectDate(isFrom: true),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'From Date',
+                        labelStyle: TextStyle(color: FlownetColors.coolGray),
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        suffixIcon: Icon(Icons.calendar_today, size: 18),
+                      ),
+                      child: Text(
+                        _fromDate != null ? _formatDate(_fromDate!) : 'Any',
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                      ),
+                    ),
+                  ),
+                ),
+                // Date Range - To
+                SizedBox(
+                  width: 160,
+                  child: InkWell(
+                    onTap: () => _selectDate(isFrom: false),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'To Date',
+                        labelStyle: TextStyle(color: FlownetColors.coolGray),
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        suffixIcon: Icon(Icons.calendar_today, size: 18),
+                      ),
+                      child: Text(
+                        _toDate != null ? _formatDate(_toDate!) : 'Any',
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _clearAdvancedFilters() {
+    setState(() {
+      _selectedProjectId = null;
+      _selectedSprintId = null;
+      _selectedDeliverableId = null;
+      _fromDate = null;
+      _toDate = null;
+    });
+    _loadReports();
+  }
+
+  Future<void> _selectDate({required bool isFrom}) async {
+    final initialDate = isFrom ? (_fromDate ?? DateTime.now()) : (_toDate ?? DateTime.now());
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: FlownetColors.electricBlue,
+              surface: FlownetColors.surfaceLight,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        if (isFrom) {
+          _fromDate = picked;
+        } else {
+          _toDate = picked;
+        }
+      });
+      _loadReports();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
@@ -729,25 +1034,50 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                 ),
                 const SizedBox(height: 16),
                 
-                // Filter Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip('all', 'All'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('draft', 'Draft'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('submitted', 'Submitted'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('underReview', 'Under Review'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('approved', 'Approved'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('changeRequested', 'Change Requested'),
-                    ],
-                  ),
+                // Filter Chips Row with Advanced Filters Toggle
+                Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildFilterChip('all', 'All'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('draft', 'Draft'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('submitted', 'Submitted'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('underReview', 'Under Review'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('approved', 'Approved'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('changeRequested', 'Change Requested'),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        _showAdvancedFilters ? Icons.filter_alt_off : Icons.filter_alt,
+                        color: _showAdvancedFilters ? FlownetColors.electricBlue : FlownetColors.coolGray,
+                      ),
+                      tooltip: 'Advanced Filters',
+                      onPressed: () {
+                        setState(() {
+                          _showAdvancedFilters = !_showAdvancedFilters;
+                        });
+                      },
+                    ),
+                  ],
                 ),
+
+                // Advanced Filters Panel
+                if (_showAdvancedFilters) ...[
+                  const SizedBox(height: 16),
+                  _buildAdvancedFiltersPanel(),
+                ],
               ],
             ),
           ),
@@ -1120,9 +1450,10 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                     ),
                   ],
                   // Feedback button for submitted/reviewed/approved reports
-                  if (report.status == ReportStatus.submitted || 
+                  if ((report.status == ReportStatus.submitted || 
                       report.status == ReportStatus.underReview ||
-                      report.status == ReportStatus.approved) ...[
+                      report.status == ReportStatus.approved) &&
+                      AuthService().currentUser?.role == UserRole.clientReviewer) ...[
                     TextButton.icon(
                       onPressed: () => _showClientFeedbackDialog(report),
                       icon: const Icon(Icons.comment, size: 16),

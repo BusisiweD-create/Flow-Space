@@ -198,7 +198,7 @@ class AuthService {
         return hasPermission('manage_sprints');
       case '/client-review':
       case '/enhanced-client-review':
-        return canViewClientReview();
+        return isClientReviewer;
       case '/report-repository':
         return isDeliveryLead || isSystemAdmin || isClientReviewer;
       case '/notification-center':

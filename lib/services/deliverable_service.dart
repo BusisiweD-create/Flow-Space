@@ -160,6 +160,7 @@ class DeliverableService {
     DateTime? dueDate,
     String? assignedTo,
     String? sprintId,
+    List<String>? sprintIds,
     List<String>? evidenceLinks,
   }) async {
     try {
@@ -194,6 +195,7 @@ class DeliverableService {
         'due_date': dueDate?.toIso8601String(),
         'assigned_to': assignedTo,
         'sprint_id': sprintId,
+        if (sprintIds != null && sprintIds.isNotEmpty) 'sprint_ids': sprintIds,
         if (evidenceLinks != null) 'evidence_links': evidenceLinks,
       };
 

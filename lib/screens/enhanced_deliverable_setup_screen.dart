@@ -6,6 +6,7 @@ import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/ai_readiness_gate_widget.dart';
 import '../services/deliverable_service.dart';
+import '../services/sprint_database_service.dart';
 
 class EnhancedDeliverableSetupScreen extends ConsumerStatefulWidget {
   const EnhancedDeliverableSetupScreen({super.key});
@@ -26,15 +27,33 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
   final List<String> _evidenceLinks = [];
   final List<ReadinessItem> _readinessItems = [];
   final DeliverableService _deliverableService = DeliverableService();
+  final SprintDatabaseService _sprintService = SprintDatabaseService();
   ReadinessStatus _currentReadinessStatus = ReadinessStatus.red;
   bool _hasInternalApproval = false;
   
   bool _isSubmitting = false;
+  List<Map<String, dynamic>> _availableSprints = [];
+  bool _isLoadingSprints = true;
 
   @override
   void initState() {
     super.initState();
     _initializeReadinessItems();
+    _loadSprints();
+  }
+
+  Future<void> _loadSprints() async {
+    setState(() => _isLoadingSprints = true);
+    try {
+      final sprints = await _sprintService.getSprints();
+      setState(() {
+        _availableSprints = sprints;
+        _isLoadingSprints = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading sprints: $e');
+      setState(() => _isLoadingSprints = false);
+    }
   }
 
   void _initializeReadinessItems() {
@@ -308,6 +327,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
         status: 'Draft',
         dueDate: _dueDate,
         sprintId: _selectedSprints.isNotEmpty ? _selectedSprints.first : null,
+        sprintIds: _selectedSprints,
       );
       
       if (mounted) {
@@ -487,6 +507,70 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+
+              // Sprint Selection
+              _buildSectionHeader('Contributing Sprints'),
+              const SizedBox(height: 8),
+              Text(
+                'Select the sprint(s) that contributed to this deliverable',
+                style: TextStyle(color: FlownetColors.pureWhite.withValues(alpha: 0.7)),
+              ),
+              const SizedBox(height: 16),
+              
+              if (_isLoadingSprints)
+                const Center(child: CircularProgressIndicator())
+              else if (_availableSprints.isEmpty)
+                Card(
+                  color: FlownetColors.graphiteGray,
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No sprints available. Create a sprint first.'),
+                  ),
+                )
+              else
+                Card(
+                  color: FlownetColors.graphiteGray,
+                  child: Column(
+                    children: _availableSprints.map((sprint) {
+                      final sprintId = sprint['id']?.toString() ?? '';
+                      final sprintName = sprint['name']?.toString() ?? 'Unnamed Sprint';
+                      final status = sprint['status']?.toString() ?? '';
+                      final isSelected = _selectedSprints.contains(sprintId);
+                      
+                      return CheckboxListTile(
+                        value: isSelected,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              _selectedSprints.add(sprintId);
+                            } else {
+                              _selectedSprints.remove(sprintId);
+                            }
+                          });
+                        },
+                        title: Text(sprintName),
+                        subtitle: Text('Status: $status'),
+                        secondary: Icon(
+                          Icons.speed,
+                          color: isSelected ? FlownetColors.electricBlue : Colors.grey,
+                        ),
+                        activeColor: FlownetColors.electricBlue,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              
+              if (_selectedSprints.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${_selectedSprints.length} sprint(s) selected',
+                  style: TextStyle(
+                    color: FlownetColors.electricBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
 
               // Definition of Done

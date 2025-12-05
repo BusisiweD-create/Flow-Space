@@ -284,26 +284,65 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
     }
   }
 
-  void _markAsRead(String id) {
+  Future<void> _markAsRead(String id) async {
+    // Update UI immediately for responsiveness
     setState(() {
       final index = _notifications.indexWhere((n) => n.id == id);
       if (index != -1) {
         _notifications[index] = _notifications[index].copyWith(isRead: true);
       }
     });
+    
+    // Persist to backend
+    final success = await _notificationService.markAsRead(id);
+    if (!success && mounted) {
+      // Revert if failed
+      setState(() {
+        final index = _notifications.indexWhere((n) => n.id == id);
+        if (index != -1) {
+          _notifications[index] = _notifications[index].copyWith(isRead: false);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to mark notification as read'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  void _markAllAsRead() {
+  Future<void> _markAllAsRead() async {
+    // Store original state for potential rollback
+    final originalNotifications = List<NotificationItem>.from(_notifications);
+    
+    // Update UI immediately
     setState(() {
       _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
     });
+    
+    // Persist to backend
+    final success = await _notificationService.markAllAsRead();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All notifications marked as read'),
-          backgroundColor: FlownetColors.electricBlue,
-        ),
-      );
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All notifications marked as read'),
+            backgroundColor: FlownetColors.electricBlue,
+          ),
+        );
+      } else {
+        // Revert if failed
+        setState(() {
+          _notifications = originalNotifications;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to mark all notifications as read'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

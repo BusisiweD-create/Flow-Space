@@ -161,6 +161,8 @@ No significant risks identified during development.
           risks: 'Initial authentication complexity',
           mitigations: 'Extended testing phase, additional security review',
           scopeChanges: 'Added MFA requirement mid-sprint',
+          pointsAddedDuringSprint: 5,
+          pointsRemovedDuringSprint: 0,
           uatNotes: 'Client feedback incorporated successfully',
           recordedAt: DateTime.now().subtract(const Duration(days: 7)),
           recordedBy: 'Sprint Lead',
@@ -183,6 +185,8 @@ No significant risks identified during development.
           risks: 'Integration complexity with existing systems',
           mitigations: 'Dedicated integration testing, API documentation',
           scopeChanges: 'Minor UI adjustments based on feedback',
+          pointsAddedDuringSprint: 2,
+          pointsRemovedDuringSprint: 4,
           uatNotes: 'Excellent user feedback, ready for production',
           recordedAt: DateTime.now().subtract(const Duration(days: 4)),
           recordedBy: 'Sprint Lead',
@@ -205,6 +209,8 @@ No significant risks identified during development.
           risks: 'None identified',
           mitigations: 'N/A',
           scopeChanges: 'None',
+          pointsAddedDuringSprint: 0,
+          pointsRemovedDuringSprint: 0,
           uatNotes: 'Final testing completed, all acceptance criteria met',
           recordedAt: DateTime.now().subtract(const Duration(days: 1)),
           recordedBy: 'Sprint Lead',
@@ -680,6 +686,46 @@ No significant risks identified during development.
               ),
             ],
           ),
+          if (metric.hasScopeChange) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: metric.scopeChangeColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: metric.scopeChangeColor),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    metric.netScopeChange > 0 ? Icons.trending_up : Icons.trending_down,
+                    color: metric.scopeChangeColor,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Scope: ${metric.scopeChangeIndicator}',
+                    style: TextStyle(
+                      color: metric.scopeChangeColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (metric.pointsAddedDuringSprint > 0 || metric.pointsRemovedDuringSprint > 0) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '(+${metric.pointsAddedDuringSprint} / -${metric.pointsRemovedDuringSprint})',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

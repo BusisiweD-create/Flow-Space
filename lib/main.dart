@@ -14,14 +14,12 @@ import 'screens/enhanced_deliverable_setup_screen.dart';
 import 'screens/sprint_console_screen.dart';
 import 'screens/sprint_metrics_screen.dart';
 import 'screens/report_builder_screen.dart';
-import 'screens/client_review_screen.dart';
-import 'screens/enhanced_client_review_screen.dart';
+import 'screens/client_review_workflow_screen.dart';
 import 'screens/report_repository_screen.dart';
 import 'screens/approvals_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/smtp_config_screen.dart';
-import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
 import 'screens/user_management_screen.dart';
 import 'screens/settings_screen.dart';
@@ -32,6 +30,9 @@ import 'widgets/sidebar_scaffold.dart';
 //
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
+import 'screens/role_dashboard_screen.dart'; // Update RoleDashboardScreen import path
+import 'screens/epic_management_screen.dart';
+import 'screens/epic_detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -161,7 +162,7 @@ final GoRouter _router = GoRouter(
         return RouteGuard(
           route: '/client-review',
           child: SidebarScaffold(
-            child: ClientReviewScreen(reportId: reportId),
+            child: ClientReviewWorkflowScreen(reportId: reportId),
           ),
         );
       },
@@ -173,7 +174,7 @@ final GoRouter _router = GoRouter(
         return RouteGuard(
           route: '/enhanced-client-review',
           child: SidebarScaffold(
-            child: EnhancedClientReviewScreen(reportId: reportId),
+            child: ClientReviewWorkflowScreen(reportId: reportId),
           ),
         );
       },
@@ -227,6 +228,27 @@ final GoRouter _router = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/epics',
+      builder: (context, state) => const RouteGuard(
+        route: '/epics',
+        child: SidebarScaffold(
+          child: EpicManagementScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/epics/:epicId',
+      builder: (context, state) {
+        final epicId = state.pathParameters['epicId']!;
+        return RouteGuard(
+          route: '/epics',
+          child: SidebarScaffold(
+            child: EpicDetailScreen(epicId: epicId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
       path: '/repository',
       builder: (context, state) => const RouteGuard(
         route: '/repository',
@@ -255,7 +277,9 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/smtp-config',
-      builder: (context, state) => const SmtpConfigScreen(),
+      builder: (context, state) => const SidebarScaffold(
+        child: SmtpConfigScreen(),
+      ),
     ),
     GoRoute(
       path: '/role-management',

@@ -5,11 +5,19 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/environment.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
 
 class ProfileService {
   static const String _userIdKey = 'current_user_id';
 
   static Future<String> _getUserId() async {
+    // First try to get from AuthService (in-memory)
+    final authService = AuthService();
+    if (authService.currentUser != null && authService.currentUser!.id.isNotEmpty) {
+      return authService.currentUser!.id;
+    }
+    
+    // Fallback to SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString(_userIdKey);
     if (userId == null || userId.isEmpty) {
@@ -18,12 +26,26 @@ class ProfileService {
     return userId;
   }
 
+  static Future<String?> _getAuthToken() async {
+    final authService = AuthService();
+    return authService.accessToken;
+  }
+
+  static Future<Map<String, String>> _getAuthHeaders() async {
+    final token = await _getAuthToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   static Future<Map<String, dynamic>> getUserProfile() async {
     try {
       final userId = await _getUserId();
+      final headers = await _getAuthHeaders();
       final response = await http.get(
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -40,18 +62,19 @@ class ProfileService {
   static Future<Map<String, dynamic>> saveUserProfile(Map<String, dynamic> profile) async {
     try {
       final userId = await _getUserId();
+      final headers = await _getAuthHeaders();
       
       final existingProfile = await _checkProfileExists(userId);
       
       final response = await (existingProfile
           ? http.put(
               Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-              headers: {'Content-Type': 'application/json'},
+              headers: headers,
               body: json.encode(profile),
             )
           : http.post(
               Uri.parse('${Environment.apiBaseUrl}/profile/'),
-              headers: {'Content-Type': 'application/json'},
+              headers: headers,
               body: json.encode({...profile, 'user_id': userId}),
             ));
 
@@ -71,9 +94,10 @@ class ProfileService {
 
   static Future<bool> _checkProfileExists(String userId) async {
     try {
+      final headers = await _getAuthHeaders();
       final response = await http.get(
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       );
       return response.statusCode == 200;
     } catch (e) {
@@ -84,11 +108,16 @@ class ProfileService {
   static Future<Map<String, dynamic>> uploadProfilePicture(List<int> imageBytes, String fileName) async {
     try {
       final userId = await _getUserId();
+      final token = await _getAuthToken();
       
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId/upload-picture'),
       );
+      
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       
       request.files.add(http.MultipartFile.fromBytes(
         'file',
