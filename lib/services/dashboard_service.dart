@@ -94,6 +94,12 @@ class DashboardStats {
   final int unreadNotifications;
   final double completionRate;
   final double avgSignoffDays;
+  // Sign-off report statistics
+  final int totalReports;
+  final int draftReports;
+  final int submittedReports;
+  final int approvedReports;
+  final int changeRequestedReports;
 
   DashboardStats({
     required this.totalDeliverables,
@@ -104,6 +110,11 @@ class DashboardStats {
     required this.unreadNotifications,
     required this.completionRate,
     required this.avgSignoffDays,
+    required this.totalReports,
+    required this.draftReports,
+    required this.submittedReports,
+    required this.approvedReports,
+    required this.changeRequestedReports,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
@@ -130,6 +141,13 @@ class DashboardStats {
     final pending = parseIntSafe(json['pending']);
     final avgSignoffDays = parseDoubleSafe(json['avg_signoff_days']);
     
+    // Parse sign-off report statistics
+    final totalReports = parseIntSafe(json['total_reports']);
+    final draftReports = parseIntSafe(json['draft_reports']);
+    final submittedReports = parseIntSafe(json['submitted_reports']);
+    final approvedReports = parseIntSafe(json['approved_reports']);
+    final changeRequestedReports = parseIntSafe(json['change_requested_reports']);
+    
     return DashboardStats(
       totalDeliverables: total,
       completedDeliverables: completed,
@@ -139,6 +157,11 @@ class DashboardStats {
       unreadNotifications: 0, // Not provided by API yet
       completionRate: avgProgress,
       avgSignoffDays: avgSignoffDays,
+      totalReports: totalReports,
+      draftReports: draftReports,
+      submittedReports: submittedReports,
+      approvedReports: approvedReports,
+      changeRequestedReports: changeRequestedReports,
     );
   }
 }

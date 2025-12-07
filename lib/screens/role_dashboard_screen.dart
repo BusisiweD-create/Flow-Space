@@ -129,6 +129,12 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
                   if (stats != null) _buildDeliverableStatsRow(stats),
                   const SizedBox(height: 24),
                   if (stats != null) ...[
+                    _buildSectionHeader('Sign-off Reports by Status'),
+                    const SizedBox(height: 16),
+                    _buildSignoffReportStatsRow(stats),
+                    const SizedBox(height: 24),
+                  ],
+                  if (stats != null) ...[
                     _buildSignoffTimeRow(stats),
                     const SizedBox(height: 24),
                   ],
@@ -223,6 +229,65 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
       icon: Icons.schedule_outlined,
       color: FlownetColors.electricBlue,
       onTap: () {},
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: FlownetColors.pureWhite,
+      ),
+    );
+  }
+
+  Widget _buildSignoffReportStatsRow(DashboardStats stats) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
+        final crossAxisCount = isWide ? 4 : 2;
+
+        return GridView.count(
+          shrinkWrap: true,
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.8,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            MetricsCard(
+              title: 'Draft',
+              value: stats.draftReports.toString(),
+              icon: Icons.edit_outlined,
+              color: FlownetColors.coolGray,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Submitted',
+              value: stats.submittedReports.toString(),
+              icon: Icons.send_outlined,
+              color: FlownetColors.electricBlue,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Approved',
+              value: stats.approvedReports.toString(),
+              icon: Icons.check_circle_outlined,
+              color: FlownetColors.emeraldGreen,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Change Requested',
+              value: stats.changeRequestedReports.toString(),
+              icon: Icons.sync_problem_outlined,
+              color: FlownetColors.amberOrange,
+              onTap: () {},
+            ),
+          ],
+        );
+      },
     );
   }
 

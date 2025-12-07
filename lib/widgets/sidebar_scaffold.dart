@@ -53,12 +53,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'approve_deliverable',
       ),
       const _NavItem(
-        label: 'Approval Requests',
-        icon: Icons.assignment_outlined,
-        route: '/approvals',
-        requiredPermission: 'approve_deliverable',
-      ),
-      const _NavItem(
         label: 'Repository', 
         icon: Icons.folder_outlined, 
         route: '/repository',

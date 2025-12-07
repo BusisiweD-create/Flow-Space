@@ -1886,6 +1886,19 @@ app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
     
     const statsResult = await pool.query(statsQuery);
 
+    // Get sign-off report status breakdown
+    const signoffStatsQuery = `
+      SELECT 
+        COUNT(*) as total_reports,
+        COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_reports,
+        COUNT(CASE WHEN status = 'submitted' THEN 1 END) as submitted_reports,
+        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_reports,
+        COUNT(CASE WHEN status = 'change_requested' THEN 1 END) as change_requested_reports
+      FROM sign_off_reports
+    `;
+
+    const signoffStatsResult = await pool.query(signoffStatsQuery);
+
     // Average sign-off time in days for approved reports
     const avgSignoffQuery = `
       SELECT AVG(EXTRACT(EPOCH FROM (approved_at - submitted_at)) / 86400.0) AS avg_signoff_days
@@ -1905,6 +1918,7 @@ app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
         recentActivity: activityResult.rows,
         statistics: {
           ...statsResult.rows[0],
+          ...signoffStatsResult.rows[0],
           avg_signoff_days: avgSignoffDays,
         },
       }
