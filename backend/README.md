@@ -68,22 +68,40 @@ This directory contains the database schema and setup scripts for the Flow-Space
 - PostgreSQL (v12 or higher)
 - npm or yarn
 
-### Windows Setup
+### Backend Migration (Python → Node.js)
+The backend has been migrated from Python to Node.js for better performance and maintainability. The new Node.js backend is located in the `node-backend/` directory.
+
+### Node.js Backend Setup
 ```bash
-# Run the setup script
+# Navigate to Node.js backend directory
+cd node-backend
+
+# Install dependencies
+npm install
+
+# Start the server
+npm start
+
+# For development with auto-reload
+npm run dev
+```
+
+### Windows Setup (Legacy Python Backend)
+```bash
+# Run the setup script (for legacy Python backend)
 setup.bat
 ```
 
-### Unix/Linux/macOS Setup
+### Unix/Linux/macOS Setup (Legacy Python Backend)
 ```bash
 # Make script executable
 chmod +x setup.sh
 
-# Run the setup script
+# Run the setup script (for legacy Python backend)
 ./setup.sh
 ```
 
-### Manual Setup
+### Manual Setup (Legacy Python Backend)
 ```bash
 # Install dependencies
 npm install
@@ -94,7 +112,7 @@ node setup-database.js
 # Test database
 node test-database.js
 
-# Start server
+# Start server (legacy)
 node server-updated.js
 ```
 
@@ -129,27 +147,61 @@ DB_NAME=flow_space
 
 ## 📊 API Endpoints
 
-### Authentication
-- `POST /api/v1/auth/register` - User registration
-- `POST /api/v1/auth/login` - User login
-- `GET /api/v1/auth/me` - Get current user
-- `POST /api/v1/auth/logout` - User logout
+### Node.js Backend (Current)
+The Node.js backend runs on port **8000** and provides the following endpoints:
 
-### User Management (Admin)
+#### Authentication
+- `POST /api/v1/auth/register` - User registration
+- `POST /api/v1/auth/login` - User login  
+- `GET /api/v1/auth/me` - Get current user
+- `POST /api/v1/auth/refresh` - Refresh access token
+- `POST /api/v1/auth/logout` - User logout
+- `POST /api/v1/auth/change-password` - Change password
+
+#### User Management (Admin)
 - `GET /api/v1/users` - List all users
 - `PUT /api/v1/users/:userId/role` - Change user role
 
-### Deliverables
+#### Deliverables
 - `GET /api/v1/deliverables` - List deliverables (role-filtered)
+
+#### System
+- `GET /health` - Health check endpoint
+
+### Legacy Python Backend
+**Note:** The Python backend is deprecated and should not be used for new development. It ran on port **3000**.
 
 ## 🧪 Testing
 
-### Database Test
+### Node.js Backend Testing
+
+#### Health Check
+```bash
+curl http://localhost:8000/health
+```
+
+#### User Registration
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123","first_name":"Test","last_name":"User","role":"teamMember"}'
+```
+
+#### User Login
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+### Legacy Python Backend Testing
+
+#### Database Test
 ```bash
 node test-database.js
 ```
 
-### API Testing
+#### API Testing
 ```bash
 # Health check
 curl http://localhost:3000/health

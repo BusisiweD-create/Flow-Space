@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/approval_request.dart';
 import '../services/approval_service.dart';
@@ -20,11 +21,27 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
   String _selectedStatus = 'all';
   String _selectedPriority = 'all';
   String _selectedCategory = 'all';
+  StreamSubscription<List<ApprovalRequest>>? _realtimeSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadApprovalRequests();
+    _approvalService.initRealtime();
+    _realtimeSubscription =
+        _approvalService.approvalRequestsStream.listen((requests) {
+      if (!mounted) return;
+      setState(() {
+        _requests = requests;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _realtimeSubscription?.cancel();
+    _approvalService.disposeRealtime();
+    super.dispose();
   }
 
   Future<void> _loadApprovalRequests() async {
@@ -53,7 +70,11 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
           request.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           request.description.toLowerCase().contains(_searchQuery.toLowerCase());
       
-      final matchesStatus = _selectedStatus == 'all' || request.status == _selectedStatus;
+      final matchesStatus = _selectedStatus == 'all' || 
+          (_selectedStatus == 'deliverable' 
+              ? request.deliverableId != null 
+              : request.status == _selectedStatus);
+              
       final matchesPriority = _selectedPriority == 'all' || request.priority == _selectedPriority;
       final matchesCategory = _selectedCategory == 'all' || request.category == _selectedCategory;
       
@@ -176,6 +197,29 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
               const Text('Description:', style: TextStyle(color: FlownetColors.electricBlue, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(request.description, style: const TextStyle(color: FlownetColors.pureWhite)),
+              
+              if (request.deliverableId != null) ...[
+                const SizedBox(height: 16),
+                const Text('Deliverable ID:', style: TextStyle(color: FlownetColors.coolGray)),
+                Text(request.deliverableId!, style: const TextStyle(color: FlownetColors.pureWhite)),
+              ],
+              
+              if (request.evidenceLinks?.isNotEmpty ?? false) ...[
+                const SizedBox(height: 16),
+                const Text('Evidence Links:', style: TextStyle(color: FlownetColors.electricBlue, fontWeight: FontWeight.bold)),
+                ...request.evidenceLinks!.map((link) => 
+                  Text(link, style: const TextStyle(color: FlownetColors.pureWhite))
+                ),
+              ],
+              
+              if (request.definitionOfDone?.isNotEmpty ?? false) ...[
+                const SizedBox(height: 16),
+                const Text('Definition of Done:', style: TextStyle(color: FlownetColors.electricBlue, fontWeight: FontWeight.bold)),
+                ...request.definitionOfDone!.map((item) => 
+                  Text('• $item', style: const TextStyle(color: FlownetColors.pureWhite))
+                ),
+              ],
+              
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -259,6 +303,47 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     );
   }
 
+  void _previewDeliverable(ApprovalRequest request) {
+    // Fetch deliverable details from API
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Deliverable: ${request.deliverableId ?? 'N/A'}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (request.evidenceLinks?.isNotEmpty ?? false)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Evidence:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...request.evidenceLinks!.map((link) => 
+                    Text(link, style: const TextStyle(color: Colors.blue))
+                  ),
+                ],
+              ),
+            if (request.definitionOfDone?.isNotEmpty ?? false)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Definition of Done:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...request.definitionOfDone!.map((item) => 
+                    Text('• $item')
+                  ),
+                ],
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -317,6 +402,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                           DropdownMenuItem(value: 'pending', child: Text('Pending')),
                           DropdownMenuItem(value: 'approved', child: Text('Approved')),
                           DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                          DropdownMenuItem(value: 'deliverable', child: Text('Deliverables')),
                         ],
                       ),
                     ),
@@ -382,13 +468,22 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                             color: FlownetColors.graphiteGray,
                             child: ListTile(
                               contentPadding: const EdgeInsets.all(16),
-                              title: Text(
-                                request.title,
-                                style: const TextStyle(
-                                  color: FlownetColors.pureWhite,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
+                              title: Row(
+                                children: [
+                                  if (request.deliverableId != null) 
+                                    const Icon(Icons.description, color: FlownetColors.electricBlue, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      request.title,
+                                      style: const TextStyle(
+                                        color: FlownetColors.pureWhite,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,6 +493,11 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                                     'Requested by: ${request.requestedByName}',
                                     style: const TextStyle(color: FlownetColors.coolGray),
                                   ),
+                                  if (request.deliverableId != null) 
+                                    Text(
+                                      'Deliverable: ${request.deliverableId}',
+                                      style: const TextStyle(color: FlownetColors.electricBlue),
+                                    ),
                                   Text(
                                     'Date: ${request.requestedAt.day}/${request.requestedAt.month}/${request.requestedAt.year}',
                                     style: const TextStyle(color: FlownetColors.coolGray),
@@ -446,6 +546,13 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                                       icon: const Icon(Icons.close, color: FlownetColors.crimsonRed),
                                       onPressed: () => _rejectRequest(request),
                                       tooltip: 'Reject',
+                                    ),
+                                  ],
+                                  if (request.deliverableId != null) ...[
+                                    IconButton(
+                                      icon: const Icon(Icons.preview, color: FlownetColors.coolGray),
+                                      onPressed: () => _previewDeliverable(request),
+                                      tooltip: 'Preview Deliverable',
                                     ),
                                   ],
                                   IconButton(

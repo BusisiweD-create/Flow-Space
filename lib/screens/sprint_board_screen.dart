@@ -5,6 +5,7 @@ import '../services/sprint_database_service.dart';
 import '../services/jira_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/sprint_board_widget.dart';
+import '../widgets/app_scaffold.dart';
 
 class SprintBoardScreen extends ConsumerStatefulWidget {
   final String sprintId;
@@ -563,12 +564,27 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+    if (_isLoading) {
+      return const AppScaffold(
+        useBackgroundImage: false,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ),
+      );
+    }
+
+    return AppScaffold(
+      useBackgroundImage: false,
       appBar: AppBar(
-        backgroundColor: FlownetColors.charcoalBlack,
-        foregroundColor: FlownetColors.pureWhite,
-        title: Text('Sprint Board - ${widget.sprintName}'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          'Sprint Board - ${widget.sprintName}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -581,21 +597,19 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadSprintData,
             tooltip: 'Refresh Data',
           ),
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, color: Colors.white),
             onPressed: _showCreateTicketDialog,
             tooltip: 'Create Ticket',
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: FlownetColors.electricBlue))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

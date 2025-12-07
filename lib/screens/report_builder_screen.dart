@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/deliverable.dart';
+import 'package:go_router/go_router.dart';
+import 'package:khono/services/api_client.dart';
+import '../models/deliverable.dart' as model;
 import '../models/sprint_metrics.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/sprint_performance_chart.dart';
+import '../services/approval_service.dart';
+import '../services/auth_service.dart';
+import '../services/sign_off_report_service.dart';
+import '../services/deliverable_service.dart' as svc;
+import '../services/backend_api_service.dart';
 
 class ReportBuilderScreen extends ConsumerStatefulWidget {
   final String deliverableId;
@@ -25,10 +32,15 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
   final _knownLimitationsController = TextEditingController();
   final _nextStepsController = TextEditingController();
   
-  Deliverable? _deliverable;
+  model.Deliverable? _deliverable;
   List<SprintMetrics> _sprintMetrics = [];
   bool _isGenerating = false;
   bool _isPreviewMode = false;
+  final ApprovalService _approvalService = ApprovalService(AuthService());
+  final SignOffReportService _signOffReportService = SignOffReportService(AuthService());
+  final svc.DeliverableService _deliverableService = svc.DeliverableService();
+  final BackendApiService _backendApiService = BackendApiService();
+  String? _reportId;
 
   @override
   void initState() {
@@ -36,107 +48,130 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     _loadDeliverableData();
   }
 
-  void _loadDeliverableData() {
-    // Mock data - in real app this would come from API
+  Future<void> _loadDeliverableData() async {
     setState(() {
-      _deliverable = Deliverable(
-        id: widget.deliverableId,
-        title: 'User Authentication System',
-        description: 'Complete user login, registration, and role-based access control with multi-factor authentication',
-        status: DeliverableStatus.submitted,
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        dueDate: DateTime.now().add(const Duration(days: 2)),
-        sprintIds: ['sprint-1', 'sprint-2', 'sprint-3'],
-        definitionOfDone: [
-          'All unit tests pass with >90% coverage',
-          'Code review completed by senior developer',
-          'Security audit passed with no critical issues',
-          'Documentation updated and reviewed',
-          'Performance benchmarks met',
-          'User acceptance testing completed',
-        ],
-        evidenceLinks: [
-          'https://demo.example.com/auth',
-          'https://github.com/company/auth-system',
-          'https://docs.example.com/auth-guide',
-          'https://test-results.example.com/auth-coverage',
-        ],
-        submittedBy: 'John Doe',
-        submittedAt: DateTime.now().subtract(const Duration(days: 1)),
+      _isGenerating = true;
+    });
+
+    try {
+      // 1) Load real deliverables and find the one for this screen
+      final response = await _deliverableService.getDeliverables();
+      if (!response.isSuccess || response.data == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.error ?? 'Failed to load deliverables'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final List<svc.Deliverable> allDeliverables =
+          (response.data!['deliverables'] as List<dynamic>).cast<svc.Deliverable>();
+
+      svc.Deliverable? svcDeliverable;
+      for (final d in allDeliverables) {
+        if (d.id == widget.deliverableId) {
+          svcDeliverable = d;
+          break;
+        }
+      }
+
+      if (svcDeliverable == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Deliverable not found.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2) Map service deliverable into the richer model.Deliverable used by this screen
+      final dodLines = <String>[];
+      if (svcDeliverable.definitionOfDone != null &&
+          svcDeliverable.definitionOfDone!.trim().isNotEmpty) {
+        dodLines.addAll(
+          svcDeliverable.definitionOfDone!
+              .split('\n')
+              .map((l) => l.trim())
+              .where((l) => l.isNotEmpty),
+        );
+      }
+
+      final model.DeliverableStatus status =
+          _mapDeliverableStatus(svcDeliverable.status);
+
+      final builtDeliverable = model.Deliverable(
+        id: svcDeliverable.id,
+        title: svcDeliverable.title,
+        description: svcDeliverable.description ?? '',
+        status: status,
+        createdAt: svcDeliverable.createdAt,
+        dueDate: svcDeliverable.dueDate ?? svcDeliverable.createdAt,
+        sprintIds: const [],
+        definitionOfDone: dodLines,
+        evidenceLinks: const [],
+        submittedBy: null,
+        submittedAt: null,
       );
 
-      _sprintMetrics = [
-        SprintMetrics(
-          id: '1',
-          sprintId: 'sprint-1',
-          committedPoints: 20,
-          completedPoints: 18,
-          carriedOverPoints: 2,
-          testPassRate: 95.5,
-          defectsOpened: 3,
-          defectsClosed: 3,
-          criticalDefects: 0,
-          highDefects: 1,
-          mediumDefects: 1,
-          lowDefects: 1,
-          codeReviewCompletion: 100.0,
-          documentationStatus: 85.0,
-          risks: 'Initial authentication complexity',
-          mitigations: 'Extended testing phase, additional security review',
-          scopeChanges: 'Added MFA requirement mid-sprint',
-          uatNotes: 'Client feedback incorporated successfully',
-          recordedAt: DateTime.now().subtract(const Duration(days: 7)),
-          recordedBy: 'Sprint Lead',
-        ),
-        SprintMetrics(
-          id: '2',
-          sprintId: 'sprint-2',
-          committedPoints: 22,
-          completedPoints: 20,
-          carriedOverPoints: 2,
-          testPassRate: 97.2,
-          defectsOpened: 2,
-          defectsClosed: 2,
-          criticalDefects: 0,
-          highDefects: 0,
-          mediumDefects: 1,
-          lowDefects: 1,
-          codeReviewCompletion: 100.0,
-          documentationStatus: 95.0,
-          risks: 'Integration complexity with existing systems',
-          mitigations: 'Dedicated integration testing, API documentation',
-          scopeChanges: 'Minor UI adjustments based on feedback',
-          uatNotes: 'Excellent user feedback, ready for production',
-          recordedAt: DateTime.now().subtract(const Duration(days: 4)),
-          recordedBy: 'Sprint Lead',
-        ),
-        SprintMetrics(
-          id: '3',
-          sprintId: 'sprint-3',
-          committedPoints: 18,
-          completedPoints: 18,
-          carriedOverPoints: 0,
-          testPassRate: 98.1,
-          defectsOpened: 1,
-          defectsClosed: 1,
-          criticalDefects: 0,
-          highDefects: 0,
-          mediumDefects: 0,
-          lowDefects: 1,
-          codeReviewCompletion: 100.0,
-          documentationStatus: 100.0,
-          risks: 'None identified',
-          mitigations: 'N/A',
-          scopeChanges: 'None',
-          uatNotes: 'Final testing completed, all acceptance criteria met',
-          recordedAt: DateTime.now().subtract(const Duration(days: 1)),
-          recordedBy: 'Sprint Lead',
-        ),
-      ];
+      // 3) Resolve sprints linked to this deliverable
+      final apiClient = ApiClient();
+      final sprintsResponse =
+          await apiClient.get('/deliverables/${widget.deliverableId}/sprints');
 
-      // Auto-generate report content
-      _generateReportContent();
-    });
+      final sprintIds = <String>[];
+      final metricsList = <SprintMetrics>[];
+
+      if (sprintsResponse.isSuccess && sprintsResponse.data != null) {
+        final dynamic data = sprintsResponse.data;
+        final List<dynamic> sprintRows =
+            data is List ? data : (data['data'] as List<dynamic>? ?? const []);
+
+        for (final row in sprintRows) {
+          final sprintId = (row['id'] ?? row['sprint_id'])?.toString();
+          if (sprintId == null) continue;
+          sprintIds.add(sprintId);
+
+          // 4) Pull metrics for each sprint
+          final metricsResponse =
+              await _backendApiService.getSprintMetrics(sprintId);
+          final metrics =
+              _backendApiService.parseSprintMetricsFromResponse(metricsResponse);
+          if (metrics.isNotEmpty) {
+            metricsList.add(metrics.first);
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _deliverable = builtDeliverable.copyWith(sprintIds: sprintIds);
+        _sprintMetrics = metricsList;
+        _generateReportContent();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading deliverable: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
+    }
   }
 
   void _generateReportContent() {
@@ -187,11 +222,26 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     // Sprint Performance Summary
     buffer.writeln('## Sprint Performance Summary');
     buffer.writeln();
-    final totalCommitted = _sprintMetrics.fold(0, (sum, metric) => sum + metric.committedPoints);
-    final totalCompleted = _sprintMetrics.fold(0, (sum, metric) => sum + metric.completedPoints);
-    final avgTestPassRate = _sprintMetrics.fold(0.0, (sum, metric) => sum + metric.testPassRate) / _sprintMetrics.length;
-    final totalDefects = _sprintMetrics.fold(0, (sum, metric) => sum + metric.totalDefects);
-    final resolvedDefects = _sprintMetrics.fold(0, (sum, metric) => sum + metric.defectsClosed);
+
+    if (_sprintMetrics.isEmpty) {
+      buffer.writeln('No sprint metrics have been captured yet for the linked sprints.');
+      buffer.writeln();
+      return buffer.toString();
+    }
+
+    final totalCommitted =
+        _sprintMetrics.fold(0, (sum, metric) => sum + metric.committedPoints);
+    final totalCompleted =
+        _sprintMetrics.fold(0, (sum, metric) => sum + metric.completedPoints);
+    final avgTestPassRate = _sprintMetrics.fold(
+          0.0,
+          (sum, metric) => sum + metric.testPassRate,
+        ) /
+        _sprintMetrics.length;
+    final totalDefects =
+        _sprintMetrics.fold(0, (sum, metric) => sum + metric.totalDefects);
+    final resolvedDefects =
+        _sprintMetrics.fold(0, (sum, metric) => sum + metric.defectsClosed);
     
     buffer.writeln('**Total Committed Points:** $totalCommitted');
     buffer.writeln('**Total Completed Points:** $totalCompleted');
@@ -232,6 +282,22 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
+  model.DeliverableStatus _mapDeliverableStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        return model.DeliverableStatus.submitted;
+      case 'approved':
+        return model.DeliverableStatus.approved;
+      case 'change_requested':
+      case 'changerequested':
+        return model.DeliverableStatus.changeRequested;
+      case 'rejected':
+        return model.DeliverableStatus.rejected;
+      default:
+        return model.DeliverableStatus.draft;
+    }
+  }
+
   Future<void> _generateReport() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -256,6 +322,104 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error generating report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveReport() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_deliverable == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No deliverable loaded for this report.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGenerating = true;
+    });
+
+    try {
+      // Ensure we have a title and content
+      final String title = _reportTitleController.text.trim().isNotEmpty
+          ? _reportTitleController.text.trim()
+          : 'Sign-Off Report: ${_deliverable!.title}';
+
+      if (_reportContentController.text.trim().isEmpty) {
+        // Regenerate content from current deliverable & metrics if empty
+        final content = _buildReportContent();
+        _reportContentController.text = content;
+      }
+
+      final String content = _reportContentController.text;
+      final String knownLimitations = _knownLimitationsController.text.trim();
+      final String nextSteps = _nextStepsController.text.trim();
+
+      ApiResponse response;
+      if (_reportId == null) {
+        response = await _signOffReportService.createSignOffReport(
+          deliverableId: _deliverable!.id,
+          reportTitle: title,
+          reportContent: content,
+          sprintIds: _deliverable!.sprintIds,
+          sprintPerformanceData: null,
+          knownLimitations: knownLimitations.isNotEmpty ? knownLimitations : null,
+          nextSteps: nextSteps.isNotEmpty ? nextSteps : null,
+        );
+
+        if (response.isSuccess && response.data != null) {
+          final data = response.data;
+          if (data is Map && data['id'] != null) {
+            _reportId = data['id'].toString();
+          }
+        }
+      } else {
+        response = await _signOffReportService.updateSignOffReport(
+          reportId: _reportId!,
+          reportTitle: title,
+          reportContent: content,
+          sprintIds: _deliverable!.sprintIds,
+          sprintPerformanceData: null,
+          knownLimitations: knownLimitations.isNotEmpty ? knownLimitations : null,
+          nextSteps: nextSteps.isNotEmpty ? nextSteps : null,
+        );
+      }
+
+      if (!mounted) return;
+
+      if (response.isSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Report saved successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save report: ${response.error ?? "Unknown error"}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving report: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -379,8 +543,10 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             const SizedBox(height: 24),
 
             // Sprint Performance Chart
-            _buildSprintPerformanceSection(),
-            const SizedBox(height: 24),
+            if (_sprintMetrics.isNotEmpty) ...[
+              _buildSprintPerformanceSection(),
+              const SizedBox(height: 24),
+            ],
 
             // Action Buttons
             Row(
@@ -549,7 +715,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _isGenerating ? null : _generateReport,
+                  onPressed: _isGenerating ? null : _saveReport,
                   icon: _isGenerating 
                       ? const SizedBox(
                           width: 16,
@@ -567,14 +733,62 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Navigate to client review
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Report ready for client review!'),
-                        backgroundColor: Colors.green,
-                      ),
+                  onPressed: () async {
+                    if (_deliverable == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No deliverable loaded for this report.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    final title = _reportTitleController.text.isNotEmpty
+                        ? _reportTitleController.text
+                        : 'Approval: ${_deliverable!.title}';
+                    final description = _reportContentController.text.isNotEmpty
+                        ? _reportContentController.text
+                        : _deliverable!.description;
+
+                    if (description.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please generate or enter report content before submitting for review.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    final response = await _approvalService.createApprovalRequest(
+                      title: title,
+                      description: description,
+                      priority: 'medium',
+                      category: 'Deliverable',
+                      deliverableId: _deliverable!.id,
+                      evidenceLinks: _deliverable!.evidenceLinks,
+                      definitionOfDone: _deliverable!.definitionOfDone,
                     );
+
+                    if (!mounted) return;
+
+                    if (response.isSuccess) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Approval request created. Check the Approvals screen.'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      context.go('/approvals');
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to create approval request: ${response.error ?? "Unknown error"}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   },
                   icon: const Icon(Icons.send),
                   label: const Text('Submit for Review'),
@@ -608,15 +822,16 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Velocity Chart
+            // Velocity Chart (using committed as planned points and completed points)
             SprintPerformanceChart(
-              sprints: _sprintMetrics.map((m) => {
-                'id': m.sprintId,
-                'name': 'Sprint ${m.sprintId}',
-                'velocity': m.velocity,
-                'committed': m.committedPoints,
-                'completed': m.completedPoints,
-              },).toList(),
+              sprints: _sprintMetrics
+                  .map((m) => {
+                        'id': m.sprintId,
+                        'name': 'Sprint ${m.sprintId}',
+                        'planned_points': m.committedPoints,
+                        'completed_points': m.completedPoints,
+                      })
+                  .toList(),
               chartType: 'velocity',
             ),
             const SizedBox(height: 16),

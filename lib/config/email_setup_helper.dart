@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+// Pure Dart helper without Flutter dependencies
+import 'dart:developer' as developer;
 
 /// Helper class to guide users through SMTP email configuration
 class EmailSetupHelper {
@@ -174,13 +175,14 @@ class EmailConfig {
       fromEmail: smtpUsername, // Use same email for from
     );
 
-    if (kDebugMode) {
+    const isDebug = !bool.fromEnvironment('dart.vm.product');
+    if (isDebug) {
       if (errors.isEmpty) {
-        debugPrint('✅ Email configuration validation passed');
+        developer.log('✅ Email configuration validation passed');
       } else {
-        debugPrint('❌ Email configuration validation failed:');
+        developer.log('❌ Email configuration validation failed:');
         errors.forEach((key, value) {
-          debugPrint('  - $key: $value');
+          developer.log('  - $key: $value');
         });
       }
     }

@@ -1,8 +1,9 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
-import 'flownet_logo.dart';
 import '../services/auth_service.dart';
+import 'background_image.dart';
 
 class SidebarScaffold extends StatefulWidget {
   final Widget child;
@@ -34,6 +35,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'manage_sprints',
       ),
       const _NavItem(
+        label: 'Epics', 
+        icon: Icons.rocket_launch_outlined, 
+        route: '/epics',
+        requiredPermission: 'manage_sprints',
+      ),
+      const _NavItem(
         label: 'Notifications',
         icon: Icons.notifications_outlined,
         route: '/notifications',
@@ -46,12 +53,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'approve_deliverable',
       ),
       const _NavItem(
-        label: 'Approval Requests',
-        icon: Icons.assignment_outlined,
-        route: '/approval-requests',
-        requiredPermission: 'approve_deliverable',
-      ),
-      const _NavItem(
         label: 'Repository', 
         icon: Icons.folder_outlined, 
         route: '/repository',
@@ -61,7 +62,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Reports', 
         icon: Icons.assessment_outlined, 
         route: '/report-repository',
-        requiredPermission: 'view_team_dashboard',
+        requiredPermission: null, // Allow all authenticated users (especially client reviewers)
       ),
       const _NavItem(
         label: 'Role Management',
@@ -73,13 +74,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Settings', 
         icon: Icons.settings_outlined, 
         route: '/settings',
-        requiredPermission: 'manage_users',
+        requiredPermission: null, // All authenticated users can access settings
       ),
       const _NavItem(
-        label: 'Account', 
+        label: 'Profile', 
         icon: Icons.person_outline, 
-        route: '/account',
-        requiredPermission: null, // All users can access account
+        route: '/profile',
+        requiredPermission: null, // All users can access profile
       ),
     ];
 
@@ -116,204 +117,225 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final routeLocation = GoRouterState.of(context).uri.toString();
+    final routeLocation = GoRouterState.of(context).uri.path;
     final isDesktop = MediaQuery.of(context).size.width > 768;
 
     if (isDesktop) {
-      return Row(
-        children: [
-          // Sidebar
-          Container(
-            width: _collapsed ? _collapsedWidth : _sidebarWidth,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              color: FlownetColors.charcoalBlack,
-              border: Border(
-                right: BorderSide(color: FlownetColors.slate, width: 1),
-              ),
-            ),
-            child: Column(
-              children: [
-                // Header with logo and collapse toggle
-                Padding(
-                  padding: const EdgeInsets.only(
-                      left: 12, right: 12, top: 24, bottom: 16,),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const FlownetLogo(
-                        showText: false,
-                        width: 32,
-                        height: 32,
-                      ),
-                      if (!_collapsed) const SizedBox(width: 8),
-                      if (!_collapsed)
-                        const Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: FlownetLogo(showText: true),
-                          ),
-                        ),
-                      Flexible(
-                        child: IconButton(
-                          onPressed: _toggleSidebar,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: Icon(
-                            _collapsed
-                                ? Icons.chevron_right
-                                : Icons.chevron_left,
-                            color: FlownetColors.coolGray,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ],
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: BackgroundImage(
+          child: Row(
+            children: [
+              // Sidebar with semi-transparent background
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: _collapsed ? _collapsedWidth : _sidebarWidth,
+                decoration: const BoxDecoration(),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
                   ),
-                ),
-                // Navigation items
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: _navItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _navItems[index];
-                      final active = routeLocation.startsWith(item.route);
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2,),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? FlownetColors.crimsonRed.withValues(alpha: 0.1)
-                              : null,
-                          borderRadius: BorderRadius.circular(12),
-                          border: active
-                              ? const Border(
-                                  left: BorderSide(
-                                    color: FlownetColors.crimsonRed,
-                                    width: 4,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            leading: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: Icon(
-                                item.icon,
-                                color: active
-                                    ? FlownetColors.crimsonRed
-                                    : FlownetColors.coolGray,
-                                size: 20,
-                              ),
-                            ),
-                            title: Text(
-                              item.label,
-                              style: TextStyle(
-                                color: active
-                                    ? FlownetColors.crimsonRed
-                                    : FlownetColors.pureWhite,
-                                fontWeight: active
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                                fontSize: 14,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            onTap: () {
-                              if (!routeLocation.startsWith(item.route)) {
-                                context.go(item.route);
-                              }
-                            },
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(20),
+                        border: const Border(
+                          right: BorderSide(
+                            color: Color.fromARGB(51, 255, 255, 255),
+                            width: 1,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Main content
-          Expanded(
-            child: Container(
-              decoration: const BoxDecoration(
-                color: FlownetColors.charcoalBlack,
-              ),
-              child: Column(
-                children: [
-                  // Top navigation bar with back/forward buttons
-                  if (routeLocation != '/dashboard')
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8,),
-                      decoration: const BoxDecoration(
-                        color: FlownetColors.graphiteGray,
-                        border: Border(
-                          bottom: BorderSide(
-                              color: FlownetColors.slate, width: 1,),
-                        ),
                       ),
-                      child: Row(
+                      child: Column(
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed: () {
-                              if (GoRouter.of(context).canPop()) {
-                                GoRouter.of(context).pop();
-                              } else {
-                                GoRouter.of(context).go('/dashboard');
-                              }
-                            },
-                            tooltip: 'Back',
-                            color: FlownetColors.pureWhite,
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward),
-                            onPressed: () {
-                              // Forward navigation logic (can be enhanced)
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'Forward navigation coming soon',),
-                                  backgroundColor:
-                                      FlownetColors.amberOrange,
+                          // Header with logo and collapse toggle
+                          Padding(
+                            padding: const EdgeInsets.only(
+                                left: 12, right: 12, top: 24, bottom: 16,),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Image.asset(
+                                  'assets/Icons/Red_Khono_Discs.png',
+                                  width: _collapsed ? 28 : 64,
+                                  height: _collapsed ? 28 : 64,
+                                  fit: BoxFit.contain,
                                 ),
-                              );
-                            },
-                            tooltip: 'Forward',
-                            color: FlownetColors.pureWhite,
-                          ),
-                          const Spacer(),
-                          // Current page indicator
-                          Text(
-                            _getPageTitle(routeLocation),
-                            style: const TextStyle(
-                              color: FlownetColors.coolGray,
-                              fontSize: 14,
+                                IconButton(
+                                  onPressed: _toggleSidebar,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: Icon(
+                                    _collapsed
+                                        ? Icons.chevron_right
+                                        : Icons.chevron_left,
+                                    color: FlownetColors.coolGray,
+                                    size: 20,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
+                          // Navigation items
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              itemCount: _navItems.length,
+                              itemExtent: 56, // Fixed height for better performance
+                              cacheExtent: 200, // Cache more items for smoother scrolling
+                              addAutomaticKeepAlives: true, // Keep state of list items
+                              itemBuilder: (context, index) {
+                                final item = _navItems[index];
+                                final active = routeLocation.startsWith(item.route);
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2,),
+                                  decoration: BoxDecoration(
+                                    color: active
+                                        ? FlownetColors.crimsonRed.withAlpha((0.1 * 255).round())
+                                        : null,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: active
+                                        ? const Border(
+                                            left: BorderSide(
+                                              color: FlownetColors.crimsonRed,
+                                              width: 4,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      leading: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: Icon(
+                                          item.icon,
+                                          color: active
+                                              ? FlownetColors.crimsonRed
+                                              : FlownetColors.coolGray,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        item.label,
+                                        style: TextStyle(
+                                          color: active
+                                              ? FlownetColors.crimsonRed
+                                              : FlownetColors.pureWhite,
+                                          fontWeight: active
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      onTap: () {
+                                        if (!routeLocation.startsWith(item.route)) {
+                                          context.go(item.route);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                            child: _buildLogoutButton(),
                           ),
                         ],
                       ),
                     ),
-                  Expanded(child: widget.child),
-                ],
+                  ),
+                ),
               ),
-            ),
+              // Main content
+              Expanded(
+                child: Container(
+                  color: Colors.transparent,
+                  child: Column(
+                    children: [
+                      // Top navigation bar with back/forward buttons
+                      if (routeLocation != '/dashboard')
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8,),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha((0.08 * 255).round()),
+                            border: const Border(
+                              bottom: BorderSide(
+                                  color: FlownetColors.slate, width: 1,),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back),
+                                onPressed: () {
+                                  if (GoRouter.of(context).canPop()) {
+                                    GoRouter.of(context).pop();
+                                  } else {
+                                    GoRouter.of(context).go('/dashboard');
+                                  }
+                                },
+                                tooltip: 'Back',
+                                color: FlownetColors.pureWhite,
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.arrow_forward),
+                                onPressed: () {
+                                  // Forward navigation logic (can be enhanced)
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Forward navigation coming soon',),
+                                      backgroundColor:
+                                          FlownetColors.amberOrange,
+                                    ),
+                                  );
+                                },
+                                tooltip: 'Forward',
+                                color: FlownetColors.pureWhite,
+                              ),
+                              const Spacer(),
+                              // Current page indicator
+                              Text(
+                                _getPageTitle(routeLocation),
+                                style: const TextStyle(
+                                  color: FlownetColors.coolGray,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Expanded(child: widget.child),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       );
     } else {
       // Mobile layout with drawer
       return Scaffold(
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: const FlownetLogo(showText: false),
+          title: Image.asset(
+            'assets/Icons/Red_Khono_Discs.png',
+            width: 32,
+            height: 32,
+            fit: BoxFit.contain,
+          ),
           centerTitle: false,
           actions: [
             if (routeLocation != '/dashboard')
@@ -329,11 +351,24 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           child: SafeArea(
             child: Column(
               children: [
-                const Center(child: FlownetLogo(showText: true)),
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: Image.asset(
+                      'assets/Icons/Red_Khono_Discs.png',
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
                 const Divider(color: FlownetColors.slate),
                 Expanded(
                   child: ListView.builder(
                     itemCount: _navItems.length,
+                    itemExtent: 56, // Fixed height for better performance
+                    cacheExtent: 200, // Cache more items for smoother scrolling
+                    addAutomaticKeepAlives: true, // Keep state of list items
                     itemBuilder: (context, index) {
                       final item = _navItems[index];
                       final active = routeLocation.startsWith(item.route);
@@ -342,7 +377,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             horizontal: 8, vertical: 2,),
                         decoration: BoxDecoration(
                           color: active
-                              ? FlownetColors.crimsonRed.withValues(alpha: 0.1)
+                              ? FlownetColors.crimsonRed.withAlpha((0.1 * 255).round())
                               : null,
                           borderRadius: BorderRadius.circular(12),
                           border: active
@@ -383,14 +418,28 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                     },
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.logout,
+                      color: FlownetColors.coolGray,
+                    ),
+                    title: const Text(
+                      'Logout',
+                      style: TextStyle(color: FlownetColors.pureWhite),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _handleLogout(context);
+                    },
+                  ),
+                ),
               ],
             ),
           ),
         ),
-        body: Container(
-          decoration: const BoxDecoration(
-            color: FlownetColors.charcoalBlack,
-          ),
+        body: BackgroundImage(
           child: Column(
             children: [
               // Top navigation bar with back/forward buttons
@@ -411,7 +460,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                         icon: const Icon(Icons.arrow_back),
                         onPressed: () => Navigator.of(context).pop(),
                         tooltip: 'Back',
-                        color: FlownetColors.pureWhite,
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -428,7 +476,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                           );
                         },
                         tooltip: 'Forward',
-                        color: FlownetColors.pureWhite,
                       ),
                       const Spacer(),
                       // Current page indicator
@@ -450,6 +497,36 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     }
   }
 
+  Future<void> _handleLogout(BuildContext ctx) async {
+    final router = GoRouter.of(ctx);
+    await AuthService().signOut();
+    if (!mounted) return;
+    router.go('/');
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: () => _handleLogout(context),
+        icon: const Icon(
+          Icons.logout,
+          color: FlownetColors.coolGray,
+          size: 20,
+        ),
+        label: const Text(
+          'Logout',
+          style: TextStyle(
+            color: FlownetColors.coolGray,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        ),
+      ),
+    );
+  }
+
   String _getPageTitle(String route) {
     switch (route) {
       case '/approvals':
@@ -462,8 +539,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         return 'Sprint Console';
       case '/settings':
         return 'Settings';
-      case '/account':
-        return 'Account';
+      case '/profile':
+        return 'Profile';
       default:
         return 'Flownet Workspaces';
     }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
 
@@ -37,22 +39,34 @@ class Deliverable {
   });
 
   factory Deliverable.fromJson(Map<String, dynamic> json) {
+    // Handle definition_of_done which can be a List (JSONB array) or String
+    String? definitionOfDone;
+    final dodValue = json['definition_of_done'];
+    if (dodValue != null) {
+      if (dodValue is List) {
+        // Convert List to String by joining items
+        definitionOfDone = dodValue.map((item) => item.toString()).join('\n');
+      } else if (dodValue is String) {
+        definitionOfDone = dodValue;
+      }
+    }
+    
     return Deliverable(
-      id: json['id'],
-      title: json['title'],
-      description: json['description'],
-      definitionOfDone: json['definition_of_done'],
-      priority: json['priority'],
-      status: json['status'],
-      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
-      createdBy: json['created_by'],
-      assignedTo: json['assigned_to'],
-      sprintId: json['sprint_id'],
-      createdByName: json['created_by_name'],
-      assignedToName: json['assigned_to_name'],
-      sprintName: json['sprint_name'],
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      description: json['description']?.toString(),
+      definitionOfDone: definitionOfDone,
+      priority: json['priority']?.toString() ?? 'Medium',
+      status: json['status']?.toString() ?? 'Draft',
+      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date'].toString()) : null,
+      createdBy: json['created_by']?.toString() ?? '',
+      assignedTo: json['assigned_to']?.toString(),
+      sprintId: json['sprint_id']?.toString(),
+      createdByName: json['created_by_name']?.toString(),
+      assignedToName: json['assigned_to_name']?.toString(),
+      sprintName: json['sprint_name']?.toString(),
+      createdAt: DateTime.parse(json['created_at'].toString()),
+      updatedAt: DateTime.parse(json['updated_at'].toString()),
     );
   }
 
@@ -92,16 +106,46 @@ class DeliverableService {
       final response = await _apiClient.get('/deliverables');
       
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> deliverablesJson = response.data!['data'] as List<dynamic>;
-        final List<Deliverable> deliverables = deliverablesJson
-            .map((json) => Deliverable.fromJson(json))
-            .toList();
-        
-        return ApiResponse.success({'deliverables': deliverables}, response.statusCode);
+        try {
+          // Handle different response structures
+          List<dynamic> deliverablesJson = [];
+          
+          if (response.data is List) {
+            // Direct list
+            deliverablesJson = response.data as List<dynamic>;
+          } else if (response.data is Map) {
+            // Nested in 'data' or 'deliverables' key
+            final data = response.data as Map<String, dynamic>;
+            deliverablesJson = data['data'] as List<dynamic>? ?? 
+                              data['deliverables'] as List<dynamic>? ?? 
+                              [];
+          }
+          
+          final List<Deliverable> deliverables = deliverablesJson
+              .map((json) {
+                try {
+                  return Deliverable.fromJson(json as Map<String, dynamic>);
+                } catch (e) {
+                  debugPrint('Error parsing deliverable: $e, json: $json');
+                  return null;
+                }
+              })
+              .whereType<Deliverable>()
+              .toList();
+          
+          return ApiResponse.success({'deliverables': deliverables}, response.statusCode);
+        } catch (e) {
+          debugPrint('Error processing deliverables response: $e');
+          debugPrint('Response data type: ${response.data.runtimeType}');
+          debugPrint('Response data: ${response.data}');
+          return ApiResponse.error('Error processing deliverables: $e');
+        }
       } else {
         return ApiResponse.error(response.error ?? 'Failed to fetch deliverables');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('Exception in getDeliverables: $e');
+      debugPrint('Stack trace: $stackTrace');
       return ApiResponse.error('Error fetching deliverables: $e');
     }
   }
@@ -110,12 +154,14 @@ class DeliverableService {
   Future<ApiResponse> createDeliverable({
     required String title,
     String? description,
-    String? definitionOfDone,
+    dynamic definitionOfDone, // Can be List<String> or String
     String priority = 'Medium',
     String status = 'Draft',
     DateTime? dueDate,
     String? assignedTo,
     String? sprintId,
+    List<String>? sprintIds,
+    List<String>? evidenceLinks,
   }) async {
     try {
       final token = _authService.accessToken;
@@ -123,23 +169,71 @@ class DeliverableService {
         return ApiResponse.error('No access token available');
       }
 
+      // Convert definitionOfDone to proper format for backend
+      dynamic dodValue;
+      if (definitionOfDone != null) {
+        if (definitionOfDone is List<String>) {
+          dodValue = definitionOfDone; // Send as array, backend will stringify
+        } else if (definitionOfDone is String) {
+          // If it's a string, try to parse it as JSON, otherwise wrap in array
+          try {
+            dodValue = jsonDecode(definitionOfDone);
+          } catch (_) {
+            dodValue = [definitionOfDone]; // Convert single string to array
+          }
+        } else {
+          dodValue = definitionOfDone;
+        }
+      }
+
       final body = {
         'title': title,
         'description': description,
-        'definition_of_done': definitionOfDone,
+        'definition_of_done': dodValue,
         'priority': priority,
         'status': status,
         'due_date': dueDate?.toIso8601String(),
         'assigned_to': assignedTo,
         'sprint_id': sprintId,
+        if (sprintIds != null && sprintIds.isNotEmpty) 'sprint_ids': sprintIds,
+        if (evidenceLinks != null) 'evidence_links': evidenceLinks,
       };
 
       final response = await _apiClient.post('/deliverables', body: body);
       
       if (response.isSuccess && response.data != null) {
-        final deliverable = Deliverable.fromJson(response.data!['data']);
-        return ApiResponse.success({'deliverable': deliverable}, response.statusCode);
+        try {
+          // ApiClient already extracts the 'data' field from backend response
+          // So response.data should be the deliverable object directly
+          Map<String, dynamic> deliverableJson;
+          
+          if (response.data is Map<String, dynamic>) {
+            deliverableJson = response.data as Map<String, dynamic>;
+          } else if (response.data is Map) {
+            deliverableJson = Map<String, dynamic>.from(response.data as Map);
+          } else {
+            debugPrint('❌ Unexpected response data type: ${response.data.runtimeType}');
+            debugPrint('📦 Response data: ${response.data}');
+            return ApiResponse.error('Unexpected response format: ${response.data.runtimeType}');
+          }
+          
+          if (deliverableJson.isEmpty) {
+            return ApiResponse.error('Deliverable data is empty');
+          }
+          
+          debugPrint('📦 Parsing deliverable from JSON: ${deliverableJson.keys}');
+          final deliverable = Deliverable.fromJson(deliverableJson);
+          return ApiResponse.success({'deliverable': deliverable}, response.statusCode);
+        } catch (e, stackTrace) {
+          debugPrint('❌ Error parsing deliverable response: $e');
+          debugPrint('📚 Stack trace: $stackTrace');
+          debugPrint('📦 Response data: ${response.data}');
+          debugPrint('📦 Response data type: ${response.data.runtimeType}');
+          return ApiResponse.error('Error parsing deliverable: $e');
+        }
       } else {
+        debugPrint('❌ Deliverable creation failed: ${response.error}');
+        debugPrint('📦 Response status: ${response.statusCode}');
         return ApiResponse.error(response.error ?? 'Failed to create deliverable');
       }
     } catch (e) {
@@ -176,8 +270,23 @@ class DeliverableService {
       final response = await _apiClient.put('/deliverables/$id', body: body);
       
       if (response.isSuccess && response.data != null) {
-        final deliverable = Deliverable.fromJson(response.data!['data']);
-        return ApiResponse.success({'deliverable': deliverable}, response.statusCode);
+        try {
+          // ApiClient already extracts the 'data' field from backend response
+          Map<String, dynamic> deliverableJson;
+          
+          if (response.data is Map<String, dynamic>) {
+            deliverableJson = response.data as Map<String, dynamic>;
+          } else if (response.data is Map) {
+            deliverableJson = Map<String, dynamic>.from(response.data as Map);
+          } else {
+            return ApiResponse.error('Unexpected response format: ${response.data.runtimeType}');
+          }
+          
+          final deliverable = Deliverable.fromJson(deliverableJson);
+          return ApiResponse.success({'deliverable': deliverable}, response.statusCode);
+        } catch (e) {
+          return ApiResponse.error('Error parsing deliverable: $e');
+        }
       } else {
         return ApiResponse.error(response.error ?? 'Failed to update deliverable');
       }

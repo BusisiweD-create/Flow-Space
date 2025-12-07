@@ -20,7 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   final _companyController = TextEditingController();
   final _roleController = TextEditingController();
-  
+
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _acceptTerms = false;
@@ -32,18 +32,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'description': 'Create and manage deliverables, track progress',
       'icon': Icons.code,
       'color': Colors.blue,
-      'permissions': ['Create deliverables', 'Edit own work', 'View team progress'],
+      'permissions': [
+        'Create deliverables',
+        'Edit own work',
+        'View team progress'
+      ],
     },
     {
       'name': 'Project Manager',
       'description': 'Lead delivery teams, manage sprints, submit for review',
       'icon': Icons.leaderboard,
       'color': Colors.orange,
-      'permissions': ['Manage team', 'Submit for review', 'View team dashboard'],
+      'permissions': [
+        'Manage team',
+        'Submit for review',
+        'View team dashboard'
+      ],
     },
     {
       'name': 'Scrum Master',
-      'description': 'Facilitate sprints, remove blockers, ensure team efficiency',
+      'description':
+          'Facilitate sprints, remove blockers, ensure team efficiency',
       'icon': Icons.sports_esports,
       'color': Colors.green,
       'permissions': ['Manage sprints', 'View team metrics', 'Remove blockers'],
@@ -53,21 +62,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'description': 'Test deliverables, ensure quality standards',
       'icon': Icons.bug_report,
       'color': Colors.purple,
-      'permissions': ['Test deliverables', 'Create test reports', 'Quality assurance'],
+      'permissions': [
+        'Test deliverables',
+        'Create test reports',
+        'Quality assurance'
+      ],
     },
     {
       'name': 'Client',
       'description': 'Review and approve deliverables, provide feedback',
       'icon': Icons.verified_user,
       'color': Colors.teal,
-      'permissions': ['Review deliverables', 'Approve submissions', 'Provide feedback'],
+      'permissions': [
+        'Review deliverables',
+        'Approve submissions',
+        'Provide feedback'
+      ],
     },
     {
       'name': 'Stakeholder',
       'description': 'Monitor project progress, make strategic decisions',
       'icon': Icons.business,
       'color': Colors.indigo,
-      'permissions': ['View project status', 'Strategic oversight', 'High-level decisions'],
+      'permissions': [
+        'View project status',
+        'Strategic oversight',
+        'High-level decisions'
+      ],
     },
   ];
 
@@ -85,463 +106,531 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
-              Theme.of(context).colorScheme.secondary,
-            ],
+      body: Stack(
+        children: [
+          // Background image
+          Positioned.fill(
+            child: Image.asset(
+              'assets/Icons/khono_bg.png',
+              fit: BoxFit.cover,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Logo and Title
-                          Icon(
-                            Icons.dashboard,
-                            size: 60,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Create Account',
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Join Khonology and streamline your delivery process',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 32),
+          // Content overlay
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Card(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Logo and Title
+                            Image.asset(
+                              'assets/Icons/khono.png',
+                              height: 80,
+                              fit: BoxFit.contain,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Create Account',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Join Khonology and streamline your delivery process',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 32),
 
-                          // Name Fields
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _firstNameController,
-                                  decoration: InputDecoration(
-                                    labelText: 'First Name',
-                                    prefixIcon: const Icon(Icons.person_outline),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                            // Name Fields
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _firstNameController,
+                                    style: const TextStyle(color: Colors.white),
+                                    decoration: InputDecoration(
+                                      labelText: 'First Name',
+                                      labelStyle: TextStyle(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.7)),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.3)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.3)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFC10D00), width: 2),
+                                      ),
+                                      filled: true,
+                                      fillColor:
+                                          Colors.white.withValues(alpha: 0.1),
                                     ),
-                                    filled: true,
-                                    fillColor: Colors.grey[50],
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      return null;
+                                    },
                                   ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
                                 ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _lastNameController,
-                                  decoration: InputDecoration(
-                                    labelText: 'Last Name',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _lastNameController,
+                                    style: const TextStyle(color: Colors.white),
+                                    decoration: InputDecoration(
+                                      labelText: 'Last Name',
+                                      labelStyle: TextStyle(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.7)),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.3)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.3)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFC10D00), width: 2),
+                                      ),
+                                      filled: true,
+                                      fillColor:
+                                          Colors.white.withValues(alpha: 0.1),
                                     ),
-                                    filled: true,
-                                    fillColor: Colors.grey[50],
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Email Field
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
-                              labelText: 'Email',
-                              prefixIcon: const Icon(Icons.email_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                                return 'Please enter a valid email';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Company Field
-                          TextFormField(
-                            controller: _companyController,
-                            decoration: InputDecoration(
-                              labelText: 'Company',
-                              prefixIcon: const Icon(Icons.business_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your company';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Role Selection
-                          _buildRoleSelection(),
-                          const SizedBox(height: 16),
-
-                          // Password Field
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: !_isPasswordVisible,
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outlined),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _isPasswordVisible
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _isPasswordVisible = !_isPasswordVisible;
-                                  });
-                                },
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a password';
-                              }
-                              if (value.length < 8) {
-                                return 'Password must be at least 8 characters';
-                              }
-                              if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)').hasMatch(value)) {
-                                return 'Password must contain uppercase, lowercase, and number';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Confirm Password Field
-                          TextFormField(
-                            controller: _confirmPasswordController,
-                            obscureText: !_isConfirmPasswordVisible,
-                            decoration: InputDecoration(
-                              labelText: 'Confirm Password',
-                              prefixIcon: const Icon(Icons.lock_outlined),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _isConfirmPasswordVisible
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                                  });
-                                },
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please confirm your password';
-                              }
-                              if (value != _passwordController.text) {
-                                return 'Passwords do not match';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Terms and Conditions
-                          Row(
-                            children: [
-                              Checkbox(
-                                value: _acceptTerms,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _acceptTerms = value ?? false;
-                                  });
-                                },
-                              ),
-                              Expanded(
-                                child: Text(
-                                  'I agree to the Terms of Service and Privacy Policy',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
 
-                          // Create Account Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _handleRegister,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).colorScheme.primary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
+                            // Email Field
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                labelText: 'Email',
+                                labelStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7)),
+                                border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
                                 ),
-                                elevation: 2,
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: Color(0xFFC10D00), width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.1),
                               ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Create Account',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your email';
+                                }
+                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                    .hasMatch(value)) {
+                                  return 'Please enter a valid email';
+                                }
+                                return null;
+                              },
                             ),
-                          ),
-                          const SizedBox(height: 24),
+                            const SizedBox(height: 16),
 
-                          // Sign In Link
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Already have an account? ',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                              TextButton(
-                                onPressed: () => context.go('/login'),
-                                child: const Text(
-                                  'Sign In',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
+                            // Company Field
+                            TextFormField(
+                              controller: _companyController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                labelText: 'Company',
+                                labelStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7)),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
                                 ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: Color(0xFFC10D00), width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.1),
                               ),
-                            ],
-                          ),
-                        ],
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your company';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Role Selection
+                            _buildRoleSelection(),
+                            const SizedBox(height: 16),
+
+                            // Password Field
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: !_isPasswordVisible,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                labelStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7)),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _isPasswordVisible
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isPasswordVisible = !_isPasswordVisible;
+                                    });
+                                  },
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: Color(0xFFC10D00), width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter a password';
+                                }
+                                if (value.length < 8) {
+                                  return 'Password must be at least 8 characters';
+                                }
+                                if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)')
+                                    .hasMatch(value)) {
+                                  return 'Password must contain uppercase, lowercase, and number';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Confirm Password Field
+                            TextFormField(
+                              controller: _confirmPasswordController,
+                              obscureText: !_isConfirmPasswordVisible,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                labelText: 'Confirm Password',
+                                labelStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7)),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _isConfirmPasswordVisible
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isConfirmPasswordVisible =
+                                          !_isConfirmPasswordVisible;
+                                    });
+                                  },
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: Color(0xFFC10D00), width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please confirm your password';
+                                }
+                                if (value != _passwordController.text) {
+                                  return 'Passwords do not match';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Terms and Conditions
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _acceptTerms,
+                                  fillColor:
+                                      WidgetStateProperty.resolveWith((states) {
+                                    if (states.contains(WidgetState.selected)) {
+                                      return const Color(0xFFC10D00);
+                                    }
+                                    return Colors.white.withValues(alpha: 0.1);
+                                  }),
+                                  checkColor: Colors.white,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _acceptTerms = value ?? false;
+                                    });
+                                  },
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    'I agree to the Terms of Service and Privacy Policy',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          Colors.white.withValues(alpha: 0.9),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Create Account Button
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _handleRegister,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFC10D00),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 2,
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  Colors.white),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Create Account',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Sign In Link
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Already have an account? ',
+                                  style: TextStyle(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.7)),
+                                ),
+                                TextButton(
+                                  onPressed: () => context.go('/login'),
+                                  child: const Text(
+                                    'Sign In',
+                                    style: TextStyle(
+                                      color: Color(0xFFC10D00),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
+            ), // SafeArea
+          ), // Missing closing for SafeArea
+        ], // Stack children
+      ), // Stack
+    ); // Scaffold
   }
 
   final ErrorHandler _errorHandler = ErrorHandler();
   bool _isLoading = false;
 
   Widget _buildRoleSelection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Select Your Role',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+    return DropdownButtonFormField<String>(
+      // ignore: deprecated_member_use
+      value: _selectedRole,
+      decoration: InputDecoration(
+        labelText: 'Select Your Role',
+        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
         ),
-        const SizedBox(height: 12),
-        Text(
-          'Choose the role that best describes your responsibilities',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.grey[600],
-          ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
         ),
-        const SizedBox(height: 16),
-        ..._roles.map((role) => _buildRoleCard(role)),
-      ],
-    );
-  }
-
-  Widget _buildRoleCard(Map<String, dynamic> role) {
-    final isSelected = _selectedRole == role['name'];
-    final color = role['color'] as Color;
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedRole = role['name'];
-          });
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: isSelected ? color : Colors.grey[300]!,
-              width: isSelected ? 2 : 1,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            color: isSelected ? color.withValues(alpha: 0.1) : Colors.grey[50],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isSelected ? color : Colors.grey[300],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  role['icon'],
-                  color: isSelected ? Colors.white : Colors.grey[600],
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      role['name'],
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? color : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      role['description'],
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: (role['permissions'] as List<String>).map((permission) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: color.withValues(alpha: 0.3)),
-                          ),
-                          child: Text(
-                            permission,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: color,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-              if (isSelected)
-                Icon(
-                  Icons.check_circle,
-                  color: color,
-                  size: 24,
-                ),
-            ],
-          ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFC10D00), width: 2),
         ),
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.1),
       ),
+      dropdownColor: const Color(0xFF8B0000),
+      style: const TextStyle(color: Colors.white),
+      icon: Icon(
+        Icons.arrow_drop_down,
+        color: Colors.white.withValues(alpha: 0.7),
+      ),
+      items: _roles.map((role) {
+        return DropdownMenuItem<String>(
+          value: role['name'],
+          child: Text(
+            role['name'],
+            style: const TextStyle(color: Colors.white),
+          ),
+        );
+      }).toList(),
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedRole = value;
+          });
+        }
+      },
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please select a role';
+        }
+        return null;
+      },
     );
   }
 
   Future<void> _handleRegister() async {
     debugPrint('🔵 Register button clicked!');
-    
+
     // Check each field individually for debugging
     debugPrint('📝 Form field values:');
     debugPrint('   First Name: "${_firstNameController.text}"');
     debugPrint('   Last Name: "${_lastNameController.text}"');
     debugPrint('   Email: "${_emailController.text}"');
     debugPrint('   Company: "${_companyController.text}"');
-    debugPrint('   Password: "${_passwordController.text}" (length: ${_passwordController.text.length})');
+    debugPrint(
+        '   Password: "${_passwordController.text}" (length: ${_passwordController.text.length})');
     debugPrint('   Confirm Password: "${_confirmPasswordController.text}"');
     debugPrint('   Terms Accepted: $_acceptTerms');
-    
+
     if (!_formKey.currentState!.validate()) {
       debugPrint('❌ Form validation failed - check field values above');
       return;
     }
     debugPrint('✅ Form validation passed');
-    
+
     if (!_acceptTerms) {
       debugPrint('❌ Terms not accepted');
       _errorHandler.showErrorSnackBar(
@@ -562,62 +651,78 @@ class _RegisterScreenState extends State<RegisterScreen> {
       UserRole userRole;
       switch (_selectedRole.toLowerCase()) {
         case 'project manager':
+          userRole = UserRole.deliveryLead;
+          break;
         case 'scrum master':
           userRole = UserRole.deliveryLead;
           break;
+        case 'qa engineer':
+          userRole = UserRole.teamMember;
+          break;
         case 'client':
-        case 'stakeholder':
           userRole = UserRole.clientReviewer;
+          break;
+        case 'stakeholder':
+          userRole = UserRole.systemAdmin;
           break;
         default:
           userRole = UserRole.teamMember;
       }
 
       debugPrint('📧 Email: ${_emailController.text.trim()}');
-      debugPrint('👤 Name: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
+      debugPrint(
+          '👤 Name: ${_firstNameController.text.trim()} ${_lastNameController.text.trim()}');
       debugPrint('🎭 Role: $userRole');
-      
+
       final authService = AuthService();
-      final success = await authService.signUp(
+      final result = await authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
         '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
         userRole,
       );
-      
-      debugPrint('📊 Registration result: $success');
 
-      if (success && mounted) {
+      debugPrint('📊 Registration result: $result');
+
+      if (result['success'] == true && mounted) {
         _errorHandler.showSuccessSnackBar(context, 'Registration successful!');
         // Small delay to show success message
         await Future.delayed(const Duration(milliseconds: 500));
         // Navigate to email verification screen
         if (mounted) {
-          context.go('/email-verification', extra: {
-            'email': _emailController.text.trim(),
-          },);
+          context.go(
+            '/email-verification',
+            extra: {
+              'email': _emailController.text.trim(),
+            },
+          );
         }
       } else if (mounted) {
+        final errorMessage =
+            result['error'] ?? 'Registration failed. Please try again.';
         _errorHandler.showErrorSnackBar(
           context,
-          'Registration failed. Please check your information and try again.',
+          errorMessage,
         );
       }
     } catch (e) {
       if (mounted) {
         String errorMessage = 'Registration failed. Please try again.';
-        
+
         // Provide more specific error messages
-        if (e.toString().contains('network') || e.toString().contains('connection')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
+        if (e.toString().contains('network') ||
+            e.toString().contains('connection')) {
+          errorMessage =
+              'Network error. Please check your internet connection and try again.';
         } else if (e.toString().contains('timeout')) {
           errorMessage = 'Request timed out. Please try again.';
         } else if (e.toString().contains('server')) {
           errorMessage = 'Server error. Please try again later.';
         } else if (e.toString().contains('email')) {
-          errorMessage = 'Email already exists. Please use a different email address.';
+          errorMessage =
+              'Email already exists. Please use a different email address.';
         }
-        
+
         _errorHandler.showErrorSnackBar(context, errorMessage);
       }
     } finally {

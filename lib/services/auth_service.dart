@@ -49,7 +49,11 @@ class AuthService {
       final response = await _apiService.signIn(email, password);
       
       if (response.isSuccess && response.data != null) {
-        _currentUser = _apiService.parseUserFromResponse(response);
+        // Extract user data from the nested "user" field in login response
+        final userData = response.data!['user'] ?? response.data!;
+        final userResponse = ApiResponse.success(userData, response.statusCode);
+        
+        _currentUser = _apiService.parseUserFromResponse(userResponse);
         _isAuthenticated = _currentUser != null;
         
         if (_isAuthenticated) {
@@ -66,7 +70,7 @@ class AuthService {
     }
   }
 
-  Future<bool> signUp(String email, String password, String name, UserRole role) async {
+  Future<Map<String, dynamic>> signUp(String email, String password, String name, UserRole role) async {
     try {
       final response = await _apiService.signUp(email, password, name, role);
       
@@ -76,15 +80,16 @@ class AuthService {
         
         if (_isAuthenticated) {
           debugPrint('User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
-          return true;
+          return {'success': true};
         }
       } else {
         debugPrint('Sign up failed: ${response.error}');
+        return {'success': false, 'error': response.error ?? 'Registration failed'};
       }
-      return false;
+      return {'success': false, 'error': 'Registration failed'};
     } catch (e) {
       debugPrint('Sign up error: $e');
-      return false;
+      return {'success': false, 'error': 'Registration failed: $e'};
     }
   }
 
@@ -193,7 +198,7 @@ class AuthService {
         return hasPermission('manage_sprints');
       case '/client-review':
       case '/enhanced-client-review':
-        return canViewClientReview();
+        return isClientReviewer;
       case '/report-repository':
         return isDeliveryLead || isSystemAdmin || isClientReviewer;
       case '/notification-center':
@@ -224,10 +229,28 @@ class AuthService {
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
     try {
       final response = await _apiService.verifyEmail(email, verificationCode);
-      if (response.isSuccess) {
+      if (response.isSuccess && response.data != null) {
         debugPrint('Email verified successfully');
-        // Update current user if they're logged in
-        await _loadCurrentUser();
+        
+        // Extract JWT token from verification response
+        final data = response.data!;
+        final token = data['token'];
+        final userData = data['user'];
+        final expiresIn = data['expires_in'] ?? 86400;
+        
+        if (token != null) {
+          // Save the JWT token
+          final expiry = DateTime.now().add(Duration(seconds: expiresIn));
+          await _apiService.saveTokens(token, '', expiry);
+          debugPrint('JWT token saved after email verification');
+        }
+        
+        // Set current user
+        if (userData != null) {
+          _currentUser = User.fromJson(userData);
+          _isAuthenticated = true;
+          debugPrint('✅ Loaded user: ${_currentUser!.name} (${_currentUser!.email})');
+        }
       }
       return response;
     } catch (e) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/approval_request.dart';
@@ -19,11 +20,30 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   String _selectedStatus = 'all';
+  Timer? _refreshTimer;
+  StreamSubscription<List<ApprovalRequest>>? _approvalSubscription;
 
   @override
   void initState() {
     super.initState();
+    _approvalService.initRealtime();
+    _approvalSubscription = _approvalService.approvalRequestsStream.listen((requests) {
+      setState(() {
+        _approvalRequests = requests;
+      });
+    });
     _loadApprovalRequests();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadApprovalRequests();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _approvalSubscription?.cancel();
+    _approvalService.disposeRealtime();
+    super.dispose();
   }
 
   Future<void> _loadApprovalRequests() async {
@@ -63,6 +83,161 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: FlownetColors.crimsonRed,
+      ),
+    );
+  }
+
+  void _showRequestDetails(ApprovalRequest request) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: Text(
+          request.title,
+          style: const TextStyle(color: FlownetColors.pureWhite),
+        ),
+        content: SizedBox(
+          width: 600,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Description:',
+                  style: TextStyle(
+                    color: FlownetColors.electricBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  request.description,
+                  style: const TextStyle(color: FlownetColors.pureWhite),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Requested by:',
+                            style: TextStyle(color: FlownetColors.coolGray),
+                          ),
+                          Text(
+                            request.requestedByName,
+                            style: const TextStyle(color: FlownetColors.pureWhite),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Status:',
+                            style: TextStyle(color: FlownetColors.coolGray),
+                          ),
+                          Text(
+                            request.statusDisplay,
+                            style: const TextStyle(color: FlownetColors.pureWhite),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Priority:',
+                            style: TextStyle(color: FlownetColors.coolGray),
+                          ),
+                          Text(
+                            request.priorityDisplay,
+                            style: const TextStyle(color: FlownetColors.pureWhite),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Category:',
+                            style: TextStyle(color: FlownetColors.coolGray),
+                          ),
+                          Text(
+                            request.category,
+                            style: const TextStyle(color: FlownetColors.pureWhite),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (request.reviewReason != null && request.reviewReason!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Review Reason:',
+                    style: TextStyle(color: FlownetColors.coolGray),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    request.reviewReason!,
+                    style: const TextStyle(color: FlownetColors.pureWhite),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Close',
+              style: TextStyle(color: FlownetColors.coolGray),
+            ),
+          ),
+          if (request.isPending) ...[
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _rejectRequest(request);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: FlownetColors.crimsonRed,
+              ),
+              child: const Text(
+                'Reject',
+                style: TextStyle(color: FlownetColors.pureWhite),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _approveRequest(request);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: FlownetColors.electricBlue,
+              ),
+              child: const Text(
+                'Approve',
+                style: TextStyle(color: FlownetColors.pureWhite),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -318,6 +493,7 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
                                   ],
                                 ],
                               ),
+                              onTap: () => _showRequestDetails(request),
                             ),
                           );
                         },

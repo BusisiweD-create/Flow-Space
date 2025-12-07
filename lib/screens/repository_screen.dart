@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,9 +5,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/repository_file.dart';
 import '../services/document_service.dart';
 import '../services/auth_service.dart';
+import '../services/sprint_database_service.dart';
+import '../services/deliverable_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
+import '../widgets/audit_history_widget.dart';
 
 class RepositoryScreen extends StatefulWidget {
   const RepositoryScreen({super.key});
@@ -19,6 +22,8 @@ class RepositoryScreen extends StatefulWidget {
 
 class _RepositoryScreenState extends State<RepositoryScreen> {
   final DocumentService _documentService = DocumentService(AuthService());
+  final SprintDatabaseService _sprintService = SprintDatabaseService();
+  final DeliverableService _deliverableService = DeliverableService();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _tagsController = TextEditingController();
@@ -28,11 +33,38 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   bool _isLoading = false;
   String _selectedFileType = 'all';
   String _searchQuery = '';
+  List<Map<String, dynamic>> _projects = [];
+  List<Map<String, dynamic>> _sprints = [];
+  List<dynamic> _deliverables = [];
+  String? _selectedProjectId;
+  String? _selectedSprintId;
+  String? _selectedDeliverableId;
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
 
   @override
   void initState() {
     super.initState();
     _loadDocuments();
+    _loadFilters();
+  }
+
+  Future<void> _loadFilters() async {
+    try {
+      final projects = await _sprintService.getProjects();
+      final sprints = await _sprintService.getSprints();
+      final deliverablesResponse = await _deliverableService.getDeliverables();
+      
+      setState(() {
+        _projects = projects;
+        _sprints = sprints;
+        if (deliverablesResponse.isSuccess && deliverablesResponse.data != null) {
+          _deliverables = deliverablesResponse.data!['deliverables'] as List? ?? [];
+        }
+      });
+    } catch (e) {
+      // Silently fail - filters will just be empty
+    }
   }
 
   Future<void> _loadDocuments() async {
@@ -42,6 +74,9 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
       final response = await _documentService.getDocuments(
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
         fileType: _selectedFileType != 'all' ? _selectedFileType : null,
+        projectId: _selectedProjectId,
+        from: _dateFrom?.toIso8601String(),
+        to: _dateTo?.toIso8601String(),
       );
       
       if (response.isSuccess) {
@@ -74,8 +109,8 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
           // On web, we can't create a File from path, so we'll handle it differently
           _showWebUploadDialog(pickedFile);
         } else {
-          final file = File(pickedFile.path!);
-          _showUploadDialog(file);
+          final filePath = pickedFile.path!;
+          _showUploadDialog(filePath);
         }
       }
     } catch (e) {
@@ -83,7 +118,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     }
   }
 
-  void _showUploadDialog(File file) {
+  void _showUploadDialog(String filePath) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -94,7 +129,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('File: ${file.path.split('/').last}', 
+              Text('File: ${filePath.split('/').last}', 
                    style: const TextStyle(color: FlownetColors.coolGray),),
               const SizedBox(height: 16),
               TextField(
@@ -130,7 +165,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
             child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
           ),
           ElevatedButton(
-            onPressed: () => _performUpload(file),
+            onPressed: () => _performUpload(filePath),
             style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
             child: const Text('Upload', style: TextStyle(color: FlownetColors.pureWhite)),
           ),
@@ -139,14 +174,14 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     );
   }
 
-  Future<void> _performUpload(File file) async {
+  Future<void> _performUpload(String filePath) async {
     Navigator.pop(context);
     
     setState(() => _isLoading = true);
     
     try {
       final response = await _documentService.uploadDocument(
-        filePath: file.path,
+        filePath: filePath,
         description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
         tags: _tagsController.text.isNotEmpty ? _tagsController.text : null,
       );
@@ -275,14 +310,9 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         } else {
           final filePath = response.data!['filePath'];
           _showSuccessSnackBar('Document downloaded to: $filePath');
-          
-          // Try to open the file
-          final file = File(filePath);
-          if (await file.exists()) {
-            final uri = Uri.file(file.path);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri);
-            }
+          final uri = Uri.file(filePath);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri);
           }
         }
       } else {
@@ -390,13 +420,17 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+    return AppScaffold(
+      useBackgroundImage: true,
+      centered: false,
+      scrollable: false,
+      useGlassContainer: false,
       appBar: AppBar(
         title: const FlownetLogo(showText: true),
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -416,37 +450,150 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                 bottom: BorderSide(color: FlownetColors.slate, width: 1),
               ),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-            child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    decoration: const InputDecoration(
-                      hintText: 'Search documents...',
-                      hintStyle: TextStyle(color: FlownetColors.coolGray),
-                      prefixIcon: Icon(Icons.search, color: FlownetColors.coolGray),
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: FlownetColors.charcoalBlack,
+                // First row: Search and file type
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        decoration: const InputDecoration(
+                          hintText: 'Search documents...',
+                          hintStyle: TextStyle(color: FlownetColors.coolGray),
+                          prefixIcon: Icon(Icons.search, color: FlownetColors.coolGray),
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: FlownetColors.charcoalBlack,
+                        ),
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                      ),
                     ),
-                    style: const TextStyle(color: FlownetColors.pureWhite),
-                  ),
+                    const SizedBox(width: 16),
+                    DropdownButton<String>(
+                      value: _selectedFileType,
+                      onChanged: _onFileTypeChanged,
+                      dropdownColor: FlownetColors.graphiteGray,
+                      style: const TextStyle(color: FlownetColors.pureWhite),
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text('All Types')),
+                        DropdownMenuItem(value: 'pdf', child: Text('PDF')),
+                        DropdownMenuItem(value: 'docx', child: Text('Word')),
+                        DropdownMenuItem(value: 'xlsx', child: Text('Excel')),
+                        DropdownMenuItem(value: 'txt', child: Text('Text')),
+                        DropdownMenuItem(value: 'json', child: Text('JSON')),
+                        DropdownMenuItem(value: 'sql', child: Text('SQL')),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                DropdownButton<String>(
-                  value: _selectedFileType,
-                  onChanged: _onFileTypeChanged,
-                  dropdownColor: FlownetColors.graphiteGray,
-                  style: const TextStyle(color: FlownetColors.pureWhite),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All Types')),
-                    DropdownMenuItem(value: 'pdf', child: Text('PDF')),
-                    DropdownMenuItem(value: 'docx', child: Text('Word')),
-                    DropdownMenuItem(value: 'xlsx', child: Text('Excel')),
-                    DropdownMenuItem(value: 'txt', child: Text('Text')),
-                    DropdownMenuItem(value: 'json', child: Text('JSON')),
-                    DropdownMenuItem(value: 'sql', child: Text('SQL')),
+                const SizedBox(height: 12),
+                // Second row: Filters
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildFilterDropdown<String?>(
+                        value: _selectedProjectId,
+                        hint: 'All Projects',
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('All Projects')),
+                          ..._projects.map((p) => DropdownMenuItem<String?>(
+                            value: p['id'] as String,
+                            child: Text(p['name'] as String? ?? 'Unknown'),
+                          ),),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedProjectId = value;
+                            _selectedSprintId = null; // Reset sprint when project changes
+                          });
+                          _loadDocuments();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildFilterDropdown<String?>(
+                        value: _selectedSprintId,
+                        hint: 'All Sprints',
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('All Sprints')),
+                          ..._sprints.where((s) => _selectedProjectId == null || s['project_id'] == _selectedProjectId).map((s) => DropdownMenuItem<String?>(
+                            value: s['id'] as String,
+                            child: Text(s['name'] as String? ?? 'Unknown'),
+                          ),),
+                        ],
+                        onChanged: (value) {
+                          setState(() => _selectedSprintId = value);
+                          _loadDocuments();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildFilterDropdown<String?>(
+                        value: _selectedDeliverableId,
+                        hint: 'All Deliverables',
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('All Deliverables')),
+                          ..._deliverables.map((d) {
+                            // Handle both Map and Deliverable object
+                            final id = d is Map ? (d['id'] as String?) : (d.id as String?);
+                            final title = d is Map ? (d['title'] as String?) : (d.title as String?);
+                            return DropdownMenuItem<String?>(
+                              value: id,
+                              child: Text(title ?? 'Unknown'),
+                            );
+                          }),
+                        ],
+                        onChanged: (value) {
+                          setState(() => _selectedDeliverableId = value);
+                          _loadDocuments();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => _selectDateRange(),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: FlownetColors.charcoalBlack,
+                                  border: Border.all(color: FlownetColors.slate),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  _dateFrom != null && _dateTo != null
+                                      ? '${_formatDateShort(_dateFrom!)} - ${_formatDateShort(_dateTo!)}'
+                                      : 'Date Range',
+                                  style: TextStyle(
+                                    color: _dateFrom != null && _dateTo != null 
+                                        ? FlownetColors.pureWhite 
+                                        : FlownetColors.coolGray,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_dateFrom != null || _dateTo != null)
+                            IconButton(
+                              icon: const Icon(Icons.clear, size: 18, color: FlownetColors.coolGray),
+                              onPressed: () {
+                                setState(() {
+                                  _dateFrom = null;
+                                  _dateTo = null;
+                                });
+                                _loadDocuments();
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -490,10 +637,10 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   Widget _buildDocumentCard(RepositoryFile document) {
-                return Card(
+    return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      color: FlownetColors.graphiteGray,
-                  child: ListTile(
+      color: FlownetColors.graphiteGray.withValues(alpha: 0.6),
+      child: ListTile(
                     leading: CircleAvatar(
           backgroundColor: _getFileTypeColor(document.fileType),
                       child: Text(
@@ -555,7 +702,12 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
               onPressed: () => _previewDocument(document),
               tooltip: 'Preview',
             ),
-            IconButton(
+                        IconButton(
+              icon: const Icon(Icons.history, color: FlownetColors.coolGray),
+              onPressed: () => _showDocumentAuditHistory(document.id),
+                          tooltip: 'Audit History',
+                        ),
+                        IconButton(
               icon: const Icon(Icons.download, color: FlownetColors.electricBlue),
               onPressed: () => _downloadDocument(document),
                           tooltip: 'Download',
@@ -602,6 +754,107 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _formatDateShort(DateTime date) {
+    return '${date.day}/${date.month}';
+  }
+
+  Widget _buildFilterDropdown<T>({
+    required T? value,
+    required String hint,
+    required List<DropdownMenuItem<T>> items,
+    required void Function(T?) onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: FlownetColors.coolGray),
+        border: const OutlineInputBorder(),
+        filled: true,
+        fillColor: FlownetColors.charcoalBlack,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      ),
+      style: const TextStyle(color: FlownetColors.pureWhite, fontSize: 14),
+      dropdownColor: FlownetColors.graphiteGray,
+      items: items,
+      onChanged: onChanged,
+    );
+  }
+
+  Future<void> _selectDateRange() async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: _dateFrom != null && _dateTo != null
+          ? DateTimeRange(start: _dateFrom!, end: _dateTo!)
+          : null,
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            primaryColor: FlownetColors.electricBlue,
+            colorScheme: const ColorScheme.dark(
+              primary: FlownetColors.electricBlue,
+              onPrimary: FlownetColors.pureWhite,
+              surface: FlownetColors.graphiteGray,
+              onSurface: FlownetColors.pureWhite,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _dateFrom = picked.start;
+        _dateTo = picked.end;
+      });
+      _loadDocuments();
+    }
+  }
+
+  void _showDocumentAuditHistory(String documentId) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        child: Container(
+          width: 600,
+          height: 500,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Audit History',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: FlownetColors.pureWhite,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: FlownetColors.pureWhite),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(color: FlownetColors.slate),
+              Expanded(
+                child: AuditHistoryWidget(
+                  documentId: documentId,
+                  documentService: _documentService,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showSuccessSnackBar(String message) {

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../models/user_role.dart';
-import '../models/user.dart';
+
+import '../theme/flownet_theme.dart';
+import '../models/approval_request.dart';
 import '../services/auth_service.dart';
+import '../services/approval_service.dart';
+import '../services/dashboard_service.dart';
+import '../widgets/metrics_card.dart';
+import '../widgets/background_image.dart';
 
 class RoleDashboardScreen extends StatefulWidget {
   const RoleDashboardScreen({super.key});
@@ -12,283 +17,407 @@ class RoleDashboardScreen extends StatefulWidget {
 }
 
 class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
-  User? _currentUser;
   final AuthService _authService = AuthService();
+  late final ApprovalService _approvalService;
+  final DashboardService _dashboardService = DashboardService();
+
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<ApprovalRequest> _requests = [];
+  DashboardStats? _dashboardStats;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
+    _approvalService = ApprovalService(_authService);
+    _loadData();
   }
 
-  Future<void> _loadCurrentUser() async {
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      // Get the current user from AuthService
-      final user = _authService.currentUser;
-      if (user != null) {
+      final approvalsResponse = await _approvalService.getApprovalRequests();
+      final dashboardResponse = await _dashboardService.getDashboardData();
+
+      if (approvalsResponse.isSuccess && approvalsResponse.data != null) {
         setState(() {
-          _currentUser = user;
+          _requests =
+              (approvalsResponse.data!['requests'] as List<dynamic>).cast<ApprovalRequest>();
         });
-        debugPrint('✅ Loaded user: ${user.name} (${user.email})');
       } else {
-        debugPrint('❌ No user found, redirecting to login');
-        if (mounted) {
-          context.go('/');
-        }
+        setState(() {
+          _errorMessage =
+              approvalsResponse.error ?? 'Failed to load approval data for dashboard';
+        });
+      }
+
+      if (dashboardResponse.isSuccess && dashboardResponse.data != null) {
+        final dashboard = dashboardResponse.data!['dashboard'] as DashboardData;
+        setState(() {
+          _dashboardStats = dashboard.stats;
+        });
+      } else {
+        setState(() {
+          _errorMessage = _errorMessage ??
+              (dashboardResponse.error ?? 'Failed to load dashboard stats');
+        });
       }
     } catch (e) {
-      debugPrint('❌ Error loading current user: $e');
-      // If there's an error, redirect to login
+      setState(() {
+        _errorMessage = 'Error loading dashboard data: $e';
+      });
+    } finally {
       if (mounted) {
-        context.go('/');
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    final currentUser = _authService.currentUser;
+    final rawName = currentUser?.name ?? '';
+    final firstName = rawName.contains(' ')
+        ? rawName.split(' ').first
+        : rawName;
+
+    final total = _requests.length;
+    final pending = _requests.where((r) => r.isPending).length;
+    final approved = _requests.where((r) => r.isApproved).length;
+    final rejected = _requests.where((r) => r.isRejected).length;
+
+    final recentRequests = _requests.take(5).toList();
+
+    final stats = _dashboardStats;
 
     return Scaffold(
-      appBar: _buildAppBar(),
-      body: _buildRoleSpecificContent(),
-      floatingActionButton: _buildRoleSpecificFAB(),
+      backgroundColor: FlownetColors.charcoalBlack,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: Text(
+          currentUser != null
+              ? '${currentUser.roleDisplayName} dashboard'
+              : 'Dashboard',
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: BackgroundImage(
+        withGlassEffect: false,
+        overlayOpacity: 0.5,
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _loadData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (currentUser != null) ...[
+                    _buildWelcomeSection(firstName, currentUser.roleDescription),
+                    const SizedBox(height: 24),
+                  ],
+                  _buildMetricsRow(total, pending, approved, rejected, stats),
+                  const SizedBox(height: 24),
+                  if (stats != null) _buildDeliverableStatsRow(stats),
+                  const SizedBox(height: 24),
+                  if (stats != null) ...[
+                    _buildSectionHeader('Sign-off Reports by Status'),
+                    const SizedBox(height: 16),
+                    _buildSignoffReportStatsRow(stats),
+                    const SizedBox(height: 24),
+                  ],
+                  if (stats != null) ...[
+                    _buildSignoffTimeRow(stats),
+                    const SizedBox(height: 24),
+                  ],
+                  _buildQuickLinks(context),
+                  const SizedBox(height: 24),
+                  _buildContentSection(recentRequests),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: Text('${_currentUser!.roleDisplayName} Dashboard'),
-      backgroundColor: _currentUser!.roleColor,
-      foregroundColor: Colors.white,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          onPressed: () => context.go('/notification-center'),
+  Widget _buildWelcomeSection(String firstName, String roleDescription) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Welcome, $firstName',
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: FlownetColors.pureWhite,
+          ),
         ),
-        IconButton(
-          icon: const Icon(Icons.settings_outlined),
-          onPressed: () => _showSettingsDialog(),
-        ),
-        PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'logout') {
-              _handleLogout();
-            } else if (value == 'profile') {
-              _showProfileDialog();
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'profile',
-              child: Row(
-                children: [
-                  Icon(_currentUser!.roleIcon),
-                  const SizedBox(width: 8),
-                  const Text('Profile'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'logout',
-              child: Row(
-                children: [
-                  Icon(Icons.logout),
-                  SizedBox(width: 8),
-                  Text('Logout'),
-                ],
-              ),
-            ),
-          ],
-          child: CircleAvatar(
-            backgroundColor: Colors.white,
-            child: Icon(
-              _currentUser!.roleIcon,
-              color: _currentUser!.roleColor,
-            ),
+        const SizedBox(height: 4),
+        Text(
+          roleDescription,
+          style: const TextStyle(
+            fontSize: 14,
+            color: FlownetColors.coolGray,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildRoleSpecificContent() {
-    switch (_currentUser!.role) {
-      case UserRole.teamMember:
-        return _buildTeamMemberDashboard();
-      case UserRole.deliveryLead:
-        return _buildDeliveryLeadDashboard();
-      case UserRole.clientReviewer:
-        return _buildClientReviewerDashboard();
-      case UserRole.systemAdmin:
-        return _buildSystemAdminDashboard();
-      case UserRole.developer:
-        return _buildDeveloperDashboard();
-      case UserRole.projectManager:
-        return _buildProjectManagerDashboard();
-      case UserRole.scrumMaster:
-        return _buildScrumMasterDashboard();
-      case UserRole.qaEngineer:
-        return _buildQAEngineerDashboard();
-      case UserRole.stakeholder:
-        return _buildStakeholderDashboard();
-    }
-  }
+  Widget _buildDeliverableStatsRow(DashboardStats stats) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
+        final crossAxisCount = isWide ? 4 : 2;
 
-  Widget _buildTeamMemberDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeliveryLeadDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildTeamMetrics(),
-          const SizedBox(height: 24),
-          _buildSprintOverview(),
-          const SizedBox(height: 24),
-          _buildPendingReviews(),
-          const SizedBox(height: 24),
-          _buildTeamPerformance(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClientReviewerDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildReviewMetrics(),
-          const SizedBox(height: 24),
-          _buildPendingApprovals(),
-          const SizedBox(height: 24),
-          _buildRecentSubmissions(),
-          const SizedBox(height: 24),
-          _buildReviewHistory(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSystemAdminDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildSystemMetrics(),
-          const SizedBox(height: 24),
-          _buildUserManagement(),
-          const SizedBox(height: 24),
-          _buildSystemHealth(),
-          const SizedBox(height: 24),
-          _buildAuditLogs(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
+        return GridView.count(
+          shrinkWrap: true,
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.8,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: _currentUser!.roleColor,
-              child: Icon(
-                _currentUser!.roleIcon,
-                size: 30,
-                color: Colors.white,
-              ),
+            MetricsCard(
+              title: 'Total deliverables',
+              value: stats.totalDeliverables.toString(),
+              icon: Icons.inventory_2_outlined,
+              color: FlownetColors.electricBlue,
+              onTap: () {},
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome back, ${_currentUser!.name.split(' ').first}!',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _currentUser!.roleDescription,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                  ),
-                ],
-              ),
+            MetricsCard(
+              title: 'In progress',
+              value: stats.inProgressDeliverables.toString(),
+              icon: Icons.pending_actions_outlined,
+              color: FlownetColors.amberOrange,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Completed',
+              value: stats.completedDeliverables.toString(),
+              icon: Icons.task_alt_outlined,
+              color: FlownetColors.emeraldGreen,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Pending',
+              value: stats.pendingDeliverables.toString(),
+              icon: Icons.hourglass_empty_outlined,
+              color: FlownetColors.coolGray,
+              onTap: () {},
             ),
           ],
-        ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSignoffTimeRow(DashboardStats stats) {
+    return MetricsCard(
+      title: 'Avg sign‑off time',
+      value: stats.avgSignoffDaysDisplay,
+      icon: Icons.schedule_outlined,
+      color: FlownetColors.electricBlue,
+      onTap: () {},
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: FlownetColors.pureWhite,
       ),
     );
   }
 
-  Widget _buildQuickActions() {
+  Widget _buildSignoffReportStatsRow(DashboardStats stats) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
+        final crossAxisCount = isWide ? 4 : 2;
+
+        return GridView.count(
+          shrinkWrap: true,
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.8,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            MetricsCard(
+              title: 'Draft',
+              value: stats.draftReports.toString(),
+              icon: Icons.edit_outlined,
+              color: FlownetColors.coolGray,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Submitted',
+              value: stats.submittedReports.toString(),
+              icon: Icons.send_outlined,
+              color: FlownetColors.electricBlue,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Approved',
+              value: stats.approvedReports.toString(),
+              icon: Icons.check_circle_outlined,
+              color: FlownetColors.emeraldGreen,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Change Requested',
+              value: stats.changeRequestedReports.toString(),
+              icon: Icons.sync_problem_outlined,
+              color: FlownetColors.amberOrange,
+              onTap: () {},
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMetricsRow(
+    int total,
+    int pending,
+    int approved,
+    int rejected,
+    DashboardStats? stats,
+  ) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor:
+              AlwaysStoppedAnimation<Color>(FlownetColors.crimsonRed),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            _errorMessage!,
+            style: const TextStyle(
+              color: FlownetColors.crimsonRed,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
+        final crossAxisCount = isWide ? 4 : 2;
+
+        return GridView.count(
+          shrinkWrap: true,
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.8,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            MetricsCard(
+              title: 'Total requests',
+              value: total.toString(),
+              icon: Icons.all_inbox_outlined,
+              color: FlownetColors.electricBlue,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Pending approval',
+              value: pending.toString(),
+              icon: Icons.hourglass_top_outlined,
+              color: FlownetColors.amberOrange,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Approved',
+              value: approved.toString(),
+              icon: Icons.check_circle_outlined,
+              color: FlownetColors.emeraldGreen,
+              onTap: () {},
+            ),
+            MetricsCard(
+              title: 'Rejected',
+              value: rejected.toString(),
+              icon: Icons.cancel_outlined,
+              color: FlownetColors.crimsonRed,
+              onTap: () {},
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickLinks(BuildContext context) {
+    final canCreateDeliverable = _authService.canCreateDeliverable();
+    final canApproveDeliverable =
+        _authService.canApproveDeliverable() || _authService.isDeliveryLead;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Quick Actions',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            const Text(
+              'Quick links',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: FlownetColors.pureWhite,
+              ),
             ),
             const SizedBox(height: 16),
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.add_task,
-                    label: 'New Deliverable',
+                if (canCreateDeliverable)
+                  _buildQuickLinkChip(
+                    icon: Icons.add_task_outlined,
+                    label: 'New deliverable',
                     onTap: () => context.go('/deliverable-setup'),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.timeline,
-                    label: 'Sprint Console',
-                    onTap: () => context.go('/sprint-console'),
+                if (canApproveDeliverable)
+                  _buildQuickLinkChip(
+                    icon: Icons.assignment_outlined,
+                    label: 'Approval requests',
+                    onTap: () => context.go('/approvals'),
                   ),
+                _buildQuickLinkChip(
+                  icon: Icons.folder_outlined,
+                  label: 'Repository',
+                  onTap: () => context.go('/repository'),
+                ),
+                _buildQuickLinkChip(
+                  icon: Icons.timer_outlined,
+                  label: 'Sprint console',
+                  onTap: () => context.go('/sprint-console'),
+                ),
+                _buildQuickLinkChip(
+                  icon: Icons.assessment_outlined,
+                  label: 'Reports',
+                  onTap: () => context.go('/report-repository'),
                 ),
               ],
             ),
@@ -298,30 +427,33 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildQuickLinkChip({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(24),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300]!),
-          borderRadius: BorderRadius.circular(12),
+          color: FlownetColors.surfaceLight.withAlpha(80),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: Colors.white.withAlpha(30),
+          ),
         ),
-        child: Column(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 32, color: _currentUser!.roleColor),
-            const SizedBox(height: 8),
+            Icon(icon, size: 18, color: FlownetColors.pureWhite),
+            const SizedBox(width: 8),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: FlownetColors.pureWhite,
+              ),
             ),
           ],
         ),
@@ -329,507 +461,120 @@ class _RoleDashboardScreenState extends State<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildMyDeliverables() {
+  Widget _buildContentSection(List<ApprovalRequest> recentRequests) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'My Deliverables',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                TextButton(
-                  onPressed: () => context.go('/repository'),
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildDeliverableItem(
-              title: 'User Authentication System',
-              status: 'In Progress',
-              progress: 0.75,
-              dueDate: DateTime.now().add(const Duration(days: 2)),
-            ),
-            const SizedBox(height: 12),
-            _buildDeliverableItem(
-              title: 'Payment Integration',
-              status: 'Draft',
-              progress: 0.25,
-              dueDate: DateTime.now().add(const Duration(days: 7)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeliverableItem({
-    required String title,
-    required String status,
-    required double progress,
-    required DateTime dueDate,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(status).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  status,
+                  'Recent approval activity',
                   style: TextStyle(
-                    color: _getStatusColor(status),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: FlownetColors.pureWhite,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(_currentUser!.roleColor),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Due: ${_formatDate(dueDate)}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentActivity() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Recent Activity',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            _buildActivityItem(
-              icon: Icons.check_circle,
-              title: 'Deliverable approved',
-              subtitle: 'User Authentication System',
-              time: '2 hours ago',
-            ),
-            const SizedBox(height: 12),
-            _buildActivityItem(
-              icon: Icons.edit,
-              title: 'Deliverable updated',
-              subtitle: 'Payment Integration',
-              time: '1 day ago',
-            ),
-            const SizedBox(height: 12),
-            _buildActivityItem(
-              icon: Icons.add,
-              title: 'New deliverable created',
-              subtitle: 'Mobile App Release',
-              time: '3 days ago',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActivityItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String time,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: _currentUser!.roleColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: _currentUser!.roleColor,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-              ),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-              ),
-            ],
-          ),
-        ),
-        Text(
-          time,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[500],
-              ),
-        ),
-      ],
-    );
-  }
-
-  // Placeholder methods for other role-specific content
-  Widget _buildTeamMetrics() => _buildPlaceholderCard('Team Metrics');
-  Widget _buildSprintOverview() => _buildPlaceholderCard('Sprint Overview');
-  Widget _buildPendingReviews() => _buildPlaceholderCard('Pending Reviews');
-  Widget _buildTeamPerformance() => _buildPlaceholderCard('Team Performance');
-  Widget _buildReviewMetrics() => _buildPlaceholderCard('Review Metrics');
-  Widget _buildPendingApprovals() => _buildPlaceholderCard('Pending Approvals');
-  Widget _buildRecentSubmissions() => _buildPlaceholderCard('Recent Submissions');
-  Widget _buildReviewHistory() => _buildPlaceholderCard('Review History');
-  Widget _buildSystemMetrics() => _buildPlaceholderCard('System Metrics');
-  Widget _buildUserManagement() => _buildPlaceholderCard('User Management');
-  Widget _buildSystemHealth() => _buildPlaceholderCard('System Health');
-  Widget _buildAuditLogs() => _buildPlaceholderCard('Audit Logs');
-
-  Widget _buildPlaceholderCard(String title) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$title content will be implemented here.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget? _buildRoleSpecificFAB() {
-    switch (_currentUser!.role) {
-      case UserRole.teamMember:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/deliverable-setup'),
-          icon: const Icon(Icons.add),
-          label: const Text('New Deliverable'),
-        );
-      case UserRole.deliveryLead:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/sprint-console'),
-          icon: const Icon(Icons.timeline),
-          label: const Text('Manage Sprint'),
-        );
-      case UserRole.clientReviewer:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/approvals'),
-          icon: const Icon(Icons.approval),
-          label: const Text('Review Items'),
-        );
-      case UserRole.systemAdmin:
-        return FloatingActionButton.extended(
-          onPressed: () => _showAdminMenu(),
-          icon: const Icon(Icons.admin_panel_settings),
-          label: const Text('Admin Panel'),
-        );
-      case UserRole.developer:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/deliverable-setup'),
-          icon: const Icon(Icons.code),
-          label: const Text('New Feature'),
-        );
-      case UserRole.projectManager:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/sprint-console'),
-          icon: const Icon(Icons.work),
-          label: const Text('Manage Project'),
-        );
-      case UserRole.scrumMaster:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/sprint-console'),
-          icon: const Icon(Icons.group_work),
-          label: const Text('Manage Sprint'),
-        );
-      case UserRole.qaEngineer:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/deliverable-setup'),
-          icon: const Icon(Icons.bug_report),
-          label: const Text('New Test'),
-        );
-      case UserRole.stakeholder:
-        return FloatingActionButton.extended(
-          onPressed: () => context.go('/repository'),
-          icon: const Icon(Icons.business),
-          label: const Text('View Progress'),
-        );
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-      case 'approved':
-        return Colors.green;
-      case 'in progress':
-        return Colors.blue;
-      case 'draft':
-        return Colors.orange;
-      case 'pending':
-        return Colors.yellow[700]!;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = date.difference(now).inDays;
-    
-    if (difference == 0) {
-      return 'Today';
-    } else if (difference == 1) {
-      return 'Tomorrow';
-    } else if (difference > 0) {
-      return 'In $difference days';
-    } else {
-      return 'Overdue';
-    }
-  }
-
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Settings'),
-        content: const Text('Settings panel will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showProfileDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${_currentUser!.name} Profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(_currentUser!.roleIcon, color: _currentUser!.roleColor),
-                const SizedBox(width: 8),
-                Text(_currentUser!.roleDisplayName),
               ],
             ),
-            const SizedBox(height: 8),
-            Text('Email: ${_currentUser!.email}'),
-            const SizedBox(height: 8),
-            Text(_currentUser!.roleDescription),
+            const SizedBox(height: 16),
+            if (_isLoading)
+              const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    FlownetColors.crimsonRed,
+                  ),
+                ),
+              )
+            else if (_errorMessage != null)
+              Text(
+                _errorMessage!,
+                style: const TextStyle(
+                  color: FlownetColors.crimsonRed,
+                ),
+              )
+            else if (recentRequests.isEmpty)
+              const Text(
+                'No recent approval requests.',
+                style: TextStyle(
+                  color: FlownetColors.coolGray,
+                ),
+              )
+            else
+              Column(
+                children: recentRequests
+                    .map((r) => _buildRequestRow(r))
+                    .toList(),
+              ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+      ),
+    );
+  }
+
+  Widget _buildRequestRow(ApprovalRequest request) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.title,
+                  style: const TextStyle(
+                    color: FlownetColors.pureWhite,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  request.requestedByName,
+                  style: const TextStyle(
+                    color: FlownetColors.coolGray,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
           ),
+          _buildStatusChip(request),
         ],
       ),
     );
   }
 
-  void _showAdminMenu() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Admin Panel'),
-        content: const Text('Admin panel features will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildStatusChip(ApprovalRequest request) {
+    Color color;
+    switch (request.status.toLowerCase()) {
+      case 'approved':
+        color = FlownetColors.emeraldGreen;
+        break;
+      case 'rejected':
+        color = FlownetColors.crimsonRed;
+        break;
+      default:
+        color = FlownetColors.amberOrange;
+    }
 
-  void _handleLogout() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              final router = GoRouter.of(context);
-              navigator.pop();
-              // Sign out the user
-              await _authService.signOut();
-              if (mounted) {
-                router.go('/');
-              }
-            },
-            child: const Text('Logout'),
-          ),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(40),
+        borderRadius: BorderRadius.circular(12),
       ),
-    );
-  }
-
-  // New role-specific dashboard methods
-  Widget _buildDeveloperDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProjectManagerDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScrumMasterDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQAEngineerDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStakeholderDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
-        ],
+      child: Text(
+        request.statusDisplay,
+        style: const TextStyle(
+          color: FlownetColors.pureWhite,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }

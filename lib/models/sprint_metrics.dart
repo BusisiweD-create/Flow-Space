@@ -18,6 +18,10 @@ class SprintMetrics {
   final String? risks;
   final String? mitigations;
   final String? scopeChanges;
+  final int pointsAddedDuringSprint;
+  final int pointsRemovedDuringSprint;
+  final String? blockers;
+  final String? decisions;
   final String? uatNotes;
   final DateTime recordedAt;
   final String recordedBy;
@@ -40,6 +44,10 @@ class SprintMetrics {
     this.risks,
     this.mitigations,
     this.scopeChanges,
+    this.pointsAddedDuringSprint = 0,
+    this.pointsRemovedDuringSprint = 0,
+    this.blockers,
+    this.decisions,
     this.uatNotes,
     required this.recordedAt,
     required this.recordedBy,
@@ -63,6 +71,10 @@ class SprintMetrics {
     String? risks,
     String? mitigations,
     String? scopeChanges,
+    int? pointsAddedDuringSprint,
+    int? pointsRemovedDuringSprint,
+    String? blockers,
+    String? decisions,
     String? uatNotes,
     DateTime? recordedAt,
     String? recordedBy,
@@ -85,6 +97,10 @@ class SprintMetrics {
       risks: risks ?? this.risks,
       mitigations: mitigations ?? this.mitigations,
       scopeChanges: scopeChanges ?? this.scopeChanges,
+      pointsAddedDuringSprint: pointsAddedDuringSprint ?? this.pointsAddedDuringSprint,
+      pointsRemovedDuringSprint: pointsRemovedDuringSprint ?? this.pointsRemovedDuringSprint,
+      blockers: blockers ?? this.blockers,
+      decisions: decisions ?? this.decisions,
       uatNotes: uatNotes ?? this.uatNotes,
       recordedAt: recordedAt ?? this.recordedAt,
       recordedBy: recordedBy ?? this.recordedBy,
@@ -110,6 +126,10 @@ class SprintMetrics {
       'risks': risks,
       'mitigations': mitigations,
       'scopeChanges': scopeChanges,
+      'pointsAddedDuringSprint': pointsAddedDuringSprint,
+      'pointsRemovedDuringSprint': pointsRemovedDuringSprint,
+      'blockers': blockers,
+      'decisions': decisions,
       'uatNotes': uatNotes,
       'recordedAt': recordedAt.toIso8601String(),
       'recordedBy': recordedBy,
@@ -135,6 +155,10 @@ class SprintMetrics {
       risks: json['risks'],
       mitigations: json['mitigations'],
       scopeChanges: json['scopeChanges'],
+      pointsAddedDuringSprint: json['pointsAddedDuringSprint'] ?? 0,
+      pointsRemovedDuringSprint: json['pointsRemovedDuringSprint'] ?? 0,
+      blockers: json['blockers'],
+      decisions: json['decisions'],
       uatNotes: json['uatNotes'],
       recordedAt: DateTime.parse(json['recordedAt']),
       recordedBy: json['recordedBy'],
@@ -147,6 +171,20 @@ class SprintMetrics {
   int get totalDefects => defectsOpened;
   int get netDefects => defectsOpened - defectsClosed;
   double get defectResolutionRate => defectsOpened > 0 ? (defectsClosed / defectsOpened) * 100 : 0.0;
+  
+  // Scope change properties
+  int get netScopeChange => pointsAddedDuringSprint - pointsRemovedDuringSprint;
+  bool get hasScopeChange => pointsAddedDuringSprint > 0 || pointsRemovedDuringSprint > 0;
+  String get scopeChangeIndicator {
+    if (netScopeChange > 0) return '+$netScopeChange pts';
+    if (netScopeChange < 0) return '$netScopeChange pts';
+    return 'No change';
+  }
+  Color get scopeChangeColor {
+    if (netScopeChange > 0) return Colors.orange; // Scope creep warning
+    if (netScopeChange < 0) return Colors.blue; // Scope reduced
+    return Colors.green; // Stable
+  }
   
   Color get qualityStatusColor {
     if (testPassRate >= 95 && netDefects <= 2) return Colors.green;
