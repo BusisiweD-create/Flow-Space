@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
 class SprintDatabaseService {
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  // Updated to match backend server port
+  static const String _baseUrl = 'http://localhost:3000/api/v1';
   final NotificationService _notificationService = NotificationService();
   final AuthService _authService = AuthService();
   

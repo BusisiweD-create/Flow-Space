@@ -7,8 +7,8 @@ class EmailService {
   factory EmailService() => _instance;
   EmailService._internal();
 
-  // Email service configuration
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  // Email service configuration (updated to match backend/server.js port)
+  static const String _baseUrl = 'http://localhost:3000/api/v1';
   
   // Send verification email
   Future<bool> sendVerificationEmail({

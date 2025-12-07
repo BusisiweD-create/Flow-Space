@@ -197,8 +197,14 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 item.iconKey,
                                 active: active,
                               );
+
                               return Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                // Provide a Material ancestor for InkWell to fix
+                                // "No Material widget found" runtime errors.
+                                child: Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(20),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(20),
                                   onTap: () {
@@ -245,7 +251,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                             child: Image.asset(
                                               iconPath,
                                               fit: BoxFit.contain,
-                                              errorBuilder: (context, error, stackTrace) {
+                                                errorBuilder:
+                                                    (context, error, stackTrace) {
                                                 return Icon(
                                                   item.icon,
                                                   size: 18,
@@ -273,6 +280,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                             ),
                                           ),
                                       ],
+                                      ),
                                     ),
                                   ),
                                 ),

@@ -2,7 +2,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class EmailDeliveryService {
-  static const String backendUrl = 'http://localhost:3001';
+  // Updated to match backend server port
+  static const String backendUrl = 'http://localhost:3000';
   
   // Test email delivery with multiple methods
   static Future<Map<String, dynamic>> testEmailDelivery({

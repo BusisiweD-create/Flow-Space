@@ -59,6 +59,11 @@ class AppIcons {
   static const String _repositoryDefault = 'assets/icons/Group 232.png';
   static const String _repositoryActive = 'assets/icons/Group 308.png';
 
+  // Reuse repository icon styling for reports (separate logical key so
+  // we can swap out art later without touching the sidebar code).
+  static const String _reportsDefault = _repositoryDefault;
+  static const String _reportsActive = _repositoryActive;
+
   static const String _accountDefault = 'assets/icons/Group 311.png';
   static const String _accountActive = 'assets/icons/Group 173.png';
 
@@ -73,6 +78,8 @@ class AppIcons {
   /// - 'notifications'
   /// - 'approvals'
   /// - 'repository'
+  /// - 'reports'
+  /// - 'role_management'
   /// - 'account'
   /// - 'logout'
   static String sidebarIconAsset(String key, {required bool active}) {
@@ -87,6 +94,12 @@ class AppIcons {
         return active ? _approvalsActive : _approvalsDefault;
       case 'repository':
         return active ? _repositoryActive : _repositoryDefault;
+      case 'reports':
+        return active ? _reportsActive : _reportsDefault;
+      case 'role_management':
+        // For now, visually match "account" styling; can be swapped to a
+        // dedicated asset later without changing sidebar code.
+        return active ? _accountActive : _accountDefault;
       case 'account':
         return active ? _accountActive : _accountDefault;
       case 'logout':

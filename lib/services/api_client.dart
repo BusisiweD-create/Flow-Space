@@ -9,7 +9,8 @@ class ApiClient {
   factory ApiClient() => _instance;
   ApiClient._internal();
 
-  static const String _baseUrl = 'http://localhost:3001/api'; // Local backend server
+  // Updated to match backend server port (see backend/server.js and .env)
+  static const String _baseUrl = 'http://localhost:3000/api'; // Local backend server
   static const String _apiVersion = '/v1';
   static const Duration _timeout = Duration(seconds: 30);
 

@@ -13,6 +13,10 @@ const fs = require('fs');
 const crypto = require('crypto');
 const pool = require('./db');
 
+// Simple in-memory user store for development and testing when PostgreSQL
+// is not available. This is NOT for production use.
+const inMemoryUsers = new Map();
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -148,7 +152,16 @@ app.post('/api/v1/auth/register', async (req, res) => {
       });
     }
     
-    // Check if user already exists
+    // Hash password and build user data
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = uuidv4();
+    const fullName = `${firstName} ${lastName}`;
+    const effectiveRole = role || 'user';
+
+    let user;
+
+    try {
+      // Check if user already exists (database mode)
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE email = $1',
       [email]
@@ -161,20 +174,41 @@ app.post('/api/v1/auth/register', async (req, res) => {
       });
     }
     
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userId = uuidv4();
-    const fullName = `${firstName} ${lastName}`;
-    
     // Insert user into users table
     const result = await pool.query(
       `INSERT INTO users (id, email, password_hash, name, role, is_active, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, email, name, role, created_at`,
-      [userId, email, hashedPassword, fullName, role || 'user', true, new Date().toISOString(), new Date().toISOString()]
+         RETURNING id, email, name, role, created_at, is_active`,
+        [userId, email, hashedPassword, fullName, effectiveRole, true, new Date().toISOString(), new Date().toISOString()]
     );
     
-    const user = result.rows[0];
+      user = result.rows[0];
+
+      // Also cache the user in memory so that login works even if the
+      // database becomes unavailable later in this process.
+      inMemoryUsers.set(email, {
+        ...user,
+        password_hash: hashedPassword,
+      });
+    } catch (dbError) {
+      // If the database is not available (common when Postgres isn't running),
+      // fall back to an in-memory user so the frontend flow can still be tested.
+      console.warn('⚠️ Database unavailable, using in-memory user for registration:', dbError.message);
+      const now = new Date().toISOString();
+      user = {
+        id: userId,
+        email,
+        name: fullName,
+        role: effectiveRole,
+        created_at: now,
+        is_active: true,
+      };
+
+      inMemoryUsers.set(email, {
+        ...user,
+        password_hash: hashedPassword,
+      });
+    }
     
     // Create JWT token
     const token = jwt.sign(
@@ -346,21 +380,42 @@ app.post('/api/v1/auth/login', async (req, res) => {
       });
     }
     
-    // Find user by email in users table
+    let user;
+
+    try {
+      // Try to find user by email in users table (database mode)
     const result = await pool.query(
       'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
       [email]
     );
     
     if (result.rows.length === 0) {
-      console.log(`❌ User not found: ${email}`);
+        // If not found in DB, fall back to in-memory cache
+        const memoryUser = inMemoryUsers.get(email);
+        if (!memoryUser) {
+          console.log(`❌ User not found (DB and memory): ${email}`);
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials' 
       });
     }
-    
-    const user = result.rows[0];
+        console.log(`ℹ️ Using in-memory user for login: ${email}`);
+        user = memoryUser;
+      } else {
+        user = result.rows[0];
+      }
+    } catch (dbError) {
+      // When Postgres isn't running, use in-memory user store
+      console.warn('⚠️ Database unavailable, using in-memory user for login:', dbError.message);
+      const memoryUser = inMemoryUsers.get(email);
+      if (!memoryUser) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid credentials',
+        });
+      }
+      user = memoryUser;
+    }
     
     // Check if user is active
     if (!user.is_active) {
@@ -1206,7 +1261,10 @@ app.post('/api/v1/auth/verify-email', async (req, res) => {
       });
     }
 
-    // Find user by email
+    let user;
+
+    try {
+      // Try to find user in database (normal mode)
     const result = await pool.query(
       'SELECT id, email, name, role, created_at, is_active FROM users WHERE email = $1',
       [email]
@@ -1219,7 +1277,21 @@ app.post('/api/v1/auth/verify-email', async (req, res) => {
       });
     }
     
-    const user = result.rows[0];
+      user = result.rows[0];
+    } catch (dbError) {
+      // When Postgres isn't running, fall back to a synthetic user so the
+      // email verification flow can still be tested end‑to‑end.
+      console.warn('⚠️ Database unavailable, using fallback user for email verification:', dbError.message);
+      const now = new Date().toISOString();
+      user = {
+        id: uuidv4(),
+        email,
+        name: email.split('@')[0],
+        role: 'teamMember',
+        created_at: now,
+        is_active: true,
+      };
+    }
     
     // In a real implementation, you would:
     // 1. Check the verification code from database

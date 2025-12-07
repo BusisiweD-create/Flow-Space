@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 import '../models/notification_item.dart';
 
 class NotificationService {
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  // Updated to match backend server port
+  static const String _baseUrl = 'http://localhost:3000/api/v1';
   String? _authToken;
 
   void setAuthToken(String token) {

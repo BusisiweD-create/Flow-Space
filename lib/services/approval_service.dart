@@ -6,7 +6,8 @@ import '../services/auth_service.dart';
 
 class ApprovalService {
   final AuthService _authService;
-  final String _baseUrl = 'http://localhost:3001/api/v1';
+  // Updated to match backend server port
+  final String _baseUrl = 'http://localhost:3000/api/v1';
 
   ApprovalService(this._authService);
 
