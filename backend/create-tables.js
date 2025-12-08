@@ -88,6 +88,13 @@ async function createTables() {
       console.log('✅ Existing tables dropped');
     }
     
+    // Ensure required extensions exist (for gen_random_uuid)
+    try {
+      await client.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
+    } catch (error) {
+      console.warn('⚠️  Warning ensuring pgcrypto extension:', error.message);
+    }
+
     // Read and execute schema
     console.log('📋 Creating tables...');
     const schemaPath = path.join(__dirname, 'database', 'schema.sql');
@@ -172,30 +179,38 @@ async function createTables() {
       }
     }
     
-    // Test user creation
-    console.log('\n👤 Testing user creation...');
-    const testEmail = 'admin@flowspace.com';
-    const testPassword = 'hashed_password_here';
-    const testName = 'Admin User';
-    const testRole = 'systemAdmin';
-    
-    // Check if user already exists
-    const existingUser = await client.query('SELECT id FROM users WHERE email = $1', [testEmail]);
-    
-    if (existingUser.rows.length === 0) {
-      const insertResult = await client.query(`
-        INSERT INTO users (id, email, password_hash, name, role)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, email, name, role, created_at
-      `, [require('uuid').v4(), testEmail, testPassword, testName, testRole]);
+    // Test user creation (non-fatal if users table is missing)
+    try {
+      console.log('\n👤 Testing user creation...');
+      const testEmail = 'admin@flowspace.com';
+      const testPassword = 'hashed_password_here';
+      const testName = 'Admin User';
+      const testRole = 'systemAdmin';
       
-      console.log('✅ Test user created successfully');
-      console.log(`   - ID: ${insertResult.rows[0].id}`);
-      console.log(`   - Email: ${insertResult.rows[0].email}`);
-      console.log(`   - Name: ${insertResult.rows[0].name}`);
-      console.log(`   - Role: ${insertResult.rows[0].role}`);
-    } else {
-      console.log('ℹ️  Test user already exists');
+      // Check if user already exists
+      const existingUser = await client.query('SELECT id FROM users WHERE email = $1', [testEmail]);
+      
+      if (existingUser.rows.length === 0) {
+        const insertResult = await client.query(`
+          INSERT INTO users (id, email, password_hash, name, role)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING id, email, name, role, created_at
+        `, [require('uuid').v4(), testEmail, testPassword, testName, testRole]);
+        
+        console.log('✅ Test user created successfully');
+        console.log(`   - ID: ${insertResult.rows[0].id}`);
+        console.log(`   - Email: ${insertResult.rows[0].email}`);
+        console.log(`   - Name: ${insertResult.rows[0].name}`);
+        console.log(`   - Role: ${insertResult.rows[0].role}`);
+      } else {
+        console.log('ℹ️  Test user already exists');
+      }
+    } catch (error) {
+      if (error.code === '42P01') {
+        console.warn('⚠️  Users table does not exist yet; skipping test user creation');
+      } else {
+        console.warn('⚠️  Error during test user creation:', error.message);
+      }
     }
     
     await client.release();
