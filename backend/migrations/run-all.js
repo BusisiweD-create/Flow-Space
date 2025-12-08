@@ -10,6 +10,9 @@ try {
   // 1. Base tables
   run('create-tables.js');
 
+  // 1b. Ensure core tables exist regardless of previous issues
+  run('migrations/create_core_tables.js');
+
   // 2. Deliverables + signoff tables
   run('migrations/create_signoff_deliverables_tables.js');
 
