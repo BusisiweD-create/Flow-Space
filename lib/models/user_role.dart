@@ -185,6 +185,21 @@ class PermissionManager {
       description: 'View all team deliverables',
       allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin, UserRole.clientReviewer, UserRole.developer, UserRole.projectManager, UserRole.scrumMaster, UserRole.qaEngineer, UserRole.stakeholder],
     ),
+    'view_sprints': Permission(
+      name: 'View Sprints',
+      description: 'View sprint lists and boards',
+      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin],
+    ),
+    'update_tickets': Permission(
+      name: 'Update Tickets',
+      description: 'Move ticket progress status',
+      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead],
+    ),
+    'update_sprint_status': Permission(
+      name: 'Update Sprint Status',
+      description: 'Change sprint progress status',
+      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead],
+    ),
   };
 
   static bool hasPermission(UserRole userRole, String permissionName) {

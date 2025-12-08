@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_client.dart';
 import 'package:khono/models/user.dart';
 import 'package:khono/models/user_role.dart';
@@ -211,7 +213,15 @@ class BackendApiService {
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
-    return await _apiClient.get('/sign-off-reports', queryParams: queryParams);
+    final resp = await _apiClient.get('/sign-off-reports', queryParams: queryParams);
+    if (resp.isSuccess && resp.data != null) {
+      try {
+        final raw = resp.data;
+        final List<dynamic> items = raw is List ? raw : (raw['data'] ?? raw['reports'] ?? raw['items'] ?? []);
+        await _saveCachedReports(items);
+      } catch (_) {}
+    }
+    return resp;
   }
 
   Future<ApiResponse> getSignOffReport(String reportId) async {
@@ -220,7 +230,14 @@ class BackendApiService {
 
   Future<ApiResponse> createSignOffReport(Map<String, dynamic> reportData) async {
     debugPrint('🔵 Creating sign-off report: $reportData');
-    return await _apiClient.post('/sign-off-reports', body: reportData);
+    final resp = await _apiClient.post('/sign-off-reports', body: reportData);
+    if (resp.isSuccess && resp.data != null) {
+      try {
+        final map = resp.data is Map<String, dynamic> ? resp.data as Map<String, dynamic> : Map<String, dynamic>.from(resp.data as Map);
+        await _prependCachedReport(map);
+      } catch (_) {}
+    }
+    return resp;
   }
 
   Future<ApiResponse> updateSignOffReport(String reportId, Map<String, dynamic> updates) async {
@@ -229,7 +246,11 @@ class BackendApiService {
   }
 
   Future<ApiResponse> deleteSignOffReport(String reportId) async {
-    return await _apiClient.delete('/sign-off-reports/$reportId');
+    final resp = await _apiClient.delete('/sign-off-reports/$reportId');
+    if (resp.isSuccess) {
+      try { await _removeCachedReport(reportId); } catch (_) {}
+    }
+    return resp;
   }
 
   Future<ApiResponse> submitSignOffReport(String reportId) async {
@@ -239,17 +260,25 @@ class BackendApiService {
 
   Future<ApiResponse> approveSignOffReport(String reportId, String? comment, String? digitalSignature) async {
     debugPrint('🔵 Approving/adding feedback to report: $reportId');
-    return await _apiClient.post('/sign-off-reports/$reportId/approve', body: {
+    final resp = await _apiClient.post('/sign-off-reports/$reportId/approve', body: {
       'comment': comment,
       'digitalSignature': digitalSignature,
     },);
+    if (resp.isSuccess) {
+      try { await _updateCachedReportStatus(reportId, 'approved'); } catch (_) {}
+    }
+    return resp;
   }
 
   Future<ApiResponse> requestSignOffChanges(String reportId, String changeRequest) async {
     debugPrint('🔵 Requesting changes to report: $reportId');
-    return await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: {
+    final resp = await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: {
       'changeRequestDetails': changeRequest,
     },);
+    if (resp.isSuccess) {
+      try { await _updateCachedReportStatus(reportId, 'change_requested'); } catch (_) {}
+    }
+    return resp;
   }
 
   Future<ApiResponse> aiChat(List<Map<String, dynamic>> messages, {double? temperature, int? maxTokens}) async {
@@ -708,4 +737,57 @@ class BackendApiService {
 
 
 
+}
+
+const String _reportsKey = 'cached_signoff_reports';
+Future<void> _saveCachedReports(List<dynamic> list) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error caching reports: $e');
+  }
+}
+
+Future<void> _prependCachedReport(Map<String, dynamic> report) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_reportsKey);
+    final list = (s != null && s.isNotEmpty) ? List<Map<String, dynamic>>.from(jsonDecode(s)) : <Map<String, dynamic>>[];
+    list.insert(0, report);
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error updating cached reports: $e');
+  }
+}
+
+Future<void> _removeCachedReport(String reportId) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_reportsKey);
+    if (s == null || s.isEmpty) return;
+    final list = List<Map<String, dynamic>>.from(jsonDecode(s));
+    list.removeWhere((e) => (e['id']?.toString() ?? '') == reportId);
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error removing cached report: $e');
+  }
+}
+
+Future<void> _updateCachedReportStatus(String reportId, String status) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_reportsKey);
+    if (s == null || s.isEmpty) return;
+    final list = List<Map<String, dynamic>>.from(jsonDecode(s));
+    for (final e in list) {
+      if ((e['id']?.toString() ?? '') == reportId) {
+        e['status'] = status;
+        break;
+      }
+    }
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error updating cached report: $e');
+  }
 }

@@ -109,6 +109,7 @@ router.get('/:id', async (req, res) => {
     const sprint = await Sprint.findByPk(id, {
       include: [
         { association: 'deliverables' },
+        { association: 'epic_features' },
         { association: 'signoffs' },
         { association: 'audit_logs' },
         { model: Project, as: 'project', attributes: ['id', 'name', 'key'] }

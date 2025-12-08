@@ -5,6 +5,8 @@ const { DataTypes } = require('sequelize');
 const Deliverable = require('./Deliverable');
 const Sprint = require('./Sprint');
 const DeliverableSprint = require('./DeliverableSprint');
+const EpicFeature = require('./EpicFeature');
+const EpicFeatureSprint = require('./EpicFeatureSprint');
 const Signoff = require('./Signoff');
 const AuditLog = require('./AuditLog');
 const User = require('./User');
@@ -22,6 +24,8 @@ function initializeModels(sequelize) {
     Deliverable: Deliverable(sequelize, DataTypes),
     Sprint: Sprint(sequelize, DataTypes),
     DeliverableSprint: DeliverableSprint(sequelize, DataTypes),
+    EpicFeature: EpicFeature(sequelize, DataTypes),
+    EpicFeatureSprint: EpicFeatureSprint(sequelize, DataTypes),
     Signoff: Signoff(sequelize, DataTypes),
     AuditLog: AuditLog(sequelize, DataTypes),
     User: User(sequelize, DataTypes),

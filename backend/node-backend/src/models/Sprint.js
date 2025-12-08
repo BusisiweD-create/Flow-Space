@@ -121,6 +121,11 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'sprint_id',
       as: 'deliverables'
     });
+    Sprint.belongsToMany(models.EpicFeature, {
+      through: models.EpicFeatureSprint,
+      foreignKey: 'sprint_id',
+      as: 'epic_features'
+    });
 
     Sprint.hasMany(models.Signoff, {
       foreignKey: 'entity_id',

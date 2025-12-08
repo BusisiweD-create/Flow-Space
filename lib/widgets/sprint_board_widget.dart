@@ -210,14 +210,18 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
               children: [
                 Icon(icon, color: color, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  status,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(

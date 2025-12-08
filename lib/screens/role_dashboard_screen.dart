@@ -60,6 +60,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   final String _searchQuery = '';
   final String _sortField = 'created_at';
   final bool _sortAscending = false;
+  
 
   @override
   void initState() {
@@ -177,10 +178,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       // Get the current user from AuthService
       final user = await _authService.getCurrentUser();
       if (user != null && (user.isActive || user.isSystemAdmin)) {
+        if (!mounted) return;
         setState(() {
           _currentUser = user;
         });
         debugPrint('✅ Loaded user: ${user.name} (${user.email}) - Role: ${user.role}');
+        
         // Load audit logs after user is loaded
         _loadAuditLogs();
       } else {
@@ -291,10 +294,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       });
       debugPrint('❌ Exception loading audit logs: \$e');
     } finally {
-      setState(() {
-        _isLoadingAuditLogs = false;
-        _isLoadingMoreAuditLogs = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingAuditLogs = false;
+          _isLoadingMoreAuditLogs = false;
+        });
+      }
     }
   }
 
@@ -2141,4 +2146,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   void _handleRoleChanged(dynamic _) {
     _loadCurrentUser();
   }
+  
+
 }

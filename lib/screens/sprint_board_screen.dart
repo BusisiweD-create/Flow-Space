@@ -131,6 +131,15 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
 
   Future<void> _handleIssueStatusChange(JiraIssue issue, String newStatus) async {
     try {
+      final auth = AuthService();
+      if (auth.isSystemAdmin) {
+        _showSnackBar('System admin can view/comment only');
+        return;
+      }
+      if (!(auth.isTeamMember || auth.isDeliveryLead)) {
+        _showSnackBar('You do not have permission to update ticket status', isError: true);
+        return;
+      }
       setState(() {
         _isLoading = true;
       });
@@ -164,6 +173,21 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
             _issues[index] = updatedIssue;
             _isLoading = false;
           });
+          final totalIssues = _issues.length;
+          final completedIssues = _issues.where((i) => i.status == 'Done').length;
+          final progress = totalIssues > 0 ? (completedIssues / totalIssues) * 100 : 0.0;
+          try {
+            await _databaseService.updateSprintProgress(
+              sprintId: widget.sprintId,
+              progress: progress,
+            );
+            setState(() {
+              _sprintDetails = {
+                ...?_sprintDetails,
+                'progress': progress,
+              };
+            });
+          } catch (_) {}
           _showSnackBar('Ticket ${issue.key} moved to $newStatus');
         } else {
           setState(() {
@@ -546,6 +570,72 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
               _buildSprintStats(),
             ],
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              DropdownButton<String>(
+                value: (_sprintDetails?['status'] ?? 'planning')?.toString(),
+                items: const [
+                  DropdownMenuItem(value: 'planning', child: Text('Planning')),
+                  DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                  DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                ],
+                onChanged: (value) async {
+                  if (value == null) return;
+                  final auth = AuthService();
+                  if (auth.isSystemAdmin) {
+                    _showSnackBar('System admin can view/comment only');
+                    return;
+                  }
+                  if (!(auth.isTeamMember || auth.isDeliveryLead)) {
+                    _showSnackBar('You do not have permission to update sprint status', isError: true);
+                    return;
+                  }
+                  final oldStatus = (_sprintDetails?['status'] ?? '').toString();
+                  final totalIssues = _issues.length;
+                  final completedIssues = _issues.where((issue) => issue.status == 'Done').length;
+                  final progress = totalIssues > 0 ? (completedIssues / totalIssues) * 100 : 0.0;
+                  final ok = await _databaseService.updateSprintStatus(
+                    sprintId: widget.sprintId,
+                    status: value,
+                    progress: progress,
+                    oldStatus: oldStatus.isEmpty ? null : oldStatus,
+                    sprintName: widget.sprintName,
+                  );
+                  if (ok) {
+                    setState(() {
+                      _sprintDetails = {
+                        ...?_sprintDetails,
+                        'status': value,
+                        'progress': progress,
+                      };
+                    });
+                    _showSnackBar('Sprint status updated to $value');
+                  } else {
+                    _showSnackBar('Failed to update sprint status', isError: true);
+                  }
+                },
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  final auth = AuthService();
+                  if (auth.isSystemAdmin) {
+                    _showSnackBar('System admin can view/comment only');
+                    return;
+                  }
+                  _showCreateTicketDialog();
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('New Ticket'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: FlownetColors.electricBlue,
+                  foregroundColor: FlownetColors.pureWhite,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -768,7 +858,14 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateTicketDialog,
+        onPressed: () {
+          final auth = AuthService();
+          if (auth.isSystemAdmin) {
+            _showSnackBar('System admin can view/comment only');
+            return;
+          }
+          _showCreateTicketDialog();
+        },
         backgroundColor: FlownetColors.electricBlue,
         foregroundColor: FlownetColors.pureWhite,
         icon: _isCreatingTicket 

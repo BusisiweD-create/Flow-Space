@@ -35,6 +35,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   bool _isAiSuggesting = false;
   bool _useAiForTicket = false;
   final bool _isGeneratingAiTicket = false;
+  final GlobalKey _sprintsSectionKey = GlobalKey();
 
   final List<Map<String, dynamic>> _sprints = [];
   final List<Map<String, dynamic>> _tickets = [];
@@ -272,15 +273,49 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     });
 
     try {
+      if (_selectedProjectKey == null || _selectedProjectKey!.isEmpty) {
+        try { await _sprintService.backfillSprintProjects(); } catch (_) {}
+      }
       // Load projects and sprints using SprintDatabaseService
       final projects = await _sprintService.getProjects();
-      final sprints = await _sprintService.getSprints();
+      List<Map<String, dynamic>> sprints;
+      if (_selectedProjectKey != null && _selectedProjectKey!.isNotEmpty) {
+        final selected = projects.firstWhere(
+          (p) {
+            final keyOrId = p['key']?.toString() ?? p['id']?.toString();
+            return keyOrId == _selectedProjectKey;
+          },
+          orElse: () => <String, dynamic>{},
+        );
+        final pid = selected['id']?.toString();
+        final pkey = selected['key']?.toString();
+        sprints = await _sprintService.getSprints(
+          projectId: (pid != null && pid.isNotEmpty) ? pid : null,
+          projectKey: (pkey != null && pkey.isNotEmpty) ? pkey : null,
+        );
+      } else {
+        sprints = await _sprintService.getSprints();
+      }
       setState(() {
         _projects.clear();
         _projects.addAll(projects);
         _sprints.clear();
         _sprints.addAll(sprints);
       });
+
+      // If a project is preselected, ensure sprints section is visible
+      if (_selectedProjectKey != null && _selectedProjectKey!.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = _sprintsSectionKey.currentContext;
+          if (ctx != null) {
+            Scrollable.ensureVisible(
+              ctx,
+              alignment: 0.1,
+              duration: const Duration(milliseconds: 300),
+            );
+          }
+        });
+      }
 
       // Load tickets if sprint is selected
       if (_selectedSprintId != null) {
@@ -361,8 +396,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       _tickets.clear(); // Clear tickets when project changes
     });
 
-    // Load sprints for the selected project
-    _loadSprints(project);
+    // Navigate to sprint console with project filter
+    final keyOrId = _selectedProjectKey;
+    if (keyOrId != null && keyOrId.isNotEmpty) {
+      context.go('/sprint-console?projectKey=${Uri.encodeComponent(keyOrId)}');
+    } else {
+      _loadSprints(project);
+    }
   }
 
   // Load sprints for a specific project
@@ -374,10 +414,30 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     });
 
     try {
-      // In a real app, you would fetch sprints for the selected project here
-      // For now, we'll just use the existing sprints
+      final projectId = project['id']?.toString();
+      final projectKey = project['key']?.toString();
+
+      final fetched = await _sprintService.getSprints(
+        projectId: (projectId != null && projectId.isNotEmpty) ? projectId : null,
+        projectKey: (projectKey != null && projectKey.isNotEmpty) ? projectKey : null,
+      );
+
       setState(() {
-        _sprints.clear();
+        _sprints
+          ..clear()
+          ..addAll(fetched);
+      });
+
+      // Auto-scroll to sprints section after loading
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _sprintsSectionKey.currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(
+            ctx,
+            alignment: 0.1,
+            duration: const Duration(milliseconds: 300),
+          );
+        }
       });
     } catch (e) {
       if (mounted) {
@@ -430,6 +490,15 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     if (!mounted) return;
 
     try {
+      final auth = AuthService();
+      if (auth.isSystemAdmin) {
+        _showSnackBar('System admin can view/comment only');
+        return;
+      }
+      if (!(auth.isTeamMember || auth.isDeliveryLead)) {
+        _showSnackBar('You do not have permission to update sprint status', isError: true);
+        return;
+      }
       final messenger = ScaffoldMessenger.of(context);
       setState(() {
         _isLoading = true;
@@ -488,6 +557,57 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     }
   }
 
+  Future<void> _confirmAndDeleteSprint(String sprintId, String sprintName) async {
+    if (!mounted) return;
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('Delete Sprint'),
+            content: Text('Delete "$sprintName"? This cannot be undone.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
+          );
+        },
+      );
+      if (result != true) return;
+
+      setState(() { _isLoading = true; });
+      final ok = await _sprintService.deleteSprint(sprintId);
+      // ignore: use_build_context_synchronously
+      final messenger = ScaffoldMessenger.of(context);
+      if (ok) {
+        setState(() {
+          _sprints.removeWhere((s) => s['id'].toString() == sprintId);
+          if (_selectedSprintId == sprintId) _selectedSprintId = null;
+        });
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Sprint deleted'), backgroundColor: Colors.green),
+        );
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Failed to delete sprint'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting sprint: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() { _isLoading = false; });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -519,12 +639,12 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           _buildHeader(),
           const SizedBox(height: 24),
 
-          // Projects Section
-          _buildProjectsSection(),
-          const SizedBox(height: 24),
-
-          // Sprints Section
-          _buildSprintsSection(),
+          // Projects or Sprints Section
+          if (_selectedProjectKey == null) ...[
+            _buildProjectsSection(),
+          ] else ...[
+            _buildSelectedProjectSprintsView(),
+          ],
           const SizedBox(height: 24),
 
           // Tickets Section (conditionally shown when a sprint is selected)
@@ -670,6 +790,24 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     );
   }
 
+  Widget _buildSelectedProjectSprintsView() {
+    final selected = _projects.firstWhere(
+      (p) {
+        final keyOrId = p['key']?.toString() ?? p['id']?.toString();
+        return keyOrId == _selectedProjectKey;
+      },
+      orElse: () => <String, dynamic>{},
+    );
+    return _buildProjectNestedSprints(selected);
+  }
+
+  int _calculateCrossAxisCount(double width) {
+    if (width > 1200) return 4;
+    if (width > 900) return 3;
+    if (width > 600) return 2;
+    return 1;
+  }
+
   Widget _buildProjectsGrid() {
     return GridView.builder(
       shrinkWrap: true,
@@ -679,7 +817,6 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         childAspectRatio: 1.5,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        mainAxisExtent: 140,
       ),
       itemCount: _projects.length,
       itemBuilder: (context, index) {
@@ -696,17 +833,13 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     );
   }
 
-  int _calculateCrossAxisCount(double width) {
-    if (width > 1200) return 4;
-    if (width > 900) return 3;
-    if (width > 600) return 2;
-    return 1;
-  }
-
-  Widget _buildSprintsSection() {
-    final filteredSprints = _getFilteredSprints();
+  Widget _buildProjectNestedSprints(Map<String, dynamic> project) {
     final theme = Theme.of(context);
     final onSurfaceColor = theme.colorScheme.onSurface;
+    final primaryColor = theme.colorScheme.primary;
+    final projectName = project['name']?.toString() ?? 'Project';
+    final projectId = project['id']?.toString();
+    final projectKey = project['key']?.toString();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,66 +848,56 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Sprints',
-              style: theme.textTheme.titleLarge?.copyWith(
+              'Sprints in $projectName',
+              style: theme.textTheme.titleMedium?.copyWith(
                 color: onSurfaceColor,
                 fontWeight: FontWeight.bold,
               ),
             ),
             ElevatedButton.icon(
-              onPressed: _selectedProjectKey == null
-                  ? () { _showSnackBar('Select a project first', isError: true); }
-                  : _showCreateSprintDialog,
+              onPressed: _showCreateSprintDialog,
               icon: const Icon(Icons.add),
               label: const Text('Create Sprint'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Theme.of(context).colorScheme.onError,
+                backgroundColor: primaryColor,
+                foregroundColor: theme.colorScheme.onPrimary,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        if (filteredSprints.isEmpty)
+        const SizedBox(height: 12),
+        if (_sprints.isEmpty)
           _buildEmptyState(
-            _selectedProjectKey != null
-                ? 'No sprints for this project'
-                : 'No sprints yet',
-            _selectedProjectKey != null
-                ? 'Create a sprint for the selected project to start planning'
-                : 'Create your first sprint to start planning',
+            'No sprints for this project',
+            'Create a sprint for the selected project to start planning',
           )
         else
-          _buildSprintsList(filteredSprints),
+          _buildSprintsList(
+            _sprints.where((s) {
+              try {
+                final pid = (s['project_id'] ?? s['projectId'] ?? (s['project'] is Map ? s['project']['id'] : null))?.toString();
+                final pkey = (s['project_key'] ?? s['projectKey'] ?? (s['project'] is Map ? s['project']['key'] : null))?.toString();
+                if (projectId != null && projectId.isNotEmpty && pid == projectId) return true;
+                if (projectKey != null && projectKey.isNotEmpty && pkey == projectKey) return true;
+
+                // Heuristic: match by name or description containing project name/key
+                final name = (s['name'] ?? '').toString().toLowerCase();
+                final desc = (s['description'] ?? '').toString().toLowerCase();
+                final pName = projectName.toLowerCase();
+                final pKey = (projectKey ?? '').toLowerCase();
+                if (pName.isNotEmpty && (name.contains(pName) || desc.contains(pName))) return true;
+                if (pKey.isNotEmpty && (name.contains(pKey) || desc.contains(pKey))) return true;
+              } catch (_) {}
+              return false;
+            }).toList(),
+          ),
       ],
     );
   }
 
-  List<Map<String, dynamic>> _getFilteredSprints() {
-    if (_selectedProjectKey == null) {
-      return _sprints;
-    }
+  
 
-    final selectedProject = _projects.firstWhere(
-      (p) {
-        final keyOrId = p['key']?.toString() ?? p['id']?.toString();
-        return keyOrId == _selectedProjectKey;
-      },
-      orElse: () => <String, dynamic>{},
-    );
-
-    final selectedProjectId = selectedProject['id']?.toString();
-    if (selectedProjectId == null) {
-      return _sprints;
-    }
-
-    // Filter sprints by selected project and convert to list
-    return _sprints.where((sprint) {
-      final projectId =
-          (sprint['projectId'] ?? sprint['project_id'])?.toString();
-      return projectId == selectedProjectId;
-    }).toList();
-  }
+  
 
   // Get color based on status
   Color getStatusColor(String status) {
@@ -881,6 +1004,8 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                               children: [
                                 Text(
                                   sprint['name']?.toString() ?? 'Unknown Sprint',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Theme.of(context)
                                         .colorScheme
@@ -903,55 +1028,73 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                               ],
                             ),
                           ),
-                          // Status indicator
-                          if (sprint['status'] != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: getStatusColor(sprint['status'])
-                                    .withAlpha(26),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: getStatusColor(sprint['status'])
-                                      .withAlpha(77),
+                          Flexible(
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              alignment: WrapAlignment.end,
+                              children: [
+                                if (sprint['status'] != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: getStatusColor(sprint['status']).withAlpha(26),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: getStatusColor(sprint['status']).withAlpha(77),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      sprint['status'].toString().toUpperCase(),
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: getStatusColor(sprint['status']),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.onSurface,
                                 ),
-                              ),
-                              child: Text(
-                                sprint['status'].toString().toUpperCase(),
-                                style: TextStyle(
-                                  color: getStatusColor(sprint['status']),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    final sid = sprint['id'].toString();
+                                    if (value == 'delete') {
+                                      _confirmAndDeleteSprint(sid, sprint['name']?.toString() ?? 'Sprint');
+                                    } else {
+                                      _updateSprintStatus(sid, value);
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'To Do',
+                                      child: Text('Mark as To Do'),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'In Progress',
+                                      child: Text('Mark as In Progress'),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'Done',
+                                      child: Text('Mark as Done'),
+                                    ),
+                                    const PopupMenuDivider(),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Delete Sprint'),
+                                    ),
+                                  ],
+                                  icon: const Icon(Icons.more_vert, color: Colors.white),
                                 ),
-                              ),
+                              ],
                             ),
-                          const SizedBox(width: 12),
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            size: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                          PopupMenuButton<String>(
-                            onSelected: (value) =>
-                                _updateSprintStatus(sprint['id'].toString(), value),
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                value: 'To Do',
-                                child: Text('Mark as To Do'),
-                              ),
-                              PopupMenuItem(
-                                value: 'In Progress',
-                                child: Text('Mark as In Progress'),
-                              ),
-                              PopupMenuItem(
-                                value: 'Done',
-                                child: Text('Mark as Done'),
-                              ),
-                            ],
-                            icon: const Icon(Icons.more_vert, color: Colors.white),
                           ),
                         ],
                       ),

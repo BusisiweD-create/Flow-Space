@@ -146,6 +146,65 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+const defaultRolePermissions = {
+  teammember: new Set(['view_sprints', 'update_tickets', 'update_sprint_status']),
+  deliverylead: new Set(['view_sprints', 'update_tickets', 'update_sprint_status']),
+  clientreviewer: new Set(['view_sprints'])
+};
+
+const requirePermission = (permissionName) => async (req, res, next) => {
+  try {
+    const role = req.user && req.user.role ? String(req.user.role) : null;
+    if (!role) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const normalizedRole = role.toLowerCase();
+    // Explicitly forbid admin from update operations
+    const pn = String(permissionName).toLowerCase();
+    if ((pn.startsWith('update_')) && ['systemadmin', 'admin', 'system_admin'].includes(normalizedRole)) {
+      return res.status(403).json({ error: 'Forbidden: admin cannot update statuses' });
+    }
+    try {
+      const result = await pool.query(
+        `
+          SELECT 1
+          FROM user_roles ur
+          JOIN role_permissions rp ON rp.role_id = ur.id
+          JOIN permissions p ON p.id = rp.permission_id
+          WHERE LOWER(ur.name) = $1 AND LOWER(p.name) = $2
+          LIMIT 1
+        `,
+        [normalizedRole, String(permissionName).toLowerCase()]
+      );
+      if (result.rowCount > 0) {
+        // Additional guard: block admin from updates even if DB grants
+        if ((pn.startsWith('update_')) && ['systemadmin', 'admin', 'system_admin'].includes(normalizedRole)) {
+          return res.status(403).json({ error: 'Forbidden: admin cannot update statuses' });
+        }
+        return next();
+      }
+    } catch (dbErr) {
+      console.warn('Permission table lookup failed, using defaults:', dbErr.message);
+    }
+
+    const allowedByDefault = defaultRolePermissions[normalizedRole] && defaultRolePermissions[normalizedRole].has(String(permissionName).toLowerCase());
+    if (allowedByDefault) {
+      return next();
+    }
+
+    return res.status(403).json({ error: 'Forbidden: missing permission', permission: permissionName });
+  } catch (err) {
+    console.error('Permission check error:', err);
+    const normalizedRole = (req.user && req.user.role ? String(req.user.role).toLowerCase() : '');
+    const allowedByDefault = defaultRolePermissions[normalizedRole] && defaultRolePermissions[normalizedRole].has(String(permissionName).toLowerCase());
+    if (allowedByDefault) {
+      return next();
+    }
+    return res.status(403).json({ error: 'Forbidden: missing permission', permission: permissionName });
+  }
+};
+
 // PostgreSQL connection
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
@@ -660,9 +719,10 @@ app.put('/api/v1/deliverables/:id', async (req, res) => {
 });
 
 // Sprints routes
-app.get('/api/v1/sprints', async (req, res) => {
+app.get('/api/v1/sprints', authenticateToken, requirePermission('view_sprints'), async (req, res) => {
   try {
-    const result = await pool.query(`
+    const { project_id, project_key } = req.query;
+    let query = `
       SELECT s.id,
              s.name,
              s.description,
@@ -676,24 +736,38 @@ app.get('/api/v1/sprints', async (req, res) => {
              u.name as created_by_name
       FROM sprints s
       LEFT JOIN users u ON s.created_by::uuid = u.id::uuid
-      ORDER BY s.created_at DESC
-    `);
-    
+    `;
+    const params = [];
+    const conditions = [];
+    if (project_key) {
+      query += ` LEFT JOIN projects p ON s.project_id::uuid = p.id::uuid`;
+      conditions.push(`p.key = $${params.length + 1}`);
+      params.push(project_key);
+    }
+    if (project_id) {
+      conditions.push(`s.project_id = $${(params.length + 1)}::uuid`);
+      params.push(project_id);
+    }
+    if (conditions.length) {
+      query += ` WHERE ` + conditions.join(' AND ');
+    }
+    query += ` ORDER BY s.created_at DESC`;
+
+    const result = await pool.query(query, params);
     const sprints = result.rows.map(row => ({
       id: row.id,
       name: row.name || 'Unnamed Sprint',
       description: row.description || '',
       status: row.status || 'planning',
-      project_id: row.project_id,
+      project_id: row.project_id || null,
       start_date: row.start_date,
       end_date: row.end_date,
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,
       created_by_name: row.created_by_name || 'Unknown',
-      project_id: row.project_id || null,
     }));
-    
+
     res.json({
       success: true,
       data: sprints
@@ -702,27 +776,17 @@ app.get('/api/v1/sprints', async (req, res) => {
     console.error('Get sprints error:', error);
     console.error('Error code:', error.code);
     console.error('Error detail:', error.detail);
-    
-    // If table doesn't exist or column error, return empty array
     if (error.code === '42P01' || error.code === '42703') {
-      console.log('Sprints table or column does not exist, returning empty array');
-      return res.json({
-        success: true,
-        data: []
-      });
+      console.log('Sprints or related table/column missing, returning empty array');
+      return res.json({ success: true, data: [] });
     }
-    
-    // Return empty array for any error instead of 500
-    res.json({
-      success: true,
-      data: []
-    });
+    res.json({ success: true, data: [] });
   }
 });
 
 app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
   try {
-    const { name, description, start_date, end_date, project_id, plannedPoints } = req.body;
+    let { name, description, start_date, end_date, project_id, project_key, plannedPoints } = req.body;
     const userId = req.user.id;
     
     if (!name || !start_date || !end_date) {
@@ -730,6 +794,25 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
         success: false,
         error: 'Name, start_date, and end_date are required'
       });
+    }
+
+    // Enforce project association: either project_id or project_key must be provided
+    try {
+      if ((!project_id || String(project_id).trim() === '') && project_key && String(project_key).trim() !== '') {
+        const proj = await pool.query(`SELECT id FROM projects WHERE key = $1 LIMIT 1`, [String(project_key).trim()]);
+        if (proj.rows.length > 0) {
+          project_id = proj.rows[0].id;
+        }
+      }
+      if (!project_id || String(project_id).trim() === '') {
+        return res.status(400).json({
+          success: false,
+          error: 'project_id or project_key is required to create a sprint'
+        });
+      }
+    } catch (resolveErr) {
+      console.error('Error resolving project for sprint creation:', resolveErr);
+      return res.status(500).json({ success: false, error: 'Failed to resolve project for sprint' });
     }
     
     const result = await pool.query(
@@ -762,8 +845,58 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
   }
 });
 
+// Maintenance: backfill sprint.project_id from ticket keys and project keys
+// Note: Intended for local/dev usage to associate legacy sprints to projects
+app.post('/api/v1/sprints/backfill-projects', async (req, res) => {
+  try {
+    const sprintsRes = await pool.query(`SELECT id, name FROM sprints WHERE project_id IS NULL ORDER BY id ASC`);
+    const updates = [];
+    for (const row of sprintsRes.rows) {
+      const sid = row.id;
+      let pkey = null;
+      try {
+        const tRes = await pool.query(`SELECT ticket_key FROM tickets WHERE sprint_id = $1 AND ticket_key IS NOT NULL AND ticket_key <> '' LIMIT 1`, [sid]);
+        if (tRes.rows.length > 0) {
+          const tk = tRes.rows[0].ticket_key;
+          const dashIdx = tk.indexOf('-');
+          if (dashIdx > 0) pkey = tk.substring(0, dashIdx);
+        }
+      } catch (_) {}
+
+      if (!pkey) {
+        // Heuristic: check if sprint name contains an exact project key
+        try {
+          const projects = await pool.query(`SELECT id, key FROM projects`);
+          for (const pr of projects.rows) {
+            if (pr.key && typeof pr.key === 'string') {
+              const key = pr.key;
+              const name = row.name || '';
+              if (name.includes(key)) { pkey = key; break; }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (!pkey) continue;
+      try {
+        const proj = await pool.query(`SELECT id FROM projects WHERE key = $1 LIMIT 1`, [pkey]);
+        if (proj.rows.length > 0) {
+          const pid = proj.rows[0].id;
+          await pool.query(`UPDATE sprints SET project_id = $1, updated_at = NOW() WHERE id = $2`, [pid, sid]);
+          updates.push({ sprint_id: sid, project_key: pkey, project_id: pid });
+        }
+      } catch (_) {}
+    }
+
+    return res.json({ success: true, data: { updated: updates.length, updates } });
+  } catch (error) {
+    console.error('Backfill sprint projects error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to backfill sprint projects' });
+  }
+});
+
 // Sprint board endpoints
-app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
+app.get('/api/v1/sprints/:id', authenticateToken, requirePermission('view_sprints'), async (req, res) => {
   try {
     const { id } = req.params;
     let result;
@@ -829,7 +962,7 @@ app.get('/api/v1/sprints/:id', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/v1/sprints/:id/tickets', authenticateToken, async (req, res) => {
+app.get('/api/v1/sprints/:id/tickets', authenticateToken, requirePermission('view_sprints'), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(`
@@ -851,7 +984,7 @@ app.get('/api/v1/sprints/:id/tickets', authenticateToken, async (req, res) => {
 });
 
 // Update sprint status only
-app.put('/api/v1/sprints/:id/status', authenticateToken, async (req, res) => {
+app.put('/api/v1/sprints/:id/status', authenticateToken, requirePermission('update_sprint_status'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -1047,7 +1180,7 @@ app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/v1/tickets/:id/status', authenticateToken, async (req, res) => {
+app.put('/api/v1/tickets/:id/status', authenticateToken, requirePermission('update_tickets'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -1504,7 +1637,7 @@ app.put('/api/v1/users/:userId/status', authenticateToken, async (req, res) => {
 });
 
 // Tickets routes
-app.get('/api/v1/sprints/:sprintId/tickets', async (req, res) => {
+app.get('/api/v1/sprints/:sprintId/tickets', authenticateToken, requirePermission('view_sprints'), async (req, res) => {
   try {
     const { sprintId } = req.params;
     
@@ -1547,7 +1680,7 @@ app.get('/api/v1/sprints/:sprintId/tickets', async (req, res) => {
 // Removed duplicate unauthenticated POST /api/v1/tickets route
 
 // Update ticket status endpoint
-app.put('/api/v1/tickets/:ticketId/status', async (req, res) => {
+app.put('/api/v1/tickets/:ticketId/status', authenticateToken, requirePermission('update_tickets'), async (req, res) => {
   try {
     const { ticketId } = req.params;
     const { status } = req.body;
@@ -1587,7 +1720,7 @@ app.put('/api/v1/tickets/:ticketId/status', async (req, res) => {
 });
 
 // Update sprint status
-app.put('/api/v1/sprints/:sprintId/status', authenticateToken, async (req, res) => {
+app.put('/api/v1/sprints/:sprintId/status', authenticateToken, requirePermission('update_sprint_status'), async (req, res) => {
   try {
     const { sprintId } = req.params;
     let { status } = req.body;

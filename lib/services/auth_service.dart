@@ -274,7 +274,7 @@ class AuthService {
       case '/approval-requests':
         return hasPermission('view_approvals');
       case '/sprint-console':
-        return hasPermission('create_sprint');
+        return hasPermission('view_sprints');
       case '/report-builder':
       case '/report-editor':
         return hasPermission('submit_for_review');
@@ -288,7 +288,7 @@ class AuthService {
       case '/sprint-metrics':
         return hasPermission('view_team_dashboard');
       case '/sprint-board':
-        return hasPermission('manage_sprints');
+        return hasPermission('view_sprints');
       case '/system-metrics':
         return hasPermission('view_team_dashboard') || (_currentUser?.isSystemAdmin ?? false);
       case '/system-health':

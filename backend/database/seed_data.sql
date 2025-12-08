@@ -24,7 +24,10 @@ INSERT INTO permissions (name, description) VALUES
 ('manage_projects', 'Create and manage projects'),
 ('manage_sprints', 'Create and manage sprints'),
 ('view_reports', 'View and generate reports'),
-('manage_notifications', 'Manage system notifications');
+('manage_notifications', 'Manage system notifications'),
+('view_sprints', 'View sprint boards and lists'),
+('update_tickets', 'Update ticket status and progress'),
+('update_sprint_status', 'Update sprint status');
 
 -- Insert role permissions
 -- Team Member permissions
@@ -32,7 +35,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT ur.id, p.id 
 FROM user_roles ur, permissions p 
 WHERE ur.name = 'teamMember' 
-AND p.name IN ('create_deliverable', 'edit_deliverable', 'view_reports');
+AND p.name IN ('create_deliverable', 'edit_deliverable', 'view_reports', 'view_sprints', 'update_tickets', 'update_sprint_status');
 
 -- Delivery Lead permissions
 INSERT INTO role_permissions (role_id, permission_id) 
