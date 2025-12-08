@@ -16,10 +16,13 @@ try {
   // 2. Deliverables + signoff tables
   run('migrations/create_signoff_deliverables_tables.js');
 
-  // 3. New feature tables
+  // 3. Fix any schema mismatches used by scheduler/queries
+  run('migrations/fix_signoff_schema.js');
+
+  // 4. New feature tables
   run('migrations/create_new_features_tables.js');
 
-  // 4. Seeds (optional)
+  // 5. Seeds (optional)
   try {
     run('migrations/seed.js');
   } catch (e) {
