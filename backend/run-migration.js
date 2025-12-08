@@ -16,7 +16,8 @@ async function runMigration() {
     console.log('🚀 Starting database migration...');
     
     // Read the main migration file that creates all required tables
-    const sqlFilePath = path.join(__dirname, 'database/migrations/database_migrations.sql');
+    // File lives at repo root: ../database_migrations.sql relative to backend/
+    const sqlFilePath = path.join(__dirname, '..', 'database_migrations.sql');
     console.log(`📄 Using migration file: ${sqlFilePath}`);
     const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
     
