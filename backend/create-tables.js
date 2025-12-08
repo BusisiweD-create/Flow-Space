@@ -3,6 +3,42 @@ const fs = require('fs');
 const path = require('path');
 const dbConfig = require('./database-config');
 
+function splitSqlStatements(sql) {
+  const statements = [];
+  let current = '';
+  let inDollarQuotedFunction = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    const nextTwo = sql.slice(i, i + 2);
+
+    // Toggle when we see a $$ block (start or end of function body)
+    if (nextTwo === '$$') {
+      inDollarQuotedFunction = !inDollarQuotedFunction;
+      current += nextTwo;
+      i++; // Skip the second $
+      continue;
+    }
+
+    if (ch === ';' && !inDollarQuotedFunction) {
+      if (current.trim().length > 0) {
+        statements.push(current.trim());
+      }
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+
+  if (current.trim().length > 0) {
+    statements.push(current.trim());
+  }
+
+  return statements
+    .map(stmt => stmt.trim())
+    .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+}
+
 async function createTables() {
   let client;
   
@@ -57,11 +93,9 @@ async function createTables() {
     const schemaPath = path.join(__dirname, 'database', 'schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf8');
     
-    // Split schema into individual statements and execute
-    const statements = schema
-      .split(';')
-      .map(stmt => stmt.trim())
-      .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+    // Split schema into individual statements and execute,
+    // taking care not to split inside $$...$$ function bodies
+    const statements = splitSqlStatements(schema);
     
     for (const statement of statements) {
       if (statement.trim()) {
