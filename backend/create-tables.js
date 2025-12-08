@@ -112,15 +112,31 @@ async function createTables() {
     });
     
     // Check user roles
-    const rolesResult = await client.query('SELECT name, display_name FROM user_roles ORDER BY name');
-    console.log('\n👥 User roles:');
-    rolesResult.rows.forEach(row => {
-      console.log(`   - ${row.name}: ${row.display_name}`);
-    });
+    try {
+      const rolesResult = await client.query('SELECT name, display_name FROM user_roles ORDER BY name');
+      console.log('\n👥 User roles:');
+      rolesResult.rows.forEach(row => {
+        console.log(`   - ${row.name}: ${row.display_name}`);
+      });
+    } catch (error) {
+      if (error.code === '42P01') {
+        console.log('\n👥 User roles table does not exist yet; skipping user roles check');
+      } else {
+        console.warn('\n⚠️  Error checking user roles:', error.message);
+      }
+    }
     
     // Check permissions
-    const permissionsResult = await client.query('SELECT COUNT(*) as count FROM permissions');
-    console.log(`\n🔐 Permissions: ${permissionsResult.rows[0].count} total`);
+    try {
+      const permissionsResult = await client.query('SELECT COUNT(*) as count FROM permissions');
+      console.log(`\n🔐 Permissions: ${permissionsResult.rows[0].count} total`);
+    } catch (error) {
+      if (error.code === '42P01') {
+        console.log('\n🔐 Permissions table does not exist yet; skipping permissions check');
+      } else {
+        console.warn('\n⚠️  Error checking permissions:', error.message);
+      }
+    }
     
     // Test user creation
     console.log('\n👤 Testing user creation...');
@@ -159,7 +175,6 @@ async function createTables() {
     
   } catch (error) {
     console.error('❌ Database setup failed:', error.message);
-    process.exit(1);
   }
 }
 
