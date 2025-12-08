@@ -95,13 +95,21 @@ final GoRouter _router = GoRouter(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
     ),
+    // Email verification via extra payload (used in-app)
     GoRoute(
       path: '/verify-email',
       builder: (context, state) {
-        final email = state.extra as Map<String, dynamic>?;
-        return EmailVerificationScreen(
-          email: email?['email'] ?? '',
-        );
+        final extra = state.extra as Map<String, dynamic>?;
+        final email = extra?['email'] as String? ?? '';
+        return EmailVerificationScreen(email: email);
+      },
+    ),
+    // Email verification via direct URL (used from email links)
+    GoRoute(
+      path: '/email-verification',
+      builder: (context, state) {
+        final email = state.uri.queryParameters['email'] ?? '';
+        return EmailVerificationScreen(email: email);
       },
     ),
     GoRoute(
@@ -325,3 +333,4 @@ final GoRouter _router = GoRouter(
     ),
   ],
 );
+

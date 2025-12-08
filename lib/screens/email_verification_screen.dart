@@ -9,7 +9,10 @@ import '../services/auth_service.dart';
 class EmailVerificationScreen extends ConsumerStatefulWidget {
   final String email;
   
-  const EmailVerificationScreen({super.key, required this.email});
+  const EmailVerificationScreen({
+    super.key,
+    required this.email,
+  });
 
   @override
   ConsumerState<EmailVerificationScreen> createState() => _EmailVerificationScreenState();
