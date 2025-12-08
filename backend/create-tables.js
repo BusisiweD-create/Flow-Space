@@ -9,15 +9,10 @@ async function createTables() {
   try {
     console.log('🗄️ Creating tables in existing database...\n');
     
-    // Connect to flow_space database
-    const flowSpaceConfig = {
-      ...dbConfig,
-      database: 'flow_space'
-    };
-    
-    const pool = new Pool(flowSpaceConfig);
+    // Connect using database-config (cloud = flow_space_db on Render)
+    const pool = new Pool(dbConfig);
     client = await pool.connect();
-    console.log('✅ Connected to flow_space database');
+    console.log('✅ Connected to database');
     
     // Check if tables already exist
     const tablesCheck = await client.query(`
