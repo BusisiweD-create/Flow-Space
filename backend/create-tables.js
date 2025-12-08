@@ -120,10 +120,9 @@ async function createTables() {
     const seedPath = path.join(__dirname, 'database', 'seed_data.sql');
     const seedData = fs.readFileSync(seedPath, 'utf8');
     
-    const seedStatements = seedData
-      .split(';')
-      .map(stmt => stmt.trim())
-      .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+    // Use the same splitter so semicolons inside string literals (e.g. user agents)
+    // don't break statements like the Win64; x64 user_agent values
+    const seedStatements = splitSqlStatements(seedData);
     
     for (const statement of seedStatements) {
       if (statement.trim()) {
