@@ -140,12 +140,12 @@ INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip
 ((SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1), 
  'user_registered', 'user', (SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1),
  '{"email": "admin@flowspace.com", "role": "systemAdmin"}', 
- '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+ '127.0.0.1', 'Mozilla/5.0 (Windows) AppleWebKit/537.36'),
 ((SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1), 
  'deliverable_created', 'deliverable', '550e8400-e29b-41d4-a716-446655440010',
  '{"title": "User Authentication System", "status": "draft"}', 
- '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+ '127.0.0.1', 'Mozilla/5.0 (Windows) AppleWebKit/537.36'),
 ((SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1), 
  'deliverable_submitted', 'deliverable', '550e8400-e29b-41d4-a716-446655440010',
  '{"title": "User Authentication System", "status": "submitted"}', 
- '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+ '127.0.0.1', 'Mozilla/5.0 (Windows) AppleWebKit/537.36');
