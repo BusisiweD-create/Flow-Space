@@ -129,6 +129,130 @@ async function run() {
     `;
 
     await client.query(sql);
+    // Additional supporting tables derived from database_migrations.sql
+    console.log('🧩 Ensuring additional supporting tables exist...');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS deliverable_dod_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        deliverable_id UUID NOT NULL REFERENCES deliverables(id) ON DELETE CASCADE,
+        item_text TEXT NOT NULL,
+        is_completed BOOLEAN DEFAULT false,
+        completed_at TIMESTAMP,
+        completed_by UUID REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS deliverable_evidence (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        deliverable_id UUID NOT NULL REFERENCES deliverables(id) ON DELETE CASCADE,
+        link_url VARCHAR(500) NOT NULL,
+        link_type VARCHAR(50) DEFAULT 'general' CHECK (link_type IN ('demo', 'repository', 'documentation', 'test_results', 'general')),
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS deliverable_sprints (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        deliverable_id UUID NOT NULL REFERENCES deliverables(id) ON DELETE CASCADE,
+        sprint_id UUID NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(deliverable_id, sprint_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS release_readiness_checks (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        deliverable_id UUID NOT NULL REFERENCES deliverables(id) ON DELETE CASCADE,
+        status VARCHAR(20) NOT NULL CHECK (status IN ('green', 'amber', 'red')),
+        internal_approver UUID REFERENCES users(id),
+        approved_at TIMESTAMP,
+        approval_comment TEXT,
+        checked_by UUID NOT NULL REFERENCES users(id),
+        checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS readiness_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        readiness_check_id UUID NOT NULL REFERENCES release_readiness_checks(id) ON DELETE CASCADE,
+        category VARCHAR(100) NOT NULL,
+        description TEXT NOT NULL,
+        is_required BOOLEAN DEFAULT true,
+        is_completed BOOLEAN DEFAULT false,
+        evidence TEXT,
+        notes TEXT,
+        is_acknowledged BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS report_sprints (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        report_id UUID NOT NULL REFERENCES sign_off_reports(id) ON DELETE CASCADE,
+        sprint_id UUID NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(report_id, sprint_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id),
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id UUID NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        description TEXT,
+        old_values JSONB,
+        new_values JSONB,
+        ip_address INET,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS repository_files (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        file_name VARCHAR(255) NOT NULL,
+        file_path VARCHAR(500) NOT NULL,
+        file_type VARCHAR(50),
+        file_size BIGINT,
+        content_hash VARCHAR(64),
+        uploaded_by UUID NOT NULL REFERENCES users(id),
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT true
+      );
+
+      CREATE TABLE IF NOT EXISTS approval_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id UUID NOT NULL,
+        requested_by UUID NOT NULL REFERENCES users(id),
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+        approved_by UUID REFERENCES users(id),
+        approved_at TIMESTAMP,
+        rejection_reason TEXT,
+        comments TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        session_token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address INET,
+        user_agent TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS project_members (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(50) NOT NULL,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(project_id, user_id)
+      );
+    `);
+
     console.log('✅ Core tables ensured.');
   } catch (err) {
     console.error('❌ Error ensuring core tables:', err.message);
