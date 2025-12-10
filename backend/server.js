@@ -7,7 +7,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const ProfessionalEmailService = require('./emailServiceProfessional');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -51,40 +51,20 @@ io.on('connection', (socket) => {
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
-// Email Configuration
-let emailTransporter = null;
-
-// Support both EMAIL_USER/EMAIL_PASS and SMTP_USER/SMTP_PASS for compatibility
-const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
-const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
-const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-const smtpPort = parseInt(process.env.SMTP_PORT) || 587;
-const smtpSecure = process.env.SMTP_SECURE === 'true' || false;
-
-if (emailUser && emailPass) {
-  emailTransporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    auth: {
-      user: emailUser,
-      pass: emailPass
+// Email Configuration - use ProfessionalEmailService (SendGrid Web API with optional Gmail fallback)
+const emailService = new ProfessionalEmailService();
+emailService
+  .testConnection()
+  .then((ok) => {
+    if (!ok) {
+      console.log('⚠️  Email configuration error: connection failed');
+      console.log('💡 Email functionality will be limited until credentials are configured');
     }
+  })
+  .catch((err) => {
+    console.log('⚠️  Email configuration error:', err.message);
+    console.log('💡 Email functionality will be limited until credentials are configured');
   });
-  
-  // Test email configuration
-  emailTransporter.verify((error, success) => {
-    if (error) {
-      console.log('⚠️  Email configuration error:', error.message);
-      console.log('💡 Email functionality will be disabled until credentials are configured');
-    } else {
-      console.log('✅ Email server is ready to send messages');
-    }
-  });
-} else {
-  console.log('⚠️  Email credentials not configured - email functionality disabled');
-  console.log('💡 Set EMAIL_USER and EMAIL_PASS in .env file to enable email features');
-}
 
 // Middleware - Configure CORS for Flutter Web
 app.use(cors({
@@ -296,33 +276,17 @@ app.post('/api/v1/auth/register', async (req, res) => {
     console.log(`🔢 CODE: ${verificationCode}`);
     console.log('===========================================\n');
     
-    // Try to send verification email
+    // Try to send verification email via ProfessionalEmailService (SendGrid)
     try {
-      if (emailTransporter) {
-        const mailOptions = {
-          from: emailUser || process.env.EMAIL_FROM_ADDRESS || 'noreply@flowspace.com',
-          to: email,
-          subject: 'Flow-Space Email Verification',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #333;">Welcome to Flow-Space!</h2>
-              <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
-              <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
-                <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
-              </div>
-              <p>This code will expire in 10 minutes.</p>
-              <p>If you didn't request this verification, please ignore this email.</p>
-              <hr style="margin: 30px 0;">
-              <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
-            </div>
-          `
-        };
+      const emailResult = await emailService.sendVerificationEmail(
+        email,
+        fullName,
+        verificationCode
+      );
 
-        await emailTransporter.sendMail(mailOptions);
-        console.log(`📧 Verification email sent to: ${email}`);
-      } else {
-        console.log('⚠️  Email service not configured - verification email not sent');
-        console.log('💡 User can still login using the verification code shown above');
+      if (!emailResult || !emailResult.success) {
+        console.log('⚠️  Verification email not sent via SendGrid:', emailResult?.error);
+        console.log('💡 User can still use the verification code shown in logs for development.');
       }
     } catch (emailError) {
       console.error('Failed to send verification email:', emailError.message);
@@ -1306,37 +1270,26 @@ app.post('/api/v1/auth/send-verification', async (req, res) => {
     console.log(`🔢 CODE: ${verificationCode}`);
     console.log('===========================================\n');
     
-    // Send verification email
-    if (emailTransporter) {
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Flow-Space Email Verification',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Welcome to Flow-Space!</h2>
-            <p>Thank you for registering with Flow-Space. Please use the following verification code to complete your registration:</p>
-            <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
-              <h1 style="color: #007bff; font-size: 32px; margin: 0;">${verificationCode}</h1>
-            </div>
-            <p>This code will expire in 10 minutes.</p>
-            <p>If you didn't request this verification, please ignore this email.</p>
-            <hr style="margin: 30px 0;">
-            <p style="color: #666; font-size: 14px;">Best regards,<br>The Flow-Space Team</p>
-          </div>
-        `
-      };
+    // Send verification email via ProfessionalEmailService
+    try {
+      const emailResult = await emailService.sendVerificationEmail(
+        email,
+        email,
+        verificationCode
+      );
 
-      await emailTransporter.sendMail(mailOptions);
-      console.log(`📧 Verification email sent to: ${email}`);
-    } else {
-      console.log('⚠️  Email service not configured - verification email not sent');
-      console.log('💡 User can still login using the verification code shown above');
+      if (!emailResult || !emailResult.success) {
+        console.log('⚠️  Verification email not sent via SendGrid:', emailResult?.error);
+        console.log('💡 User can still use the verification code shown in logs for development.');
+      }
+    } catch (emailError) {
+      console.error('Send verification email error (SendGrid):', emailError.message);
+      console.log('💡 Check the console above for the verification code');
     }
     
     res.json({
       success: true,
-      message: 'Verification email sent successfully',
+      message: 'Verification email processed',
       data: {
         verificationCode: verificationCode // For development - remove in production
       }
