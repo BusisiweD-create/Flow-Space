@@ -1,114 +1,63 @@
-const nodemailer = require('nodemailer');
-const sgMail = require('@sendgrid/mail');
+const { Resend } = require('resend');
 
 class ProfessionalEmailService {
   constructor() {
-    // SendGrid configuration
-    this.sendGridApiKey = process.env.SENDGRID_API_KEY || 'SG.your-sendgrid-api-key-here';
-    this.fromEmail = process.env.FROM_EMAIL || 'noreply@flownet.works';
+    this.resendApiKey = process.env.RESEND_API_KEY;
+    this.fromEmail = process.env.RESEND_FROM || process.env.FROM_EMAIL || 'noreply@flownet.works';
     this.fromName = 'Flownet Workspaces';
-    
-    // Fallback Gmail configuration (if SendGrid fails)
-    this.gmailTransporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: 'dhlaminibusisiwe30@gmail.com',
-        pass: 'bplcqegzkspgotfk'
-      }
-    });
-    
-    // Initialize SendGrid
-    if (this.sendGridApiKey && this.sendGridApiKey !== 'SG.your-sendgrid-api-key-here') {
-      sgMail.setApiKey(this.sendGridApiKey);
-      this.useSendGrid = true;
-    } else {
-      this.useSendGrid = false;
-      console.log('⚠️ SendGrid API key not configured, using Gmail fallback');
+
+    if (!this.resendApiKey) {
+      console.log('⚠️ RESEND_API_KEY not configured - email sending will fail until it is set');
     }
+
+    this.resend = this.resendApiKey ? new Resend(this.resendApiKey) : null;
   }
 
-  // Test email service connection
+  // Test email service connection using Resend
   async testConnection() {
+    if (!this.resend) {
+      console.error('❌ Email service connection failed: RESEND_API_KEY is not set');
+      return false;
+    }
+
     try {
-      if (this.useSendGrid) {
-        // Test SendGrid
-        const msg = {
-          to: 'test@example.com',
-          from: this.fromEmail,
-          subject: 'Test Email',
-          text: 'This is a test email'
-        };
-        await sgMail.send(msg);
-        console.log('✅ SendGrid connection successful');
-        return true;
-      } else {
-        // Test Gmail
-        await this.gmailTransporter.verify();
-        console.log('✅ Gmail fallback connection successful');
-        return true;
-      }
+      // Send a lightweight test email to the from address (or a fixed test inbox)
+      await this.resend.emails.send({
+        from: this.fromEmail,
+        to: this.fromEmail,
+        subject: 'Flow-Space email test',
+        html: '<p>This is a test email from Flow-Space backend (Resend connection check).</p>'
+      });
+      console.log('✅ Resend connection successful');
+      return true;
     } catch (error) {
       console.error('❌ Email service connection failed:', error.message);
       return false;
     }
   }
 
-  // Send verification email with fallback
+  // Send verification email via Resend
   async sendVerificationEmail(toEmail, userName, verificationCode) {
+    if (!this.resend) {
+      const msg = 'RESEND_API_KEY is not configured';
+      console.error('❌ Failed to send verification email:', msg);
+      return { success: false, error: msg };
+    }
+
     try {
-      if (this.useSendGrid) {
-        return await this.sendWithSendGrid(toEmail, userName, verificationCode);
-      } else {
-        return await this.sendWithGmail(toEmail, userName, verificationCode);
-      }
+      const result = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: toEmail,
+        subject: 'Verify Your Email - Flownet Workspaces',
+        html: this.buildVerificationEmailHtml(userName, verificationCode)
+      });
+
+      console.log('✅ Resend verification email sent successfully');
+      return { success: true, messageId: result.id };
     } catch (error) {
-      console.error('❌ Failed to send verification email:', error.message);
-      
-      // Try fallback if primary method failed
-      if (this.useSendGrid) {
-        console.log('🔄 Trying Gmail fallback...');
-        return await this.sendWithGmail(toEmail, userName, verificationCode);
-      }
-      
+      console.error('❌ Failed to send verification email via Resend:', error.message);
       return { success: false, error: error.message };
     }
-  }
-
-  // Send with SendGrid
-  async sendWithSendGrid(toEmail, userName, verificationCode) {
-    const msg = {
-      to: toEmail,
-      from: {
-        email: this.fromEmail,
-        name: this.fromName
-      },
-      subject: 'Verify Your Email - Flownet Workspaces',
-      html: this.buildVerificationEmailHtml(userName, verificationCode),
-      text: this.buildVerificationEmailText(userName, verificationCode)
-    };
-
-    const result = await sgMail.send(msg);
-    console.log('✅ SendGrid verification email sent successfully');
-    return { success: true, messageId: result[0].headers['x-message-id'] };
-  }
-
-  // Send with Gmail (fallback)
-  async sendWithGmail(toEmail, userName, verificationCode) {
-    const mailOptions = {
-      from: {
-        name: this.fromName,
-        address: 'dhlaminibusisiwe30@gmail.com'
-      },
-      to: toEmail,
-      subject: 'Verify Your Email - Flownet Workspaces',
-      html: this.buildVerificationEmailHtml(userName, verificationCode)
-    };
-
-    const result = await this.gmailTransporter.sendMail(mailOptions);
-    console.log('✅ Gmail verification email sent successfully');
-    return { success: true, messageId: result.messageId };
   }
 
   // Build verification email HTML
