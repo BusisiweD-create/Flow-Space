@@ -2012,7 +2012,7 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
       RETURNING *
     `, [projectId, name, description || '', status, userId]);
     
-    res.status(201).json({
+      res.status(201).json({
       success: true,
       data: result.rows[0]
     });
@@ -2022,8 +2022,8 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
   }
 });
 
-// ==================== SPRINTS API ENDPOINTS ====================
-
+// Get all sprints
+app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
 // Get all sprints
 app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
   try {
@@ -2059,19 +2059,37 @@ app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
 // Create a sprint
 app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
   try {
-    const { name, projectId, startDate, endDate, status = 'planned' } = req.body;
-    
+    // Support both camelCase and snake_case from the client
+    const {
+      name,
+      projectId,
+      project_id,
+      startDate,
+      start_date,
+      endDate,
+      end_date,
+      status = 'planned'
+    } = req.body;
+
     if (!name) {
       return res.status(400).json({ error: 'Sprint name is required' });
     }
-    
+
+    const resolvedProjectId = projectId || project_id || null;
+    const resolvedStartDate = startDate || start_date;
+    const resolvedEndDate = endDate || end_date;
+
+    if (!resolvedStartDate || !resolvedEndDate) {
+      return res.status(400).json({ error: 'Sprint start_date and end_date are required' });
+    }
+
     const sprintId = uuidv4();
     const result = await pool.query(`
       INSERT INTO sprints (id, name, project_id, start_date, end_date, status, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
       RETURNING *
-    `, [sprintId, name, projectId || null, startDate || null, endDate || null, status]);
-    
+    `, [sprintId, name, resolvedProjectId, resolvedStartDate, resolvedEndDate, status]);
+
     res.status(201).json({
       success: true,
       data: result.rows[0]
@@ -4085,6 +4103,7 @@ app.post('/api/v1/docusign/envelopes/:envelopeId/resend', authenticateToken, asy
     res.status(500).json({ success: false, error: 'Failed to resend envelope' });
   }
 });
+*/
 
 // Void envelope
 app.post('/api/v1/docusign/envelopes/:envelopeId/void', authenticateToken, async (req, res) => {
@@ -4157,7 +4176,7 @@ app.post('/api/v1/docusign/webhook', express.raw({ type: 'application/json' }), 
 });
 
 // ==================== END DOCUSIGN ENDPOINTS ====================
-*/
+
 
 // ==================== AI RELEASE READINESS ENDPOINTS ====================
 
@@ -4653,12 +4672,12 @@ app.post('/api/v1/sign-off-reports/:id/escalate', authenticateToken, async (req,
     }
 
     // Notify delivery leads and system admins
-    const escalatationTargets = await pool.query(`
+    const escalationTargets = await pool.query(`
       SELECT id, name, role FROM users 
       WHERE role IN ('deliveryLead', 'systemAdmin') AND is_active = true
     `);
 
-    for (const target of escalatationTargets.rows) {
+    for (const target of escalationTargets.rows) {
       const notificationId = uuidv4();
       await pool.query(`
         INSERT INTO notifications (
@@ -4832,19 +4851,4 @@ app.post('/api/v1/sign-off-reports/process-overdue', authenticateToken, async (r
     console.error('Error in manual overdue processing:', error);
     res.status(500).json({ success: false, error: 'Failed to process overdue reports' });
   }
-});
-
-// Schedule automatic processing every hour (3600000 ms)
-const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-setInterval(() => {
-  processOverdueReports().catch(err => {
-    console.error('[Scheduler] Unhandled error:', err);
-  });
-}, SCHEDULER_INTERVAL_MS);
-
-// Run once on startup after a short delay
-setTimeout(() => {
-  processOverdueReports().catch(err => {
-    console.error('[Scheduler] Startup processing error:', err);
-  });
-}, 10000); // 10 seconds after startup
+});  // End of file here
