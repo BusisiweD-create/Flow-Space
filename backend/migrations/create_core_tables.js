@@ -233,6 +233,13 @@ async function run() {
         comments TEXT
       );
 
+      -- Ensure columns expected by server.js exist
+      ALTER TABLE deliverables
+        ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0;
+
+      ALTER TABLE approval_requests
+        ADD COLUMN IF NOT EXISTS reviewed_by UUID NULL;
+
       CREATE TABLE IF NOT EXISTS user_sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
