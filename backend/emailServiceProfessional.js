@@ -1,62 +1,74 @@
-const { Resend } = require('resend');
+const sgMail = require('@sendgrid/mail');
 
 class ProfessionalEmailService {
   constructor() {
-    this.resendApiKey = process.env.RESEND_API_KEY;
-    this.fromEmail = process.env.RESEND_FROM || process.env.FROM_EMAIL || 'noreply@flownet.works';
+    this.sendGridApiKey = process.env.SENDGRID_API_KEY || process.env.SENDGRID_KEY;
+    this.fromEmail = process.env.SENDGRID_FROM || process.env.FROM_EMAIL || 'noreply@flownet.works';
     this.fromName = 'Flownet Workspaces';
 
-    if (!this.resendApiKey) {
-      console.log('⚠️ RESEND_API_KEY not configured - email sending will fail until it is set');
+    if (!this.sendGridApiKey) {
+      console.log('⚠️ SENDGRID_API_KEY not configured - email sending will fail until it is set');
+    } else {
+      try {
+        sgMail.setApiKey(this.sendGridApiKey.trim());
+      } catch (err) {
+        console.error('❌ Failed to initialize SendGrid client:', err.message);
+      }
     }
-
-    this.resend = this.resendApiKey ? new Resend(this.resendApiKey) : null;
   }
 
-  // Test email service connection using Resend
+  // Test email service connection using SendGrid
   async testConnection() {
-    if (!this.resend) {
-      console.error('❌ Email service connection failed: RESEND_API_KEY is not set');
+    if (!this.sendGridApiKey) {
+      console.error('❌ Email service connection failed: SENDGRID_API_KEY is not set');
       return false;
     }
 
     try {
-      // Send a lightweight test email to the from address (or a fixed test inbox)
-      await this.resend.emails.send({
-        from: this.fromEmail,
+      await sgMail.send({
         to: this.fromEmail,
+        from: {
+          email: this.fromEmail,
+          name: this.fromName,
+        },
         subject: 'Flow-Space email test',
-        html: '<p>This is a test email from Flow-Space backend (Resend connection check).</p>'
+        html: '<p>This is a test email from Flow-Space backend (SendGrid connection check).</p>',
+        text: 'This is a test email from Flow-Space backend (SendGrid connection check).',
       });
-      console.log('✅ Resend connection successful');
+      console.log('✅ SendGrid connection successful');
       return true;
     } catch (error) {
-      console.error('❌ Email service connection failed:', error.message);
+      console.error('❌ Email service connection failed:', error.response?.body || error.message);
       return false;
     }
   }
 
-  // Send verification email via Resend
+  // Send verification email via SendGrid
   async sendVerificationEmail(toEmail, userName, verificationCode) {
-    if (!this.resend) {
-      const msg = 'RESEND_API_KEY is not configured';
+    if (!this.sendGridApiKey) {
+      const msg = 'SENDGRID_API_KEY is not configured';
       console.error('❌ Failed to send verification email:', msg);
       return { success: false, error: msg };
     }
 
-    try {
-      const result = await this.resend.emails.send({
-        from: this.fromEmail,
-        to: toEmail,
-        subject: 'Verify Your Email - Flownet Workspaces',
-        html: this.buildVerificationEmailHtml(userName, verificationCode)
-      });
+    const msg = {
+      to: toEmail,
+      from: {
+        email: this.fromEmail,
+        name: this.fromName,
+      },
+      subject: 'Verify Your Email - Flownet Workspaces',
+      html: this.buildVerificationEmailHtml(userName, verificationCode),
+      text: this.buildVerificationEmailText(userName, verificationCode),
+    };
 
-      console.log('✅ Resend verification email sent successfully');
-      return { success: true, messageId: result.id };
+    try {
+      const [response] = await sgMail.send(msg);
+      console.log('✅ SendGrid verification email sent successfully');
+      return { success: true, statusCode: response.statusCode };
     } catch (error) {
-      console.error('❌ Failed to send verification email via Resend:', error.message);
-      return { success: false, error: error.message };
+      console.error('❌ Failed to send verification email via SendGrid:', error.response?.body || error.message);
+      return { success: false, error: error.response?.body || error.message };
     }
   }
 
