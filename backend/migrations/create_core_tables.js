@@ -239,6 +239,9 @@ async function run() {
 
       ALTER TABLE approval_requests
         ADD COLUMN IF NOT EXISTS reviewed_by UUID NULL;
+      
+      ALTER TABLE approval_requests
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
       CREATE TABLE IF NOT EXISTS user_sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
