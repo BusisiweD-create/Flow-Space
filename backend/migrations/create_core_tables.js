@@ -243,6 +243,9 @@ async function run() {
       ALTER TABLE approval_requests
         ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
+      ALTER TABLE projects
+        ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id);
+
       CREATE TABLE IF NOT EXISTS user_sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
