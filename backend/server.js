@@ -2024,8 +2024,6 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
 
 // Get all sprints
 app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
-// Get all sprints
-app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
   try {
     const { projectId } = req.query;
     
@@ -4853,5 +4851,3 @@ app.post('/api/v1/sign-off-reports/process-overdue', authenticateToken, async (r
   }
 });  
 // End of file here
-
-});
