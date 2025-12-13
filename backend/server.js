@@ -1,5 +1,12 @@
 // Load environment variables
 require('dotenv').config();
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION:', err);
+});
 
 const express = require('express');
 const cors = require('cors');
@@ -1436,25 +1443,81 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
         due_date, userId, assigned_to, sprint_id, evidenceValue
       ]);
     } catch (columnError) {
-      // If evidence_links column doesn't exist, try without it
-      if (columnError.code === '42703' || columnError.message.includes('evidence_links')) {
+      const message = (columnError && columnError.message) ? columnError.message : '';
+      const isMissingColumn = columnError && columnError.code === '42703';
+
+      // Retry strategies for older schemas
+      if (isMissingColumn && message.includes('evidence_links')) {
         console.log('⚠️  evidence_links column not found, inserting without it');
-        result = await pool.query(`
-          INSERT INTO deliverables (
-            title, description, definition_of_done, priority, status, 
-            due_date, created_by, assigned_to, sprint_id
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          RETURNING *
-        `, [
-          title, description, dodValue, priority, status,
-          due_date, userId, assigned_to, sprint_id
-        ]);
+        try {
+          result = await pool.query(`
+            INSERT INTO deliverables (
+              title, description, definition_of_done, priority, status, 
+              due_date, created_by, assigned_to, sprint_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+          `, [
+            title, description, dodValue, priority, status,
+            due_date, userId, assigned_to, sprint_id
+          ]);
+        } catch (retryError) {
+          const retryMessage = (retryError && retryError.message) ? retryError.message : '';
+          if (retryError && retryError.code === '42703' && retryMessage.includes('priority')) {
+            console.log('⚠️  priority column not found, inserting without it');
+            result = await pool.query(`
+              INSERT INTO deliverables (
+                title, description, definition_of_done, status, 
+                due_date, created_by, assigned_to, sprint_id
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+              RETURNING *
+            `, [
+              title, description, dodValue, status,
+              due_date, userId, assigned_to, sprint_id
+            ]);
+          } else {
+            throw retryError;
+          }
+        }
+      } else if (isMissingColumn && message.includes('priority')) {
+        console.log('⚠️  priority column not found, inserting without it');
+        try {
+          result = await pool.query(`
+            INSERT INTO deliverables (
+              title, description, definition_of_done, status, 
+              due_date, created_by, assigned_to, sprint_id, evidence_links
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+          `, [
+            title, description, dodValue, status,
+            due_date, userId, assigned_to, sprint_id, evidenceValue
+          ]);
+        } catch (retryError) {
+          const retryMessage = (retryError && retryError.message) ? retryError.message : '';
+          if (retryError && retryError.code === '42703' && retryMessage.includes('evidence_links')) {
+            console.log('⚠️  evidence_links column not found, inserting without it');
+            result = await pool.query(`
+              INSERT INTO deliverables (
+                title, description, definition_of_done, status, 
+                due_date, created_by, assigned_to, sprint_id
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+              RETURNING *
+            `, [
+              title, description, dodValue, status,
+              due_date, userId, assigned_to, sprint_id
+            ]);
+          } else {
+            throw retryError;
+          }
+        }
       } else {
         throw columnError;
       }
     }
-
+    
     const deliverableId = result.rows[0].id;
 
     // Link deliverable to multiple sprints via sprint_deliverables junction table
@@ -2137,6 +2200,51 @@ app.get('/api/v1/sprints/:sprintId', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching sprint:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch sprint' });
+  }
+});
+
+// Get sprint metrics by sprint ID
+app.get('/api/v1/sprints/:sprintId/metrics', authenticateToken, async (req, res) => {
+  try {
+    const { sprintId } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM sprint_metrics WHERE sprint_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [sprintId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Sprint metrics not found' });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      success: true,
+      data: {
+        id: row.id,
+        sprintId: row.sprint_id,
+        committedPoints: row.committed_points,
+        completedPoints: row.completed_points,
+        carriedOverPoints: row.carried_over_points,
+        testPassRate: row.test_pass_rate,
+        defectsOpened: row.defects_opened,
+        defectsClosed: row.defects_closed,
+        criticalDefects: row.critical_defects,
+        highDefects: row.high_defects,
+        mediumDefects: row.medium_defects,
+        lowDefects: row.low_defects,
+        codeReviewCompletion: row.code_review_completion,
+        documentationStatus: row.documentation_status,
+        risks: row.risks,
+        mitigations: row.mitigations,
+        scopeChanges: row.scope_changes,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching sprint metrics:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch sprint metrics' });
   }
 });
 
@@ -4560,16 +4668,12 @@ app.post('/api/v1/release-readiness/analyze-sprints', authenticateToken, async (
     console.error('Error analyzing sprint metrics:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to analyze sprint metrics',
+      error: 'Failed to analyze sprint metrics', 
     });
   }
 });
 
 // ==================== END AI RELEASE READINESS ENDPOINTS ====================
-
-httpServer.listen(PORT, () => {
-  console.log(`Flow-Space API server running on port ${PORT}`);
-});
 
 // Send reminder for sign-off report review
 app.post('/api/v1/sign-off-reports/:id/remind', authenticateToken, async (req, res) => {
@@ -4840,14 +4944,21 @@ app.post('/api/v1/sign-off-reports/process-overdue', authenticateToken, async (r
   try {
     const userRole = req.user.role;
     if (userRole !== 'systemAdmin') {
-      return res.status(403).json({ success: false, error: 'Only system admins can trigger overdue processing' });
+      return res.status(403).json({
+        success: false,
+        error: 'Only system admins can trigger overdue processing',
+      });
     }
 
     const result = await processOverdueReports();
-    res.json({ success: true, ...result });
+    return res.json({ success: true, ...result });
   } catch (error) {
     console.error('Error in manual overdue processing:', error);
-    res.status(500).json({ success: false, error: 'Failed to process overdue reports' });
+    return res.status(500).json({ success: false, error: 'Failed to process overdue reports' });
   }
-});  
-// End of file here
+});
+httpServer.listen(PORT, () => {
+  console.log(`Flow-Space API server running on port ${PORT}`);
+});
+
+// End of file here 
