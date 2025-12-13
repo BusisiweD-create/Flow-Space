@@ -70,7 +70,24 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
     try {
       // Use AuthService for proper email verification
       final authService = AuthService();
-      final response = await authService.verifyEmail(widget.email, _verificationCode!);
+
+      // Prefer the email passed via route; if it's empty, fall back to the
+      // currently authenticated user's email so the backend always receives
+      // a non-empty email value.
+      final routeEmail = widget.email.trim();
+      final effectiveEmail = routeEmail.isNotEmpty
+          ? routeEmail
+          : (authService.currentUser?.email ?? '');
+
+      if (effectiveEmail.isEmpty) {
+        _errorHandler.showErrorSnackBar(
+          context,
+          'Email is missing. Please log in again or restart the verification flow.',
+        );
+        return;
+      }
+
+      final response = await authService.verifyEmail(effectiveEmail, _verificationCode!);
       final success = response.isSuccess;
       
       if (success) {

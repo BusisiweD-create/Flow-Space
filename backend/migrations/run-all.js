@@ -31,7 +31,7 @@ try {
 
   console.log('\n🎉 All migrations executed successfully!');
   console.log('🚀 Starting server...');
-  execSync('node server.js', { stdio: 'inherit' });
+  require('../server.js');
 } catch (err) {
   console.error('\n❌ MIGRATION ERROR:', err.message);
   process.exit(1);

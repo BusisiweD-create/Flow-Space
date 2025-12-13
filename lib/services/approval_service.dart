@@ -22,7 +22,7 @@ class ApprovalService {
     _realtimeInitialized = true;
 
     _socket = io.io(
-      'http://localhost:3001',
+      'https://flow-space.onrender.com',
       io.OptionBuilder()
           .setTransports(['websocket'])
           .enableAutoConnect()

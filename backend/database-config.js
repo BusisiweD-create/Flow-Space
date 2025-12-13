@@ -34,8 +34,22 @@ const config = {
 // Choose which database to use
 // Set NODE_ENV=shared to use shared database
 const ENVIRONMENT = process.env.NODE_ENV || 'cloud';
-const selectedConfig = config[ENVIRONMENT] || config.local;
 
-console.log(`🗄️ Using ${ENVIRONMENT} database configuration`);
+const envBasedConfig = process.env.DATABASE_URL
+  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+  : (process.env.DB_HOST || process.env.DB_USER || process.env.DB_PASSWORD || process.env.DB_NAME || process.env.DB_PORT)
+    ? {
+        user: process.env.DB_USER || 'postgres',
+        host: process.env.DB_HOST || 'localhost',
+        database: process.env.DB_NAME || 'flow_space',
+        password: process.env.DB_PASSWORD || 'postgres',
+        port: parseInt(process.env.DB_PORT, 10) || 5432,
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+      }
+    : null;
+
+const selectedConfig = envBasedConfig || config[ENVIRONMENT] || config.local;
+
+console.log(`🗄️ Using ${envBasedConfig ? 'env' : ENVIRONMENT} database configuration`);
 
 module.exports = selectedConfig;

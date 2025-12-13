@@ -27,7 +27,9 @@ class AuthState {
 
 class SimpleAuthNotifier extends Notifier<AuthState> {
   @override
-  AuthState build() => AuthState();
+  AuthState build() {
+    return AuthState();
+  }
 
   Future<void> signInWithEmailAndPassword({
     required String email,
@@ -126,9 +128,9 @@ class SimpleAuthNotifier extends Notifier<AuthState> {
   }
 }
 
-final authStateProvider = NotifierProvider<SimpleAuthNotifier, AuthState>(() {
-  return SimpleAuthNotifier();
-});
+final authStateProvider = NotifierProvider<SimpleAuthNotifier, AuthState>(
+  SimpleAuthNotifier.new,
+);
 
 // Mock current user provider
 final currentUserProvider = StreamProvider<String?>((ref) {

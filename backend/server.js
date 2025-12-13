@@ -1425,9 +1425,8 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
         }
       }
     }
-    
     console.log('📦 Creating deliverable:', { title, dodValue, evidenceValue });
-    
+
     // Try to insert with evidence_links, fallback if column doesn't exist
     let result;
     try {
@@ -1445,79 +1444,122 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
     } catch (columnError) {
       const message = (columnError && columnError.message) ? columnError.message : '';
       const isMissingColumn = columnError && columnError.code === '42703';
+      if (!isMissingColumn) throw columnError;
 
-      // Retry strategies for older schemas
-      if (isMissingColumn && message.includes('evidence_links')) {
-        console.log('⚠️  evidence_links column not found, inserting without it');
-        try {
-          result = await pool.query(`
+      const attempts = [
+        {
+          label: 'without evidence_links',
+          sql: `
             INSERT INTO deliverables (
-              title, description, definition_of_done, priority, status, 
+              title, description, definition_of_done, priority, status,
               due_date, created_by, assigned_to, sprint_id
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
-          `, [
-            title, description, dodValue, priority, status,
-            due_date, userId, assigned_to, sprint_id
-          ]);
-        } catch (retryError) {
-          const retryMessage = (retryError && retryError.message) ? retryError.message : '';
-          if (retryError && retryError.code === '42703' && retryMessage.includes('priority')) {
-            console.log('⚠️  priority column not found, inserting without it');
-            result = await pool.query(`
-              INSERT INTO deliverables (
-                title, description, definition_of_done, status, 
-                due_date, created_by, assigned_to, sprint_id
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-              RETURNING *
-            `, [
-              title, description, dodValue, status,
-              due_date, userId, assigned_to, sprint_id
-            ]);
-          } else {
-            throw retryError;
-          }
-        }
-      } else if (isMissingColumn && message.includes('priority')) {
-        console.log('⚠️  priority column not found, inserting without it');
-        try {
-          result = await pool.query(`
+          `,
+          params: [title, description, dodValue, priority, status, due_date, userId, assigned_to, sprint_id],
+        },
+        {
+          label: 'without priority',
+          sql: `
             INSERT INTO deliverables (
-              title, description, definition_of_done, status, 
+              title, description, definition_of_done, status,
               due_date, created_by, assigned_to, sprint_id, evidence_links
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
-          `, [
-            title, description, dodValue, status,
-            due_date, userId, assigned_to, sprint_id, evidenceValue
-          ]);
-        } catch (retryError) {
-          const retryMessage = (retryError && retryError.message) ? retryError.message : '';
-          if (retryError && retryError.code === '42703' && retryMessage.includes('evidence_links')) {
-            console.log('⚠️  evidence_links column not found, inserting without it');
-            result = await pool.query(`
-              INSERT INTO deliverables (
-                title, description, definition_of_done, status, 
-                due_date, created_by, assigned_to, sprint_id
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-              RETURNING *
-            `, [
-              title, description, dodValue, status,
-              due_date, userId, assigned_to, sprint_id
-            ]);
-          } else {
-            throw retryError;
+          `,
+          params: [title, description, dodValue, status, due_date, userId, assigned_to, sprint_id, evidenceValue],
+        },
+        {
+          label: 'without sprint_id',
+          sql: `
+            INSERT INTO deliverables (
+              title, description, definition_of_done, priority, status,
+              due_date, created_by, assigned_to, evidence_links
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+          `,
+          params: [title, description, dodValue, priority, status, due_date, userId, assigned_to, evidenceValue],
+        },
+        {
+          label: 'without evidence_links and priority',
+          sql: `
+            INSERT INTO deliverables (
+              title, description, definition_of_done, status,
+              due_date, created_by, assigned_to, sprint_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+          `,
+          params: [title, description, dodValue, status, due_date, userId, assigned_to, sprint_id],
+        },
+        {
+          label: 'without evidence_links and sprint_id',
+          sql: `
+            INSERT INTO deliverables (
+              title, description, definition_of_done, priority, status,
+              due_date, created_by, assigned_to
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+          `,
+          params: [title, description, dodValue, priority, status, due_date, userId, assigned_to],
+        },
+        {
+          label: 'without priority and sprint_id',
+          sql: `
+            INSERT INTO deliverables (
+              title, description, definition_of_done, status,
+              due_date, created_by, assigned_to, evidence_links
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+          `,
+          params: [title, description, dodValue, status, due_date, userId, assigned_to, evidenceValue],
+        },
+        {
+          label: 'without evidence_links, priority, and sprint_id',
+          sql: `
+            INSERT INTO deliverables (
+              title, description, definition_of_done, status,
+              due_date, created_by, assigned_to
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+          `,
+          params: [title, description, dodValue, status, due_date, userId, assigned_to],
+        },
+      ];
+
+      // Prioritize attempts based on which column is missing, but still allow cascading fallbacks
+      const priorityOrder = [];
+      if (message.includes('evidence_links')) priorityOrder.push('without evidence_links');
+      if (message.includes('priority')) priorityOrder.push('without priority');
+      if (message.includes('sprint_id')) priorityOrder.push('without sprint_id');
+      const orderedAttempts = [
+        ...attempts.filter(a => priorityOrder.includes(a.label)),
+        ...attempts.filter(a => !priorityOrder.includes(a.label)),
+      ];
+
+      let lastError = columnError;
+      for (const attempt of orderedAttempts) {
+        try {
+          console.log(`⚠️  ${attempt.label} column(s) not found, inserting with fallback`);
+          result = await pool.query(attempt.sql, attempt.params);
+          lastError = null;
+          break;
+        } catch (attemptError) {
+          lastError = attemptError;
+          if (!(attemptError && attemptError.code === '42703')) {
+            throw attemptError;
           }
         }
-      } else {
-        throw columnError;
       }
+      if (!result) throw lastError;
     }
-    
+
     const deliverableId = result.rows[0].id;
 
     // Link deliverable to multiple sprints via sprint_deliverables junction table

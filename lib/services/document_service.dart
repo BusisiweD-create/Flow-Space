@@ -15,7 +15,7 @@ import 'document_service_stub.dart'
 
 class DocumentService {
   final AuthService _authService;
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  static const String _baseUrl = 'https://flow-space.onrender.com/api/v1';
 
   DocumentService(this._authService);
 
