@@ -708,220 +708,22 @@ app.get('/api/v1/notifications', authenticateToken, async (req, res) => {
         u.name as user_name
       FROM notifications n
       LEFT JOIN users u ON n.user_id = u.id
-      WHERE n.user_id = $1 OR n.user_id IS NULL
+      WHERE n.user_id = $1
       ORDER BY n.created_at DESC
     `, [userId]);
 
     res.json({
       success: true,
-      data: result.rows.map(row => ({
-        id: row.id,
-        title: row.title,
-        message: row.message,
-        type: row.type,
-        isRead: row.is_read,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        createdByName: row.created_by_name,
-        timestamp: row.created_at,
-        date: row.created_at,
-        description: row.message
-      }))
+      data: result.rows
     });
   } catch (error) {
     console.error('Error fetching notifications:', error);
-    console.error('Error code:', error.code);
-    
-    // If table doesn't exist, return empty array
-    if (error.code === '42P01') {
-      console.log('Notifications table does not exist, returning empty array');
-      return res.json({
-        success: true,
-        data: []
-      });
+    if (error && error.code === '42P01') {
+      return res.json({ success: true, data: [] });
     }
-    
-    // Return empty array for any error instead of 500
-    res.json({
-      success: true,
-      data: []
-    });
+    res.status(500).json({ success: false, error: 'Failed to fetch notifications' });
   }
 });
-
-// Mark notification as read
-app.put('/api/v1/notifications/:id/read', authenticateToken, async (req, res) => {
-  try {
-    const notificationId = req.params.id;
-    const userId = req.user.id;
-
-    await pool.query(`
-      UPDATE notifications 
-      SET is_read = true, updated_at = NOW()
-      WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)
-    `, [notificationId, userId]);
-
-    res.json({ success: true, message: 'Notification marked as read' });
-  } catch (error) {
-    console.error('Error marking notification as read:', error);
-    res.status(500).json({ error: 'Failed to mark notification as read' });
-  }
-});
-
-// Mark all notifications as read
-app.put('/api/v1/notifications/read-all', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    await pool.query(`
-      UPDATE notifications 
-      SET is_read = true
-      WHERE user_id = $1 OR user_id IS NULL
-    `, [userId]);
-
-    res.json({ success: true, message: 'All notifications marked as read' });
-  } catch (error) {
-    console.error('Error marking all notifications as read:', error);
-    res.status(500).json({ error: 'Failed to mark all notifications as read' });
-  }
-});
-
-// Create notification (internal use)
-app.post('/api/v1/notifications', authenticateToken, async (req, res) => {
-  try {
-    const { title, message, type, user_id } = req.body;
-    const createdBy = req.user.id;
-
-    // If user_id is provided, create for specific user, otherwise create for all users
-    if (user_id) {
-      const notificationId = uuidv4();
-      await pool.query(`
-        INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-      `, [notificationId, title, message, type, user_id, createdBy]);
-    } else {
-      // Create notification for all users
-      const usersResult = await pool.query('SELECT id FROM users');
-      for (const user of usersResult.rows) {
-        const notificationId = uuidv4();
-        await pool.query(`
-          INSERT INTO notifications (id, title, message, type, user_id, created_by, is_read, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, false, NOW(), NOW())
-        `, [notificationId, title, message, type, user.id, createdBy]);
-      }
-    }
-
-    res.json({ success: true, message: 'Notification created successfully' });
-  } catch (error) {
-    console.error('Error creating notification:', error);
-    res.status(500).json({ error: 'Failed to create notification' });
-  }
-});
-
-// ==================== EPIC/FEATURE ENDPOINTS ====================
-
-// Get all epics
-app.get('/api/v1/epics', authenticateToken, async (req, res) => {
-  try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS epics (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), title VARCHAR(255) NOT NULL, description TEXT, status VARCHAR(50) DEFAULT 'draft', project_id UUID, sprint_ids UUID[] DEFAULT '{}', deliverable_ids UUID[] DEFAULT '{}', start_date TIMESTAMP, target_date TIMESTAMP, created_by UUID, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    const { project_id, status } = req.query;
-    let query = `SELECT e.*, u.name as created_by_name FROM epics e LEFT JOIN users u ON e.created_by = u.id WHERE 1=1`;
-    const params = [];
-    if (project_id) { query += ` AND e.project_id = $${params.length + 1}::uuid`; params.push(project_id); }
-    if (status) { query += ` AND e.status = $${params.length + 1}`; params.push(status); }
-    query += ' ORDER BY e.created_at DESC';
-    const result = await pool.query(query, params);
-    res.json({ success: true, data: result.rows.map(row => ({ id: row.id, title: row.title, description: row.description, status: row.status, projectId: row.project_id, sprintIds: row.sprint_ids || [], deliverableIds: row.deliverable_ids || [], startDate: row.start_date, targetDate: row.target_date, createdBy: row.created_by, createdByName: row.created_by_name, createdAt: row.created_at, updatedAt: row.updated_at })) });
-  } catch (error) { console.error('Error fetching epics:', error); res.status(500).json({ success: false, error: 'Failed to fetch epics' }); }
-});
-
-// Get single epic
-app.get('/api/v1/epics/:id', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`SELECT e.*, u.name as created_by_name FROM epics e LEFT JOIN users u ON e.created_by = u.id WHERE e.id = $1::uuid`, [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Epic not found' });
-    const row = result.rows[0];
-    res.json({ success: true, data: { id: row.id, title: row.title, description: row.description, status: row.status, projectId: row.project_id, sprintIds: row.sprint_ids || [], deliverableIds: row.deliverable_ids || [], startDate: row.start_date, targetDate: row.target_date, createdBy: row.created_by, createdByName: row.created_by_name, createdAt: row.created_at, updatedAt: row.updated_at } });
-  } catch (error) { console.error('Error fetching epic:', error); res.status(500).json({ success: false, error: 'Failed to fetch epic' }); }
-});
-
-// Create epic
-app.post('/api/v1/epics', authenticateToken, async (req, res) => {
-  try {
-    const { title, description, project_id, sprint_ids, deliverable_ids, start_date, target_date, status } = req.body;
-    if (!title) return res.status(400).json({ success: false, error: 'Title is required' });
-    const result = await pool.query(`INSERT INTO epics (title, description, status, project_id, sprint_ids, deliverable_ids, start_date, target_date, created_by) VALUES ($1, $2, $3, $4, $5::uuid[], $6::uuid[], $7, $8, $9::uuid) RETURNING *`, [title, description || null, status || 'draft', project_id || null, sprint_ids || [], deliverable_ids || [], start_date || null, target_date || null, req.user.id]);
-    const row = result.rows[0];
-    console.log('Epic created: ' + title);
-    res.status(201).json({ success: true, data: { id: row.id, title: row.title, description: row.description, status: row.status, projectId: row.project_id, sprintIds: row.sprint_ids || [], deliverableIds: row.deliverable_ids || [], startDate: row.start_date, targetDate: row.target_date, createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at } });
-  } catch (error) { console.error('Error creating epic:', error); res.status(500).json({ success: false, error: 'Failed to create epic' }); }
-});
-
-// Update epic
-app.put('/api/v1/epics/:id', authenticateToken, async (req, res) => {
-  try {
-    const { title, description, status, project_id, sprint_ids, deliverable_ids, start_date, target_date } = req.body;
-    const updates = []; const params = [];
-    if (title !== undefined) { updates.push('title = $' + (params.length + 1)); params.push(title); }
-    if (description !== undefined) { updates.push('description = $' + (params.length + 1)); params.push(description); }
-    if (status !== undefined) { updates.push('status = $' + (params.length + 1)); params.push(status); }
-    if (project_id !== undefined) { updates.push('project_id = $' + (params.length + 1) + '::uuid'); params.push(project_id); }
-    if (sprint_ids !== undefined) { updates.push('sprint_ids = $' + (params.length + 1) + '::uuid[]'); params.push(sprint_ids); }
-    if (deliverable_ids !== undefined) { updates.push('deliverable_ids = $' + (params.length + 1) + '::uuid[]'); params.push(deliverable_ids); }
-    if (start_date !== undefined) { updates.push('start_date = $' + (params.length + 1)); params.push(start_date); }
-    if (target_date !== undefined) { updates.push('target_date = $' + (params.length + 1)); params.push(target_date); }
-    updates.push('updated_at = NOW()'); params.push(req.params.id);
-    const result = await pool.query('UPDATE epics SET ' + updates.join(', ') + ' WHERE id = $' + params.length + '::uuid RETURNING *', params);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Epic not found' });
-    const row = result.rows[0];
-    res.json({ success: true, data: { id: row.id, title: row.title, description: row.description, status: row.status, projectId: row.project_id, sprintIds: row.sprint_ids || [], deliverableIds: row.deliverable_ids || [], startDate: row.start_date, targetDate: row.target_date, createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at } });
-  } catch (error) { console.error('Error updating epic:', error); res.status(500).json({ success: false, error: 'Failed to update epic' }); }
-});
-
-// Delete epic
-app.delete('/api/v1/epics/:id', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM epics WHERE id = $1::uuid RETURNING id', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Epic not found' });
-    res.json({ success: true, message: 'Epic deleted successfully' });
-  } catch (error) { console.error('Error deleting epic:', error); res.status(500).json({ success: false, error: 'Failed to delete epic' }); }
-});
-
-// Link sprint to epic
-app.post('/api/v1/epics/:id/sprints', authenticateToken, async (req, res) => {
-  try {
-    if (!req.body.sprint_id) return res.status(400).json({ success: false, error: 'Sprint ID is required' });
-    await pool.query('UPDATE epics SET sprint_ids = array_append(sprint_ids, $1::uuid), updated_at = NOW() WHERE id = $2::uuid AND NOT ($1::uuid = ANY(sprint_ids))', [req.body.sprint_id, req.params.id]);
-    res.json({ success: true, message: 'Sprint linked successfully' });
-  } catch (error) { console.error('Error linking sprint:', error); res.status(500).json({ success: false, error: 'Failed to link sprint' }); }
-});
-
-// Unlink sprint from epic
-app.delete('/api/v1/epics/:id/sprints/:sprintId', authenticateToken, async (req, res) => {
-  try {
-    await pool.query('UPDATE epics SET sprint_ids = array_remove(sprint_ids, $1::uuid), updated_at = NOW() WHERE id = $2::uuid', [req.params.sprintId, req.params.id]);
-    res.json({ success: true, message: 'Sprint unlinked successfully' });
-  } catch (error) { console.error('Error unlinking sprint:', error); res.status(500).json({ success: false, error: 'Failed to unlink sprint' }); }
-});
-
-// Link deliverable to epic
-app.post('/api/v1/epics/:id/deliverables', authenticateToken, async (req, res) => {
-  try {
-    if (!req.body.deliverable_id) return res.status(400).json({ success: false, error: 'Deliverable ID is required' });
-    await pool.query('UPDATE epics SET deliverable_ids = array_append(deliverable_ids, $1::uuid), updated_at = NOW() WHERE id = $2::uuid AND NOT ($1::uuid = ANY(deliverable_ids))', [req.body.deliverable_id, req.params.id]);
-    res.json({ success: true, message: 'Deliverable linked successfully' });
-  } catch (error) { console.error('Error linking deliverable:', error); res.status(500).json({ success: false, error: 'Failed to link deliverable' }); }
-});
-
-// Unlink deliverable from epic
-app.delete('/api/v1/epics/:id/deliverables/:deliverableId', authenticateToken, async (req, res) => {
-  try {
-    await pool.query('UPDATE epics SET deliverable_ids = array_remove(deliverable_ids, $1::uuid), updated_at = NOW() WHERE id = $2::uuid', [req.params.deliverableId, req.params.id]);
-    res.json({ success: true, message: 'Deliverable unlinked successfully' });
-  } catch (error) { console.error('Error unlinking deliverable:', error); res.status(500).json({ success: false, error: 'Failed to unlink deliverable' }); }
-});
-
-// ==================== TICKET ENDPOINTS ====================
 
 // Get all tickets (optionally filtered by sprint)
 app.get('/api/v1/tickets', authenticateToken, async (req, res) => {
@@ -929,7 +731,7 @@ app.get('/api/v1/tickets', authenticateToken, async (req, res) => {
     const { sprint_id, status, project_id } = req.query;
     let query = 'SELECT * FROM tickets WHERE 1=1';
     const params = [];
-    
+
     if (sprint_id) {
       params.push(sprint_id);
       query += ` AND sprint_id = $${params.length}`;
@@ -942,10 +744,10 @@ app.get('/api/v1/tickets', authenticateToken, async (req, res) => {
       params.push(project_id);
       query += ` AND project_id = $${params.length}`;
     }
-    
+
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
-    
+
     res.json({
       success: true,
       data: result.rows.map(row => ({
@@ -971,6 +773,9 @@ app.get('/api/v1/tickets', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching tickets:', error);
+    if (error && error.code === '42P01') {
+      return res.json({ success: true, data: [] });
+    }
     res.status(500).json({ success: false, error: 'Failed to fetch tickets' });
   }
 });
@@ -982,6 +787,7 @@ app.get('/api/v1/tickets/:id', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
+
     const row = result.rows[0];
     res.json({
       success: true,
@@ -1008,6 +814,9 @@ app.get('/api/v1/tickets/:id', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching ticket:', error);
+    if (error && error.code === '42P01') {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
     res.status(500).json({ success: false, error: 'Failed to fetch ticket' });
   }
 });
@@ -1017,17 +826,17 @@ app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
   try {
     const { title, summary, description, status, type, issue_type, priority, assignee, sprint_id, project_id } = req.body;
     const ticketTitle = title || summary;
-    
+
     if (!ticketTitle) {
       return res.status(400).json({ success: false, error: 'Title/summary is required' });
     }
-    
+
     // Generate ticket ID and key
     const ticketId = uuidv4();
     const ticketCount = await pool.query('SELECT COUNT(*) FROM tickets');
     const ticketNumber = parseInt(ticketCount.rows[0].count) + 1;
     const ticketKey = `FLOW-${ticketNumber}`;
-    
+
     const result = await pool.query(`
       INSERT INTO tickets (ticket_id, ticket_key, summary, description, status, issue_type, priority, assignee, reporter, sprint_id, project_id, user_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -1046,10 +855,10 @@ app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
       project_id || null,
       req.user.id
     ]);
-    
+
     const row = result.rows[0];
-    console.log(`✅ Ticket created: ${ticketKey} - ${ticketTitle}`);
-    
+    console.log(` Ticket created: ${ticketKey} - ${ticketTitle}`);
+
     res.status(201).json({
       success: true,
       data: {
@@ -1075,238 +884,10 @@ app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating ticket:', error);
+    if (error && error.code === '42P01') {
+      return res.status(503).json({ success: false, error: 'Tickets feature is not available (database table missing)' });
+    }
     res.status(500).json({ success: false, error: 'Failed to create ticket' });
-  }
-});
-
-// Update ticket
-app.put('/api/v1/tickets/:id', authenticateToken, async (req, res) => {
-  try {
-    const { title, summary, description, status, type, issue_type, priority, assignee, sprint_id } = req.body;
-    const updates = [];
-    const params = [];
-    
-    if (title || summary) { updates.push(`summary = $${params.length + 1}`); params.push(title || summary); }
-    if (description !== undefined) { updates.push(`description = $${params.length + 1}`); params.push(description); }
-    if (status) { updates.push(`status = $${params.length + 1}`); params.push(status); }
-    if (type || issue_type) { updates.push(`issue_type = $${params.length + 1}`); params.push(type || issue_type); }
-    if (priority) { updates.push(`priority = $${params.length + 1}`); params.push(priority); }
-    if (assignee !== undefined) { updates.push(`assignee = $${params.length + 1}`); params.push(assignee); }
-    if (sprint_id !== undefined) { updates.push(`sprint_id = $${params.length + 1}`); params.push(sprint_id); }
-    
-    if (updates.length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields to update' });
-    }
-    
-    updates.push(`updated_at = NOW()`);
-    params.push(req.params.id);
-    
-    const result = await pool.query(
-      `UPDATE tickets SET ${updates.join(', ')} WHERE ticket_id = $${params.length} RETURNING *`,
-      params
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Ticket not found' });
-    }
-    
-    const row = result.rows[0];
-    res.json({
-      success: true,
-      data: {
-        id: row.ticket_id,
-        ticketId: row.ticket_id,
-        ticketKey: row.ticket_key,
-        key: row.ticket_key,
-        summary: row.summary,
-        title: row.summary,
-        description: row.description,
-        status: row.status,
-        issueType: row.issue_type,
-        type: row.issue_type,
-        priority: row.priority,
-        assignee: row.assignee,
-        reporter: row.reporter,
-        sprintId: row.sprint_id,
-        projectId: row.project_id,
-        userId: row.user_id,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at
-      }
-    });
-  } catch (error) {
-    console.error('Error updating ticket:', error);
-    res.status(500).json({ success: false, error: 'Failed to update ticket' });
-  }
-});
-
-// Update ticket status
-app.put('/api/v1/tickets/:id/status', authenticateToken, async (req, res) => {
-  try {
-    const { status } = req.body;
-    if (!status) {
-      return res.status(400).json({ success: false, error: 'Status is required' });
-    }
-    
-    const validStatuses = ['To Do', 'In Progress', 'Done', 'Blocked'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
-    }
-    
-    const result = await pool.query(
-      'UPDATE tickets SET status = $1, updated_at = NOW() WHERE ticket_id = $2 RETURNING *',
-      [status, req.params.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Ticket not found' });
-    }
-    
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error updating ticket status:', error);
-    res.status(500).json({ success: false, error: 'Failed to update ticket status' });
-  }
-});
-
-// Delete ticket
-app.delete('/api/v1/tickets/:id', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM tickets WHERE ticket_id = $1 RETURNING ticket_id', [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Ticket not found' });
-    }
-    res.json({ success: true, message: 'Ticket deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting ticket:', error);
-    res.status(500).json({ success: false, error: 'Failed to delete ticket' });
-  }
-});
-
-// Email verification endpoint
-app.post('/api/v1/auth/verify-email', async (req, res) => {
-  try {
-    const { email, verificationCode, verification_code } = req.body;
-    
-    // Handle both parameter names (verificationCode and verification_code)
-    const code = verificationCode || verification_code;
-    
-    if (!email || !code) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email and verification code are required'
-      });
-    }
-
-    // Find user by email
-    const result = await pool.query(
-      'SELECT id, email, name, role, created_at, is_active FROM users WHERE email = $1',
-      [email]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
-    
-    const user = result.rows[0];
-    
-    // In a real implementation, you would:
-    // 1. Check the verification code from database
-    // 2. Verify it hasn't expired
-    // 3. Mark the user as verified
-    
-    // For now, we'll just return success with JWT token
-    console.log(`✅ Email verified for: ${email} with code: ${code}`);
-    
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email, 
-        role: user.role 
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-    
-    res.json({
-      success: true,
-      message: 'Email verified successfully',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          createdAt: user.created_at,
-          isActive: user.is_active
-        },
-        token: token,
-        expires_in: 86400 // 24 hours
-      }
-    });
-  } catch (error) {
-    console.error('Verify email error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to verify email'
-    });
-  }
-});
-
-// Send verification email endpoint
-app.post('/api/v1/auth/send-verification', async (req, res) => {
-  try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email is required'
-      });
-    }
-
-    // Generate verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    console.log('\n🎉 ===========================================');
-    console.log(`📧 VERIFICATION CODE FOR: ${email}`);
-    console.log(`🔢 CODE: ${verificationCode}`);
-    console.log('===========================================\n');
-    
-    // Send verification email via ProfessionalEmailService
-    try {
-      const emailResult = await emailService.sendVerificationEmail(
-        email,
-        email,
-        verificationCode
-      );
-
-      if (!emailResult || !emailResult.success) {
-        console.log('⚠️  Verification email not sent via SendGrid:', emailResult?.error);
-        console.log('💡 User can still use the verification code shown in logs for development.');
-      }
-    } catch (emailError) {
-      console.error('Send verification email error (SendGrid):', emailError.message);
-      console.log('💡 Check the console above for the verification code');
-    }
-    
-    res.json({
-      success: true,
-      message: 'Verification email processed',
-      data: {
-        verificationCode: verificationCode // For development - remove in production
-      }
-    });
-  } catch (error) {
-    console.error('Send verification email error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to send verification email'
-    });
   }
 });
 
@@ -1314,6 +895,7 @@ app.post('/api/v1/auth/send-verification', async (req, res) => {
 app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+    
     const userRole = req.user.role;
     
     let query = `
@@ -1326,20 +908,48 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
       LEFT JOIN users u2 ON d.assigned_to = u2.id
       LEFT JOIN sprints s ON d.sprint_id = s.id
     `;
-    
+
     let params = [];
-    
+
     // Role-based filtering
     if (userRole === 'teamMember') {
       query += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
       params.push(userId);
     }
     // deliveryLead, clientReviewer and other roles can see all deliverables
-    
+
     query += ' ORDER BY d.created_at DESC';
-    
-    const result = await pool.query(query, params);
-    
+
+    let result;
+    try {
+      result = await pool.query(query, params);
+    } catch (queryError) {
+      // Older schemas may not have sprint_id, so retry without the sprints join
+      if (queryError && queryError.code === '42703' && (queryError.message || '').includes('d.sprint_id')) {
+        console.log('⚠️  deliverables.sprint_id column not found, fetching deliverables without sprint join');
+
+        let fallbackQuery = `
+          SELECT d.*,
+                 u1.name as created_by_name,
+                 u2.name as assigned_to_name
+          FROM deliverables d
+          LEFT JOIN users u1 ON d.created_by = u1.id
+          LEFT JOIN users u2 ON d.assigned_to = u2.id
+        `;
+
+        const fallbackParams = [];
+        if (userRole === 'teamMember') {
+          fallbackQuery += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+          fallbackParams.push(userId);
+        }
+
+        fallbackQuery += ' ORDER BY d.created_at DESC';
+        result = await pool.query(fallbackQuery, fallbackParams);
+      } else {
+        throw queryError;
+      }
+    }
+
     res.json({
       success: true,
       data: result.rows
@@ -1347,7 +957,7 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching deliverables:', error);
     console.error('Error code:', error.code);
-    
+
     // If table doesn't exist, return empty array
     if (error.code === '42P01') {
       console.log('Deliverables table does not exist, returning empty array');
@@ -1356,7 +966,7 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
         data: []
       });
     }
-    
+
     // Return empty array for any error instead of 500
     res.json({
       success: true,
@@ -1365,978 +975,13 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      definition_of_done,
-      evidence_links,
-      priority = 'Medium',
-      status = 'Draft',
-      due_date,
-      assigned_to,
-      sprint_id,
-      sprint_ids
-    } = req.body;
-    
-    const userId = req.user.id;
-    
-    if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
-    
-    // Handle definition_of_done - can be string, array, or null
-    // Database column is JSON type, so we need valid JSON
-    let dodValue = null;
-    if (definition_of_done) {
-      if (Array.isArray(definition_of_done)) {
-        // Array: stringify to JSON array
-        dodValue = JSON.stringify(definition_of_done);
-      } else if (typeof definition_of_done === 'string') {
-        // String: check if it's already valid JSON, otherwise wrap in array
-        const trimmed = definition_of_done.trim();
-        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-          // Already JSON format, use as-is
-          dodValue = trimmed;
-        } else {
-          // Plain string: convert to JSON array
-          dodValue = JSON.stringify([trimmed]);
-        }
-      }
-    }
-    
-    // Handle evidence_links - can be array or null
-    // Database column might be JSON type, so ensure valid JSON
-    let evidenceValue = null;
-    if (evidence_links) {
-      if (Array.isArray(evidence_links)) {
-        // Array: stringify to JSON array
-        evidenceValue = JSON.stringify(evidence_links);
-      } else if (typeof evidence_links === 'string') {
-        // String: check if it's already valid JSON, otherwise wrap in array
-        const trimmed = evidence_links.trim();
-        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-          // Already JSON format, use as-is
-          evidenceValue = trimmed;
-        } else {
-          // Plain string: convert to JSON array
-          evidenceValue = JSON.stringify([trimmed]);
-        }
-      }
-    }
-    console.log('📦 Creating deliverable:', { title, dodValue, evidenceValue });
-
-    // Try to insert with evidence_links, fallback if column doesn't exist
-    let result;
-    try {
-      result = await pool.query(`
-        INSERT INTO deliverables (
-          title, description, definition_of_done, priority, status, 
-          due_date, created_by, assigned_to, sprint_id, evidence_links
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `, [
-        title, description, dodValue, priority, status,
-        due_date, userId, assigned_to, sprint_id, evidenceValue
-      ]);
-    } catch (columnError) {
-      const message = (columnError && columnError.message) ? columnError.message : '';
-      const isMissingColumn = columnError && columnError.code === '42703';
-      if (!isMissingColumn) throw columnError;
-
-      const attempts = [
-        {
-          label: 'without evidence_links',
-          sql: `
-            INSERT INTO deliverables (
-              title, description, definition_of_done, priority, status,
-              due_date, created_by, assigned_to, sprint_id
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING *
-          `,
-          params: [title, description, dodValue, priority, status, due_date, userId, assigned_to, sprint_id],
-        },
-        {
-          label: 'without priority',
-          sql: `
-            INSERT INTO deliverables (
-              title, description, definition_of_done, status,
-              due_date, created_by, assigned_to, sprint_id, evidence_links
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING *
-          `,
-          params: [title, description, dodValue, status, due_date, userId, assigned_to, sprint_id, evidenceValue],
-        },
-        {
-          label: 'without sprint_id',
-          sql: `
-            INSERT INTO deliverables (
-              title, description, definition_of_done, priority, status,
-              due_date, created_by, assigned_to, evidence_links
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING *
-          `,
-          params: [title, description, dodValue, priority, status, due_date, userId, assigned_to, evidenceValue],
-        },
-        {
-          label: 'without evidence_links and priority',
-          sql: `
-            INSERT INTO deliverables (
-              title, description, definition_of_done, status,
-              due_date, created_by, assigned_to, sprint_id
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *
-          `,
-          params: [title, description, dodValue, status, due_date, userId, assigned_to, sprint_id],
-        },
-        {
-          label: 'without evidence_links and sprint_id',
-          sql: `
-            INSERT INTO deliverables (
-              title, description, definition_of_done, priority, status,
-              due_date, created_by, assigned_to
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *
-          `,
-          params: [title, description, dodValue, priority, status, due_date, userId, assigned_to],
-        },
-        {
-          label: 'without priority and sprint_id',
-          sql: `
-            INSERT INTO deliverables (
-              title, description, definition_of_done, status,
-              due_date, created_by, assigned_to, evidence_links
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *
-          `,
-          params: [title, description, dodValue, status, due_date, userId, assigned_to, evidenceValue],
-        },
-        {
-          label: 'without evidence_links, priority, and sprint_id',
-          sql: `
-            INSERT INTO deliverables (
-              title, description, definition_of_done, status,
-              due_date, created_by, assigned_to
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING *
-          `,
-          params: [title, description, dodValue, status, due_date, userId, assigned_to],
-        },
-      ];
-
-      // Prioritize attempts based on which column is missing, but still allow cascading fallbacks
-      const priorityOrder = [];
-      if (message.includes('evidence_links')) priorityOrder.push('without evidence_links');
-      if (message.includes('priority')) priorityOrder.push('without priority');
-      if (message.includes('sprint_id')) priorityOrder.push('without sprint_id');
-      const orderedAttempts = [
-        ...attempts.filter(a => priorityOrder.includes(a.label)),
-        ...attempts.filter(a => !priorityOrder.includes(a.label)),
-      ];
-
-      let lastError = columnError;
-      for (const attempt of orderedAttempts) {
-        try {
-          console.log(`⚠️  ${attempt.label} column(s) not found, inserting with fallback`);
-          result = await pool.query(attempt.sql, attempt.params);
-          lastError = null;
-          break;
-        } catch (attemptError) {
-          lastError = attemptError;
-          if (!(attemptError && attemptError.code === '42703')) {
-            throw attemptError;
-          }
-        }
-      }
-      if (!result) throw lastError;
-    }
-
-    const deliverableId = result.rows[0].id;
-
-    // Link deliverable to multiple sprints via sprint_deliverables junction table
-    try {
-      const sprintIdsArray = Array.isArray(sprint_ids)
-        ? sprint_ids
-        : (sprint_id ? [sprint_id] : []);
-
-      if (sprintIdsArray.length > 0) {
-        for (const sid of sprintIdsArray) {
-          if (!sid) continue;
-          await pool.query(`
-            INSERT INTO sprint_deliverables (sprint_id, deliverable_id)
-            VALUES ($1::uuid, $2::uuid)
-            ON CONFLICT (sprint_id, deliverable_id) DO NOTHING
-          `, [sid, deliverableId]);
-        }
-      }
-    } catch (linkError) {
-      // If sprint_deliverables table is missing or another error occurs, log and continue
-      console.error('⚠️  Error linking deliverable to sprints:', linkError.message || linkError);
-    }
-    
-    // Create notification for assigned user
-    if (assigned_to && assigned_to !== userId) {
-      await pool.query(`
-        INSERT INTO notifications (title, message, type, user_id, created_by, is_read, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, false, NOW(), NOW())
-      `, [
-        'New Deliverable Assigned',
-        `You have been assigned a new deliverable: ${title}`,
-        'deliverable',
-        assigned_to
-      ]);
-    }
-    
-    res.status(201).json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('❌ Error creating deliverable:', error);
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    console.error('Error detail:', error.detail);
-    console.error('Error hint:', error.hint);
-    res.status(500).json({ 
-      error: 'Failed to create deliverable',
-      details: error.message,
-      code: error.code
-    });
-  }
-});
-
-app.put('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      title,
-      description,
-      definition_of_done,
-      priority,
-      status,
-      due_date,
-      assigned_to,
-      sprint_ids
-    } = req.body;
-    
-    const userId = req.user.id;
-    
-    // Check if user can update this deliverable
-    const checkResult = await pool.query(
-      'SELECT created_by, assigned_to FROM deliverables WHERE id = $1',
-      [id]
-    );
-    
-    if (checkResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Deliverable not found' });
-    }
-    
-    const deliverable = checkResult.rows[0];
-    const userRole = req.user.role;
-    
-    // Authorization check
-    if (userRole !== 'deliveryLead' && 
-        deliverable.created_by !== userId && 
-        deliverable.assigned_to !== userId) {
-      return res.status(403).json({ error: 'Not authorized to update this deliverable' });
-    }
-    
-    const result = await pool.query(`
-      UPDATE deliverables 
-      SET title = COALESCE($1, title),
-          description = COALESCE($2, description),
-          definition_of_done = COALESCE($3, definition_of_done),
-          priority = COALESCE($4, priority),
-          status = COALESCE($5, status),
-          due_date = COALESCE($6, due_date),
-          assigned_to = COALESCE($7, assigned_to),
-          updated_at = NOW()
-      WHERE id = $8
-      RETURNING *
-    `, [title, description, definition_of_done, priority, status, due_date, assigned_to, id]);
-
-    // Update sprint associations if sprint_ids provided
-    if (Array.isArray(sprint_ids)) {
-      try {
-        await pool.query(
-          'DELETE FROM sprint_deliverables WHERE deliverable_id = $1::uuid',
-          [id]
-        );
-
-        for (const sid of sprint_ids) {
-          if (!sid) continue;
-          await pool.query(`
-            INSERT INTO sprint_deliverables (sprint_id, deliverable_id)
-            VALUES ($1::uuid, $2::uuid)
-            ON CONFLICT (sprint_id, deliverable_id) DO NOTHING
-          `, [sid, id]);
-        }
-      } catch (linkError) {
-        console.error('⚠️  Error updating deliverable sprint links:', linkError.message || linkError);
-      }
-    }
-
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error updating deliverable:', error);
-    res.status(500).json({ error: 'Failed to update deliverable' });
-  }
-});
-
-app.delete('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    const userRole = req.user.role;
-    
-    // Check if user can delete this deliverable
-    const checkResult = await pool.query(
-      'SELECT created_by FROM deliverables WHERE id = $1',
-      [id]
-    );
-    
-    if (checkResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Deliverable not found' });
-    }
-    
-    // Only delivery leads and creators can delete
-    if (userRole !== 'deliveryLead' && checkResult.rows[0].created_by !== userId) {
-      return res.status(403).json({ error: 'Not authorized to delete this deliverable' });
-    }
-    
-    await pool.query('DELETE FROM deliverables WHERE id = $1', [id]);
-    
-    res.json({ success: true, message: 'Deliverable deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting deliverable:', error);
-    res.status(500).json({ error: 'Failed to delete deliverable' });
-  }
-});
-
-// Enhanced Notifications API endpoints
-app.get('/api/v1/notifications/enhanced', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const userRole = req.user.role;
-    const { type, is_read, limit = 50, offset = 0 } = req.query;
-    
-    let query = `
-      SELECT 
-        n.id,
-        n.title,
-        n.message,
-        n.type,
-        n.user_id,
-        n.is_read,
-        n.action_url,
-        n.created_at,
-        COALESCE(n.updated_at, n.created_at) as updated_at
-      FROM notifications n
-      WHERE (n.user_id = $1 OR n.user_id IS NULL)
-    `;
-    
-    let params = [userId];
-    let paramCount = 1;
-    
-    // Role-based filtering
-    if (userRole === 'clientReviewer') {
-      query += ` AND (n.type IN ('deliverable', 'sprint', 'approval', 'review') OR n.user_id IS NULL)`;
-    } else if (userRole === 'deliveryLead') {
-      query += ` AND (n.type IN ('deliverable', 'sprint', 'team') OR n.user_id IS NULL)`;
-    } else if (userRole === 'teamMember') {
-      query += ` AND (n.type IN ('deliverable', 'sprint', 'assignment') OR n.user_id IS NULL)`;
-    }
-    
-    // Filter by type
-    if (type) {
-      paramCount++;
-      query += ` AND n.type = $${paramCount}`;
-      params.push(type);
-    }
-    
-    // Filter by read status
-    if (is_read !== undefined) {
-      paramCount++;
-      query += ` AND n.is_read = $${paramCount}`;
-      params.push(is_read === 'true');
-    }
-    
-    query += ` ORDER BY n.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
-    params.push(parseInt(limit), parseInt(offset));
-    
-    const result = await pool.query(query, params);
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    console.error('Error fetching enhanced notifications:', error);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
-  }
-});
-
-// Create notification with enhanced features
-app.post('/api/v1/notifications/enhanced', authenticateToken, async (req, res) => {
-  try {
-    const { 
-      title, 
-      message, 
-      type, 
-      user_id, 
-      deliverable_id, 
-      sprint_id,
-      priority = 'normal',
-      action_url,
-      metadata
-    } = req.body;
-    
-    const createdBy = req.user.id;
-    
-    if (!title || !message || !type) {
-      return res.status(400).json({ error: 'Title, message, and type are required' });
-    }
-    
-    const notificationId = uuidv4();
-    
-    // Create notification - only use columns that exist in basic schema
-    await pool.query(`
-      INSERT INTO notifications (
-        id, title, message, type, user_id, action_url,
-        is_read, created_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
-    `, [
-      notificationId, title, message, type, user_id,
-      action_url || null
-    ]);
-    
-    res.status(201).json({
-      success: true,
-      data: { id: notificationId, message: 'Notification created successfully' }
-    });
-  } catch (error) {
-    console.error('Error creating enhanced notification:', error);
-    res.status(500).json({ error: 'Failed to create notification' });
-  }
-});
-
-// Get notification statistics
-app.get('/api/v1/notifications/stats', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const userRole = req.user.role;
-    
-    let query = `
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN is_read = false THEN 1 END) as unread,
-        COUNT(CASE WHEN type = 'deliverable' THEN 1 END) as deliverable_notifications,
-        COUNT(CASE WHEN type = 'sprint' THEN 1 END) as sprint_notifications,
-        COUNT(CASE WHEN type = 'approval' THEN 1 END) as approval_notifications,
-        COUNT(CASE WHEN priority = 'high' AND is_read = false THEN 1 END) as high_priority_unread
-      FROM notifications 
-      WHERE (user_id = $1 OR user_id IS NULL)
-    `;
-    
-    let params = [userId];
-    
-    // Role-based filtering
-    if (userRole === 'clientReviewer') {
-      query += ` AND type IN ('deliverable', 'sprint', 'approval', 'review')`;
-    } else if (userRole === 'deliveryLead') {
-      query += ` AND type IN ('deliverable', 'sprint', 'team')`;
-    } else if (userRole === 'teamMember') {
-      query += ` AND type IN ('deliverable', 'sprint', 'assignment')`;
-    }
-    
-    const result = await pool.query(query, params);
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error fetching notification stats:', error);
-    res.status(500).json({ error: 'Failed to fetch notification statistics' });
-  }
-});
-
-// Dashboard API endpoints
-// Get dashboard data
-app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const userRole = req.user.role;
-    
-    // Get current deliverables based on user role
-    let deliverablesQuery = `
-      SELECT d.*, u.name as created_by_name
-      FROM deliverables d
-      LEFT JOIN users u ON d.created_by::text = u.id::text
-      WHERE d.status IN ('in_progress', 'pending', 'review')
-    `;
-    
-    // Build params only when placeholders are present
-    const deliverablesParams = [];
-    let deliverablesParamIndex = 0;
-    if (userRole === 'teamMember') {
-      deliverablesParamIndex++;
-      deliverablesQuery += ` AND d.assigned_to::text = $${deliverablesParamIndex}::text`;
-      deliverablesParams.push(userId);
-    } else if (userRole === 'deliveryLead') {
-      deliverablesParamIndex++;
-      deliverablesQuery += ` AND (d.created_by::text = $${deliverablesParamIndex}::text OR d.assigned_to::text = $${deliverablesParamIndex}::text)`;
-      deliverablesParams.push(userId);
-    }
-    
-    deliverablesQuery += ` ORDER BY d.updated_at DESC LIMIT 10`;
-    
-    const deliverablesResult = await pool.query(deliverablesQuery, deliverablesParams);
-    
-    // Get recent activity from audit_logs (activity_log table doesn't exist)
-    let activityResult = { rows: [] };
-    try {
-      const activityQuery = `
-        SELECT 
-          al.id,
-          al.action as activity_type,
-          al.action as activity_title,
-          al.details as activity_description,
-          al.resource_id as deliverable_id,
-          al.created_at,
-          u.name as user_name,
-          d.title as deliverable_title
-        FROM audit_logs al
-        LEFT JOIN users u ON al.user_id = u.id
-        LEFT JOIN deliverables d ON al.resource_id::text = d.id::text AND al.resource_type = 'deliverable'
-        ORDER BY al.created_at DESC
-        LIMIT 20
-      `;
-      activityResult = await pool.query(activityQuery);
-    } catch (activityError) {
-      console.error('Error fetching activity (non-fatal):', activityError.message);
-    }
-    
-    // Get progress statistics
-    const statsQuery = `
-      SELECT 
-        COUNT(*) as total_deliverables,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
-        COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress,
-        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
-        AVG(progress) as avg_progress
-      FROM deliverables
-      WHERE status != 'cancelled'
-    `;
-    
-    const statsResult = await pool.query(statsQuery);
-
-    // Get sign-off report status breakdown
-    const signoffStatsQuery = `
-      SELECT 
-        COUNT(*) as total_reports,
-        COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_reports,
-        COUNT(CASE WHEN status = 'submitted' THEN 1 END) as submitted_reports,
-        COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_reports,
-        COUNT(CASE WHEN status = 'change_requested' THEN 1 END) as change_requested_reports
-      FROM sign_off_reports
-    `;
-
-    const signoffStatsResult = await pool.query(signoffStatsQuery);
-
-    // Average sign-off time in days for approved reports
-    const avgSignoffQuery = `
-      SELECT AVG(EXTRACT(EPOCH FROM (approved_at - submitted_at)) / 86400.0) AS avg_signoff_days
-      FROM sign_off_reports
-      WHERE status = 'approved'
-        AND approved_at IS NOT NULL
-        AND submitted_at IS NOT NULL
-    `;
-
-    const avgSignoffResult = await pool.query(avgSignoffQuery);
-    const avgSignoffDays = avgSignoffResult.rows[0]?.avg_signoff_days;
-    
-    res.json({
-      success: true,
-      data: {
-        deliverables: deliverablesResult.rows,
-        recentActivity: activityResult.rows,
-        statistics: {
-          ...statsResult.rows[0],
-          ...signoffStatsResult.rows[0],
-          avg_signoff_days: avgSignoffDays,
-        },
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard data' });
-  }
-});
-
-// Get deliverable progress
-app.get('/api/v1/deliverables/:id/progress', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    
-    const result = await pool.query(`
-      SELECT id, title, progress, status, updated_at
-      FROM deliverables 
-      WHERE id = $1
-    `, [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Deliverable not found' });
-    }
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error fetching deliverable progress:', error);
-    res.status(500).json({ error: 'Failed to fetch deliverable progress' });
-  }
-});
-
-// Update deliverable progress
-app.put('/api/v1/deliverables/:id/progress', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { progress, status } = req.body;
-    const userId = req.user.id;
-    
-    if (progress < 0 || progress > 100) {
-      return res.status(400).json({ error: 'Progress must be between 0 and 100' });
-    }
-    
-    // Update progress
-    const result = await pool.query(`
-      UPDATE deliverables 
-      SET progress = $1, status = $2, updated_at = NOW()
-      WHERE id = $3
-      RETURNING *
-    `, [progress, status, id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Deliverable not found' });
-    }
-    
-    // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (user_id, activity_type, activity_title, activity_description, deliverable_id)
-      VALUES ($1, 'progress_update', 'Progress Updated', 'Progress updated to ${progress}%', $2)
-    `, [userId, id]);
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error updating deliverable progress:', error);
-    res.status(500).json({ error: 'Failed to update deliverable progress' });
-  }
-});
-
-// Get recent activity
-app.get('/api/v1/activity', authenticateToken, async (req, res) => {
-  try {
-    const { limit = 20, offset = 0 } = req.query;
-    
-    const result = await pool.query(`
-      SELECT 
-        al.*,
-        u.name as user_name,
-        d.title as deliverable_title
-      FROM activity_log al
-      LEFT JOIN users u ON al.user_id = u.id
-      LEFT JOIN deliverables d ON al.deliverable_id = d.id
-      ORDER BY al.created_at DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    console.error('Error fetching recent activity:', error);
-    res.status(500).json({ error: 'Failed to fetch recent activity' });
-  }
-});
-
-// ==================== PROJECTS API ENDPOINTS ====================
-
-// Get all projects
-app.get('/api/v1/projects', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT id, name, description, status, created_at, updated_at
-      FROM projects
-      ORDER BY name ASC
-    `);
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    console.error('Error fetching projects:', error);
-    res.status(500).json({ error: 'Failed to fetch projects' });
-  }
-});
-
-// Create a project
-app.post('/api/v1/projects', authenticateToken, async (req, res) => {
-  try {
-    const { name, description, status = 'active' } = req.body;
-    const userId = req.user.id;
-    
-    if (!name) {
-      return res.status(400).json({ error: 'Project name is required' });
-    }
-    
-    const projectId = uuidv4();
-    const result = await pool.query(`
-      INSERT INTO projects (id, name, description, status, created_by, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-      RETURNING *
-    `, [projectId, name, description || '', status, userId]);
-    
-      res.status(201).json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error creating project:', error);
-    res.status(500).json({ error: 'Failed to create project' });
-  }
-});
-
-// Get all sprints
-app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
-  try {
-    const { projectId } = req.query;
-    
-    let query = `
-      SELECT s.id, s.name, s.status, s.start_date, s.end_date, s.project_id, s.created_at, s.updated_at,
-             p.name as project_name
-      FROM sprints s
-      LEFT JOIN projects p ON s.project_id = p.id
-    `;
-    
-    const params = [];
-    if (projectId) {
-      query += ` WHERE s.project_id = $1`;
-      params.push(projectId);
-    }
-    
-    query += ` ORDER BY s.start_date DESC`;
-    
-    const result = await pool.query(query, params);
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    console.error('Error fetching sprints:', error);
-    res.status(500).json({ error: 'Failed to fetch sprints' });
-  }
-});
-
-// Create a sprint
-app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
-  try {
-    // Support both camelCase and snake_case from the client
-    const {
-      name,
-      projectId,
-      project_id,
-      startDate,
-      start_date,
-      endDate,
-      end_date,
-      status = 'planned'
-    } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'Sprint name is required' });
-    }
-
-    const resolvedProjectId = projectId || project_id || null;
-    const resolvedStartDate = startDate || start_date;
-    const resolvedEndDate = endDate || end_date;
-
-    if (!resolvedStartDate || !resolvedEndDate) {
-      return res.status(400).json({ error: 'Sprint start_date and end_date are required' });
-    }
-
-    const sprintId = uuidv4();
-    const result = await pool.query(`
-      INSERT INTO sprints (id, name, project_id, start_date, end_date, status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-      RETURNING *
-    `, [sprintId, name, resolvedProjectId, resolvedStartDate, resolvedEndDate, status]);
-
-    res.status(201).json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error creating sprint:', error);
-    res.status(500).json({ error: 'Failed to create sprint' });
-  }
-});
-
-// Get single sprint by ID
-app.get('/api/v1/sprints/:sprintId', authenticateToken, async (req, res) => {
-  try {
-    const { sprintId } = req.params;
-    
-    const result = await pool.query(`
-      SELECT s.*, p.name as project_name
-      FROM sprints s
-      LEFT JOIN projects p ON s.project_id = p.id
-      WHERE s.id = $1::uuid
-    `, [sprintId]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Sprint not found' });
-    }
-    
-    const sprint = result.rows[0];
-    res.json({
-      success: true,
-      data: {
-        id: sprint.id,
-        name: sprint.name,
-        status: sprint.status,
-        startDate: sprint.start_date,
-        endDate: sprint.end_date,
-        projectId: sprint.project_id,
-        projectName: sprint.project_name,
-        committedPoints: sprint.committed_points,
-        completedPoints: sprint.completed_points,
-        velocity: sprint.velocity,
-        testPassRate: sprint.test_pass_rate,
-        defectCount: sprint.defect_count,
-        createdAt: sprint.created_at,
-        updatedAt: sprint.updated_at
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching sprint:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch sprint' });
-  }
-});
-
-// Get sprint metrics by sprint ID
-app.get('/api/v1/sprints/:sprintId/metrics', authenticateToken, async (req, res) => {
-  try {
-    const { sprintId } = req.params;
-
-    const result = await pool.query(
-      'SELECT * FROM sprint_metrics WHERE sprint_id = $1 ORDER BY created_at DESC LIMIT 1',
-      [sprintId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Sprint metrics not found' });
-    }
-
-    const row = result.rows[0];
-    return res.json({
-      success: true,
-      data: {
-        id: row.id,
-        sprintId: row.sprint_id,
-        committedPoints: row.committed_points,
-        completedPoints: row.completed_points,
-        carriedOverPoints: row.carried_over_points,
-        testPassRate: row.test_pass_rate,
-        defectsOpened: row.defects_opened,
-        defectsClosed: row.defects_closed,
-        criticalDefects: row.critical_defects,
-        highDefects: row.high_defects,
-        mediumDefects: row.medium_defects,
-        lowDefects: row.low_defects,
-        codeReviewCompletion: row.code_review_completion,
-        documentationStatus: row.documentation_status,
-        risks: row.risks,
-        mitigations: row.mitigations,
-        scopeChanges: row.scope_changes,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching sprint metrics:', error);
-    return res.status(500).json({ success: false, error: 'Failed to fetch sprint metrics' });
-  }
-});
-
-// Get tickets for a specific sprint
-app.get('/api/v1/sprints/:sprintId/tickets', authenticateToken, async (req, res) => {
-  try {
-    const { sprintId } = req.params;
-    
-    const result = await pool.query(`
-      SELECT * FROM tickets WHERE sprint_id = $1 ORDER BY created_at DESC
-    `, [sprintId]);
-    
-    res.json({
-      success: true,
-      data: result.rows.map(row => ({
-        id: row.ticket_id,
-        ticketId: row.ticket_id,
-        ticketKey: row.ticket_key,
-        key: row.ticket_key,
-        summary: row.summary,
-        title: row.summary,
-        description: row.description,
-        status: row.status,
-        issueType: row.issue_type,
-        type: row.issue_type,
-        priority: row.priority,
-        assignee: row.assignee,
-        reporter: row.reporter,
-        sprintId: row.sprint_id,
-        projectId: row.project_id,
-        userId: row.user_id,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at
-      }))
-    });
-  } catch (error) {
-    console.error('Error fetching sprint tickets:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch sprint tickets' });
-  }
-});
-
-// ==================== DOCUMENT API ENDPOINTS ====================
-
 // Get all documents with search and filtering
 app.get('/api/v1/documents', authenticateToken, async (req, res) => {
   try {
     const { search, fileType, uploader, projectId } = req.query;
     const userId = req.user.id;
     const userRole = req.user.role;
-    
+
     let query = `
       SELECT d.*, 
              u.name as uploader_name,
@@ -2346,10 +991,10 @@ app.get('/api/v1/documents', authenticateToken, async (req, res) => {
       LEFT JOIN projects p ON d.project_id = p.id
       WHERE 1=1
     `;
-    
+
     let params = [];
     let paramCount = 0;
-    
+
     // Role-based filtering
     if (userRole === 'teamMember') {
       paramCount++;
@@ -2365,39 +1010,103 @@ app.get('/api/v1/documents', authenticateToken, async (req, res) => {
       params.push(userId);
     }
     // clientReviewer and other roles can see all documents
-    
+
     // Search filter
     if (search && search.trim()) {
       paramCount++;
       query += ` AND (d.file_name ILIKE $${paramCount} OR d.description ILIKE $${paramCount} OR d.tags ILIKE $${paramCount})`;
       params.push(`%${search.trim()}%`);
     }
-    
+
     // File type filter
     if (fileType && fileType !== 'all') {
       paramCount++;
       query += ` AND d.file_type = $${paramCount}`;
       params.push(fileType);
     }
-    
+
     // Uploader filter
     if (uploader && uploader.trim()) {
       paramCount++;
       query += ` AND u.name ILIKE $${paramCount}`;
       params.push(`%${uploader.trim()}%`);
     }
-    
+
     // Project filter
     if (projectId && projectId.trim()) {
       paramCount++;
       query += ` AND d.project_id = $${paramCount}`;
       params.push(projectId);
     }
-    
+
     query += ` ORDER BY d.uploaded_at DESC`;
-    
-    const result = await pool.query(query, params);
-    
+
+    let result;
+    try {
+      result = await pool.query(query, params);
+    } catch (queryError) {
+      // Older schemas may not include description/tags columns
+      if (queryError && queryError.code === '42703' && (queryError.message || '').includes('d.description')) {
+        console.log('⚠️  repository_files.description column not found, retrying documents query without description/tags');
+
+        let fallbackQuery = `
+          SELECT d.*,
+                 u.name as uploader_name,
+                 p.name as project_name
+          FROM repository_files d
+          LEFT JOIN users u ON d.uploaded_by = u.id
+          LEFT JOIN projects p ON d.project_id = p.id
+          WHERE 1=1
+        `;
+
+        const fallbackParams = [];
+        let fallbackParamCount = 0;
+
+        if (userRole === 'teamMember') {
+          fallbackParamCount++;
+          fallbackQuery += ` AND (d.uploaded_by = $${fallbackParamCount} OR d.project_id IN (
+            SELECT project_id FROM project_members WHERE user_id = $${fallbackParamCount}
+          ))`;
+          fallbackParams.push(userId);
+        } else if (userRole === 'deliveryLead') {
+          fallbackParamCount++;
+          fallbackQuery += ` AND (d.uploaded_by = $${fallbackParamCount} OR d.project_id IN (
+            SELECT project_id FROM project_members WHERE user_id = $${fallbackParamCount} AND role IN ('manager', 'owner')
+          ))`;
+          fallbackParams.push(userId);
+        }
+
+        if (search && search.trim()) {
+          fallbackParamCount++;
+          fallbackQuery += ` AND (d.file_name ILIKE $${fallbackParamCount})`;
+          fallbackParams.push(`%${search.trim()}%`);
+        }
+
+        if (fileType && fileType !== 'all') {
+          fallbackParamCount++;
+          fallbackQuery += ` AND d.file_type = $${fallbackParamCount}`;
+          fallbackParams.push(fileType);
+        }
+
+        if (uploader && uploader.trim()) {
+          fallbackParamCount++;
+          fallbackQuery += ` AND u.name ILIKE $${fallbackParamCount}`;
+          fallbackParams.push(`%${uploader.trim()}%`);
+        }
+
+        if (projectId && projectId.trim()) {
+          fallbackParamCount++;
+          fallbackQuery += ` AND d.project_id = $${fallbackParamCount}`;
+          fallbackParams.push(projectId);
+        }
+
+        fallbackQuery += ` ORDER BY d.uploaded_at DESC`;
+        result = await pool.query(fallbackQuery, fallbackParams);
+      } else {
+        throw queryError;
+      }
+    }
+
     res.json({
       success: true,
       data: result.rows.map(row => ({
@@ -2419,6 +1128,9 @@ app.get('/api/v1/documents', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching documents:', error);
+    if (error && error.code === '42P01') {
+      return res.json({ success: true, data: [] });
+    }
     res.status(500).json({ 
       success: false,
       error: 'Failed to fetch documents' 
@@ -2440,7 +1152,7 @@ app.get('/api/v1/documents/:id', authenticateToken, async (req, res) => {
       FROM repository_files d
       LEFT JOIN users u ON d.uploaded_by = u.id
       LEFT JOIN projects p ON d.project_id = p.id
-  WHERE d.id = $1
+      WHERE d.id = $1
     `;
     
     let params = [id];
