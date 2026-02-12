@@ -1363,6 +1363,20 @@ router.post('/client-review-links', async (req, res) => {
           expiresAt: expiresAt.toISOString(),
           tokenType: 'client_review',
           actor_name: actorName
+=======
+      await AuditLog.create({
+        entity_type: 'signoff',
+        entity_id: reportId,
+        action: 'review_link_created',
+        actor_id: user.id || null,
+        actor_name: user.first_name && user.last_name 
+          ? `${user.first_name} ${user.last_name}` 
+          : (user.username || 'Unknown User'),
+        details: { 
+          clientEmail,
+          expiresAt: expiresAt.toISOString(),
+          tokenType: 'client_review'
+>>>>>>> 81e0de93 (feat(signoff): add client review signoff report & actions)
         },
         created_at: new Date()
       });
