@@ -38,7 +38,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Projects',
         icon: Icons.folder_outlined,
         iconName: 'teams',
-        route: '/project-workspace',
+        route: '/projects',
         requiredPermission: null,
       ),
       const _NavItem(
@@ -487,7 +487,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                     ),
                     onTap: () {
                       Navigator.pop(context);
-                      _handleLogout(context);
+                      _handleLogout();
                     },
                   ),
                 ),
@@ -564,17 +564,16 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     }
   }
 
-  Future<void> _handleLogout(BuildContext ctx) async {
-    final router = GoRouter.of(ctx);
+  Future<void> _handleLogout() async {
+    final router = GoRouter.of(context);
     await AuthService().signOut();
     if (!mounted) return;
     router.go('/');
   }
 
   void _showMainMenu(BuildContext context) {
-    // Capture all needed values before async operation
+    // Capture router before async operation
     final router = GoRouter.of(context);
-    final ctx = context;
     
     showMenu<String>(
       context: context,
@@ -640,8 +639,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
             router.go('/notifications');
             break;
           case 'logout':
-            // Call logout immediately, not in async gap
-            _handleLogout(ctx);
+            // Call logout without passing context across async gap
+            _handleLogout();
             break;
         }
       }
@@ -662,7 +661,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       ),
       child: _collapsed
           ? IconButton(
-              onPressed: () => _handleLogout(context),
+              onPressed: () => _handleLogout(),
               icon: AppIcons.getIconWidget(
                 'logout',
                 fallbackIcon: Icons.logout,
@@ -674,7 +673,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               padding: const EdgeInsets.all(12),
             )
           : TextButton.icon(
-              onPressed: () => _handleLogout(context),
+              onPressed: () => _handleLogout(),
               icon: AppIcons.getIconWidget(
                 'logout',
                 fallbackIcon: Icons.logout,

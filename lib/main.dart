@@ -25,8 +25,6 @@ import 'screens/report_repository_screen.dart';
 import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
-import 'screens/projects_screen.dart';
-import 'screens/project_create_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/send_reminder_screen.dart';
 import 'screens/role_dashboard_screen.dart';
@@ -53,6 +51,7 @@ import 'screens/deliverable_detail_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
 import 'screens/project_setup_screen.dart';
+import 'screens/project_details_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -161,15 +160,6 @@ final GoRouter _router = GoRouter(
         requiredPermission: 'authenticated',
         child: SidebarScaffold(
           child: RoleDashboardScreen(),
-        ),
-      ),
-    ),
-    GoRoute(
-      path: '/projects',
-      builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
-        child: SidebarScaffold(
-          child: ProjectsScreen(),
         ),
       ),
     ),
@@ -578,6 +568,18 @@ final GoRouter _router = GoRouter(
           route: '/project-workspace',
           child: SidebarScaffold(
             child: ProjectWorkspaceScreen(projectId: projectId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/project-details/:projectId',
+      builder: (context, state) {
+        final projectId = state.pathParameters['projectId']!;
+        return RouteGuard(
+          route: '/project-details',
+          child: SidebarScaffold(
+            child: ProjectDetailsScreen(projectId: projectId),
           ),
         );
       },
