@@ -1,10 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_client.dart';
-import '../models/user.dart';
-import '../models/user_role.dart';
-import '../models/deliverable.dart';
-import '../models/sprint_metrics.dart';
-import '../models/sign_off_report.dart';
+import 'package:khono/models/user.dart';
+import 'package:khono/models/user_role.dart';
+import 'package:khono/models/deliverable.dart';
+import 'package:khono/models/sprint_metrics.dart';
+import 'package:khono/models/sign_off_report.dart';
 
 class BackendApiService {
   static final BackendApiService _instance = BackendApiService._internal();
@@ -40,7 +42,16 @@ class BackendApiService {
   }
 
   Future<ApiResponse> updateProfile(Map<String, dynamic> updates) async {
-    return await _apiClient.updateProfile(updates);
+    final me = await _apiClient.getCurrentUser();
+    if (!me.isSuccess || me.data == null) {
+      return ApiResponse.error('Failed to load current user');
+    }
+    final user = me.data['user'] ?? me.data;
+    final id = user['id']?.toString();
+    if (id == null || id.isEmpty) {
+      return ApiResponse.error('Missing user id');
+    }
+    return await _apiClient.put('/profile/$id', body: updates);
   }
 
   Future<ApiResponse> changePassword(String currentPassword, String newPassword) async {
@@ -102,7 +113,7 @@ class BackendApiService {
     },);
   }
 
-  // Deliverable endpoints
+  // Deliverable endpoints - Updated for integration
   Future<ApiResponse> getDeliverables({int page = 1, int limit = 20, String? status, String? search}) async {
     final queryParams = <String, String>{
       'page': page.toString(),
@@ -129,6 +140,10 @@ class BackendApiService {
     return await _apiClient.put('/deliverables/$deliverableId', body: updates);
   }
 
+  Future<ApiResponse> updateDeliverableStatus(String deliverableId, String status) async {
+    return await _apiClient.put('/deliverables/$deliverableId/updateStatus', body: {'status': status});
+  }
+
   Future<ApiResponse> deleteDeliverable(String deliverableId) async {
     return await _apiClient.delete('/deliverables/$deliverableId');
   }
@@ -147,6 +162,25 @@ class BackendApiService {
     return await _apiClient.post('/deliverables/$deliverableId/request-changes', body: {
       'change_request': changeRequest,
     },);
+  }
+
+  Future<ApiResponse> uploadDeliverableArtifact(
+    String deliverableId,
+    List<int> fileBytes,
+    String filename, {
+    String? title,
+    String? description,
+  }) async {
+    final fields = <String, String>{};
+    if (title != null) fields['title'] = title;
+    if (description != null) fields['description'] = description;
+    
+    return await _apiClient.uploadFileBytes(
+      '/deliverables/$deliverableId/artifacts',
+      fileBytes: fileBytes,
+      filename: filename,
+      fields: fields,
+    );
   }
 
   // Sprint endpoints
@@ -177,6 +211,14 @@ class BackendApiService {
     return await _apiClient.delete('/sprints/$sprintId');
   }
 
+  Future<ApiResponse> updateSprintStatus(String sprintId, Map<String, dynamic> updates) async {
+    return await _apiClient.put('/sprints/$sprintId/status', body: updates);
+  }
+
+  Future<ApiResponse> runDiagnostics() async {
+    return await _apiClient.post('/diagnostics/run');
+  }
+
   // Sprint metrics endpoints
   Future<ApiResponse> getSprintMetrics(String sprintId) async {
     return await _apiClient.get('/sprints/$sprintId/metrics');
@@ -191,7 +233,7 @@ class BackendApiService {
   }
 
   // Sign-off report endpoints
-  Future<ApiResponse> getSignOffReports({int page = 1, int limit = 20, String? status, String? search}) async {
+  Future<ApiResponse> getSignOffReports({int page = 1, int limit = 20, String? status, String? search, String? deliverableId}) async {
     final queryParams = <String, String>{
       'page': page.toString(),
       'limit': limit.toString(),
@@ -202,7 +244,18 @@ class BackendApiService {
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
-    return await _apiClient.get('/sign-off-reports', queryParams: queryParams);
+    if (deliverableId != null && deliverableId.isNotEmpty) {
+      queryParams['deliverableId'] = deliverableId;
+    }
+    final resp = await _apiClient.get('/sign-off-reports', queryParams: queryParams);
+    if (resp.isSuccess && resp.data != null) {
+      try {
+        final raw = resp.data;
+        final List<dynamic> items = raw is List ? raw : (raw['data'] ?? raw['reports'] ?? raw['items'] ?? []);
+        await _saveCachedReports(items);
+      } catch (_) {}
+    }
+    return resp;
   }
 
   Future<ApiResponse> getSignOffReport(String reportId) async {
@@ -211,7 +264,14 @@ class BackendApiService {
 
   Future<ApiResponse> createSignOffReport(Map<String, dynamic> reportData) async {
     debugPrint('🔵 Creating sign-off report: $reportData');
-    return await _apiClient.post('/sign-off-reports', body: reportData);
+    final resp = await _apiClient.post('/sign-off-reports', body: reportData);
+    if (resp.isSuccess && resp.data != null) {
+      try {
+        final map = resp.data is Map<String, dynamic> ? resp.data as Map<String, dynamic> : Map<String, dynamic>.from(resp.data as Map);
+        await _prependCachedReport(map);
+      } catch (_) {}
+    }
+    return resp;
   }
 
   Future<ApiResponse> updateSignOffReport(String reportId, Map<String, dynamic> updates) async {
@@ -219,24 +279,143 @@ class BackendApiService {
     return await _apiClient.put('/sign-off-reports/$reportId', body: updates);
   }
 
+  Future<ApiResponse> deleteSignOffReport(String reportId) async {
+    final resp = await _apiClient.delete('/sign-off-reports/$reportId');
+    if (resp.isSuccess) {
+      try { await _removeCachedReport(reportId); } catch (_) {}
+    }
+    return resp;
+  }
+
   Future<ApiResponse> submitSignOffReport(String reportId) async {
     debugPrint('🔵 Submitting sign-off report: $reportId');
     return await _apiClient.post('/sign-off-reports/$reportId/submit');
   }
 
-  Future<ApiResponse> approveSignOffReport(String reportId, String? comment, String? digitalSignature) async {
+  Future<ApiResponse> approveSignOffReport(String reportId, String? comment, String? digitalSignature, {String? reviewToken, String? clientId}) async {
     debugPrint('🔵 Approving/adding feedback to report: $reportId');
-    return await _apiClient.post('/sign-off-reports/$reportId/approve', body: {
+    final body = {
       'comment': comment,
       'digitalSignature': digitalSignature,
-    },);
+      if (clientId != null) 'clientId': clientId,
+    };
+    // If token provided, add it to query or header
+    final queryParams = reviewToken != null ? {'token': reviewToken} : null;
+    final resp = await _apiClient.post('/sign-off-reports/$reportId/approve', body: body, queryParams: queryParams);
+    if (resp.isSuccess) {
+      try { await _updateCachedReportStatus(reportId, 'approved'); } catch (_) {}
+    }
+    return resp;
   }
 
-  Future<ApiResponse> requestSignOffChanges(String reportId, String changeRequest) async {
+  Future<ApiResponse> requestSignOffChanges(String reportId, String changeRequest, {String? reviewToken, String? clientId}) async {
     debugPrint('🔵 Requesting changes to report: $reportId');
-    return await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: {
+    final body = {
       'changeRequestDetails': changeRequest,
-    },);
+      if (clientId != null) 'clientId': clientId,
+    };
+    // If token provided, add it to query
+    final queryParams = reviewToken != null ? {'token': reviewToken} : null;
+    final resp = await _apiClient.post('/sign-off-reports/$reportId/request-changes', body: body, queryParams: queryParams);
+    if (resp.isSuccess) {
+      try { await _updateCachedReportStatus(reportId, 'change_requested'); } catch (_) {}
+    }
+    return resp;
+  }
+
+  /// Create a secure client review link token
+  Future<ApiResponse> createClientReviewLink(String reportId, String clientEmail, {int? expiresInSeconds}) async {
+    debugPrint('🔵 Creating client review link for report: $reportId');
+    return await _apiClient.post('/sign-off-reports/client-review-links', body: {
+      'reportId': reportId,
+      'clientEmail': clientEmail,
+      if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
+    });
+  }
+
+  /// Get sign-off report and performance metrics via secure token (no auth required)
+  Future<ApiResponse> getClientReviewByToken(String token) async {
+    debugPrint('🔵 Fetching client review by token');
+    return await _apiClient.get('/sign-off-reports/client-review/$token', requireAuth: false);
+  }
+
+  Future<ApiResponse> aiChat(List<Map<String, dynamic>> messages, {double? temperature, int? maxTokens}) async {
+    return await _apiClient.post('/ai/chat', body: {
+      'messages': messages,
+      if (temperature != null) 'temperature': temperature,
+      if (maxTokens != null) 'max_tokens': maxTokens,
+    });
+  }
+
+  // Project endpoints
+  Future<ApiResponse> getProjects({int page = 1, int limit = 1000, String? search}) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (search != null && search.isNotEmpty) {
+      queryParams['search'] = search;
+    }
+    return await _apiClient.get('/projects', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> getProject(String projectId) async {
+    return await _apiClient.get('/projects/$projectId');
+  }
+
+  Future<ApiResponse> createProject(Map<String, dynamic> projectData) async {
+    return await _apiClient.post('/projects', body: projectData);
+  }
+
+  Future<ApiResponse> updateProject(String projectId, Map<String, dynamic> updates) async {
+    return await _apiClient.put('/projects/$projectId', body: updates);
+  }
+
+  Future<ApiResponse> deleteProject(String projectId) async {
+    return await _apiClient.delete('/projects/$projectId');
+  }
+
+  Future<ApiResponse> remindProjectOwner(String projectId, {bool force = false}) async {
+    final body = <String, dynamic>{};
+    if (force) {
+      body['force'] = true;
+    }
+    return await _apiClient.post('/projects/$projectId/remind-owner', body: body.isEmpty ? null : body);
+  }
+
+  // Project member management
+  Future<ApiResponse> addProjectMember(String projectId, Map<String, dynamic> memberData) async {
+    return await _apiClient.post('/projects/$projectId/members', body: memberData);
+  }
+
+  Future<ApiResponse> removeProjectMember(String projectId, String userId) async {
+    return await _apiClient.delete('/projects/$projectId/members/$userId');
+  }
+
+  // Project deliverable linking
+  Future<ApiResponse> linkDeliverableToProject(String projectId, String deliverableId) async {
+    // Implement by updating the deliverable's project_id field
+    return await _apiClient.put('/deliverables/$deliverableId', body: {
+      'project_id': projectId,
+    });
+  }
+
+  Future<ApiResponse> unlinkDeliverableFromProject(String projectId, String deliverableId) async {
+    // Implement by clearing the deliverable's project_id field
+    return await _apiClient.put('/deliverables/$deliverableId', body: {
+      'project_id': null,
+    });
+  }
+
+  // Project sprint association
+  Future<ApiResponse> associateSprintWithProject(String projectId, List<String> sprintIds) async {
+    return await _apiClient.post('/projects/$projectId/sprints', body: {
+      'sprintIds': sprintIds,
+    });
+  }
+
+  Future<ApiResponse> dissociateSprintFromProject(String projectId, String sprintId) async {
+    return await _apiClient.delete('/projects/$projectId/sprints/$sprintId');
   }
 
   // Release readiness endpoints
@@ -250,14 +429,13 @@ class BackendApiService {
 
   // Notification endpoints
   Future<ApiResponse> getNotifications({int page = 1, int limit = 20, bool? unreadOnly}) async {
+    final skip = (page <= 1) ? 0 : (page - 1) * limit;
     final queryParams = <String, String>{
-      'page': page.toString(),
+      'skip': skip.toString(),
       'limit': limit.toString(),
+      if (unreadOnly != null) 'unread_only': unreadOnly.toString(),
     };
-    if (unreadOnly != null) {
-      queryParams['unread_only'] = unreadOnly.toString();
-    }
-    return await _apiClient.get('/notifications', queryParams: queryParams);
+    return await _apiClient.get('/notifications/me', queryParams: queryParams);
   }
 
   Future<ApiResponse> markNotificationAsRead(String notificationId) async {
@@ -268,13 +446,26 @@ class BackendApiService {
     return await _apiClient.put('/notifications/read-all');
   }
 
+  Future<ApiResponse> simulateReportReminder({String? reportId, bool force = true, String? recipientRole, String? recipientId}) async {
+    final body = <String, dynamic>{};
+    if (reportId != null && reportId.isNotEmpty) body['reportId'] = reportId;
+    if (force) body['force'] = true;
+    if (recipientRole != null && recipientRole.isNotEmpty) body['recipientRole'] = recipientRole;
+    if (recipientId != null && recipientId.isNotEmpty) body['recipientId'] = recipientId;
+    return await _apiClient.post('/system/simulate-report-reminder', body: body);
+  }
+
+  Future<ApiResponse> sendReminderForReport(String reportId, String recipientRole, {String? recipientId}) async {
+    return await simulateReportReminder(reportId: reportId, recipientRole: recipientRole, recipientId: recipientId, force: true);
+  }
+
   Future<ApiResponse> deleteNotification(String notificationId) async {
     return await _apiClient.delete('/notifications/$notificationId');
   }
 
   // Dashboard and analytics endpoints
   Future<ApiResponse> getDashboardData() async {
-    return await _apiClient.get('/dashboard');
+    return await _apiClient.get('/analytics/dashboard');
   }
 
   Future<ApiResponse> getAnalytics(String type, {Map<String, String>? filters}) async {
@@ -293,13 +484,21 @@ class BackendApiService {
       queryParams['user_id'] = userId;
     }
     
-    // Try the audit logs endpoint
     final response = await _apiClient.get('/audit-logs', queryParams: queryParams);
     
-    // If the endpoint doesn't exist or returns error, provide mock data for development
+    // If the endpoint doesn't exist or returns error, provide empty response
     if (!response.isSuccess) {
-      debugPrint('Audit logs endpoint not available, returning mock data');
-      return ApiResponse.success(_getMockAuditLogs(skip, limit, action, userId), 200);
+      debugPrint('Audit endpoint not available, returning empty response');
+      return ApiResponse.success({
+        'audit_logs': [],
+        'items': [],
+        'logs': [],
+        'total': 0,
+        'total_count': 0,
+        'skip': skip,
+        'limit': limit,
+        'has_more': false,
+      }, 200,);
     }
     
     return response;
@@ -307,13 +506,7 @@ class BackendApiService {
 
   // File upload endpoints
   Future<ApiResponse> uploadFile(String filePath, String fileName, String fileType) async {
-    // This would typically use a multipart request
-    // For now, we'll return a mock response
-    return ApiResponse.success({
-      'file_id': 'file_${DateTime.now().millisecondsSinceEpoch}',
-      'file_name': fileName,
-      'file_url': 'https://api.flownet.works/files/$fileName',
-    }, 200,);
+    return await _apiClient.uploadFile('/files/upload', filePath, fileName, fileType);
   }
 
   Future<ApiResponse> deleteFile(String fileId) async {
@@ -343,15 +536,90 @@ class BackendApiService {
   }
 
   Future<ApiResponse> clearCache() async {
-    return await _apiClient.post('/system/clear-cache');
+    return await _apiClient.post('/system/cache/clear');
   }
 
   Future<ApiResponse> optimizeDatabase() async {
     return await _apiClient.post('/system/optimize-database');
   }
 
-  Future<ApiResponse> runDiagnostics() async {
-    return await _apiClient.get('/system/diagnostics');
+  // Ticket endpoints
+  Future<ApiResponse> updateTicketStatus(String ticketId, Map<String, dynamic> updates) async {
+    return await _apiClient.put('/tickets/$ticketId/status', body: updates);
+  }
+
+  Future<ApiResponse> updateTicket(String ticketId, Map<String, dynamic> updates) async {
+    return await _apiClient.put('/tickets/$ticketId', body: updates);
+  }
+
+  // System statistics endpoint
+  Future<ApiResponse> getSystemStats() async {
+    return await _apiClient.get('/system/stats');
+  }
+
+  // System maintenance endpoints
+  Future<ApiResponse> toggleMaintenanceMode(bool enabled, {String? message}) async {
+    return await _apiClient.post('/system/maintenance', body: {
+      'enabled': enabled,
+      'message': message,
+    },);
+  }
+
+  // System backup management
+  Future<ApiResponse> listBackups() async {
+    return await _apiClient.get('/system/backups');
+  }
+
+  // Audit logs endpoint (real implementation)
+  Future<ApiResponse> getRealAuditLogs({int skip = 0, int limit = 100, String? action, String? userId}) async {
+    final queryParams = <String, String>{
+      'skip': skip.toString(),
+      'limit': limit.toString(),
+    };
+    if (action != null && action.isNotEmpty) {
+      queryParams['action'] = action;
+    }
+    if (userId != null && userId.isNotEmpty) {
+      queryParams['user_id'] = userId;
+    }
+    
+    return await _apiClient.get('/audit-logs', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> getSystemHealth() async {
+    return await _apiClient.get('/monitoring/health');
+  }
+
+  // User settings endpoints
+  Future<ApiResponse> getUserSettings() async {
+    return await _apiClient.get('/settings/me');
+  }
+
+  Future<ApiResponse> updateUserSettings(Map<String, dynamic> settings) async {
+    return await _apiClient.put('/settings/me', body: settings);
+  }
+
+  Future<ApiResponse> resetUserSettings() async {
+    return await _apiClient.delete('/settings/me');
+  }
+
+  Future<ApiResponse> exportUserData() async {
+    return await _apiClient.get('/user/data/export');
+  }
+
+  Future<ApiResponse> clearUserCache() async {
+    return await _apiClient.delete('/user/cache');
+  }
+
+  // Sprint tickets endpoints
+  Future<ApiResponse> getSprintTickets(String sprintId) async {
+    return await _apiClient.get('/sprints/$sprintId/tickets');
+  }
+
+  // File listing endpoint
+  Future<ApiResponse> listFiles({String? prefix}) async {
+    final queryParams = prefix != null ? {'prefix': prefix} : null;
+    return await _apiClient.get('/files', queryParams: queryParams);
   }
 
   // Email verification endpoints
@@ -362,16 +630,53 @@ class BackendApiService {
   }
 
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
-    return await _apiClient.post('/auth/verify-email', body: {
+    debugPrint('🔍 verifyEmail called with: email=$email, code=$verificationCode');
+    final response = await _apiClient.post('/auth/verify-email', body: {
       'email': email,
-      'verificationCode': verificationCode,
+      'code': verificationCode,
     },);
+    debugPrint('📡 verifyEmail response: ${response.toString()}');
+    return response;
   }
 
   Future<ApiResponse> checkEmailVerificationStatus(String email) async {
     return await _apiClient.get('/auth/verification-status', queryParams: {
       'email': email,
     },);
+  }
+
+// Approval requests endpoints
+  Future<ApiResponse> getApprovalRequests({String? status, String? deliverableId, String? requestedBy, int page = 1, int limit = 100}) async {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (status != null) queryParams['status'] = status;
+    if (deliverableId != null) queryParams['deliverable_id'] = deliverableId;
+    if (requestedBy != null) queryParams['requested_by'] = requestedBy;
+    
+    return await _apiClient.get('/approvals', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> getApprovalRequest(String id) async {
+    return await _apiClient.get('/approvals/$id');
+  }
+
+
+  Future<ApiResponse> approveRequest(String id, Map<String, dynamic> approvalData) async {
+    return await _apiClient.put('/approvals/$id/approve', body: approvalData);
+  }
+
+  Future<ApiResponse> rejectRequest(String id, Map<String, dynamic> rejectionData) async {
+    return await _apiClient.put('/approvals/$id/reject', body: rejectionData);
+  }
+
+  Future<ApiResponse> sendReminder(String id) async {
+    return await _apiClient.put('/approvals/$id/remind');
+  }
+
+  Future<ApiResponse> getApprovalMetrics() async {
+    return await _apiClient.get('/approvals/stats/metrics');
   }
 
   // Helper methods for data transformation
@@ -397,13 +702,13 @@ class BackendApiService {
       debugPrint('User data from response: $userData');
       debugPrint('User ID: ${userData['id']}');
       debugPrint('User email: ${userData['email']}');
-      debugPrint('User first name: ${userData['first_name'] ?? userData['firstName']}');
-      debugPrint('User last name: ${userData['last_name'] ?? userData['lastName']}');
+      debugPrint('User first name: ${userData['first_name'] ?? userData['firstName'] ?? userData['firstname']}');
+      debugPrint('User last name: ${userData['last_name'] ?? userData['lastName'] ?? userData['lastname']}');
       debugPrint('User role: ${userData['role']}');
-      debugPrint('User is_active: ${userData['is_active'] ?? userData['isActive']}');
+      debugPrint('User is_active: ${userData['is_active'] ?? userData['isActive'] ?? userData['isactive']}');
       debugPrint('User status: ${userData['status']}');
-      debugPrint('User created_at: ${userData['created_at'] ?? userData['createdAt']}');
-      debugPrint('User last_login: ${userData['last_login'] ?? userData['lastLoginAt']}');
+      debugPrint('User created_at: ${userData['created_at'] ?? userData['createdAt'] ?? userData['createdat']}');
+      debugPrint('User last_login: ${userData['last_login'] ?? userData['lastLoginAt'] ?? userData['lastlogin'] ?? userData['lastLogin']}');
       
       // Create a proper user object for the User.fromJson method
       // Handle both snake_case and camelCase fields from backend
@@ -414,6 +719,9 @@ class BackendApiService {
       String userRoleForParsing;
       
       switch (backendRole.toLowerCase()) {
+        case 'client':
+          userRoleForParsing = 'client';
+          break;
         case 'clientreviewer':
         case 'client_reviewer':
           userRoleForParsing = 'clientReviewer';
@@ -433,31 +741,39 @@ class BackendApiService {
           break;
       }
       
-      // Build name from various possible sources
-      String userName = '';
-      if (userData['name'] != null && userData['name'].toString().isNotEmpty) {
-        userName = userData['name'].toString();
-      } else if (userData['username'] != null && userData['username'].toString().isNotEmpty) {
-        userName = userData['username'].toString();
+final firstName = userData['first_name'] ?? userData['firstName'] ?? userData['firstname'] ?? '';
+      final lastName = userData['last_name'] ?? userData['lastName'] ?? userData['lastname'] ?? '';
+      final combinedName = ('$firstName $lastName').trim();
+      final rawEmail = userData['email']?.toString() ?? '';
+      final emailLocal = rawEmail.contains('@') ? rawEmail.split('@')[0] : rawEmail;
+      final resolvedName = () {
+        final n = (userData['name'] ?? userData['username'] ?? combinedName).toString().trim();
+        return n.isNotEmpty ? n : emailLocal;
+      }();
+
+      final isActiveRaw = userData['is_active'] ?? userData['isActive'] ?? userData['isactive'];
+      bool isActiveComputed;
+      if (isActiveRaw == null) {
+        final statusStr = (userData['status'] ?? '').toString().toLowerCase();
+        isActiveComputed = statusStr.isEmpty ? true : statusStr == 'active';
       } else {
-        final firstName = userData['first_name'] ?? userData['firstName'] ?? '';
-        final lastName = userData['last_name'] ?? userData['lastName'] ?? '';
-        userName = '$firstName $lastName'.trim();
+        final s = isActiveRaw.toString().toLowerCase();
+        isActiveComputed = s == 'true' || s == '1';
       }
-      
+
       final userJsonForParsing = {
         'id': userData['id']?.toString(),
         'email': userData['email'],
-        'name': userName,
-        'role': userRoleForParsing, // Use the converted role format
-        'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'],
-        'createdAt': userData['created_at'] ?? userData['createdAt'] ?? DateTime.now().toIso8601String(), // Provide default if missing
-        'lastLoginAt': userData['last_login'] ?? userData['last_login_at'] ?? userData['lastLoginAt'],
-        'isActive': userData['is_active'] ?? (userData['status'] == 'active') ?? userData['isActive'] ?? true,
-        'projectIds': userData['project_ids'] ?? userData['projectIds'] ?? [],
+        'name': resolvedName,
+        'role': userRoleForParsing,
+        'avatarUrl': userData['avatar_url'] ?? userData['avatarUrl'] ?? userData['avatarurl'],
+        'createdAt': userData['created_at'] ?? userData['createdAt'] ?? userData['createdat'] ?? DateTime.now().toIso8601String(),
+        'lastLoginAt': userData['last_login'] ?? userData['last_login_at'] ?? userData['lastLoginAt'] ?? userData['lastlogin'] ?? userData['lastLogin'],
+        'isActive': isActiveComputed,
+        'projectIds': userData['project_ids'] ?? userData['projectIds'] ?? userData['projectids'] ?? [],
         'preferences': userData['preferences'] ?? {},
-        'emailVerified': userData['email_verified'] ?? userData['emailVerified'] ?? false,
-        'emailVerifiedAt': userData['email_verified_at'] ?? userData['emailVerifiedAt'],
+        'emailVerified': userData['email_verified'] ?? userData['emailVerified'] ?? userData['emailverified'] ?? false,
+        'emailVerifiedAt': userData['email_verified_at'] ?? userData['emailVerifiedAt'] ?? userData['emailverifiedat'],
       };
       
       debugPrint('Final user JSON for parsing: $userJsonForParsing');
@@ -497,104 +813,95 @@ class BackendApiService {
     if (!response.isSuccess || response.data == null) return [];
     
     try {
-      final List<dynamic> items = response.data!['data'] ?? response.data!['reports'] ?? [];
+      final dynamic raw = response.data;
+      final List<dynamic> items = raw is List ? raw : (raw['data'] ?? raw['reports'] ?? raw['items'] ?? []);
       return items.map((item) => SignOffReport.fromJson(item)).toList();
     } catch (e) {
-      debugPrint('Error parsing sign-off reports: \$e');
+      debugPrint('Error parsing sign-off reports: $e');
       return [];
     }
   }
 
-  // Mock audit logs for development
-  Map<String, dynamic> _getMockAuditLogs(int skip, int limit, String? action, String? userId) {
-    final mockLogs = [
-      {
-        'id': '1',
-        'action': 'user_login',
-        'entity_type': 'user',
-        'entity_id': 'user_123',
-        'entity_name': 'John Doe',
-        'user_id': 'user_123',
-        'user_email': 'john.doe@example.com',
-        'user_role': 'systemAdmin',
-        'details': 'User logged in successfully',
-        'created_at': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
-      },
-      {
-        'id': '2',
-        'action': 'deliverable_submit',
-        'entity_type': 'deliverable',
-        'entity_id': 'del_456',
-        'entity_name': 'API Documentation',
-        'user_id': 'user_456',
-        'user_email': 'jane.smith@example.com',
-        'user_role': 'teamMember',
-        'details': 'Deliverable submitted for review',
-        'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
-      },
-      {
-        'id': '3',
-        'action': 'deliverable_approve',
-        'entity_type': 'deliverable',
-        'entity_id': 'del_789',
-        'entity_name': 'UI Design Mockups',
-        'user_id': 'user_789',
-        'user_email': 'mike.jones@example.com',
-        'user_role': 'deliveryLead',
-        'details': 'Deliverable approved by delivery lead',
-        'created_at': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
-      },
-      {
-        'id': '4',
-        'action': 'user_create',
-        'entity_type': 'user',
-        'entity_id': 'user_999',
-        'entity_name': 'New User',
-        'user_id': 'user_123',
-        'user_email': 'john.doe@example.com',
-        'user_role': 'systemAdmin',
-        'details': 'Created new user account',
-        'created_at': DateTime.now().subtract(const Duration(hours: 4)).toIso8601String(),
-      },
-      {
-        'id': '5',
-        'action': 'user_update',
-        'entity_type': 'user',
-        'entity_id': 'user_456',
-        'entity_name': 'Jane Smith',
-        'user_id': 'user_123',
-        'user_email': 'john.doe@example.com',
-        'user_role': 'systemAdmin',
-        'details': 'Updated user permissions',
-        'created_at': DateTime.now().subtract(const Duration(hours: 5)).toIso8601String(),
-      },
-    ];
+  // QA-specific endpoints
+  Future<ApiResponse> getTestQueue() async {
+    return await _apiClient.get('/qa/test-queue');
+  }
 
-    // Apply action filter if specified
-    List<Map<String, dynamic>> filteredLogs = List<Map<String, dynamic>>.from(mockLogs);
-    if (action != null && action.isNotEmpty) {
-      filteredLogs = filteredLogs.where((log) => log['action'] == action).toList();
+  Future<ApiResponse> getQualityMetrics() async {
+    return await _apiClient.get('/qa/quality-metrics');
+  }
+
+  Future<ApiResponse> getBugReports({int limit = 10}) async {
+    final queryParams = {'limit': limit.toString()};
+    return await _apiClient.get('/qa/bug-reports', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> getTestCoverage() async {
+    return await _apiClient.get('/qa/test-coverage');
+  }
+
+  // Approval endpoints
+
+
+  Future<ApiResponse> createApprovalRequest(Map<String, dynamic> requestData) async {
+    return await _apiClient.post('/approvals', body: requestData);
+  }
+
+  // System endpoints
+  Future<ApiResponse> triggerEscalation({bool force = false}) async {
+    return await _apiClient.post('/system/trigger-escalation', body: {'force': force});
+  }
+}
+
+const String _reportsKey = 'cached_signoff_reports';
+Future<void> _saveCachedReports(List<dynamic> list) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error caching reports: $e');
+  }
+}
+
+Future<void> _prependCachedReport(Map<String, dynamic> report) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_reportsKey);
+    final list = (s != null && s.isNotEmpty) ? List<Map<String, dynamic>>.from(jsonDecode(s)) : <Map<String, dynamic>>[];
+    list.insert(0, report);
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error updating cached reports: $e');
+  }
+}
+
+Future<void> _removeCachedReport(String reportId) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_reportsKey);
+    if (s == null || s.isEmpty) return;
+    final list = List<Map<String, dynamic>>.from(jsonDecode(s));
+    list.removeWhere((e) => (e['id']?.toString() ?? '') == reportId);
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error removing cached report: $e');
+  }
+}
+
+Future<void> _updateCachedReportStatus(String reportId, String status) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_reportsKey);
+    if (s == null || s.isEmpty) return;
+    final list = List<Map<String, dynamic>>.from(jsonDecode(s));
+    for (final e in list) {
+      if ((e['id']?.toString() ?? '') == reportId) {
+        e['status'] = status;
+        break;
+      }
     }
-
-    // Apply user filter if specified
-    if (userId != null && userId.isNotEmpty) {
-      filteredLogs = filteredLogs.where((log) => log['user_id'] == userId).toList();
-    }
-
-    // Apply pagination
-    final startIndex = skip;
-    final endIndex = startIndex + limit;
-    final paginatedLogs = filteredLogs.sublist(
-      startIndex.clamp(0, filteredLogs.length),
-      endIndex.clamp(0, filteredLogs.length),
-    );
-
-    return {
-      'audit_logs': paginatedLogs,
-      'total': filteredLogs.length,
-      'skip': skip,
-      'limit': limit,
-      'has_more': endIndex < filteredLogs.length,
-    };
+    await prefs.setString(_reportsKey, jsonEncode(list));
+  } catch (e) {
+    debugPrint('❌ Error updating cached report: $e');
   }
 }

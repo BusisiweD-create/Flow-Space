@@ -1,15 +1,23 @@
 // ignore_for_file: use_build_context_synchronously, prefer_const_constructors
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/profile_service.dart';
+import '../services/auth_service.dart';
+import '../config/environment.dart';
+import 'package:http/http.dart' as http;
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_modal.dart';
+import 'package:go_router/go_router.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key});
+  final String? mode;
+
+  const ProfileScreen({super.key, this.mode});
 
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
@@ -26,12 +34,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final TextEditingController _bioController = TextEditingController();
 
   File? _profileImage;
+  Uint8List? _profileImageBytes;
+  String? _profileImageUrl;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isEditMode = false;
 
   @override
   void initState() {
     super.initState();
+    _isEditMode = (widget.mode ?? 'view') == 'edit';
     _loadProfileData();
   }
 
@@ -46,7 +58,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _titleController.text = profile['job_title'] ?? '';
         _departmentController.text = profile['company'] ?? '';
         _bioController.text = profile['bio'] ?? '';
+        final rawUrl = (profile['profile_picture'] ?? profile['profileImageUrl'] ?? profile['profile_image_url'])?.toString();
+        final uid = (profile['user_id'] ?? profile['userId'])?.toString();
+        if (rawUrl != null && rawUrl.isNotEmpty && uid != null && uid.isNotEmpty) {
+          final base = Uri.parse(Environment.apiBaseUrl);
+          final apiPic = '${base.scheme}://${base.host}:${base.port.toString()}/api/v1/profile/$uid/picture';
+          _profileImageUrl = apiPic;
+        }
       });
+      final uid = (profile['user_id'] ?? profile['userId'])?.toString();
+      if (uid != null && uid.isNotEmpty) {
+        await _fetchProfileImageBytes(uid);
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to load profile: $e')),
@@ -58,16 +81,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _fetchProfileImageBytes(String userId) async {
+    try {
+      final base = Uri.parse(Environment.apiBaseUrl);
+      final url = '${base.scheme}://${base.host}:${base.port.toString()}/api/v1/profile/$userId/picture?t=${DateTime.now().millisecondsSinceEpoch}';
+      final token = AuthService().accessToken;
+      final headers = <String, String>{
+        'Accept': 'image/*',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+      final resp = await http.get(Uri.parse(url), headers: headers);
+      if (resp.statusCode == 200) {
+        setState(() {
+          _profileImageBytes = resp.bodyBytes;
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final pickedFile = await ImagePicker().pickImage(source: source);
       if (pickedFile != null) {
+        final imageBytes = await pickedFile.readAsBytes();
         setState(() {
-          _profileImage = File(pickedFile.path);
+          _profileImageBytes = imageBytes;
+          if (!kIsWeb) {
+            _profileImage = File(pickedFile.path);
+          }
         });
         // Upload image to backend
-        final imageBytes = await _profileImage!.readAsBytes();
-        await ProfileService.uploadProfilePicture(imageBytes, 'profile_picture.jpg');
+        final result = await ProfileService.uploadProfilePicture(imageBytes, (pickedFile.name.isNotEmpty ? pickedFile.name : 'profile_picture.jpg'));
+        final rawUrl = result['url']?.toString();
+        if (rawUrl != null && rawUrl.isNotEmpty) {
+          final base = Uri.parse(Environment.apiBaseUrl);
+          try {
+            final user = await AuthService().getCurrentUser();
+            final uid = user?.id;
+            if (uid != null && uid.isNotEmpty) {
+              final apiPic = '${base.scheme}://${base.host}:${base.port.toString()}/api/v1/profile/$uid/picture?t=${DateTime.now().millisecondsSinceEpoch}';
+              setState(() {
+                _profileImageUrl = apiPic;
+              });
+            } else {
+              final full = rawUrl.startsWith('http') ? rawUrl : '${base.scheme}://${base.host}:${base.port.toString()}$rawUrl';
+              setState(() { _profileImageUrl = full; });
+            }
+          } catch (_) {}
+          await ProfileService.saveUserProfile({'profile_picture': rawUrl});
+          try { await AuthService().refreshCurrentUser(); } catch (_) {}
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile picture updated')),
         );
@@ -102,6 +165,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved successfully')),
       );
+      try { await AuthService().refreshCurrentUser(); } catch (_) {}
+      setState(() { _isEditMode = false; });
+      await _loadProfileData();
+      if (!context.mounted) return;
+      context.go('/profile?mode=view');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to save profile: $e')),
@@ -145,12 +213,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {
-              // Navigate to settings
-            },
-          ),
+          if (!_isEditMode)
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.white),
+              onPressed: () {
+                context.go('/profile?mode=edit');
+                setState(() {
+                  _isEditMode = true;
+                });
+              },
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -173,16 +245,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 // Profile Picture Section
                 Stack(
                   children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundImage: _profileImage != null
-                          ? FileImage(_profileImage!)
-                          : null,
-                      child: _profileImage == null
-                          ? const Icon(Icons.person, size: 50, color: Colors.white70)
-                          : null,
-                    ),
-                    Positioned(
+Builder(builder: (context) {
+                      ImageProvider<Object>? avatarImage;
+                      if (_profileImageBytes != null) {
+                        avatarImage = MemoryImage(_profileImageBytes!) as ImageProvider<Object>;
+                      } else if (_profileImageUrl != null) {
+                        // Only use NetworkImage if URL looks like an image and not an API endpoint
+                        if ((_profileImageUrl!.toLowerCase().contains('.jpg') || 
+                            _profileImageUrl!.toLowerCase().contains('.jpeg') || 
+                            _profileImageUrl!.toLowerCase().contains('.png') || 
+                            _profileImageUrl!.toLowerCase().contains('.gif') ||
+                            _profileImageUrl!.toLowerCase().contains('.webp')) &&
+                            !_profileImageUrl!.contains('/api/v1/profile/')) {
+                          avatarImage = NetworkImage(_profileImageUrl!) as ImageProvider<Object>;
+                        } else {
+                          avatarImage = null; // Don't try to load non-image URLs or API endpoints
+                        }
+                      } else if (_profileImage != null) {
+                        avatarImage = FileImage(_profileImage!) as ImageProvider<Object>;
+                      } else {
+                        avatarImage = null;
+                      }
+                      return CircleAvatar(
+                        radius: 50,
+                        backgroundImage: avatarImage,
+                        child: avatarImage == null
+                            ? Image.asset(
+                                'assets/Icons/Google_Icon.png',
+                                width: 60,
+                                height: 60,
+                              )
+                            : null,
+                      );
+                    }),
+                    if (_isEditMode)
+                      Positioned(
                       bottom: 0,
                       right: 0,
                       child: Container(
@@ -193,7 +290,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         child: IconButton(
                           icon: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
                           onPressed: () {
-                            showModalBottomSheet(
+                            showAppModalBottomSheet(
                               context: context,
                               builder: (context) => Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -237,6 +334,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: _firstNameController,
+                        readOnly: !_isEditMode,
                         decoration: const InputDecoration(
                           labelText: 'First Name',
                           border: OutlineInputBorder(),
@@ -253,6 +351,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: _lastNameController,
+                        readOnly: !_isEditMode,
                         decoration: const InputDecoration(
                           labelText: 'Last Name',
                           border: OutlineInputBorder(),
@@ -271,6 +370,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 TextFormField(
                   controller: _emailController,
+                  readOnly: !_isEditMode,
                   decoration: const InputDecoration(
                     labelText: 'Email',
                     border: OutlineInputBorder(),
@@ -290,6 +390,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 TextFormField(
                   controller: _phoneController,
+                  readOnly: !_isEditMode,
                   decoration: const InputDecoration(
                     labelText: 'Phone Number',
                     border: OutlineInputBorder(),
@@ -307,6 +408,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 TextFormField(
                   controller: _titleController,
+                  readOnly: !_isEditMode,
                   decoration: const InputDecoration(
                     labelText: 'Job Title',
                     border: OutlineInputBorder(),
@@ -316,6 +418,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 TextFormField(
                   controller: _departmentController,
+                  readOnly: !_isEditMode,
                   decoration: const InputDecoration(
                     labelText: 'Department',
                     border: OutlineInputBorder(),
@@ -325,6 +428,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 TextFormField(
                   controller: _bioController,
+                  readOnly: !_isEditMode,
                   decoration: const InputDecoration(
                     labelText: 'Bio',
                     border: OutlineInputBorder(),
@@ -336,19 +440,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(height: 32),
 
                 // Save Button
-                ElevatedButton(
-                  onPressed: _isSaving ? null : _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
+                if (_isEditMode)
+                  ElevatedButton(
+                    onPressed: _isSaving ? null : _saveProfile,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Save Profile'),
                   ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Save Profile'),
-                ),
               ],
             ),
           ),

@@ -78,6 +78,7 @@ CREATE TABLE deliverables (
     description TEXT,
     status VARCHAR(50) DEFAULT 'draft',
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
     created_by UUID REFERENCES users(id) ON DELETE CASCADE,
     assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
     due_date TIMESTAMP,
@@ -152,7 +153,8 @@ CREATE TABLE notifications (
     type VARCHAR(50) DEFAULT 'info',
     is_read BOOLEAN DEFAULT false,
     action_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Audit logs table
@@ -168,11 +170,40 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Repository files table
+CREATE TABLE repository_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    file_path VARCHAR(500) NOT NULL,
+    file_type VARCHAR(50) NOT NULL,
+    file_size BIGINT,
+    content_type VARCHAR(100),
+    created_by UUID REFERENCES users(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Epics table (for grouping deliverables across sprints)
+CREATE TABLE epics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    created_by UUID REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(50) DEFAULT 'active',
+    priority VARCHAR(50) DEFAULT 'medium',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_active ON users(is_active);
 CREATE INDEX idx_deliverables_project ON deliverables(project_id);
+CREATE INDEX idx_deliverables_sprint ON deliverables(sprint_id);
 CREATE INDEX idx_deliverables_status ON deliverables(status);
 CREATE INDEX idx_deliverables_created_by ON deliverables(created_by);
 CREATE INDEX idx_sprints_project ON sprints(project_id);
@@ -182,6 +213,12 @@ CREATE INDEX idx_notifications_read ON notifications(is_read);
 CREATE INDEX idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX idx_audit_logs_action ON audit_logs(action);
 CREATE INDEX idx_audit_logs_created ON audit_logs(created_at);
+CREATE INDEX idx_repository_files_project ON repository_files(project_id);
+CREATE INDEX idx_repository_files_created_by ON repository_files(created_by);
+CREATE INDEX idx_repository_files_type ON repository_files(file_type);
+CREATE INDEX idx_epics_project ON epics(project_id);
+CREATE INDEX idx_epics_created_by ON epics(created_by);
+CREATE INDEX idx_epics_status ON epics(status);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -209,4 +246,13 @@ CREATE TRIGGER update_sign_off_reports_updated_at BEFORE UPDATE ON sign_off_repo
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_client_reviews_updated_at BEFORE UPDATE ON client_reviews
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_notifications_updated_at BEFORE UPDATE ON notifications
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_repository_files_updated_at BEFORE UPDATE ON repository_files
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_epics_updated_at BEFORE UPDATE ON epics
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

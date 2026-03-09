@@ -105,26 +105,25 @@ class AIReadinessService {
       issues.add('No evidence links provided');
       recommendations.add('Add evidence links: demo, repository, test results, documentation');
     } else {
-      final hasDemo = evidence.any((e) => e.toLowerCase().contains('demo') || e.toLowerCase().contains('video'));
-      final hasRepo = evidence.any((e) => e.toLowerCase().contains('repo') || e.toLowerCase().contains('github') || e.toLowerCase().contains('gitlab'));
-      final hasTests = evidence.any((e) => e.toLowerCase().contains('test') || e.toLowerCase().contains('coverage'));
-      final hasDocs = evidence.any((e) => e.toLowerCase().contains('doc') || e.toLowerCase().contains('guide'));
+      final lower = evidence.map((e) => e.toLowerCase()).toList();
+      final hasDemo = lower.any((e) => e.contains('demo') || e.contains('video') || e.contains('live'));
+      final hasRepo = lower.any((e) => e.contains('repo') || e.contains('github') || e.contains('gitlab') || e.contains('bitbucket'));
+      final hasTests = lower.any((e) => e.contains('test') || e.contains('coverage') || e.contains('results') || e.contains('report'));
+      final hasDocs = lower.any((e) => e.contains('doc') || e.contains('guide') || e.contains('readme') || e.contains('wiki'));
       
+      // Evidence is present: do not block readiness on missing categories.
+      // Provide recommendations to improve completeness instead of issues.
       if (!hasDemo) {
-        issues.add('Missing demo link');
-        recommendations.add('Add a demo link or video showing the deliverable in action');
+        recommendations.add('Consider adding a demo link or video');
       }
       if (!hasRepo) {
-        issues.add('Missing repository link');
-        recommendations.add('Add repository link for code review and version control');
+        recommendations.add('Consider adding repository link for code review');
       }
       if (!hasTests) {
-        issues.add('Missing test evidence');
-        recommendations.add('Add test results or coverage report');
+        recommendations.add('Consider adding test results or coverage report');
       }
       if (!hasDocs) {
-        issues.add('Missing documentation');
-        recommendations.add('Add user guide or technical documentation');
+        recommendations.add('Consider adding user guide or technical documentation');
       }
     }
     

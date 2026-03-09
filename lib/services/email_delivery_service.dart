@@ -1,8 +1,10 @@
+// ignore_for_file: depend_on_referenced_packages
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class EmailDeliveryService {
-  static const String backendUrl = 'http://localhost:3001';
+static const String backendUrl = 'https://flow-space.onrender.com';
   
   // Test email delivery with multiple methods
   static Future<Map<String, dynamic>> testEmailDelivery({

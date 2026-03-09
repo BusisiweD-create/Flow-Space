@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+// ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/environment.dart';
 
 class EmailService {
   static final EmailService _instance = EmailService._internal();
@@ -8,7 +10,7 @@ class EmailService {
   EmailService._internal();
 
   // Email service configuration
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+  static final String _baseUrl = Environment.apiBaseUrl;
   
   // Send verification email
   Future<bool> sendVerificationEmail({

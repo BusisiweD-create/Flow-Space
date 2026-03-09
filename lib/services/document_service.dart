@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/repository_file.dart';
 import '../services/api_client.dart';
+import '../config/environment.dart';
 import '../services/auth_service.dart';
 
 // Conditional imports for web download
@@ -15,7 +16,8 @@ import 'document_service_stub.dart'
 
 class DocumentService {
   final AuthService _authService;
-  static const String _baseUrl = 'http://localhost:3001/api/v1';
+final ApiClient _apiClient = ApiClient();
+  static final String _baseUrl = Environment.apiBaseUrl;
 
   DocumentService(this._authService);
 
@@ -25,47 +27,40 @@ class DocumentService {
     String? fileType,
     String? uploader,
     String? projectId,
+    String? sprintId,
+    String? deliverableId,
     String? from,
     String? to,
   }) async {
     try {
-      final token = _authService.accessToken;
-      if (token == null) {
-        return ApiResponse.error('No access token available');
+      final queryParams = <String, String>{
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (fileType != null && fileType.isNotEmpty) 'fileType': fileType,
+        if (uploader != null && uploader.isNotEmpty) 'uploader': uploader,
+        if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
+        if (sprintId != null && sprintId.isNotEmpty) 'sprintId': sprintId,
+        if (deliverableId != null && deliverableId.isNotEmpty) 'deliverableId': deliverableId,
+        if (from != null && from.isNotEmpty) 'from': from,
+        if (to != null && to.isNotEmpty) 'to': to,
+      };
+
+      final apiResponse = await _apiClient.get('/documents', queryParams: queryParams);
+
+      if (apiResponse.isSuccess && apiResponse.data != null) {
+        final raw = apiResponse.data;
+        final List<dynamic> list = (raw is List)
+            ? raw
+            : (raw is Map<String, dynamic> && raw['data'] is List)
+                ? List<dynamic>.from(raw['data'])
+                : <dynamic>[];
+
+        final documents = list
+            .map((doc) => RepositoryFile.fromJson(Map<String, dynamic>.from(doc)))
+            .toList();
+        return ApiResponse.success({'documents': documents}, apiResponse.statusCode);
       }
 
-      final uri = Uri.parse('$_baseUrl/documents').replace(
-        queryParameters: {
-          if (search != null && search.isNotEmpty) 'search': search,
-          if (fileType != null && fileType.isNotEmpty) 'fileType': fileType,
-          if (uploader != null && uploader.isNotEmpty) 'uploader': uploader,
-          if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
-          if (from != null && from.isNotEmpty) 'from': from,
-          if (to != null && to.isNotEmpty) 'to': to,
-        },
-      );
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final documents = (data['data'] as List)
-              .map((doc) => RepositoryFile.fromJson(doc))
-              .toList();
-          return ApiResponse.success({'documents': documents}, response.statusCode);
-        } else {
-          return ApiResponse.error(data['error'] ?? 'Failed to fetch documents');
-        }
-      } else {
-        return ApiResponse.error('Failed to fetch documents: ${response.statusCode}');
-      }
+      return ApiResponse.error(apiResponse.error ?? 'Failed to fetch documents', apiResponse.statusCode);
     } catch (e) {
       return ApiResponse.error('Error fetching documents: $e');
     }
@@ -154,7 +149,7 @@ class DocumentService {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/documents'),
+        Uri.parse('$_baseUrl/files/upload'),
       );
 
       request.headers['Authorization'] = 'Bearer $token';
@@ -171,18 +166,32 @@ class DocumentService {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final document = RepositoryFile.fromJson(data['data']);
-          return ApiResponse.success({'document': document}, response.statusCode);
-        } else {
-          return ApiResponse.error(data['error'] ?? 'Failed to upload document');
-        }
+        final raw = jsonDecode(response.body);
+        final mapped = {
+          'id': raw['filename']?.toString() ?? '',
+          'name': raw['originalName']?.toString() ?? raw['filename']?.toString() ?? 'Uploaded File',
+          'fileType': (raw['filename']?.toString() ?? '').split('.').last,
+          'uploaded_at': DateTime.now().toIso8601String(),
+          'uploaded_by': _authService.currentUser?.id.toString() ?? 'system',
+          'size': raw['size']?.toString(),
+          'description': description ?? '',
+          'uploader': _authService.currentUser?.id.toString() ?? 'system',
+          'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
+          'file_path': raw['url'],
+          'tags': tags,
+          'uploader_name': _authService.currentUser?.name ?? 'System',
+        };
+        final document = RepositoryFile.fromJson(mapped);
+        return ApiResponse.success({'document': document}, response.statusCode);
       } else {
         final errorBody = response.body;
         try {
           final errorData = jsonDecode(errorBody);
-          return ApiResponse.error(errorData['error'] ?? 'Failed to upload document: ${response.statusCode}');
+          final errorMessage = errorData['error'] ?? 'Failed to upload document';
+          final errorDetails = errorData['details'];
+          return ApiResponse.error(
+            errorDetails != null ? '$errorMessage: $errorDetails' : '$errorMessage: ${response.statusCode}',
+          );
         } catch (_) {
           return ApiResponse.error('Failed to upload document: ${response.statusCode}');
         }
@@ -207,7 +216,7 @@ class DocumentService {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/documents'),
+        Uri.parse('$_baseUrl/files/upload'),
       );
 
       request.headers['Authorization'] = 'Bearer $token';
@@ -232,18 +241,32 @@ class DocumentService {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final document = RepositoryFile.fromJson(data['data']);
-          return ApiResponse.success({'document': document}, response.statusCode);
-        } else {
-          return ApiResponse.error(data['error'] ?? 'Failed to upload document');
-        }
+        final raw = jsonDecode(response.body);
+        final mapped = {
+          'id': raw['filename']?.toString() ?? '',
+          'name': raw['originalName']?.toString() ?? fileName,
+          'fileType': (fileName).split('.').last,
+          'uploaded_at': DateTime.now().toIso8601String(),
+          'uploaded_by': _authService.currentUser?.id.toString() ?? 'system',
+          'size': raw['size']?.toString(),
+          'description': description ?? '',
+          'uploader': _authService.currentUser?.id.toString() ?? 'system',
+          'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
+          'file_path': raw['url'],
+          'tags': tags,
+          'uploader_name': _authService.currentUser?.name ?? 'System',
+        };
+        final document = RepositoryFile.fromJson(mapped);
+        return ApiResponse.success({'document': document}, response.statusCode);
       } else {
         final errorBody = response.body;
         try {
           final errorData = jsonDecode(errorBody);
-          return ApiResponse.error(errorData['error'] ?? 'Failed to upload document: ${response.statusCode}');
+          final errorMessage = errorData['error'] ?? 'Failed to upload document';
+          final errorDetails = errorData['details'];
+          return ApiResponse.error(
+            errorDetails != null ? '$errorMessage: $errorDetails' : '$errorMessage: ${response.statusCode}',
+          );
         } catch (_) {
           return ApiResponse.error('Failed to upload document: ${response.statusCode}');
         }

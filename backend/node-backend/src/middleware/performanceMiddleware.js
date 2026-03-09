@@ -1,4 +1,5 @@
 const { loggingService, LogLevel, LogCategory } = require('../services/loggingService');
+const analyticsService = require('../services/analyticsService');
 
 /**
  * Performance monitoring middleware
@@ -9,6 +10,15 @@ const performanceMiddleware = (req, res, next) => {
   
   res.on('finish', () => {
     const duration = Date.now() - start;
+    
+    try {
+      analyticsService.recordResponseTime(duration / 1000);
+      if (res.statusCode >= 200 && res.statusCode < 400) {
+        analyticsService.recordSuccess();
+      } else {
+        analyticsService.recordError();
+      }
+    } catch (e) {}
     
     // Log slow requests (over 500ms)
     if (duration > 500) {

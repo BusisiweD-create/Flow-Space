@@ -1,27 +1,55 @@
 import 'package:flutter/foundation.dart';
-import '../models/user.dart';
-import '../models/user_role.dart';
+import 'package:khono/models/user.dart';
+import 'package:khono/models/user_role.dart';
 import 'backend_api_service.dart';
 import 'api_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
-  factory AuthService() => _instance;
+  factory AuthService() {
+    // Automatically initialize when first accessed
+    _instance._ensureInitialized();
+    return _instance;
+  }
   AuthService._internal();
 
   final BackendApiService _apiService = BackendApiService();
   User? _currentUser;
   bool _isAuthenticated = false;
+  bool _isInitialized = false;
+  String? _lastAuthError;
+
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      await initialize();
+      _isInitialized = true;
+    }
+  }
 
   // Getters
   User? get currentUser => _currentUser;
+  Future<User?> getCurrentUser() async {
+    if (_currentUser == null) {
+      await _loadCurrentUser();
+    }
+    return _currentUser;
+  }
+
   bool get isAuthenticated => _isAuthenticated;
   UserRole? get currentUserRole => _currentUser?.role;
   String? get accessToken => _apiService.accessToken;
+  String? get lastAuthError => _lastAuthError;
+  bool get isClientUser =>
+      _currentUser != null && _isClientRole(_currentUser!.role);
 
   // Initialize the service
   Future<void> initialize() async {
     await _apiService.initialize();
+    await _loadCurrentUser();
+  }
+
+  Future<void> refreshCurrentUser() async {
     await _loadCurrentUser();
   }
 
@@ -31,9 +59,21 @@ class AuthService {
       final response = await _apiService.getCurrentUser();
       if (response.isSuccess && response.data != null) {
         _currentUser = _apiService.parseUserFromResponse(response);
-        _isAuthenticated = _currentUser != null;
-        if (_isAuthenticated) {
-          debugPrint('User session restored: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+        if (_currentUser != null &&
+            (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
+          _isAuthenticated = true;
+          debugPrint(
+              'User session restored: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('current_user_id', _currentUser!.id);
+          } catch (_) {}
+        } else {
+          await _apiService.signOut();
+          _currentUser = null;
+          _isAuthenticated = false;
+          _lastAuthError = 'Your account is inactive. Please contact support.';
+          debugPrint('Inactive user blocked from session restore');
         }
       }
     } catch (e) {
@@ -47,46 +87,78 @@ class AuthService {
   Future<bool> signIn(String email, String password) async {
     try {
       final response = await _apiService.signIn(email, password);
-      
+
       if (response.isSuccess && response.data != null) {
         // Extract user data from the nested "user" field in login response
         final userData = response.data!['user'] ?? response.data!;
         final userResponse = ApiResponse.success(userData, response.statusCode);
-        
+
         _currentUser = _apiService.parseUserFromResponse(userResponse);
-        _isAuthenticated = _currentUser != null;
-        
-        if (_isAuthenticated) {
-          debugPrint('User signed in: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+        if (_currentUser != null &&
+            (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
+          _isAuthenticated = true;
+          debugPrint(
+              'User signed in: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('current_user_id', _currentUser!.id);
+          } catch (_) {}
           return true;
+        } else {
+          await _apiService.signOut();
+          _currentUser = null;
+          _isAuthenticated = false;
+          _lastAuthError = 'Your account is inactive. Please contact support.';
+          debugPrint('Inactive user login blocked');
+          return false;
         }
       } else {
         debugPrint('Sign in failed: ${response.error}');
+        debugPrint('Sign in response data: ${response.data}');
+        debugPrint('Sign in response status: ${response.statusCode}');
+        _lastAuthError = response.error;
       }
       return false;
     } catch (e) {
       debugPrint('Sign in error: $e');
+      _lastAuthError = 'Login failed. Please try again.';
       return false;
     }
   }
 
-  Future<Map<String, dynamic>> signUp(String email, String password, String name, UserRole role) async {
+  Future<Map<String, dynamic>> signUp(
+      String email, String password, String fullName, UserRole role) async {
     try {
-      final response = await _apiService.signUp(email, password, name, role);
-      
+      final response =
+          await _apiService.signUp(email, password, fullName, role);
+
       if (response.isSuccess && response.data != null) {
         _currentUser = _apiService.parseUserFromResponse(response);
-        _isAuthenticated = _currentUser != null;
-        
-        if (_isAuthenticated) {
-          debugPrint('User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+        if (_currentUser != null &&
+            (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
+          _isAuthenticated = true;
+          debugPrint(
+              'User signed up: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('current_user_id', _currentUser!.id);
+          } catch (_) {}
           return {'success': true};
+        } else {
+          await _apiService.signOut();
+          _currentUser = null;
+          _isAuthenticated = false;
+          _lastAuthError = 'Your account is inactive. Please contact support.';
+          debugPrint('Inactive user signup blocked');
+          return {'success': false, 'error': _lastAuthError!};
         }
       } else {
         debugPrint('Sign up failed: ${response.error}');
-        return {'success': false, 'error': response.error ?? 'Registration failed'};
+        return {
+          'success': false,
+          'error': response.error ?? 'Registration failed'
+        };
       }
-      return {'success': false, 'error': 'Registration failed'};
     } catch (e) {
       debugPrint('Sign up error: $e');
       return {'success': false, 'error': 'Registration failed: $e'};
@@ -107,7 +179,11 @@ class AuthService {
 
   // Permission checking
   bool hasPermission(String permissionName) {
-    if (!_isAuthenticated || _currentUser == null) return false;
+    if (!_isAuthenticated || _currentUser == null) {
+      if (permissionName == 'authenticated') return false;
+      return false;
+    }
+    if (permissionName == 'authenticated') return true;
     return _currentUser!.hasPermission(permissionName);
   }
 
@@ -127,11 +203,21 @@ class AuthService {
   bool get isDeliveryLead => _currentUser?.isDeliveryLead ?? false;
   bool get isClientReviewer => _currentUser?.isClientReviewer ?? false;
   bool get isSystemAdmin => _currentUser?.isSystemAdmin ?? false;
+  bool get isClient => _currentUser?.role == UserRole.client;
+
+  bool _isClientRole(UserRole role) {
+    return role == UserRole.client || role == UserRole.clientReviewer;
+  }
+
+  // ignore: strict_top_level_inference
+  get token => null;
 
   // Additional authentication methods
-  Future<bool> changePassword(String currentPassword, String newPassword) async {
+  Future<bool> changePassword(
+      String currentPassword, String newPassword) async {
     try {
-      final response = await _apiService.changePassword(currentPassword, newPassword);
+      final response =
+          await _apiService.changePassword(currentPassword, newPassword);
       return response.isSuccess;
     } catch (e) {
       debugPrint('Change password error: $e');
@@ -184,143 +270,66 @@ class AuthService {
     return PermissionManager.getPermissionNamesForRole(_currentUser!.role);
   }
 
-  // Check if user can access a specific route
-  bool canAccessRoute(String route) {
-    if (!_isAuthenticated) return false;
-
-    switch (route) {
-      case '/dashboard':
-        return true; // All authenticated users can access dashboard
-      case '/deliverable-setup':
-      case '/enhanced-deliverable-setup':
-        return canCreateDeliverable();
-      case '/sprint-console':
-        return hasPermission('manage_sprints');
-      case '/client-review':
-      case '/enhanced-client-review':
-        return isClientReviewer;
-      case '/report-repository':
-        return isDeliveryLead || isSystemAdmin || isClientReviewer;
-      case '/notification-center':
-        return true; // All users can access notifications
-      case '/approvals':
-        return canApproveDeliverable() || isDeliveryLead;
-      case '/repository':
-        return isDeliveryLead || isSystemAdmin || isTeamMember || isClientReviewer;
-      default:
-        return true; // Allow access to other routes by default
-    }
-  }
-
-  // Email verification methods
   Future<ApiResponse> resendVerificationEmail(String email) async {
     try {
-      final response = await _apiService.resendVerificationEmail(email);
-      if (response.isSuccess) {
-        debugPrint('Verification email sent successfully');
-      }
-      return response;
+      return await _apiService.resendVerificationEmail(email);
     } catch (e) {
       debugPrint('Resend verification email error: $e');
-      return ApiResponse.error('Failed to resend verification email: $e');
+      return ApiResponse.error('Failed to resend verification email');
     }
   }
 
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
     try {
-      final response = await _apiService.verifyEmail(email, verificationCode);
-      if (response.isSuccess && response.data != null) {
-        debugPrint('Email verified successfully');
-        
-        // Extract JWT token from verification response
-        final data = response.data!;
-        final token = data['token'];
-        final userData = data['user'];
-        final expiresIn = data['expires_in'] ?? 86400;
-        
-        if (token != null) {
-          // Save the JWT token
-          final expiry = DateTime.now().add(Duration(seconds: expiresIn));
-          await _apiService.saveTokens(token, '', expiry);
-          debugPrint('JWT token saved after email verification');
-        }
-        
-        // Set current user
-        if (userData != null) {
-          _currentUser = User.fromJson(userData);
-          _isAuthenticated = true;
-          debugPrint('✅ Loaded user: ${_currentUser!.name} (${_currentUser!.email})');
-        }
-      }
-      return response;
+      return await _apiService.verifyEmail(email, verificationCode);
     } catch (e) {
-      debugPrint('Email verification error: $e');
-      return ApiResponse.error('Email verification failed: $e');
+      debugPrint('Verify email error: $e');
+      return ApiResponse.error('Failed to verify email');
     }
   }
 
-  Future<ApiResponse> checkEmailVerificationStatus(String email) async {
-    try {
-      final response = await _apiService.checkEmailVerificationStatus(email);
-      return response;
-    } catch (e) {
-      debugPrint('Check verification status error: $e');
-      return ApiResponse.error('Failed to check verification status: $e');
-    }
-  }
-
-  // Authenticate with JWT token from external system
-  Future<bool> authenticateWithJwtToken(String token, Map<String, dynamic> userData) async {
-    try {
-      // Save the JWT token
-      await _apiService.saveTokens(token, '', DateTime.now().add(const Duration(hours: 24)));
-      
-      // Create user from token data
-      final user = User(
-        id: userData['user_id'] ?? '',
-        email: userData['email'] ?? '',
-        name: userData['full_name'] ?? userData['email']?.split('@')[0] ?? 'User',
-        role: _mapStringToUserRole(userData['role'] ?? 'user'),
-        isActive: true,
-        createdAt: DateTime.now(),
-        lastLoginAt: DateTime.now(),
-      );
-      
-      _currentUser = user;
-      _isAuthenticated = true;
-      
-      debugPrint('✅ User authenticated with JWT: ${user.name} (${user.roleDisplayName})');
-      return true;
-    } catch (e) {
-      debugPrint('JWT authentication error: $e');
-      return false;
-    }
-  }
-
-  // Map string role to UserRole enum
-  UserRole _mapStringToUserRole(String roleString) {
-    switch (roleString.toLowerCase()) {
-      case 'system admin':
-      case 'system_admin':
-      case 'admin':
-      case 'system administrator':
-        return UserRole.systemAdmin;
-      case 'client reviewer':
-      case 'client_reviewer':
-      case 'client':
-        return UserRole.clientReviewer;
-      case 'delivery lead':
-      case 'delivery_lead':
-      case 'delivery':
-        return UserRole.deliveryLead;
-      case 'team member':
-      case 'team_member':
-      case 'team':
-        return UserRole.teamMember;
-      case 'manager':
-        return UserRole.deliveryLead; // Map manager to delivery lead
+  bool canAccessRoute(String route) {
+    if (!_isAuthenticated) return false;
+    final String r = route.trim().toLowerCase();
+    // Permission-based routing for sensitive pages
+    switch (r) {
+      case '/dashboard':
+        return _isAuthenticated; // All authenticated users can access dashboard
+      case '/deliverable-setup':
+      case '/enhanced-deliverable-setup':
+        return canCreateDeliverable();
+      case '/role-management':
+      case '/approvals':
+      case '/approval-requests':
+        return hasPermission('view_approvals');
+      case '/sprint-console':
+        return hasPermission('view_sprints');
+      case '/report-builder':
+      case '/report-editor':
+        return hasPermission('submit_for_review');
+      case '/client-review':
+      case '/enhanced-client-review':
+        return _isAuthenticated;
+      case '/report-repository':
+        return hasPermission('view_all_deliverables');
+      case '/repository':
+        return hasPermission('view_all_deliverables');
+      case '/sprint-metrics':
+        return hasPermission('view_team_dashboard');
+      case '/sprint-board':
+        return hasPermission('view_sprints');
+      case '/system-metrics':
+        return hasPermission('view_team_dashboard') ||
+            (_currentUser?.isSystemAdmin ?? false);
+      case '/system-health':
+        return _currentUser?.isSystemAdmin ?? false;
+      case '/audit-logs':
+        return hasPermission('view_audit_logs') ||
+            (_currentUser?.isSystemAdmin ?? false);
+      case '/notifications':
+        return _isAuthenticated;
       default:
-        return UserRole.teamMember; // Default to team member
+        return true;
     }
   }
 }

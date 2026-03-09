@@ -2,7 +2,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 
 async function createAdminUser() {
-  console.log('🔧 Creating admin user...');
+  console.log('🔧 Creating admin users...');
   
   const config = {
     user: 'postgres',
@@ -32,35 +32,68 @@ async function createAdminUser() {
       return;
     }
     
+    // Enable UUID extension if not already enabled
+    await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
+    
     // Hash password for admin user
     const hashedPassword = await bcrypt.hash('password', 10);
     
     // Create admin user
-    const result = await client.query(`
-      INSERT INTO users (email, password_hash, name, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
+    const adminResult = await client.query(`
+      INSERT INTO users (id, email, hashed_password, first_name, last_name, role, is_active)
+      VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
       ON CONFLICT (email) DO UPDATE SET
-        password_hash = EXCLUDED.password_hash,
-        name = EXCLUDED.name,
+        hashed_password = EXCLUDED.hashed_password,
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
         role = EXCLUDED.role,
         is_active = EXCLUDED.is_active
-      RETURNING id, email, name, role
-    `, ['admin@flowspace.com', hashedPassword, 'Admin User', 'systemAdmin', true]);
+      RETURNING id, email, first_name, last_name, role
+    `, ['admin@flowspace.com', hashedPassword, 'Admin', 'User', 'admin', true]);
     
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
+    if (adminResult.rows.length > 0) {
+      const user = adminResult.rows[0];
       console.log('✅ Admin user created/updated successfully!');
       console.log(`   - ID: ${user.id}`);
       console.log(`   - Email: ${user.email}`);
-      console.log(`   - Name: ${user.name}`);
+      console.log(`   - Name: ${user.first_name} ${user.last_name}`);
       console.log(`   - Role: ${user.role}`);
-      console.log('');
-      console.log('🔐 Login credentials:');
-      console.log('   Email: admin@flowspace.com');
-      console.log('   Password: password');
     } else {
       console.log('⚠️  Admin user already exists and was updated');
     }
+    
+    // Create system admin user
+    const systemAdminResult = await client.query(`
+      INSERT INTO users (id, email, hashed_password, first_name, last_name, role, is_active)
+      VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
+      ON CONFLICT (email) DO UPDATE SET
+        hashed_password = EXCLUDED.hashed_password,
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
+        role = EXCLUDED.role,
+        is_active = EXCLUDED.is_active
+      RETURNING id, email, first_name, last_name, role
+    `, ['systemadmin@flowspace.com', hashedPassword, 'System', 'Admin', 'system_admin', true]);
+    
+    if (systemAdminResult.rows.length > 0) {
+      const user = systemAdminResult.rows[0];
+      console.log('✅ System Admin user created/updated successfully!');
+      console.log(`   - ID: ${user.id}`);
+      console.log(`   - Email: ${user.email}`);
+      console.log(`   - Name: ${user.first_name} ${user.last_name}`);
+      console.log(`   - Role: ${user.role}`);
+    } else {
+      console.log('⚠️  System Admin user already exists and was updated');
+    }
+    
+    console.log('');
+    console.log('🔐 Login credentials:');
+    console.log('   Admin User (for user management):');
+    console.log('     Email: admin@flowspace.com');
+    console.log('     Password: password');
+    console.log('   System Admin User (for system management):');
+    console.log('     Email: systemadmin@flowspace.com');
+    console.log('     Password: password');
     
     await client.release();
     

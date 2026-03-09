@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 
@@ -64,7 +65,14 @@ class RoleGuard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              final nav = Navigator.of(context);
+              if (nav.canPop()) {
+                nav.pop();
+              } else {
+                GoRouter.of(context).go('/');
+              }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: FlownetColors.electricBlue,
               foregroundColor: FlownetColors.pureWhite,
@@ -123,7 +131,14 @@ class RouteGuard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              final nav = Navigator.of(context);
+              if (nav.canPop()) {
+                nav.pop();
+              } else {
+                GoRouter.of(context).go('/');
+              }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: FlownetColors.electricBlue,
               foregroundColor: FlownetColors.pureWhite,

@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/environment.dart';
 import 'api_service.dart';
@@ -11,13 +12,14 @@ class ProfileService {
   static const String _userIdKey = 'current_user_id';
 
   static Future<String> _getUserId() async {
-    // First try to get from AuthService (in-memory)
-    final authService = AuthService();
-    if (authService.currentUser != null && authService.currentUser!.id.isNotEmpty) {
-      return authService.currentUser!.id;
-    }
-    
-    // Fallback to SharedPreferences
+try {
+      final auth = AuthService();
+      final user = await auth.getCurrentUser();
+      final id = user?.id;
+      if (id != null && id.isNotEmpty) {
+        return id;
+      }
+    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString(_userIdKey);
     if (userId == null || userId.isEmpty) {
@@ -42,10 +44,9 @@ class ProfileService {
   static Future<Map<String, dynamic>> getUserProfile() async {
     try {
       final userId = await _getUserId();
-      final headers = await _getAuthHeaders();
       final response = await http.get(
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-        headers: headers,
+        headers: await ApiService.getAuthHeaders(),
       );
 
       if (response.statusCode == 200) {
@@ -55,26 +56,25 @@ class ProfileService {
       }
     } catch (e) {
       print('Error fetching profile: $e');
-      rethrow;
+      return await _getLocalProfile();
     }
   }
 
   static Future<Map<String, dynamic>> saveUserProfile(Map<String, dynamic> profile) async {
     try {
       final userId = await _getUserId();
-      final headers = await _getAuthHeaders();
       
       final existingProfile = await _checkProfileExists(userId);
       
       final response = await (existingProfile
           ? http.put(
               Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-              headers: headers,
+              headers: await ApiService.getAuthHeaders(),
               body: json.encode(profile),
             )
           : http.post(
               Uri.parse('${Environment.apiBaseUrl}/profile/'),
-              headers: headers,
+              headers: await ApiService.getAuthHeaders(),
               body: json.encode({...profile, 'user_id': userId}),
             ));
 
@@ -94,10 +94,9 @@ class ProfileService {
 
   static Future<bool> _checkProfileExists(String userId) async {
     try {
-      final headers = await _getAuthHeaders();
       final response = await http.get(
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId'),
-        headers: headers,
+        headers: await ApiService.getAuthHeaders(),
       );
       return response.statusCode == 200;
     } catch (e) {
@@ -108,28 +107,53 @@ class ProfileService {
   static Future<Map<String, dynamic>> uploadProfilePicture(List<int> imageBytes, String fileName) async {
     try {
       final userId = await _getUserId();
-      final token = await _getAuthToken();
       
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('${Environment.apiBaseUrl}/profile/$userId/upload-picture'),
       );
       
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
+// Infer content type from filename extension
+      final lower = fileName.toLowerCase();
+      MediaType ct;
+      if (lower.endsWith('.png')) {
+        ct = MediaType('image', 'png');
+      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+        ct = MediaType('image', 'jpeg');
+      } else if (lower.endsWith('.gif')) {
+        ct = MediaType('image', 'gif');
+      } else if (lower.endsWith('.webp')) {
+        ct = MediaType('image', 'webp');
+      } else {
+        ct = MediaType('image', 'jpeg');
       }
-      
       request.files.add(http.MultipartFile.fromBytes(
         'file',
         imageBytes,
         filename: fileName,
+        contentType: ct,
       ));
+      final headers = await ApiService.getAuthHeaders();
+      headers.remove('Content-Type');
+      request.headers.addAll(headers);
 
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
-        return json.decode(responseBody);
+        // Try to parse as JSON, but handle if it's not JSON
+        try {
+          return json.decode(responseBody);
+        } catch (e) {
+          // Response might be image data, not JSON
+          // Return a success response with the raw URL if available
+          print('Response appears to be image data, not JSON: $responseBody');
+          return {
+            'success': true,
+            'url': 'Image uploaded successfully',
+            'message': 'Profile picture updated'
+          };
+        }
       } else {
         throw Exception('Failed to upload picture: ${response.statusCode}');
       }

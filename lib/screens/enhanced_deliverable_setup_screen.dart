@@ -7,7 +7,7 @@ import '../widgets/flownet_logo.dart';
 import '../widgets/ai_readiness_gate_widget.dart';
 import '../services/deliverable_service.dart';
 import '../services/sprint_database_service.dart';
-
+import '../models/dod_item.dart';
 class EnhancedDeliverableSetupScreen extends ConsumerStatefulWidget {
   const EnhancedDeliverableSetupScreen({super.key});
 
@@ -23,7 +23,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
   
   DateTime? _dueDate;
   final List<String> _selectedSprints = [];
-  final List<String> _definitionOfDone = [];
+  final List<DoDItem> _definitionOfDone = [];
   final List<String> _evidenceLinks = [];
   final List<ReadinessItem> _readinessItems = [];
   final DeliverableService _deliverableService = DeliverableService();
@@ -133,7 +133,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
               onPressed: () {
                 if (controller.text.isNotEmpty) {
                   setState(() {
-                    _definitionOfDone.add(controller.text);
+                    _definitionOfDone.add(DoDItem(text: controller.text));
                   });
                   Navigator.pop(context);
                 }
@@ -415,7 +415,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
-        title: const FlownetLogo(showText: true),
+        title: const FlownetLogo(),
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
@@ -521,9 +521,9 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
               if (_isLoadingSprints)
                 const Center(child: CircularProgressIndicator())
               else if (_availableSprints.isEmpty)
-                Card(
+                const Card(
                   color: FlownetColors.graphiteGray,
-                  child: const Padding(
+                  child: Padding(
                     padding: EdgeInsets.all(16),
                     child: Text('No sprints available. Create a sprint first.'),
                   ),
@@ -565,7 +565,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
                 const SizedBox(height: 8),
                 Text(
                   '${_selectedSprints.length} sprint(s) selected',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: FlownetColors.electricBlue,
                     fontWeight: FontWeight.bold,
                   ),
@@ -581,7 +581,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
                 color: FlownetColors.graphiteGray,
                 child: ListTile(
                   leading: const Icon(Icons.check_circle, color: Colors.green),
-                  title: Text(item),
+                  title: Text(item.text),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () {
@@ -645,7 +645,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
                 deliverableId: 'temp-${DateTime.now().millisecondsSinceEpoch}',
                 deliverableTitle: _titleController.text,
                 deliverableDescription: _descriptionController.text,
-                definitionOfDone: _definitionOfDone,
+                definitionOfDone: _definitionOfDone.map((e) => e.text).toList(),
                 evidenceLinks: _evidenceLinks,
                 sprintIds: _selectedSprints,
                 knownLimitations: null,

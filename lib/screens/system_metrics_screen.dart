@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
 import '../models/system_metrics.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/system_health_indicator.dart';
+import '../services/realtime_service.dart';
 
 class SystemMetricsScreen extends StatefulWidget {
   const SystemMetricsScreen({super.key});
@@ -17,6 +19,9 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
   bool _isLoading = true;
   bool _hasError = false;
   Timer? _refreshTimer;
+  RealtimeService? _realtime;
+  final Set<String> _activeUserIds = {};
+  
 
   @override
   void initState() {
@@ -26,18 +31,22 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _loadMetrics();
     });
+    _setupRealtime();
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    try {
+      _realtime?.offAll('analytics_updated');
+    } catch (_) {}
     super.dispose();
   }
 
   Future<void> _loadMetrics() async {
     try {
-      final metrics = await ApiService.getSystemMetrics();
-      
+      final metricsData = await ApiService.getSystemMetrics();
+      final metrics = _toSystemMetrics(metricsData);
       if (mounted) {
         setState(() {
           _metrics = metrics;
@@ -52,8 +61,145 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
           _hasError = true;
         });
       }
-      debugPrint('Error loading system metrics: \$error');
+      debugPrint('Error loading system metrics: $error');
     }
+  }
+
+
+  void _setupRealtime() {
+    try {
+      _realtime = RealtimeService();
+      _realtime!.initialize();
+      _realtime!.on('analytics_updated', (data) {
+        try {
+          final m = _mergeMetrics(_metrics, data);
+          if (mounted) {
+            setState(() {
+              _metrics = m;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
+        } catch (_) {}
+      });
+      _realtime!.on('user_online', (userId) {
+        if (userId is String) {
+          _activeUserIds.add(userId);
+          if (_metrics != null && mounted) {
+            setState(() {
+              _metrics = SystemMetrics(
+                systemHealth: _metrics!.systemHealth,
+                performance: _metrics!.performance,
+                database: _metrics!.database,
+                userActivity: UserActivityMetrics(
+                  activeUsers: _activeUserIds.length,
+                  totalSessions: _metrics!.userActivity.totalSessions,
+                  newRegistrations: _metrics!.userActivity.newRegistrations,
+                  failedLogins: _metrics!.userActivity.failedLogins,
+                  avgSessionDuration: _metrics!.userActivity.avgSessionDuration,
+                ),
+                lastUpdated: DateTime.now(),
+              );
+            });
+          }
+        }
+      });
+      _realtime!.on('user_offline', (userId) {
+        if (userId is String) {
+          _activeUserIds.remove(userId);
+          if (_metrics != null && mounted) {
+            setState(() {
+              _metrics = SystemMetrics(
+                systemHealth: _metrics!.systemHealth,
+                performance: _metrics!.performance,
+                database: _metrics!.database,
+                userActivity: UserActivityMetrics(
+                  activeUsers: _activeUserIds.length,
+                  totalSessions: _metrics!.userActivity.totalSessions,
+                  newRegistrations: _metrics!.userActivity.newRegistrations,
+                  failedLogins: _metrics!.userActivity.failedLogins,
+                  avgSessionDuration: _metrics!.userActivity.avgSessionDuration,
+                ),
+                lastUpdated: DateTime.now(),
+              );
+            });
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
+  SystemMetrics _toSystemMetrics(dynamic data) {
+    final Map<String, dynamic> d = data is Map<String, dynamic>
+        ? data
+        : (data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{});
+    final Map<String, dynamic> perfRaw = (d['performance'] is Map)
+        ? Map<String, dynamic>.from(d['performance'])
+        : {};
+    double parseDoubleLocal(dynamic v) {
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      if (v is String) return double.tryParse(v) ?? 0.0;
+      return 0.0;
+    }
+    int parseIntLocal(dynamic v) {
+      if (v is int) return v;
+      if (v is double) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+    final perf = PerformanceMetrics(
+      cpuUsage: parseDoubleLocal(d['cpuUsage'] ?? d['cpu_usage'] ?? perfRaw['cpu_percent']),
+      memoryUsage: parseDoubleLocal(d['memoryUsage'] ?? d['memory_usage'] ?? perfRaw['memory_used_mb']),
+      diskUsage: parseDoubleLocal(d['diskUsage'] ?? d['disk_usage'] ?? perfRaw['memory_percent']),
+      responseTime: parseIntLocal(d['responseTime'] ?? d['response_time'] ?? perfRaw['avg_response_time_ms']),
+      uptime: parseDoubleLocal(d['uptime'] ?? perfRaw['uptime_seconds']),
+    );
+    final db = DatabaseMetrics(
+      totalRecords: parseIntLocal(d['totalEntities'] ?? d['total_records']),
+      activeConnections: parseIntLocal(d['activeConnections'] ?? d['active_connections']),
+      cacheHitRatio: parseDoubleLocal(d['cacheHitRatio'] ?? d['cache_hit_ratio']),
+      queryCount: parseIntLocal(d['queryCount'] ?? d['query_count']),
+      slowQueries: parseIntLocal(d['slowQueries'] ?? d['slow_queries']),
+    );
+    final ua = UserActivityMetrics(
+      activeUsers: parseIntLocal(d['activeUsers'] ?? d['active_users'] ?? d['active_users_24h'] ?? (d['user_activity'] is Map ? (d['user_activity']['active_users_24h'] ?? 0) : 0)),
+      totalSessions: parseIntLocal(d['totalSessions'] ?? d['total_sessions']),
+      newRegistrations: parseIntLocal(d['newRegistrations'] ?? d['new_users']),
+      failedLogins: parseIntLocal(d['failedLogins'] ?? d['failed_logins']),
+      avgSessionDuration: parseDoubleLocal(d['avgSessionDuration'] ?? d['avg_session_duration']),
+    );
+    return SystemMetrics(
+      systemHealth: SystemHealthStatus.healthy,
+      performance: perf,
+      database: db,
+      userActivity: ua,
+      lastUpdated: DateTime.now(),
+    );
+  }
+
+  SystemMetrics _mergeMetrics(SystemMetrics? current, dynamic data) {
+    final incoming = _toSystemMetrics(data);
+    if (current == null) return incoming;
+    return SystemMetrics(
+      systemHealth: incoming.systemHealth,
+      performance: PerformanceMetrics(
+        cpuUsage: incoming.performance.cpuUsage != 0.0 ? incoming.performance.cpuUsage : current.performance.cpuUsage,
+        memoryUsage: incoming.performance.memoryUsage != 0.0 ? incoming.performance.memoryUsage : current.performance.memoryUsage,
+        diskUsage: incoming.performance.diskUsage != 0.0 ? incoming.performance.diskUsage : current.performance.diskUsage,
+        responseTime: incoming.performance.responseTime != 0 ? incoming.performance.responseTime : current.performance.responseTime,
+        uptime: incoming.performance.uptime != 0.0 ? incoming.performance.uptime : current.performance.uptime,
+      ),
+      database: current.database,
+      userActivity: UserActivityMetrics(
+        activeUsers: (_activeUserIds.isNotEmpty ? _activeUserIds.length : (incoming.userActivity.activeUsers != 0 ? incoming.userActivity.activeUsers : current.userActivity.activeUsers)),
+        totalSessions: incoming.userActivity.totalSessions != 0 ? incoming.userActivity.totalSessions : current.userActivity.totalSessions,
+        newRegistrations: incoming.userActivity.newRegistrations != 0 ? incoming.userActivity.newRegistrations : current.userActivity.newRegistrations,
+        failedLogins: incoming.userActivity.failedLogins != 0 ? incoming.userActivity.failedLogins : current.userActivity.failedLogins,
+        avgSessionDuration: incoming.userActivity.avgSessionDuration != 0.0 ? incoming.userActivity.avgSessionDuration : current.userActivity.avgSessionDuration,
+      ),
+      lastUpdated: DateTime.now(),
+    );
   }
 
   @override
@@ -101,10 +247,10 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // System Health Overview
-                      _buildHealthOverview(),
-                      const SizedBox(height: 24),
+                  children: [
+                    // System Health Overview
+                    _buildHealthOverview(),
+                    const SizedBox(height: 24),
 
                       // Performance Metrics
                       _buildPerformanceMetrics(),
@@ -119,10 +265,10 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                       const SizedBox(height: 24),
 
                       // System Resources
-                      _buildSystemResources(),
-                    ],
-                  ),
+                    _buildSystemResources(),
+                  ],
                 ),
+              ),
     );
   }
 
@@ -179,6 +325,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
     );
   }
 
+
   Widget _buildPerformanceMetrics() {
     return Card(
       child: Padding(
@@ -198,7 +345,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Response Time',
-                    value: _metrics != null ? '\${_metrics!.performance.responseTime.toString()}ms' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.responseTime.toString()}ms' : 'N/A',
                     icon: Icons.speed,
                     color: Colors.blue,
                   ),
@@ -207,7 +354,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Uptime',
-                    value: _metrics != null ? '\${_metrics!.performance.uptime.toStringAsFixed(1)}%' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.uptime.toStringAsFixed(1)}%' : 'N/A',
                     icon: Icons.timer,
                     color: Colors.green,
                   ),
@@ -267,7 +414,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                   child: MetricsCard(
                     title: 'Cache Hit Ratio',
                     value: _metrics != null
-                        ? '\${_metrics!.database.cacheHitRatio!.toStringAsFixed(1)}%'
+                        ? '${_metrics!.database.cacheHitRatio.toStringAsFixed(1)}%'
                         : 'N/A',
                     icon: Icons.storage,
                     color: Colors.indigo,
@@ -350,7 +497,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'CPU Usage',
-                    value: _metrics != null ? '\${_metrics!.performance.cpuUsage.toStringAsFixed(1)}%' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.cpuUsage.toStringAsFixed(1)}%' : 'N/A',
                     icon: Icons.memory,
                     color: _getResourceColor(_metrics?.performance.cpuUsage),
                   ),
@@ -359,7 +506,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Memory',
-                    value: _metrics != null ? '\${_metrics!.performance.memoryUsage.toStringAsFixed(1)}MB' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.memoryUsage.toStringAsFixed(1)}MB' : 'N/A',
                     icon: Icons.memory,
                     color: _getResourceColor(_metrics?.performance.memoryUsage),
                   ),
@@ -368,7 +515,7 @@ class _SystemMetricsScreenState extends State<SystemMetricsScreen> {
                 Expanded(
                   child: MetricsCard(
                     title: 'Disk Space',
-                    value: _metrics != null ? '\${_metrics!.performance.diskUsage.toStringAsFixed(1)}%' : 'N/A',
+                    value: _metrics != null ? '${_metrics!.performance.diskUsage.toStringAsFixed(1)}%' : 'N/A',
                     icon: Icons.storage,
                     color: _getResourceColor(_metrics?.performance.diskUsage),
                   ),

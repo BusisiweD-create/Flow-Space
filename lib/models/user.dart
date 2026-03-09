@@ -83,25 +83,51 @@ class User {
     // Debug logging removed for production
     
     try {
+      // Handle potential name variations
+      String displayName = json['name']?.toString() ?? '';
+      if (displayName.isEmpty) {
+        final firstName = json['first_name']?.toString() ?? json['firstName']?.toString() ?? '';
+        final lastName = json['last_name']?.toString() ?? json['lastName']?.toString() ?? '';
+        if (firstName.isNotEmpty || lastName.isNotEmpty) {
+          displayName = '$firstName $lastName'.trim();
+        }
+      }
+
+      // Handle role mapping
+       final roleStr = json['role']?.toString().toLowerCase().replaceAll(RegExp(r'[\s_-]'), '') ?? '';
+       UserRole userRole = UserRole.teamMember;
+       
+       try {
+         if (roleStr.isNotEmpty) {
+           userRole = UserRole.values.firstWhere(
+             (e) => e.name.toLowerCase() == roleStr || 
+                    (roleStr == 'admin' && e == UserRole.systemAdmin),
+             orElse: () => UserRole.teamMember,
+           );
+         }
+       } catch (_) {}
       
       return User(
-        id: json['id'] as String,
-        email: json['email'] as String,
-        name: json['name'] as String,
-        role: UserRole.values.firstWhere(
-          (e) => e.name == json['role'],
-          orElse: () => UserRole.teamMember,
-        ),
-        avatarUrl: json['avatarUrl'],
+        id: json['id']?.toString() ?? '',
+        email: json['email']?.toString() ?? '',
+        name: displayName,
+        role: userRole,
+        avatarUrl: json['avatarUrl']?.toString() ?? json['avatar_url']?.toString(),
         createdAt: json['createdAt'] != null 
-            ? DateTime.parse(json['createdAt'] as String)
-            : DateTime.now(),
-        lastLoginAt: json['lastLoginAt'] != null ? DateTime.parse(json['lastLoginAt'] as String) : null,
-        isActive: json['isActive'] ?? true,
+            ? DateTime.parse(json['createdAt'].toString())
+            : (json['created_at'] != null 
+                ? DateTime.parse(json['created_at'].toString()) 
+                : DateTime.now()),
+        lastLoginAt: json['lastLoginAt'] != null 
+            ? DateTime.parse(json['lastLoginAt'].toString())
+            : (json['last_login'] != null 
+                ? DateTime.parse(json['last_login'].toString()) 
+                : null),
+        isActive: json['isActive'] ?? json['is_active'] ?? true,
         projectIds: List<String>.from(json['projectIds'] ?? []),
         preferences: Map<String, dynamic>.from(json['preferences'] ?? {}),
         emailVerified: json['emailVerified'] ?? false,
-        emailVerifiedAt: json['emailVerifiedAt'] != null ? DateTime.parse(json['emailVerifiedAt'] as String) : null,
+        emailVerifiedAt: json['emailVerifiedAt'] != null ? DateTime.parse(json['emailVerifiedAt']?.toString() ?? '') : null,
       );
     } catch (e) {
       // Error logging removed for production
@@ -129,6 +155,7 @@ class User {
   // Role checking methods
   bool get isTeamMember => role == UserRole.teamMember;
   bool get isDeliveryLead => role == UserRole.deliveryLead;
+  bool get isClient => role == UserRole.client;
   bool get isClientReviewer => role == UserRole.clientReviewer;
   bool get isSystemAdmin => role == UserRole.systemAdmin;
 

@@ -7,6 +7,7 @@ import 'screens/welcome_screen.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
+import 'services/project_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/email_verification_screen.dart';
@@ -15,24 +16,44 @@ import 'screens/sprint_console_screen.dart';
 import 'screens/sprint_metrics_screen.dart';
 import 'screens/report_builder_screen.dart';
 import 'screens/client_review_workflow_screen.dart';
+import 'screens/report_editor_screen.dart';
+import 'screens/report_view_screen.dart';
+import 'screens/client_review_screen.dart';
+import 'models/sign_off_report.dart';
+import 'models/deliverable.dart';
+import 'models/project.dart';
 import 'screens/report_repository_screen.dart';
-import 'screens/approvals_screen.dart';
+// Approvals unified: use ApprovalRequestsScreen
+import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/projects_screen.dart';
+import 'screens/project_details_screen.dart';
 import 'screens/smtp_config_screen.dart';
+import 'screens/send_reminder_screen.dart';
+import 'screens/role_dashboard_screen.dart';
 import 'screens/role_management_screen.dart';
-import 'screens/user_management_screen.dart';
+// import 'screens/user_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
+import 'screens/timeline_screen.dart';
+import 'screens/system_metrics_screen.dart';
+import 'screens/system_health_screen.dart';
+import 'screens/audit_logs_screen.dart';
 // Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
 //
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
-import 'screens/role_dashboard_screen.dart'; // Update RoleDashboardScreen import path
-import 'screens/epic_management_screen.dart';
-import 'screens/epic_detail_screen.dart';
+import 'screens/deadlines_screen.dart';
+import 'screens/deliverables_list_screen.dart';
+import 'screens/deliverables_overview_screen.dart';
+import 'screens/skill_assessment_screen.dart';
+import 'screens/deliverable_detail_screen.dart';
+import 'screens/environment_management_screen.dart';
+import 'screens/project_workspace_screen.dart';
+import 'screens/project_setup_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,6 +101,15 @@ class KhonoApp extends StatelessWidget {
   }
 }
 
+Future<Project> _getProjectDetails(String projectId) async {
+  final projects = await ProjectService.getAllProjects();
+  final project = projects.firstWhere(
+    (p) => p.id == projectId,
+    orElse: () => throw Exception('Project not found'),
+  );
+  return project;
+}
+
 final GoRouter _router = GoRouter(
   initialLocation: '/',
   routes: [
@@ -95,21 +125,116 @@ final GoRouter _router = GoRouter(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
     ),
+    // Email verification via extra payload (used in-app)
     GoRoute(
       path: '/verify-email',
       builder: (context, state) {
-        final email = state.extra as Map<String, dynamic>?;
+        final extra = state.extra as Map<String, dynamic>?;
+        final email = extra?['email'] as String? ?? '';
+        return EmailVerificationScreen(email: email);
+      },
+    ),
+    // Email verification via direct URL (used from email links)
+    GoRoute(
+      path: '/email-verification',
+      builder: (context, state) {
+        final email = state.uri.queryParameters['email'] ?? '';
+        return EmailVerificationScreen(email: email);
+      },
+    ),
+    GoRoute(
+      path: '/verify-email/:code',
+      builder: (context, state) {
+        final code = state.pathParameters['code']!;
+        final emailFromQuery = state.uri.queryParameters['email'] ?? '';
         return EmailVerificationScreen(
-          email: email?['email'] ?? '',
+          email: emailFromQuery,
+          verificationCode: code,
         );
       },
     ),
     GoRoute(
+      path: '/email-verification/:code',
+      builder: (context, state) {
+        final code = state.pathParameters['code']!;
+        final emailFromQuery = state.uri.queryParameters['email'] ?? '';
+        return EmailVerificationScreen(
+          email: emailFromQuery,
+          verificationCode: code,
+        );
+
+      },
+    ),
+    GoRoute(
       path: '/dashboard',
-      builder: (context, state) => const RouteGuard(
-        route: '/dashboard',
+      builder: (context, state) => const RoleGuard(
+        requiredPermission: 'authenticated',
         child: SidebarScaffold(
           child: RoleDashboardScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/projects',
+      builder: (context, state) => const RoleGuard(
+        requiredPermission: 'authenticated',
+        child: SidebarScaffold(
+          child: ProjectsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/projects/create',
+      builder: (context, state) => const RoleGuard(
+        requiredPermission: 'authenticated',
+        child: SidebarScaffold(
+          child: ProjectWorkspaceScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/projects/:projectId/details',
+      builder: (context, state) {
+        final projectId = state.pathParameters['projectId']!;
+        return RoleGuard(
+          requiredPermission: 'authenticated',
+          child: SidebarScaffold(
+            child: FutureBuilder<Project>(
+              future: _getProjectDetails(projectId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                } else if (snapshot.hasData) {
+                  return ProjectDetailsScreen(projectId: projectId);
+                } else {
+                  return const Center(child: Text('Project not found'));
+                }
+              },
+            ),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/projects/:projectId/edit',
+      builder: (context, state) {
+        final projectId = state.pathParameters['projectId']!;
+        return RoleGuard(
+          requiredPermission: 'authenticated',
+          child: SidebarScaffold(
+            child: ProjectWorkspaceScreen(projectId: projectId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/project-setup',
+      builder: (context, state) => const RoleGuard(
+        requiredPermission: 'authenticated',
+        child: SidebarScaffold(
+          child: ProjectSetupScreen(),
         ),
       ),
     ),
@@ -132,6 +257,18 @@ final GoRouter _router = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/deliverable-detail',
+      builder: (context, state) {
+        final deliverable = state.extra as Deliverable;
+        return RouteGuard(
+          route: '/deliverable-detail',
+          child: SidebarScaffold(
+            child: DeliverableDetailScreen(deliverable: deliverable),
+          ),
+        );
+      },
+    ),
+    GoRoute(
       path: '/sprint-metrics/:sprintId',
       builder: (context, state) {
         final sprintId = state.pathParameters['sprintId']!;
@@ -142,6 +279,15 @@ final GoRouter _router = GoRouter(
           ),
         );
       },
+    ),
+    GoRoute(
+      path: '/timeline',
+      builder: (context, state) => const RouteGuard(
+        route: '/timeline',
+        child: SidebarScaffold(
+          child: TimelineScreen(),
+        ),
+      ),
     ),
     GoRoute(
       path: '/report-builder/:deliverableId',
@@ -156,14 +302,60 @@ final GoRouter _router = GoRouter(
       },
     ),
     GoRoute(
-      path: '/client-review/:reportId',
+      path: '/report-editor/:deliverableId',
+      builder: (context, state) {
+        final deliverableId = state.pathParameters['deliverableId']!;
+        return RouteGuard(
+          route: '/report-editor',
+          child: SidebarScaffold(
+            child: ReportEditorScreen(deliverableId: deliverableId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/report-view/:reportId',
       builder: (context, state) {
         final reportId = state.pathParameters['reportId']!;
         return RouteGuard(
+          route: '/report-builder', // Using same guard as builder for now
+          child: SidebarScaffold(
+            child: ReportViewScreen(reportId: reportId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/client-review/:reportId',
+      builder: (context, state) {
+        final reportId = state.pathParameters['reportId']!;
+        final extra = state.extra;
+        SignOffReport? initialReport;
+        Deliverable? initialDeliverable;
+        if (extra is Map) {
+          try { initialReport = extra['report'] as SignOffReport?; } catch (_) {}
+          try { initialDeliverable = extra['deliverable'] as Deliverable?; } catch (_) {}
+        }
+        return RouteGuard(
           route: '/client-review',
           child: SidebarScaffold(
-            child: ClientReviewWorkflowScreen(reportId: reportId),
+            child: ClientReviewScreen(
+              reportId: reportId,
+              initialReport: initialReport,
+              initialDeliverable: initialDeliverable,
+            ),
           ),
+        );
+      },
+    ),
+    // Token-based client review route (no auth required)
+    GoRoute(
+      path: '/client-review-token/:token',
+      builder: (context, state) {
+        final token = state.pathParameters['token']!;
+        return ClientReviewScreen(
+          reportId: '', // Will be fetched via token
+          reviewToken: token,
         );
       },
     ),
@@ -194,13 +386,39 @@ final GoRouter _router = GoRouter(
     ),
     
     GoRoute(
+      path: '/send-reminder',
+      builder: (context, state) => const RouteGuard(
+        route: '/send-reminder',
+        child: SidebarScaffold(
+          child: SendReminderScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/deadlines',
+      builder: (context, state) => const RouteGuard(
+        route: '/deadlines',
+        child: SidebarScaffold(
+          child: DeadlinesScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
       path: '/sprint-console',
-            builder: (context, state) => const RouteGuard(
-              route: '/sprint-console',
-              child: SidebarScaffold(
-                child: SprintConsoleScreen(),
-              ),
-            ),
+            builder: (context, state) {
+              final projectKey = state.uri.queryParameters['projectKey'];
+              final projectId = state.uri.queryParameters['projectId'];
+              final sprintId = state.uri.queryParameters['sprintId'];
+              return RouteGuard(
+                route: '/sprint-console',
+                child: SidebarScaffold(
+                  child: SprintConsoleScreen(
+                    initialProjectKey: projectKey ?? projectId,
+                    initialSprintId: sprintId,
+                  ),
+                ),
+              );
+            },
     ),
     GoRoute(
       path: '/sprint-board/:sprintId',
@@ -218,35 +436,49 @@ final GoRouter _router = GoRouter(
         );
       },
     ),
+  GoRoute(
+    path: '/approvals',
+    builder: (context, state) => const RouteGuard(
+      route: '/approval-requests',
+      child: SidebarScaffold(
+        child: ApprovalRequestsScreen(),
+      ),
+    ),
+  ),
+  GoRoute(
+    path: '/approval-requests',
+    builder: (context, state) => const RouteGuard(
+      route: '/approval-requests',
+      child: SidebarScaffold(
+        child: ApprovalRequestsScreen(),
+      ),
+    ),
+  ),
     GoRoute(
-      path: '/approvals',
+      path: '/deliverables',
       builder: (context, state) => const RouteGuard(
-        route: '/approvals',
+        route: '/deliverables',
         child: SidebarScaffold(
-          child: ApprovalsScreen(),
+          child: DeliverablesListScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/deliverables-overview',
+      builder: (context, state) => const RouteGuard(
+        route: '/deliverables-overview',
+        child: SidebarScaffold(
+          child: DeliverablesOverviewScreen(),
         ),
       ),
     ),
     GoRoute(
       path: '/epics',
-      builder: (context, state) => const RouteGuard(
-        route: '/epics',
-        child: SidebarScaffold(
-          child: EpicManagementScreen(),
-        ),
-      ),
+      redirect: (context, state) => '/deliverables-overview',
     ),
     GoRoute(
       path: '/epics/:epicId',
-      builder: (context, state) {
-        final epicId = state.pathParameters['epicId']!;
-        return RouteGuard(
-          route: '/epics',
-          child: SidebarScaffold(
-            child: EpicDetailScreen(epicId: epicId),
-          ),
-        );
-      },
+      redirect: (context, state) => '/deliverables-overview',
     ),
     GoRoute(
       path: '/repository',
@@ -259,10 +491,10 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/repository/:projectKey',
-      builder: (context, state) => const RouteGuard(
+      builder: (context, state) => RouteGuard(
         route: '/repository',
         child: SidebarScaffold(
-          child: RepositoryScreen(),
+          child: RepositoryScreen(projectKey: state.pathParameters['projectKey']),
         ),
       ),
     ),
@@ -290,22 +522,14 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
-    GoRoute(
-      path: '/user-management',
-      builder: (context, state) => const RouteGuard(
-        route: '/user-management',
-        child: SidebarScaffold(
-          child: UserManagementScreen(),
-        ),
-      ),
-    ),
+    // Removed redundant user-management route; role-management covers it
     
     GoRoute(
       path: '/profile',
-      builder: (context, state) => const RouteGuard(
+      builder: (context, state) => RouteGuard(
         route: '/profile',
         child: SidebarScaffold(
-          child: ProfileScreen(),
+          child: ProfileScreen(mode: state.uri.queryParameters['mode']),
         ),
       ),
     ),
@@ -318,10 +542,76 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
-    // Removed routes for non-existent screens to resolve analyzer errors
+    GoRoute(
+      path: '/system-metrics',
+      builder: (context, state) => const RouteGuard(
+        route: '/system-metrics',
+        child: SidebarScaffold(
+          child: SystemMetricsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/system-health',
+      builder: (context, state) => const RouteGuard(
+        route: '/system-health',
+        child: SidebarScaffold(
+          child: SystemHealthScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/audit-logs',
+      builder: (context, state) => const RouteGuard(
+        route: '/audit-logs',
+        child: SidebarScaffold(
+          child: AuditLogsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/assessment/:skill',
+      builder: (context, state) => RouteGuard(
+        route: '/skill-assessment',
+        child: SidebarScaffold(
+          child: SkillAssessmentScreen(selectedSkill: state.pathParameters['skill']),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/environment-management',
+      builder: (context, state) => const RouteGuard(
+        route: '/environment-management',
+        child: SidebarScaffold(
+          child: EnvironmentManagementScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/project-workspace',
+      builder: (context, state) => const RouteGuard(
+        route: '/project-workspace',
+        child: SidebarScaffold(
+          child: ProjectWorkspaceScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/project-workspace/:projectId',
+      builder: (context, state) {
+        final projectId = state.pathParameters['projectId'];
+        return RouteGuard(
+          route: '/project-workspace',
+          child: SidebarScaffold(
+            child: ProjectWorkspaceScreen(projectId: projectId),
+          ),
+        );
+      },
+    ),
     GoRoute(
       path: '/account',
       redirect: (context, state) => '/profile',
     ),
   ],
 );
+

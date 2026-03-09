@@ -1,114 +1,75 @@
-const nodemailer = require('nodemailer');
 const sgMail = require('@sendgrid/mail');
 
 class ProfessionalEmailService {
   constructor() {
-    // SendGrid configuration
-    this.sendGridApiKey = process.env.SENDGRID_API_KEY || 'SG.your-sendgrid-api-key-here';
-    this.fromEmail = process.env.FROM_EMAIL || 'noreply@flownet.works';
+    this.sendGridApiKey = process.env.SENDGRID_API_KEY || process.env.SENDGRID_KEY;
+    this.fromEmail = process.env.SENDGRID_FROM || process.env.FROM_EMAIL || 'noreply@flownet.works';
     this.fromName = 'Flownet Workspaces';
-    
-    // Fallback Gmail configuration (if SendGrid fails)
-    this.gmailTransporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: 'dhlaminibusisiwe30@gmail.com',
-        pass: 'bplcqegzkspgotfk'
-      }
-    });
-    
-    // Initialize SendGrid
-    if (this.sendGridApiKey && this.sendGridApiKey !== 'SG.your-sendgrid-api-key-here') {
-      sgMail.setApiKey(this.sendGridApiKey);
-      this.useSendGrid = true;
+
+    if (!this.sendGridApiKey) {
+      console.log('⚠️ SENDGRID_API_KEY not configured - email sending will fail until it is set');
     } else {
-      this.useSendGrid = false;
-      console.log('⚠️ SendGrid API key not configured, using Gmail fallback');
+      try {
+        sgMail.setApiKey(this.sendGridApiKey.trim());
+      } catch (err) {
+        console.error('❌ Failed to initialize SendGrid client:', err.message);
+      }
     }
   }
 
-  // Test email service connection
+  // Test email service connection using SendGrid
   async testConnection() {
+    if (!this.sendGridApiKey) {
+      console.error('❌ Email service connection failed: SENDGRID_API_KEY is not set');
+      return false;
+    }
+
     try {
-      if (this.useSendGrid) {
-        // Test SendGrid
-        const msg = {
-          to: 'test@example.com',
-          from: this.fromEmail,
-          subject: 'Test Email',
-          text: 'This is a test email'
-        };
-        await sgMail.send(msg);
-        console.log('✅ SendGrid connection successful');
-        return true;
-      } else {
-        // Test Gmail
-        await this.gmailTransporter.verify();
-        console.log('✅ Gmail fallback connection successful');
-        return true;
-      }
+      await sgMail.send({
+        to: this.fromEmail,
+        from: {
+          email: this.fromEmail,
+          name: this.fromName,
+        },
+        subject: 'Flow-Space email test',
+        html: '<p>This is a test email from Flow-Space backend (SendGrid connection check).</p>',
+        text: 'This is a test email from Flow-Space backend (SendGrid connection check).',
+      });
+      console.log('✅ SendGrid connection successful');
+      return true;
     } catch (error) {
-      console.error('❌ Email service connection failed:', error.message);
+      console.error('❌ Email service connection failed:', error.response?.body || error.message);
       return false;
     }
   }
 
-  // Send verification email with fallback
+  // Send verification email via SendGrid
   async sendVerificationEmail(toEmail, userName, verificationCode) {
-    try {
-      if (this.useSendGrid) {
-        return await this.sendWithSendGrid(toEmail, userName, verificationCode);
-      } else {
-        return await this.sendWithGmail(toEmail, userName, verificationCode);
-      }
-    } catch (error) {
-      console.error('❌ Failed to send verification email:', error.message);
-      
-      // Try fallback if primary method failed
-      if (this.useSendGrid) {
-        console.log('🔄 Trying Gmail fallback...');
-        return await this.sendWithGmail(toEmail, userName, verificationCode);
-      }
-      
-      return { success: false, error: error.message };
+    if (!this.sendGridApiKey) {
+      const msg = 'SENDGRID_API_KEY is not configured';
+      console.error('❌ Failed to send verification email:', msg);
+      return { success: false, error: msg };
     }
-  }
 
-  // Send with SendGrid
-  async sendWithSendGrid(toEmail, userName, verificationCode) {
     const msg = {
       to: toEmail,
       from: {
         email: this.fromEmail,
-        name: this.fromName
+        name: this.fromName,
       },
       subject: 'Verify Your Email - Flownet Workspaces',
       html: this.buildVerificationEmailHtml(userName, verificationCode),
-      text: this.buildVerificationEmailText(userName, verificationCode)
+      text: this.buildVerificationEmailText(userName, verificationCode),
     };
 
-    const result = await sgMail.send(msg);
-    console.log('✅ SendGrid verification email sent successfully');
-    return { success: true, messageId: result[0].headers['x-message-id'] };
-  }
-
-  // Send with Gmail (fallback)
-  async sendWithGmail(toEmail, userName, verificationCode) {
-    const mailOptions = {
-      from: {
-        name: this.fromName,
-        address: 'dhlaminibusisiwe30@gmail.com'
-      },
-      to: toEmail,
-      subject: 'Verify Your Email - Flownet Workspaces',
-      html: this.buildVerificationEmailHtml(userName, verificationCode)
-    };
-
-    const result = await this.gmailTransporter.sendMail(mailOptions);
-    console.log('✅ Gmail verification email sent successfully');
-    return { success: true, messageId: result.messageId };
+    try {
+      const [response] = await sgMail.send(msg);
+      console.log('✅ SendGrid verification email sent successfully');
+      return { success: true, statusCode: response.statusCode };
+    } catch (error) {
+      console.error('❌ Failed to send verification email via SendGrid:', error.response?.body || error.message);
+      return { success: false, error: error.response?.body || error.message };
+    }
   }
 
   // Build verification email HTML

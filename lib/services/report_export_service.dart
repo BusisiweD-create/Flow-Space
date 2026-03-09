@@ -182,10 +182,7 @@ class ReportExportService {
                             child: pw.ClipRRect(
                               horizontalRadius: 4,
                               verticalRadius: 4,
-                              child: pw.Image(
-                                pw.MemoryImage(base64Decode(signatureData)),
-                                fit: pw.BoxFit.contain,
-                              ),
+                              child: _buildSignatureImage(signatureData),
                             ),
                           ),
                         // Signature Details
@@ -317,7 +314,7 @@ class ReportExportService {
         // Web platform - trigger browser download
         final blob = html.Blob([bytes], 'application/pdf');
         final url = html.Url.createObjectUrlFromBlob(blob);
-        final fileName = 'Report_${report.reportTitle.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        final fileName = 'Report_${report.reportTitle.replaceAll(' ', '_')}_${report.id}.pdf';
         html.AnchorElement(href: url)
           ..setAttribute('download', fileName)
           ..click()
@@ -334,7 +331,8 @@ class ReportExportService {
           // Try to save to temp directory and share
           try {
             final tempDir = await getTemporaryDirectory();
-            final filePath = '${tempDir.path}/report_${report.id}.pdf';
+            final sanitizedTitle = report.reportTitle.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
+            final filePath = '${tempDir.path}/${sanitizedTitle}_${report.id}.pdf';
             final file = _createFile(filePath);
             await file.writeAsBytes(bytes);
             
@@ -458,6 +456,54 @@ class ReportExportService {
     // On web, this will throw UnsupportedError from the stub
     // On mobile/desktop, this will use dart:io File
     return File(path);
+  }
+
+  /// Build signature image with error handling for PDF export
+  pw.Widget _buildSignatureImage(String? signatureData) {
+    if (signatureData == null || signatureData.isEmpty) {
+      return pw.Container(
+        height: 70,
+        width: 150,
+        color: PdfColors.grey200,
+        child: pw.Center(
+          child: pw.Text('No signature'),
+        ),
+      );
+    }
+
+    try {
+      // Check if signatureData looks like JSON
+      final trimmedData = signatureData.trim();
+      if (trimmedData.startsWith('{') || trimmedData.startsWith('[') || 
+          trimmedData.startsWith('"success"') || trimmedData.startsWith('"error"')) {
+        return pw.Container(
+          height: 70,
+          width: 150,
+          color: PdfColors.grey200,
+          child: pw.Center(
+            child: pw.Text('Invalid signature data'),
+          ),
+        );
+      }
+
+      final Uint8List imageBytes = base64Decode(
+        signatureData.contains(',') ? signatureData.split(',').last : signatureData
+      );
+      
+      return pw.Image(
+        pw.MemoryImage(imageBytes),
+        fit: pw.BoxFit.contain,
+      );
+    } catch (e) {
+      return pw.Container(
+        height: 70,
+        width: 150,
+        color: PdfColors.grey200,
+        child: pw.Center(
+          child: pw.Text('Invalid signature format'),
+        ),
+      );
+    }
   }
 }
 

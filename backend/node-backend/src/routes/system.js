@@ -5,9 +5,12 @@ const { Sequelize, Op } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { User, Project, Sprint, Deliverable, AuditLog } = require('../models');
+const { sequelize, User, Project, Sprint, Deliverable, AuditLog, Notification } = require('../models');
+const { QueryTypes } = require('sequelize');
 const analyticsService = require('../services/analyticsService');
 const { loggingService } = require('../services/loggingService');
+const schedulerService = require('../services/schedulerService');
+const socketService = require('../services/socketService');
 
 const router = express.Router();
 
@@ -38,6 +41,274 @@ router.get('/settings', authenticateToken, requireRole(['system_admin']), async 
       error: 'Failed to get system settings',
       details: error.message
     });
+  }
+});
+
+// Simulate pending approval reminder for reports (admin, delivery lead, or client reviewer)
+router.post('/simulate-report-reminder', authenticateToken, requireRole(['system_admin', 'delivery_lead', 'client_reviewer']), async (req, res) => {
+  try {
+    const { reportId, force, recipientRole, recipientId } = req.body || {};
+
+    // Find target reports
+    let reports = [];
+    if (reportId) {
+      reports = await sequelize.query(
+        "SELECT id, created_by, status, content, updated_at FROM sign_off_reports WHERE id = $1",
+        { bind: [reportId], type: QueryTypes.SELECT }
+      );
+    } else {
+      reports = await sequelize.query(
+        "SELECT id, created_by, status, content, updated_at FROM sign_off_reports WHERE status IN ('submitted','under_review','change_requested','pending')",
+        { type: QueryTypes.SELECT }
+      );
+      if ((!reports || reports.length === 0) && force) {
+        reports = await sequelize.query(
+          "SELECT id, created_by, status, content, updated_at FROM sign_off_reports WHERE status NOT IN ('approved','rejected')",
+          { type: QueryTypes.SELECT }
+        );
+      }
+    }
+
+    if (!reports || reports.length === 0) {
+      const signoffs = await sequelize.query(
+        "SELECT s.id, d.created_by, s.decision as status, s.comments as content, COALESCE(s.reviewed_at, s.submitted_at, NOW()) as updated_at FROM signoffs s LEFT JOIN deliverables d ON d.id = s.entity_id WHERE s.entity_type IN ('deliverable','sprint') AND (s.decision IS NULL OR s.decision IN ('pending','submitted','under_review','change_requested')) ORDER BY COALESCE(s.reviewed_at, s.submitted_at, NOW()) DESC",
+        { type: QueryTypes.SELECT }
+      );
+      reports = (signoffs || []).map((s) => ({
+        id: s.id,
+        created_by: s.created_by,
+        status: s.status || 'submitted',
+        content: typeof s.content === 'string' ? (() => { try { return JSON.parse(s.content); } catch { return {}; } })() : (s.content || {}),
+        updated_at: s.updated_at,
+      }));
+      if (!reports || reports.length === 0) {
+        const deliverables = await Deliverable.findAll({
+          where: { status: { [Op.notIn]: ['approved', 'rejected'] } },
+          order: [['created_at', 'DESC']],
+          limit: 50,
+        });
+        reports = (deliverables || []).map((d) => ({
+          id: d.id,
+          created_by: d.created_by,
+          status: d.status || 'pending',
+          content: { reportTitle: d.title || 'Deliverable', reportContent: d.description || '' },
+          updated_at: d.updated_at || d.created_at,
+        }));
+        if (!reports || reports.length === 0) {
+          return res.status(404).json({ success: false, error: 'No reports found to remind' });
+        }
+      }
+    }
+
+    let recipients = [];
+    
+    if (recipientId) {
+      // If a specific user ID is provided, target only that user
+      // We check if the user exists and is active
+      const user = await User.findOne({ where: { id: recipientId, is_active: true } });
+      if (user) {
+        recipients = [user];
+      }
+    } else {
+      // Fallback to role-based logic if no specific user is targeted
+      const roleKey = String(recipientRole || '').toLowerCase();
+      if (roleKey === 'client_reviewer') {
+        recipients = await User.findAll({ where: { role: { [Op.in]: ['clientReviewer', 'ClientReviewer', 'clientreviewer'] }, is_active: true } });
+      } else if (roleKey === 'system_admin') {
+        recipients = await User.findAll({ where: { role: { [Op.in]: ['systemAdmin', 'SystemAdmin', 'systemadmin'] }, is_active: true } });
+      } else if (roleKey === 'delivery_lead') {
+        recipients = await User.findAll({ where: { role: { [Op.in]: ['deliveryLead', 'DeliveryLead', 'deliverylead'] }, is_active: true } });
+      } else {
+        const clientReviewers = await User.findAll({ where: { role: { [Op.in]: ['clientReviewer', 'ClientReviewer', 'clientreviewer'] }, is_active: true } });
+        recipients = clientReviewers;
+        if (!recipients || recipients.length === 0) {
+          const deliveryLeads = await User.findAll({ where: { role: { [Op.in]: ['deliveryLead', 'DeliveryLead', 'deliverylead'] }, is_active: true } });
+          const admins = await User.findAll({ where: { role: { [Op.in]: ['systemAdmin', 'SystemAdmin', 'systemadmin'] }, is_active: true } });
+          recipients = [...deliveryLeads, ...admins];
+        }
+      }
+    }
+
+    if (!recipients || recipients.length === 0) {
+      return res.status(400).json({ success: false, error: 'No active recipients found' });
+    }
+
+    let createdCount = 0;
+    for (const report of reports) {
+      const content = typeof report.content === 'string' ? (() => { try { return JSON.parse(report.content); } catch { return {}; } })() : (report.content || {});
+      const title = content.reportTitle || content.report_title || 'Sign-Off Report';
+
+      // Skip non-due unless forced
+      const ageMs = Date.now() - new Date(report.updated_at || Date.now()).getTime();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      if (!force && ageMs < oneDayMs && report.status !== 'submitted') continue;
+
+      const notifications = recipients.map((client) => ({
+        recipient_id: client.id,
+        sender_id: (report.created_by && typeof report.created_by === 'string' && /^[0-9a-fA-F-]{36}$/.test(report.created_by)) ? report.created_by : null,
+        type: 'approval',
+        message: `Reminder: Please review and approve or request changes for "${title}"`,
+        payload: {
+          report_id: report.id,
+          report_title: title,
+          action_url: `/enhanced-client-review/${report.id}`,
+        },
+        is_read: false,
+        created_at: new Date(),
+      }));
+
+      await Notification.bulkCreate(notifications);
+      
+      // Send real-time notifications
+      for (const notification of notifications) {
+        if (socketService && typeof socketService.sendToUser === 'function') {
+          socketService.sendToUser(notification.recipient_id, 'notification_received', notification);
+        }
+      }
+
+      createdCount += notifications.length;
+    }
+
+    return res.json({ success: true, created_notifications: createdCount });
+  } catch (error) {
+    console.error('Error simulating report reminder:', error);
+    if (error.stack) console.error(error.stack);
+    res.status(500).json({ success: false, error: 'Failed to simulate report reminder', details: error && error.message ? error.message : undefined });
+  }
+});
+
+// Dev-only: simulate report reminder without authentication
+router.post('/dev/simulate-report-reminder', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, error: 'Disabled in production' });
+    }
+    const { reportId, force } = req.body || {};
+
+    let reports = [];
+    if (reportId) {
+      reports = await sequelize.query(
+        "SELECT id, created_by, status, content, updated_at FROM sign_off_reports WHERE id = $1",
+        { bind: [reportId], type: QueryTypes.SELECT }
+      );
+    } else {
+      reports = await sequelize.query(
+        "SELECT id, created_by, status, content, updated_at FROM sign_off_reports WHERE status IN ('submitted','under_review','change_requested','pending')",
+        { type: QueryTypes.SELECT }
+      );
+      if ((!reports || reports.length === 0) && force) {
+        reports = await sequelize.query(
+          "SELECT id, created_by, status, content, updated_at FROM sign_off_reports WHERE status NOT IN ('approved','rejected')",
+          { type: QueryTypes.SELECT }
+        );
+      }
+    }
+    if (!reports || reports.length === 0) {
+      const signoffs = await sequelize.query(
+        "SELECT s.id, d.created_by, s.decision as status, s.comments as content, COALESCE(s.reviewed_at, s.submitted_at, NOW()) as updated_at FROM signoffs s LEFT JOIN deliverables d ON d.id = s.entity_id WHERE s.entity_type IN ('deliverable','sprint') AND (s.decision IS NULL OR s.decision IN ('pending','submitted','under_review','change_requested')) ORDER BY COALESCE(s.reviewed_at, s.submitted_at, NOW()) DESC",
+        { type: QueryTypes.SELECT }
+      );
+      reports = (signoffs || []).map((s) => ({
+        id: s.id,
+        created_by: s.created_by,
+        status: s.status || 'submitted',
+        content: typeof s.content === 'string' ? (() => { try { return JSON.parse(s.content); } catch { return {}; } })() : (s.content || {}),
+        updated_at: s.updated_at,
+      }));
+      if (!reports || reports.length === 0) {
+        const deliverables = await Deliverable.findAll({
+          where: { status: { [Op.notIn]: ['approved', 'rejected'] } },
+          order: [['created_at', 'DESC']],
+          limit: 50,
+        });
+        reports = (deliverables || []).map((d) => ({
+          id: d.id,
+          created_by: d.created_by,
+          status: d.status || 'pending',
+          content: { reportTitle: d.title || 'Deliverable', reportContent: d.description || '' },
+          updated_at: d.updated_at || d.created_at,
+        }));
+      }
+    }
+
+    const clientReviewers = await User.findAll({ where: { role: { [Op.in]: ['clientReviewer', 'ClientReviewer', 'clientreviewer'] }, is_active: true } });
+    let recipients = clientReviewers;
+    if (!recipients || recipients.length === 0) {
+      const deliveryLeads = await User.findAll({ where: { role: { [Op.in]: ['deliveryLead', 'DeliveryLead', 'deliverylead'] }, is_active: true } });
+      const admins = await User.findAll({ where: { role: { [Op.in]: ['systemAdmin', 'SystemAdmin', 'systemadmin'] }, is_active: true } });
+      recipients = [...deliveryLeads, ...admins];
+    }
+    let createdCount = 0;
+    for (const report of reports) {
+      const content = typeof report.content === 'string' ? (() => { try { return JSON.parse(report.content); } catch { return {}; } })() : (report.content || {});
+      const title = content.reportTitle || content.report_title || 'Sign-Off Report';
+      const notifications = recipients.map((client) => ({
+        recipient_id: client.id,
+        sender_id: (report.created_by && typeof report.created_by === 'string' && /^[0-9a-fA-F-]{36}$/.test(report.created_by)) ? report.created_by : null,
+        type: 'approval',
+        message: `Reminder: Please review and approve or request changes for "${title}"`,
+        payload: {
+          report_id: report.id,
+          report_title: title,
+          action_url: `/enhanced-client-review/${report.id}`,
+        },
+        is_read: false,
+        created_at: new Date(),
+      }));
+      await Notification.bulkCreate(notifications);
+      createdCount += notifications.length;
+    }
+    return res.json({ success: true, created_notifications: createdCount });
+  } catch (error) {
+    console.error('Error simulating report reminder (dev):', error);
+    res.status(500).json({ success: false, error: 'Failed to simulate report reminder', details: error && error.message ? error.message : undefined });
+  }
+});
+
+router.get('/dev/recent-notifications', authenticateToken, async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, error: 'Disabled in production' });
+    }
+    const { limit = 20 } = req.query;
+    const rows = await Notification.findAll({ where: { recipient_id: req.user.id }, order: [['created_at', 'DESC']], limit: parseInt(limit) });
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to load notifications', details: error && error.message ? error.message : undefined });
+  }
+});
+
+// Admin: Backfill user null fields (dev utility)
+router.post('/dev/backfill-users', authenticateToken, requireRole(['system_admin']), async (req, res) => {
+  try {
+    const users = await User.findAll();
+    let updated = 0;
+    for (const u of users) {
+      const email = u.email || '';
+      const namePart = typeof email === 'string' ? email.split('@')[0] : '';
+      const splitName = namePart.includes('.') ? namePart.split('.') : [];
+      const first = u.first_name || (splitName[0] ? splitName[0] : namePart) || null;
+      const last = u.last_name || (splitName[1] ? splitName[1] : '') || null;
+      const isActive = (u.is_active === true) ? true : true;
+      const status = u.status || (isActive ? 'active' : null);
+      const lastLogin = u.last_login || u.updated_at || null;
+      const createdAt = u.created_at || (u.updated_at ? u.updated_at : new Date());
+      const updates = {};
+      if (!u.first_name && first) updates.first_name = first;
+      if (!u.last_name && last) updates.last_name = last;
+      if (u.is_active !== true) updates.is_active = true;
+      if (!u.status && status) updates.status = status;
+      if (!u.last_login && lastLogin) updates.last_login = lastLogin;
+      if (!u.created_at && createdAt) updates.created_at = createdAt;
+      if (Object.keys(updates).length > 0) {
+        await u.update(updates);
+        updated++;
+      }
+    }
+    return res.json({ success: true, updated_count: updated });
+  } catch (error) {
+    console.error('Backfill users error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to backfill users' });
   }
 });
 
@@ -275,6 +546,41 @@ router.get('/backups', authenticateToken, requireRole(['system_admin']), async (
       error: 'Failed to list system backups',
       details: error.message
     });
+  }
+});
+
+// Database table schema introspection (development helper)
+router.get('/schema/:table', async (req, res) => {
+  try {
+    const { table } = req.params;
+    const columns = await sequelize.query(
+      `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = :table ORDER BY ordinal_position`,
+      { type: QueryTypes.SELECT, replacements: { table } }
+    );
+    res.status(200).json({ success: true, table, columns });
+  } catch (error) {
+    console.error('Schema introspection error:', error);
+    res.status(500).json({ success: false, error: 'Failed to introspect schema' });
+  }
+});
+
+// Fix column type mismatch: sprints.project_id -> UUID
+router.post('/schema/sprints/project-id-to-uuid', async (req, res) => {
+  try {
+    const check = await sequelize.query(
+      `SELECT data_type FROM information_schema.columns WHERE table_name = 'sprints' AND column_name = 'project_id'`,
+      { type: QueryTypes.SELECT }
+    );
+    const currentType = (check[0] && check[0].data_type) || null;
+    if (currentType === 'uuid') {
+      return res.status(200).json({ success: true, message: 'Column already UUID' });
+    }
+    await sequelize.query(`ALTER TABLE sprints DROP COLUMN IF EXISTS project_id`);
+    await sequelize.query(`ALTER TABLE sprints ADD COLUMN project_id uuid`);
+    res.status(200).json({ success: true, message: 'sprints.project_id recreated as uuid' });
+  } catch (error) {
+    console.error('Column type fix error:', error);
+    res.status(500).json({ success: false, error: 'Failed to alter column type', details: error.message });
   }
 });
 
@@ -521,6 +827,22 @@ router.post('/cache/clear', authenticateToken, requireRole(['system_admin']), as
       error: 'Failed to clear system cache',
       details: error.message
     });
+  }
+});
+
+// Trigger Escalation and Reminders Manually
+router.post('/trigger-escalation', authenticateToken, requireRole(['system_admin', 'delivery_lead']), async (req, res) => {
+  try {
+    const { force } = req.body; // Pass force=true to bypass duplicate checks
+    const results = await schedulerService.runScheduledTasks({ force });
+    res.json({
+      success: true,
+      message: 'Scheduled tasks triggered manually',
+      results
+    });
+  } catch (error) {
+    console.error('Error triggering escalation manually:', error);
+    res.status(500).json({ error: 'Failed to trigger escalation' });
   }
 });
 

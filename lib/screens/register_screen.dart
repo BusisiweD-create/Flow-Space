@@ -1,8 +1,10 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../services/error_handler.dart';
 import '../models/user_role.dart';
+import '../widgets/fixed_footer_version_display.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -120,21 +122,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Container(
+                padding: const EdgeInsets.all(8.0),
+                child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 500),
-                  child: Card(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    elevation: 8,
-                    shape: RoundedRectangleBorder(
+                  child: Container(
+                    padding: const EdgeInsets.all(32.0),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.3),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
                         width: 1,
                       ),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Form(
                         key: _formKey,
                         child: Column(
@@ -143,7 +145,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             // Logo and Title
                             Image.asset(
                               'assets/Icons/khono.png',
-                              height: 80,
+                              height: 60,
                               fit: BoxFit.contain,
                             ),
                             const SizedBox(height: 16),
@@ -548,8 +550,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-            ), // SafeArea
+            ), // Added closing bracket for SafeArea
           ), // Missing closing for SafeArea
+          // Fixed footer version display at bottom
+          const FixedFooterVersionDisplay(),
         ], // Stack children
       ), // Stack
     ); // Scaffold
@@ -654,7 +658,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           userRole = UserRole.deliveryLead;
           break;
         case 'scrum master':
-          userRole = UserRole.deliveryLead;
+          userRole = UserRole.teamMember;
           break;
         case 'qa engineer':
           userRole = UserRole.teamMember;
@@ -664,6 +668,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           break;
         case 'stakeholder':
           userRole = UserRole.systemAdmin;
+          break;
+        case 'developer':
+          userRole = UserRole.teamMember;
           break;
         default:
           userRole = UserRole.teamMember;
@@ -686,9 +693,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (result['success'] == true && mounted) {
         _errorHandler.showSuccessSnackBar(context, 'Registration successful!');
-        // Small delay to show success message
-        await Future.delayed(const Duration(milliseconds: 500));
-        // Navigate to email verification screen
         if (mounted) {
           context.go(
             '/email-verification',

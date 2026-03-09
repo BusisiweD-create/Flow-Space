@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class FlownetColors {
   // Primary Colors
@@ -39,6 +38,7 @@ class FlownetColors {
   static const Color emeraldGreen = Color(0xFF34C759);
   static const Color amberOrange = Color(0xFFFF9500);
   static const Color crimsonRed = Color(0xFFC10D00);
+  static const Color purple = Color(0xFF9C27B0);
   
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
@@ -76,7 +76,7 @@ class FlownetTheme {
         surfaceContainerHighest: FlownetColors.surfaceLight,
         onSurfaceVariant: FlownetColors.textSecondary,
         outline: FlownetColors.textTertiary,
-        outlineVariant: FlownetColors.surfaceLight,
+        
         surfaceTint: FlownetColors.primary,
       ),
       // Translucent AppBar
@@ -87,8 +87,9 @@ class FlownetTheme {
         iconTheme: IconThemeData(color: FlownetColors.pureWhite),
         titleTextStyle: TextStyle(
           color: FlownetColors.pureWhite,
+          fontWeight: FontWeight.w600,
           fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontFamily: 'Poppins',
         ),
       ),
       // Translucent cards
@@ -104,39 +105,39 @@ class FlownetTheme {
       ),
       // Dialogs (AlertDialog, SimpleDialog)
       dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white.withAlpha((0.12 * 255).round()),
+        backgroundColor: const Color(0xF21E1E1E),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.white.withAlpha((0.18 * 255).round())),
+          side: BorderSide(color: Colors.white.withAlpha((0.35 * 255).round())),
         ),
       ),
       // Bottom sheets
-      bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: Colors.white.withAlpha((0.10 * 255).round()),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Color(0xF21E1E1E),
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
       ),
       // Inputs
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withAlpha((0.10 * 255).round()),
+        fillColor: Colors.white.withAlpha((0.18 * 255).round()),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withAlpha((0.30 * 255).round())),
+          borderSide: BorderSide(color: Colors.white.withAlpha((0.40 * 255).round())),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withAlpha((0.30 * 255).round())),
+          borderSide: BorderSide(color: Colors.white.withAlpha((0.40 * 255).round())),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: FlownetColors.primary, width: 2),
         ),
-        labelStyle: TextStyle(color: Colors.white.withAlpha((0.70 * 255).round())),
-        hintStyle: TextStyle(color: Colors.white.withAlpha((0.50 * 255).round())),
+        labelStyle: TextStyle(color: Colors.white.withAlpha((0.80 * 255).round())),
+        hintStyle: TextStyle(color: Colors.white.withAlpha((0.65 * 255).round())),
         errorStyle: const TextStyle(color: FlownetColors.error),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
@@ -288,19 +289,115 @@ class FlownetTheme {
         error: FlownetColors.error,
         onError: FlownetColors.onSurface,
         outline: Color(0xFFE0E0E0),
-        outlineVariant: FlownetColors.surfaceLight,
+        outlineVariant: FlownetColors.coolGray,
+      ),
+
+      // Typography
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        displayMedium: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        displaySmall: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        headlineLarge: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        titleLarge: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        titleMedium: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        titleSmall: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.normal,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.normal,
+          color: FlownetColors.graphiteGray,
+          fontFamily: 'Poppins',
+        ),
+        labelLarge: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        labelMedium: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
+        ),
+        labelSmall: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: FlownetColors.graphiteGray,
+          fontFamily: 'Poppins',
+        ),
+        
       ),
 
       // AppBar Theme
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: FlownetColors.pureWhite,
         foregroundColor: FlownetColors.charcoalBlack,
         elevation: 1,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.poppins(
+        titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: FlownetColors.charcoalBlack,
+          fontFamily: 'Poppins',
         ),
       ),
 
@@ -313,9 +410,10 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.poppins(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamily: 'Poppins',
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.resolveWith<Color?>(
@@ -336,9 +434,10 @@ class FlownetTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.poppins(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamily: 'Poppins',
           ),
         ).copyWith(
           overlayColor: WidgetStateProperty.resolveWith<Color?>(
@@ -355,9 +454,10 @@ class FlownetTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: FlownetColors.crimsonRed,
-          textStyle: GoogleFonts.poppins(
+          textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamily: 'Poppins',
           ),
         ),
       ),
@@ -385,11 +485,11 @@ class FlownetTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: FlownetColors.error),
         ),
-        hintStyle: GoogleFonts.poppins(
+        hintStyle: const TextStyle(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
         ),
-        labelStyle: GoogleFonts.poppins(
+        labelStyle: const TextStyle(
           color: FlownetColors.graphiteGray,
           fontSize: 16,
         ),
@@ -432,21 +532,21 @@ class FlownetTheme {
       ),
 
       // Navigation Rail Theme
-      navigationRailTheme: NavigationRailThemeData(
+      navigationRailTheme: const NavigationRailThemeData(
         backgroundColor: FlownetColors.pureWhite,
-        selectedIconTheme: const IconThemeData(
+        selectedIconTheme: IconThemeData(
           color: FlownetColors.crimsonRed,
           size: 24,
         ),
-        unselectedIconTheme: const IconThemeData(
+        unselectedIconTheme: IconThemeData(
           color: FlownetColors.graphiteGray,
           size: 24,
         ),
-        selectedLabelTextStyle: GoogleFonts.poppins(
+        selectedLabelTextStyle: TextStyle(
           color: FlownetColors.crimsonRed,
           fontWeight: FontWeight.w600,
         ),
-        unselectedLabelTextStyle: GoogleFonts.poppins(
+        unselectedLabelTextStyle: TextStyle(
           color: FlownetColors.graphiteGray,
           fontWeight: FontWeight.normal,
         ),
@@ -469,11 +569,11 @@ class FlownetTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        titleTextStyle: GoogleFonts.poppins(
+        titleTextStyle: const TextStyle(
           color: FlownetColors.charcoalBlack,
           fontWeight: FontWeight.w500,
         ),
-        subtitleTextStyle: GoogleFonts.poppins(
+        subtitleTextStyle: const TextStyle(
           color: FlownetColors.graphiteGray,
           fontSize: 14,
         ),

@@ -29,8 +29,8 @@ flutter run -d chrome
 ## ✅ Verification
 
 ### Backend Server Status
-- **URL:** http://localhost:3001
-- **Health Check:** http://localhost:3001/api/test-db
+- **URL:** http://localhost:8000
+- **Health Check:** http://localhost:8000/api/test-db
 - **Status:** Should show "Database connection successful"
 
 ### Login Credentials
@@ -41,11 +41,11 @@ flutter run -d chrome
 
 ### Server Not Starting
 1. Make sure you're in the correct directory (`backend` folder)
-2. Check if port 3001 is already in use
+2. Check if port 8000 is already in use
 3. Verify Node.js is installed: `node --version`
 
 ### Login Issues
-1. Ensure backend server is running on port 3001
+1. Ensure backend server is running on port 8000
 2. Check browser console for connection errors
 3. Verify database connection in backend logs
 

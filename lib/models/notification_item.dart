@@ -11,6 +11,19 @@ enum NotificationType {
   reportChangesRequested, // Changes requested on report
 }
 
+enum NotificationAction {
+  approvalRequest,
+  approvalReminder,
+  approvalApproved,
+  approvalRejected,
+  deliverableCreated,
+  deliverableUpdated,
+  sprintStarted,
+  sprintCompleted,
+  systemError,
+  general,
+}
+
 class NotificationItem {
   final String id;
   final String title;
@@ -20,6 +33,8 @@ class NotificationItem {
   final NotificationType type;
   final String message;
   final DateTime timestamp;
+  final NotificationAction action;
+  final String? relatedId;
 
   const NotificationItem({
     required this.id,
@@ -30,6 +45,8 @@ class NotificationItem {
     required this.type,
     required this.message,
     required this.timestamp,
+    this.action = NotificationAction.general,
+    this.relatedId,
   });
 
   NotificationItem copyWith({
@@ -41,6 +58,8 @@ class NotificationItem {
     NotificationType? type,
     String? message,
     DateTime? timestamp,
+    NotificationAction? action,
+    String? relatedId,
   }) {
     return NotificationItem(
       id: id ?? this.id,
@@ -51,6 +70,8 @@ class NotificationItem {
       type: type ?? this.type,
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
+      action: action ?? this.action,
+      relatedId: relatedId ?? this.relatedId,
     );
   }
 
@@ -64,48 +85,61 @@ class NotificationItem {
       'type': type.name,
       'message': message,
       'timestamp': timestamp.toIso8601String(),
+      'action': action.name,
+      'relatedId': relatedId,
     };
   }
 
   factory NotificationItem.fromJson(Map<String, dynamic> json) {
-    // Map backend type names to frontend enum
     NotificationType parseType(String? typeString) {
       if (typeString == null) return NotificationType.system;
-      
-      // Handle backend type names (with underscores)
       final typeMap = {
         'report_submission': NotificationType.reportSubmission,
         'report_approved': NotificationType.reportApproved,
         'report_changes_requested': NotificationType.reportChangesRequested,
       };
-      
-      // Check if it's a backend type
       if (typeMap.containsKey(typeString)) {
         return typeMap[typeString]!;
       }
-      
-      // Otherwise, try to match frontend enum directly
       try {
         return NotificationType.values.firstWhere(
           (e) => e.name == typeString,
           orElse: () => NotificationType.system,
         );
-      } catch (e) {
+      } catch (_) {
         return NotificationType.system;
       }
     }
-    
+    NotificationAction parseAction(String? actionString) {
+      if (actionString == null) return NotificationAction.general;
+      try {
+        return NotificationAction.values.firstWhere(
+          (e) => e.name == actionString,
+          orElse: () => NotificationAction.general,
+        );
+      } catch (_) {
+        return NotificationAction.general;
+      }
+    }
+    final createdAt = json['createdAt'] ?? json['created_at'] ?? json['date'] ?? json['timestamp'];
+    DateTime parseDate(dynamic v) {
+      try {
+        return v is String ? DateTime.parse(v) : (v is DateTime ? v : DateTime.now());
+      } catch (_) {
+        return DateTime.now();
+      }
+    }
     return NotificationItem(
       id: json['id']?.toString() ?? '',
-      title: json['title'] ?? 'Notification',
-      description: json['message'] ?? json['description'] ?? '',
-      date: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : 
-            (json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now()),
-      isRead: json['isRead'] ?? json['is_read'] ?? false,
-      type: parseType(json['type']),
-      message: json['message'] ?? '',
-      timestamp: json['createdAt'] != null ? DateTime.parse(json['createdAt']) :
-                 (json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now()),
+      title: (json['title'] ?? 'Notification').toString(),
+      description: (json['description'] ?? json['message'] ?? '').toString(),
+      date: parseDate(createdAt),
+      isRead: (json['isRead'] ?? json['is_read'] ?? false) == true,
+      type: parseType(json['type']?.toString()),
+      message: (json['message'] ?? '').toString(),
+      timestamp: parseDate(createdAt),
+      action: parseAction(json['action']?.toString()),
+      relatedId: json['relatedId']?.toString(),
     );
   }
 }

@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../components/performance_visualizations.dart';
-import '../services/api_service.dart';
+import '../services/dashboard_service.dart';
 import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
 
@@ -32,7 +32,8 @@ class _PerformanceDashboardScreenState extends State<PerformanceDashboardScreen>
         _error = null;
       });
 
-      final data = await ApiService.getDashboardData();
+      final response = await DashboardService().getDashboardData();
+      final data = response.data ?? {};
       
       setState(() {
         _performanceData = data;

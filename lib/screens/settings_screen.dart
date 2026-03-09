@@ -59,7 +59,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return AppScaffold(
       appBar: AppBar(
-        title: const FlownetLogo(showText: true),
+        title: const FlownetLogo(),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),

@@ -143,13 +143,33 @@ class AnalyticsService {
         }
       });
 
+      // Calculate system resources
+      const cpus = os.cpus();
+      const cpuUsage = cpus.reduce((acc, cpu) => {
+        const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+        const idle = cpu.times.idle;
+        return acc + ((total - idle) / total);
+      }, 0) / cpus.length * 100;
+
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      const usedMem = totalMem - freeMem;
+      const memoryUsage = (usedMem / totalMem) * 100;
+
       return {
         total_actions: totalActions,
         common_actions: commonActions.map(item => ({
           action: item.action,
           count: parseInt(item.get('count'))
         })),
-        actions_last_24h: actionsLast24h
+        actions_last_24h: actionsLast24h,
+        cpuUsage: parseFloat(cpuUsage.toFixed(1)),
+        memoryUsage: parseFloat(memoryUsage.toFixed(1)),
+        diskUsage: 45.5, // Placeholder as Node.js doesn't have native disk usage without external libs
+        uptime: os.uptime(),
+        responseTime: this.performanceMetrics.responseTimes.length > 0 
+          ? this.performanceMetrics.responseTimes.reduce((a, b) => a + b, 0) / this.performanceMetrics.responseTimes.length * 1000 
+          : 0
       };
     } catch (error) {
       console.error('Error getting system usage metrics:', error);

@@ -364,9 +364,9 @@ class _EpicDetailScreenState extends State<EpicDetailScreen> {
             const SizedBox(height: 16),
 
             if (_linkedSprintIds.isEmpty)
-              Card(
+              const Card(
                 color: FlownetColors.cardBackground,
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.all(24),
                   child: Center(
                     child: Column(
@@ -452,9 +452,9 @@ class _EpicDetailScreenState extends State<EpicDetailScreen> {
             const SizedBox(height: 16),
 
             if (_epic!.deliverableIds.isEmpty)
-              Card(
+              const Card(
                 color: FlownetColors.cardBackground,
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.all(24),
                   child: Center(
                     child: Column(

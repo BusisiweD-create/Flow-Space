@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/sign_off_report.dart';
+import '../models/user.dart';
+import '../models/user_role.dart';
 import '../services/backend_api_service.dart';
 import '../services/deliverable_service.dart';
 import '../services/sprint_database_service.dart';
+import '../services/user_data_service.dart';
+import '../services/auth_service.dart';
 import '../services/api_client.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
@@ -30,26 +35,62 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   final _contentController = TextEditingController();
   final _knownLimitationsController = TextEditingController();
   final _nextStepsController = TextEditingController();
+  final _aiPromptController = TextEditingController();
   
   final BackendApiService _reportService = BackendApiService();
   final DeliverableService _deliverableService = DeliverableService();
   final SprintDatabaseService _sprintService = SprintDatabaseService();
+  final UserDataService _userService = UserDataService();
+  final AuthService _authService = AuthService();
   final ApiClient _apiClient = ApiClient();
   
   List<dynamic> _deliverables = [];
   List<dynamic> _sprints = [];
+  List<User> _users = [];
   String? _selectedDeliverableId;
+  String? _preparedById;
   List<String> _selectedSprintIds = [];
+  String? _changeRequestDetails;
   bool _isLoading = false;
   bool _isSaving = false;
   bool _isLoadingDeliverables = false;
   SignOffReport? _existingReport;
+  String? _existingPerformanceData;
   final GlobalKey<SignatureCaptureWidgetState> _signatureKey = GlobalKey<SignatureCaptureWidgetState>();
+  bool _useAiAssist = false;
+  bool _isAiGenerating = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  void _normalizeSelectedDeliverable() {
+    if (_selectedDeliverableId == null) return;
+    final matches = _deliverables.where((d) {
+      try {
+        final id = d is Map ? d['id']?.toString() : d.id?.toString();
+        return id == _selectedDeliverableId;
+      } catch (_) {
+        return false;
+      }
+    }).length;
+    if (matches != 1) {
+      _selectedDeliverableId = null;
+    }
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final users = await _userService.getUsers(limit: 1000);
+      setState(() {
+        _users = users;
+        _preparedById ??= _authService.currentUser?.id;
+      });
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+    }
   }
 
   Future<void> _loadData() async {
@@ -58,6 +99,9 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     try {
       // Load deliverables from backend (real-time data)
       await _loadDeliverables();
+      
+      // Load users
+      await _loadUsers();
       
       // Load sprints
       try {
@@ -98,7 +142,11 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
             _contentController.text = content['reportContent']?.toString() ?? '';
             _knownLimitationsController.text = content['knownLimitations']?.toString() ?? '';
             _nextStepsController.text = content['nextSteps']?.toString() ?? '';
+            _preparedById = content['preparedBy']?.toString() ?? _preparedById;
             _selectedSprintIds = (content['sprintIds'] as List?)?.map((e) => e.toString()).toList() ?? [];
+            _changeRequestDetails = data['changeRequestDetails']?.toString();
+            _existingPerformanceData = content['sprintPerformanceData']?.toString();
+            _normalizeSelectedDeliverable();
           });
           
           debugPrint('✅ Report loaded successfully');
@@ -114,7 +162,10 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
           }
         }
       } else if (widget.deliverableId != null) {
-        _selectedDeliverableId = widget.deliverableId;
+        setState(() {
+          _selectedDeliverableId = widget.deliverableId;
+          _normalizeSelectedDeliverable();
+        });
       }
     } catch (e) {
       debugPrint('❌ Error loading data: $e');
@@ -142,7 +193,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
       final altResponse = await _deliverableService.getDeliverables();
       if (altResponse.isSuccess && altResponse.data != null) {
         final deliverables = altResponse.data!['deliverables'] as List? ?? [];
-        _deliverables = deliverables.map((d) {
+        final mapped = deliverables.map((d) {
           if (d is Map) return d;
           // If it's a Deliverable object, convert to map
           try {
@@ -161,6 +212,14 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
             };
           }
         }).toList();
+        final byId = <String, Map<String, dynamic>>{};
+        for (final d in mapped) {
+          final id = d['id']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          byId.putIfAbsent(id, () => Map<String, dynamic>.from(d));
+        }
+        _deliverables = byId.values.toList();
+        _normalizeSelectedDeliverable();
         debugPrint('✅ Loaded ${_deliverables.length} deliverables (DeliverableService)');
       } else {
         debugPrint('⚠️ DeliverableService failed, trying BackendApiService...');
@@ -183,7 +242,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                 [];
             }
             
-            _deliverables = deliverablesList.map((item) {
+            final mapped = deliverablesList.map((item) {
               if (item is Map) {
                 return item;
               }
@@ -194,6 +253,14 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                 'status': item['status']?.toString() ?? 'Draft',
               };
             }).toList();
+            final byId = <String, Map<String, dynamic>>{};
+            for (final d in mapped) {
+              final id = d['id']?.toString() ?? '';
+              if (id.isEmpty) continue;
+              byId.putIfAbsent(id, () => Map<String, dynamic>.from(d));
+            }
+            _deliverables = byId.values.toList();
+            _normalizeSelectedDeliverable();
             
             debugPrint('✅ Loaded ${_deliverables.length} deliverables (BackendApiService)');
           } else {
@@ -275,10 +342,13 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
           'reportTitle': _titleController.text,
           'reportContent': _contentController.text,
           if (_selectedSprintIds.isNotEmpty) 'sprintIds': _selectedSprintIds,
+          if (_existingPerformanceData != null) 'sprintPerformanceData': _existingPerformanceData,
           if (_knownLimitationsController.text.isNotEmpty) 
             'knownLimitations': _knownLimitationsController.text,
           if (_nextStepsController.text.isNotEmpty) 
             'nextSteps': _nextStepsController.text,
+          if (_preparedById != null) 'preparedBy': _preparedById,
+          if (_preparedById != null) 'preparedByName': _users.firstWhere((u) => u.id == _preparedById, orElse: () => User(id: '', email: '', name: 'Unknown', role: UserRole.systemAdmin, createdAt: DateTime.now())).name,
         };
         debugPrint('📤 Update payload: $updateData');
         response = await _reportService.updateSignOffReport(
@@ -297,6 +367,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
             'knownLimitations': _knownLimitationsController.text,
           if (_nextStepsController.text.isNotEmpty) 
             'nextSteps': _nextStepsController.text,
+          if (_preparedById != null) 'preparedBy': _preparedById,
+          if (_preparedById != null) 'preparedByName': _users.firstWhere((u) => u.id == _preparedById, orElse: () => User(id: '', email: '', name: 'Unknown', role: UserRole.systemAdmin, createdAt: DateTime.now())).name,
         };
         debugPrint('📤 Create payload: $createData');
         response = await _reportService.createSignOffReport(createData);
@@ -388,6 +460,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
               'reportTitle': _titleController.text,
               'reportContent': _contentController.text,
               if (_selectedSprintIds.isNotEmpty) 'sprintIds': _selectedSprintIds,
+              if (_existingPerformanceData != null) 'sprintPerformanceData': _existingPerformanceData,
               if (_knownLimitationsController.text.isNotEmpty) 
                 'knownLimitations': _knownLimitationsController.text,
               if (_nextStepsController.text.isNotEmpty) 
@@ -404,22 +477,22 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
           
           if (submitResponse.isSuccess) {
             debugPrint('✅ Report submitted successfully!');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text('Report submitted successfully!'),
-                    ],
+            if (!mounted) return;
+            await showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Submission Successful'),
+                content: const Text('Your report was submitted successfully.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('OK'),
                   ),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 3),
-                ),
-              );
-              Navigator.pop(context, true);
-            }
+                ],
+              ),
+            );
+            if (!mounted) return;
+            context.go('/report-repository');
           } else {
             debugPrint('❌ Submit failed: ${submitResponse.error}');
             if (mounted) {
@@ -443,22 +516,22 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
         } else {
           // Just saving as draft
           debugPrint('✅ Report saved as draft successfully');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Row(
-                  children: [
-                    Icon(Icons.save, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text('Report saved successfully!'),
-                  ],
+          if (!mounted) return;
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Draft Saved'),
+              content: const Text('Your report draft was saved successfully.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('OK'),
                 ),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-            Navigator.pop(context, true);
-          }
+              ],
+            ),
+          );
+          if (!mounted) return;
+          context.go('/report-repository');
         }
       } else {
         debugPrint('❌ Save failed: ${response.error}');
@@ -512,6 +585,91 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     }
   }
 
+  Future<void> _generateAiSuggestions() async {
+    if (!_useAiAssist) return;
+    setState(() => _isAiGenerating = true);
+    try {
+      String deliverableTitle = 'Deliverable';
+      String deliverableDescription = '';
+      try {
+        final selected = _deliverables.firstWhere(
+          (d) => (d is Map ? d['id']?.toString() : d.id?.toString()) == _selectedDeliverableId,
+          orElse: () => null,
+        );
+        if (selected != null) {
+          deliverableTitle = selected is Map
+              ? (selected['title']?.toString() ?? deliverableTitle)
+              : (selected.title?.toString() ?? deliverableTitle);
+          deliverableDescription = selected is Map
+              ? (selected['description']?.toString() ?? '')
+              : (selected.description?.toString() ?? '');
+        }
+      } catch (_) {}
+
+      final sprintNames = _sprints
+          .where((s) => _selectedSprintIds.contains(s['id'].toString()))
+          .map((s) => s['name']?.toString() ?? 'Sprint')
+          .toList();
+
+      final prompt = _aiPromptController.text.trim();
+
+      final messages = [
+        {
+          'role': 'system',
+          'content': 'You are an assistant that produces concise sign-off reports. Return ONLY JSON with keys title, content, knownLimitations, nextSteps. Do not include markdown fences.'
+        },
+        {
+          'role': 'user',
+          'content': 'Generate a sign-off report draft. Deliverable: $deliverableTitle. Description: $deliverableDescription. Linked sprints: ${sprintNames.isEmpty ? 'none' : sprintNames.join(', ')}${prompt.isNotEmpty ? '. Focus: $prompt' : ''}'
+        }
+      ];
+
+      final resp = await _reportService.aiChat(messages, temperature: 0.6, maxTokens: 800);
+      if (resp.isSuccess && resp.data != null) {
+        final data = resp.data is Map ? resp.data as Map<String, dynamic> : {'content': resp.data.toString()};
+        final content = data['content']?.toString() ?? '';
+        Map<String, dynamic>? jsonOut;
+        try {
+          jsonOut = jsonDecode(content) as Map<String, dynamic>;
+        } catch (_) {
+          jsonOut = null;
+        }
+        if (jsonOut != null) {
+          _titleController.text = jsonOut['title']?.toString() ?? _titleController.text;
+          _contentController.text = jsonOut['content']?.toString() ?? _contentController.text;
+          _knownLimitationsController.text = jsonOut['knownLimitations']?.toString() ?? _knownLimitationsController.text;
+          _nextStepsController.text = jsonOut['nextSteps']?.toString() ?? _nextStepsController.text;
+        } else if (content.isNotEmpty) {
+          if (_titleController.text.isEmpty) {
+            final firstLine = content.split('\n').first.trim();
+            if (firstLine.length <= 120) _titleController.text = firstLine;
+          }
+          if (_contentController.text.isEmpty) {
+            _contentController.text = content;
+          }
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('AI suggestions applied'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('AI error: ${resp.error ?? "Unknown error"}'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI generation failed: $e'), backgroundColor: Colors.orange),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAiGenerating = false);
+    }
+  }
   /// Show signing dialog before submission
   Future<String?> _showSigningDialog() async {
     return showDialog<String>(
@@ -601,6 +759,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     _contentController.dispose();
     _knownLimitationsController.dispose();
     _nextStepsController.dispose();
+    _aiPromptController.dispose();
     super.dispose();
   }
 
@@ -609,7 +768,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
-        title: const FlownetLogo(showText: true),
+        title: const FlownetLogo(),
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         actions: [
@@ -663,6 +822,55 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                           ),
                     ),
                     const SizedBox(height: 24),
+
+                    if (_changeRequestDetails != null && _changeRequestDetails!.isNotEmpty) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          border: Border.all(color: Colors.orange),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Change Requested',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _changeRequestDetails!,
+                              style: const TextStyle(
+                                color: FlownetColors.pureWhite,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Please address these issues before resubmitting.',
+                              style: TextStyle(
+                                color: FlownetColors.coolGray,
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                     
                     // Deliverable Selection
                     _isLoadingDeliverables
@@ -717,6 +925,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                             ),
                                           )
                                         : DropdownButtonFormField<String>(
+                                            isExpanded: true,
                                             initialValue: _selectedDeliverableId,
                                             decoration: const InputDecoration(
                                               labelText: 'Deliverable *',
@@ -725,14 +934,14 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                               helperText: 'Select a deliverable to link this report to',
                                             ),
                                             items: _deliverables.map<DropdownMenuItem<String>>((d) {
-                                              final id = d is Map ? (d['id'] as String?) : (d.id?.toString() ?? '');
+                                              final id = d is Map ? d['id']?.toString() : (d.id?.toString() ?? '');
                                               final title = d is Map 
-                                                  ? (d['title'] as String? ?? 'Untitled')
+                                                  ? (d['title']?.toString() ?? 'Untitled')
                                                   : (d.title?.toString() ?? 'Untitled');
                                               final status = d is Map 
-                                                  ? (d['status'] as String? ?? '')
+                                                  ? (d['status']?.toString() ?? '')
                                                   : (d.status?.toString() ?? '');
-                                              
+
                                               return DropdownMenuItem<String>(
                                                 value: id,
                                                 child: Column(
@@ -742,6 +951,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                                     Text(
                                                       title,
                                                       style: const TextStyle(fontWeight: FontWeight.bold),
+                                                      overflow: TextOverflow.ellipsis,
                                                     ),
                                                     if (status.isNotEmpty)
                                                       Text(
@@ -750,15 +960,27 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                                           fontSize: 12,
                                                           color: Colors.grey[600],
                                                         ),
+                                                        overflow: TextOverflow.ellipsis,
                                                       ),
                                                   ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                            selectedItemBuilder: (context) => _deliverables.map<Widget>((d) {
+                                              final title = d is Map 
+                                                  ? (d['title']?.toString() ?? 'Untitled')
+                                                  : (d.title?.toString() ?? 'Untitled');
+                                              return Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: Text(
+                                                  title,
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               );
                                             }).toList(),
                                             onChanged: (value) {
                                               setState(() {
                                                 _selectedDeliverableId = value;
-                                                debugPrint('📋 Deliverable selected: $value');
                                               });
                                             },
                                             validator: (value) {
@@ -794,6 +1016,107 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                             ],
                           ),
                     const SizedBox(height: 16),
+
+                    // Prepared By (Author) Selection
+                    if (_users.isNotEmpty) ...[
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        // ignore: deprecated_member_use
+                        value: _preparedById,
+                        decoration: const InputDecoration(
+                          labelText: 'Prepared By *',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person),
+                          helperText: 'Select the author of this report',
+                        ),
+                        items: _users.map((user) {
+                          return DropdownMenuItem<String>(
+                            value: user.id,
+                            child: Text(
+                              user.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _preparedById = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select the author';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // AI Assistance
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: FlownetColors.graphiteGray,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: FlownetColors.coolGray.withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SwitchListTile(
+                            value: _useAiAssist,
+                            onChanged: (v) => setState(() => _useAiAssist = v),
+                            title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
+                            subtitle: const Text('Generate draft title and content from deliverable context', style: TextStyle(color: FlownetColors.coolGray)),
+                            activeThumbColor: FlownetColors.electricBlue,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          if (_useAiAssist) ...[
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _aiPromptController,
+                              decoration: const InputDecoration(
+                                labelText: 'AI Prompt (optional)',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.smart_toy),
+                                helperText: 'Describe what the report should emphasize',
+                              ),
+                              maxLines: 3,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: _isAiGenerating ? null : _generateAiSuggestions,
+                                  icon: _isAiGenerating
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.auto_awesome),
+                                  label: Text(_isAiGenerating ? 'Generating...' : 'Generate with AI'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: FlownetColors.electricBlue,
+                                    foregroundColor: FlownetColors.pureWhite,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: _isAiGenerating ? null : () {
+                                    setState(() {
+                                      _aiPromptController.clear();
+                                    });
+                                  },
+                                  style: TextButton.styleFrom(foregroundColor: FlownetColors.coolGray),
+                                  child: const Text('Clear Prompt'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     
                     // Sprint Selection (Multi-select)
                     if (_sprints.isNotEmpty) ...[
@@ -805,7 +1128,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       Wrap(
                         spacing: 8,
                         children: _sprints.map((sprint) {
-                          final sprintId = sprint['id'] as String;
+                          final sprintId = sprint['id'].toString();
                           final isSelected = _selectedSprintIds.contains(sprintId);
                           return FilterChip(
                             label: Text(sprint['name'] as String? ?? 'Unnamed Sprint'),

@@ -57,12 +57,22 @@ class SignOffReportService {
       }
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return ApiResponse.success(data['data'] ?? data, response.statusCode);
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return ApiResponse.success(decoded, response.statusCode);
+        }
+        if (decoded is Map<String, dynamic>) {
+          final data = decoded.containsKey('data') ? decoded['data'] : decoded;
+          return ApiResponse.success(data, response.statusCode);
+        }
+        return ApiResponse.success(decoded, response.statusCode);
       } else {
         try {
-          final data = jsonDecode(response.body);
-          return ApiResponse.error(data['error'] ?? data['message'] ?? 'Failed to load sign-off reports', response.statusCode);
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map<String, dynamic>) {
+            return ApiResponse.error(decoded['error'] ?? decoded['message'] ?? 'Failed to load sign-off reports', response.statusCode);
+          }
+          return ApiResponse.error('Failed to load sign-off reports', response.statusCode);
         } catch (e) {
           return ApiResponse.error('Failed to load sign-off reports (${response.statusCode})', response.statusCode);
         }
@@ -183,7 +193,7 @@ class SignOffReportService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/$reportId/audit'),
+        Uri.parse(ApiConfig.getFullUrl('/audit/signoff/$reportId')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -203,10 +213,10 @@ class SignOffReportService {
       }
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // Backend returns { success: true, data: [...] }
-        // Extract the data field
-        final auditData = data['data'] ?? data;
+        final decoded = jsonDecode(response.body);
+        final auditData = (decoded is Map<String, dynamic> && decoded.containsKey('data'))
+            ? decoded['data']
+            : decoded;
         return ApiResponse.success({'audit': auditData}, response.statusCode);
       } else {
         try {
@@ -278,6 +288,62 @@ class SignOffReportService {
       }
     } catch (e) {
       return ApiResponse.error('Error approving report: $e');
+    }
+  }
+
+  // Seal report
+  Future<ApiResponse> sealReport(String reportId) async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null) {
+        return ApiResponse.error('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/$reportId/seal'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return ApiResponse.success(data, response.statusCode);
+      } else {
+        final data = jsonDecode(response.body);
+        return ApiResponse.error(data['error'] ?? 'Failed to seal report');
+      }
+    } catch (e) {
+      return ApiResponse.error('Error sealing report: $e');
+    }
+  }
+
+  // Archive report
+  Future<ApiResponse> archiveReport(String reportId) async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null) {
+        return ApiResponse.error('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/$reportId/archive'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return ApiResponse.success(data, response.statusCode);
+      } else {
+        final data = jsonDecode(response.body);
+        return ApiResponse.error(data['error'] ?? 'Failed to archive report');
+      }
+    } catch (e) {
+      return ApiResponse.error('Error archiving report: $e');
     }
   }
 

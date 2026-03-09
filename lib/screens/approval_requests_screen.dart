@@ -1,10 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../models/approval_request.dart';
+import '../models/approval_request.dart' as core;
 import '../services/approval_service.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/sign_off_report_service.dart';
+import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
+import '../utils/date_utils.dart' as du;
+import 'package:go_router/go_router.dart';
+import 'client_review_workflow_screen.dart';
+import '../widgets/app_modal.dart';
 
 class ApprovalRequestsScreen extends StatefulWidget {
   const ApprovalRequestsScreen({super.key});
@@ -15,44 +22,66 @@ class ApprovalRequestsScreen extends StatefulWidget {
 
 class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
   final ApprovalService _approvalService = ApprovalService(AuthService());
-  List<ApprovalRequest> _requests = [];
+  final SignOffReportService _reportService = SignOffReportService(AuthService());
+  RealtimeService? _realtime;
+  List<core.ApprovalRequest> _requests = [];
   bool _isLoading = true;
   String _searchQuery = '';
   String _selectedStatus = 'all';
   String _selectedPriority = 'all';
   String _selectedCategory = 'all';
-  StreamSubscription<List<ApprovalRequest>>? _realtimeSubscription;
+String _selectedSprintId = 'all';
+  String _selectedDeliverableId = 'all';
+  List<dynamic> _deliverables = [];
+  List<Map<String, dynamic>> _sprints = [];
+
+  String _formatSaDate(DateTime date) {
+    return du.DateUtils.formatDateTime(date);
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadApprovalRequests();
-    _approvalService.initRealtime();
-    _realtimeSubscription =
-        _approvalService.approvalRequestsStream.listen((requests) {
+Future.microtask(() async {
+      try {
+        await AuthService().initialize();
+      } catch (_) {}
+      try {
+        final token = AuthService().accessToken;
+        if (token != null && token.isNotEmpty) {
+          _realtime = RealtimeService();
+          await _realtime!.initialize(authToken: token);
+          _setupRealtimeListeners();
+        }
+      } catch (_) {}
       if (!mounted) return;
-      setState(() {
-        _requests = requests;
-      });
+      await _loadFilters();
+      await _loadApprovalRequests();
     });
-  }
-
-  @override
-  void dispose() {
-    _realtimeSubscription?.cancel();
-    _approvalService.disposeRealtime();
-    super.dispose();
   }
 
   Future<void> _loadApprovalRequests() async {
     setState(() => _isLoading = true);
     
     try {
-      final response = await _approvalService.getApprovalRequests();
+      final statusParam = _selectedStatus != 'all' ? _selectedStatus : null;
+      final priorityParam = _selectedPriority != 'all' ? _selectedPriority : null;
+      final categoryParam = _selectedCategory != 'all' ? _selectedCategory : null;
+      final deliverableParam = _selectedDeliverableId != 'all' ? _selectedDeliverableId : null;
+      final response = await _approvalService.getApprovalRequests(
+        status: statusParam,
+        priority: priorityParam,
+        category: categoryParam,
+        deliverableId: deliverableParam,
+      );
       
       if (response.isSuccess) {
+        final list = (response.data!['requests'] as List<dynamic>)
+            .map((item) => core.ApprovalRequest.fromJson(item as Map<String, dynamic>))
+            .toList();
+        final merged = await _mergeSignOffFallback(list);
         setState(() {
-          _requests = response.data!['requests'].cast<ApprovalRequest>();
+          _requests = merged;
         });
       } else {
         _showErrorSnackBar('Failed to load approval requests: ${response.error}');
@@ -64,7 +93,254 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     }
   }
 
-  List<ApprovalRequest> get _filteredRequests {
+  Future<List<core.ApprovalRequest>> _mergeSignOffFallback(List<core.ApprovalRequest> base) async {
+    try {
+      final reportsRespSubmitted = await _reportService.getSignOffReports(status: 'submitted');
+      final reportsRespApproved = await _reportService.getSignOffReports(status: 'approved');
+      final reportsRespChanges = await _reportService.getSignOffReports(status: 'change_requested');
+
+      final builder = <core.ApprovalRequest>[];
+      void addFrom(dynamic raw, String statusOverride) {
+        if (raw == null) return;
+        final list = raw is List ? raw : (raw is Map ? (raw['data'] ?? raw['reports'] ?? raw['items'] ?? []) : []);
+        for (final e in list.whereType<Map>()) {
+          final m = e.cast<String, dynamic>();
+          final idStr = (m['id'] ?? m['report_id'] ?? '').toString();
+          final title = (m['reportTitle'] ?? m['report_title'] ?? (m['content'] is Map ? ((m['content'] as Map)['reportTitle'] ?? (m['content'] as Map)['title']) : null) ?? m['title'] ?? 'Sign-Off Report').toString();
+          final desc = (m['reportContent'] ?? m['report_content'] ?? (m['content'] is Map ? ((m['content'] as Map)['reportContent'] ?? (m['content'] as Map)['content']) : null) ?? '').toString();
+          final createdBy = (m['createdBy'] ?? m['created_by'] ?? '').toString();
+          final createdByName = (m['createdByName'] ?? m['created_by_name'] ?? '').toString();
+          final createdAtStr = (m['created_at'] ?? m['createdAt'] ?? '').toString();
+          DateTime requestedAt;
+          final parsed = DateTime.tryParse(createdAtStr);
+          requestedAt = parsed ?? DateTime.now();
+          final approvedBy = (m['approvedBy'] ?? m['approved_by'] ?? m['reviewedBy'] ?? m['reviewed_by'] ?? '').toString();
+          final reviewedAtStr = (m['approvedAt'] ?? m['approved_at'] ?? m['reviewedAt'] ?? m['reviewed_at'] ?? '').toString();
+          final reviewedAt = DateTime.tryParse(reviewedAtStr);
+          final comment = (m['clientComment'] ?? m['client_comment'] ?? m['changeRequestDetails'] ?? m['change_request_details'] ?? '').toString();
+          final deliverableId = (m['deliverableId'] ?? m['deliverable_id'] ?? '').toString();
+          String status = statusOverride;
+          final s = (m['status'] ?? '').toString().toLowerCase();
+          if (s.isNotEmpty) {
+            if (s == 'submitted') {
+              status = 'pending';
+            // ignore: curly_braces_in_flow_control_structures
+            } else if (s == 'approved') status = 'approved';
+            // ignore: curly_braces_in_flow_control_structures
+            else if (s.contains('change')) status = 'rejected';
+          }
+          builder.add(core.ApprovalRequest(
+            id: 'report:$idStr',
+            title: title,
+            description: desc,
+            requestedBy: createdBy,
+            requestedByName: createdByName.isNotEmpty ? createdByName : createdBy,
+            requestedAt: requestedAt,
+            status: status,
+            reviewedBy: approvedBy.isNotEmpty ? approvedBy : null,
+            reviewedByName: null,
+            reviewedAt: reviewedAt,
+            reviewReason: comment.isNotEmpty ? comment : null,
+            priority: 'medium',
+            category: 'Sign-off Report',
+            deliverableId: deliverableId.isNotEmpty ? deliverableId : null,
+            evidenceLinks: [],
+            definitionOfDone: [],
+          ));
+        }
+      }
+
+      if (reportsRespSubmitted.isSuccess) addFrom(reportsRespSubmitted.data, 'pending');
+      if (reportsRespApproved.isSuccess) addFrom(reportsRespApproved.data, 'approved');
+      if (reportsRespChanges.isSuccess) addFrom(reportsRespChanges.data, 'rejected');
+
+      final seen = <String>{};
+      final merged = <core.ApprovalRequest>[];
+      for (final r in [...builder, ...base]) {
+        final key = '${r.id}:${r.deliverableId ?? ''}:${r.status}';
+        if (seen.add(key)) merged.add(r);
+      }
+      return merged;
+    } catch (_) {
+      return base;
+    }
+  }
+
+  void _setupRealtimeListeners() {
+    _realtime?.on('approval_created', (_) => _loadApprovalRequests());
+    _realtime?.on('approval_updated', (_) => _loadApprovalRequests());
+    _realtime?.on('report_submitted', (_) => _loadApprovalRequests());
+    _realtime?.on('report_approved', (_) => _loadApprovalRequests());
+    _realtime?.on('report_change_requested', (_) => _loadApprovalRequests());
+  }
+
+  @override
+  void dispose() {
+    try {
+      _realtime?.offAll('approval_created');
+      _realtime?.offAll('approval_updated');
+      _realtime?.offAll('report_submitted');
+      _realtime?.offAll('report_approved');
+      _realtime?.offAll('report_change_requested');
+    } catch (_) {}
+    super.dispose();
+  }
+
+  Future<void> _loadFilters() async {
+    try {
+      final deliverables = await ApiService.getDeliverables();
+      final sprints = await ApiService.getSprints();
+      setState(() {
+        _deliverables = deliverables;
+        _sprints = sprints;
+      });
+    } catch (_) {}
+  }
+
+  List<dynamic> get _visibleDeliverables {
+    if (_selectedSprintId == 'all') return _deliverables;
+    return _deliverables.where((d) {
+      try {
+        if (d is Map<String, dynamic>) {
+          final sid = d['sprint_id'] ?? d['sprintId'];
+          if (sid != null && sid.toString().isNotEmpty) {
+            return sid.toString() == _selectedSprintId;
+          }
+          final sids = d['sprintIds'];
+          if (sids is List) {
+            return sids.map((e) => e.toString()).contains(_selectedSprintId);
+          }
+          return false;
+        }
+        final mirror = d;
+        final sidField = (() {
+          try { return mirror.sprintId; } catch (_) { return null; }
+        })();
+        if (sidField != null) {
+          return sidField.toString() == _selectedSprintId;
+        }
+        final sidsField = (() {
+          try { return mirror.sprintIds; } catch (_) { return null; }
+        })();
+        if (sidsField is List) {
+          return sidsField.map((e) => e.toString()).contains(_selectedSprintId);
+        }
+        return false;
+      } catch (_) {
+        return false;
+      }
+    }).toList();
+  }
+
+  bool _deliverableMatchesSprintById(String deliverableId, String sprintId) {
+    try {
+      final d = _deliverables.firstWhere(
+        (x) {
+          if (x is Map<String, dynamic>) {
+            return (x['id']?.toString() ?? '') == deliverableId;
+          }
+          try {
+            return x.id?.toString() == deliverableId || x.id.toString() == deliverableId;
+          } catch (_) {
+            return false;
+          }
+        },
+        orElse: () => null,
+      );
+      if (d == null) return false;
+      if (d is Map<String, dynamic>) {
+        final sid = d['sprint_id'] ?? d['sprintId'];
+        if (sid != null) return sid.toString() == sprintId;
+        final sids = d['sprintIds'];
+        if (sids is List) return sids.map((e) => e.toString()).contains(sprintId);
+        return false;
+      }
+      try {
+        final sidField = d.sprintId;
+        if (sidField != null) return sidField.toString() == sprintId;
+      } catch (_) {}
+      try {
+        final sidsField = d.sprintIds;
+        if (sidsField is List) return sidsField.map((e) => e.toString()).contains(sprintId);
+      } catch (_) {}
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _openAssociatedReport(core.ApprovalRequest request) async {
+    try {
+      String? reportId;
+      final rid = request.id;
+      if (rid.toLowerCase().startsWith('report:')) {
+        final parts = rid.split(':');
+        if (parts.length >= 2) {
+          reportId = parts.sublist(1).join(':');
+        }
+      }
+
+      if ((reportId == null || reportId.isEmpty) && request.category.toLowerCase().contains('sign-off')) {
+        final did = request.deliverableId?.toString() ?? '';
+        if (did.isNotEmpty) {
+          final resp = await _reportService.getSignOffReports(status: 'submitted', deliverableId: did);
+          if (resp.isSuccess && resp.data != null) {
+            final raw = resp.data;
+            List<dynamic> items = const [];
+            if (raw is List) {
+              items = raw;
+            } else if (raw is Map) {
+              final d = raw['data'];
+              if (d is List) {
+                items = d;
+              } else if (d is Map) {
+                final inner = d['reports'] ?? d['items'] ?? d['data'];
+                if (inner is List) items = inner;
+              } else {
+                final r = raw['reports'];
+                if (r is List) {
+                  items = r;
+                } else if (r is Map) {
+                  final inner = r['items'] ?? r['data'];
+                  if (inner is List) items = inner;
+                } else {
+                  final i = raw['items'];
+                  if (i is List) items = i;
+                }
+              }
+            }
+            if (items.isNotEmpty) {
+              final m = items.first;
+              if (m is Map) {
+                final map = m.cast<String, dynamic>();
+                reportId = (map['id'] ?? map['report_id'])?.toString();
+              }
+            }
+          }
+        }
+      }
+
+      if (reportId != null && reportId.isNotEmpty) {
+        if (!mounted) return;
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ClientReviewWorkflowScreen(reportId: reportId!),
+          ),
+        );
+        if (result == true) {
+          await _loadApprovalRequests();
+        }
+      } else {
+        if (!mounted) return;
+        GoRouter.of(context).go('/report-repository');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to open associated report: $e');
+    }
+  }
+
+  List<core.ApprovalRequest> get _filteredRequests {
     return _requests.where((request) {
       final matchesSearch = _searchQuery.isEmpty ||
           request.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -77,9 +353,59 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
               
       final matchesPriority = _selectedPriority == 'all' || request.priority == _selectedPriority;
       final matchesCategory = _selectedCategory == 'all' || request.category == _selectedCategory;
+      final matchesDeliverable = _selectedDeliverableId == 'all' || (request.deliverableId?.toString() == _selectedDeliverableId);
+      final matchesSprint = _selectedSprintId == 'all' || (
+        request.deliverableId != null && _deliverableMatchesSprintById(request.deliverableId!, _selectedSprintId)
+      );
       
-      return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
+      return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesDeliverable && matchesSprint;
     }).toList();
+  }
+
+  String _getSprintName(core.ApprovalRequest request) {
+    if (request.deliverableId == null) return '';
+    try {
+      final deliverableId = request.deliverableId.toString();
+      final deliverable = _deliverables.firstWhere(
+        (d) {
+          if (d is Map<String, dynamic>) {
+            return (d['id']?.toString() ?? '') == deliverableId;
+          }
+          try {
+            return d.id?.toString() == deliverableId;
+          } catch (_) {
+            return false;
+          }
+        },
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (deliverable.isEmpty) return '';
+
+      String? sprintId;
+      if (deliverable is Map<String, dynamic>) {
+        sprintId = (deliverable['sprint_id'] ?? deliverable['sprintId'])?.toString();
+      } else {
+        try {
+          sprintId = deliverable.sprintId?.toString();
+        } catch (_) {}
+      }
+
+      if (sprintId == null) return '';
+
+      final sprint = _sprints.firstWhere(
+        (s) {
+          final sid = (s['id'] ?? s['sprint_id'] ?? s['sprintId']).toString();
+          return sid == sprintId;
+        },
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (sprint.isNotEmpty) {
+        return (sprint['name'] ?? sprint['title'] ?? '').toString();
+      }
+    } catch (_) {}
+    return '';
   }
 
   void _showErrorSnackBar(String message) {
@@ -100,7 +426,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     );
   }
 
-  Future<void> _approveRequest(ApprovalRequest request) async {
+  Future<void> _approveRequest(core.ApprovalRequest request) async {
     final reason = await _showReasonDialog('Approve Request', 'Enter reason for approval:');
     if (reason != null && reason.isNotEmpty) {
       setState(() => _isLoading = true);
@@ -122,7 +448,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     }
   }
 
-  Future<void> _rejectRequest(ApprovalRequest request) async {
+  Future<void> _rejectRequest(core.ApprovalRequest request) async {
     final reason = await _showReasonDialog('Reject Request', 'Enter reason for rejection:');
     if (reason != null && reason.isNotEmpty) {
       setState(() => _isLoading = true);
@@ -182,8 +508,8 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     );
   }
 
-  void _showRequestDetails(ApprovalRequest request) {
-    showDialog(
+  void _showRequestDetails(core.ApprovalRequest request) {
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: FlownetColors.graphiteGray,
@@ -303,7 +629,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     );
   }
 
-  void _previewDeliverable(ApprovalRequest request) {
+  void _previewDeliverable(core.ApprovalRequest request) {
     // Fetch deliverable details from API
     showDialog(
       context: context,
@@ -349,7 +675,7 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
-        title: const FlownetLogo(showText: true),
+        title: const FlownetLogo(),
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
@@ -393,8 +719,12 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                   children: [
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedStatus,
-                        onChanged: (value) => setState(() => _selectedStatus = value!),
+                        onChanged: (value) {
+                          setState(() => _selectedStatus = value!);
+                          _loadApprovalRequests();
+                        },
                         dropdownColor: FlownetColors.graphiteGray,
                         style: const TextStyle(color: FlownetColors.pureWhite),
                         items: const [
@@ -409,8 +739,12 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedPriority,
-                        onChanged: (value) => setState(() => _selectedPriority = value!),
+                        onChanged: (value) {
+                          setState(() => _selectedPriority = value!);
+                          _loadApprovalRequests();
+                        },
                         dropdownColor: FlownetColors.graphiteGray,
                         style: const TextStyle(color: FlownetColors.pureWhite),
                         items: const [
@@ -425,8 +759,12 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: _selectedCategory,
-                        onChanged: (value) => setState(() => _selectedCategory = value!),
+                        onChanged: (value) {
+                          setState(() => _selectedCategory = value!);
+                          _loadApprovalRequests();
+                        },
                         dropdownColor: FlownetColors.graphiteGray,
                         style: const TextStyle(color: FlownetColors.pureWhite),
                         items: const [
@@ -434,6 +772,68 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                           DropdownMenuItem(value: 'Security', child: Text('Security')),
                           DropdownMenuItem(value: 'Database', child: Text('Database')),
                           DropdownMenuItem(value: 'Documentation', child: Text('Documentation')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: _selectedSprintId,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _selectedSprintId = value;
+                            if (_selectedDeliverableId != 'all' && !_deliverableMatchesSprintById(_selectedDeliverableId, _selectedSprintId)) {
+                              _selectedDeliverableId = 'all';
+                            }
+                          });
+                        },
+                        dropdownColor: FlownetColors.graphiteGray,
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                        items: [
+                          const DropdownMenuItem(value: 'all', child: Text('All Sprints')),
+                          ..._sprints.map((s) {
+                            final id = (s['id'] ?? s['sprint_id'] ?? s['sprintId']).toString();
+                            final name = (s['name'] ?? s['title'] ?? 'Unnamed Sprint').toString();
+                            return DropdownMenuItem(value: id, child: Text(name));
+                          }),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: _selectedDeliverableId,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _selectedDeliverableId = value);
+                          _loadApprovalRequests();
+                        },
+                        dropdownColor: FlownetColors.graphiteGray,
+                        style: const TextStyle(color: FlownetColors.pureWhite),
+                        items: [
+                          const DropdownMenuItem(value: 'all', child: Text('All Deliverables')),
+                          ..._visibleDeliverables.map((d) {
+                            if (d is Map<String, dynamic>) {
+                              final id = (d['id'] ?? '').toString();
+                              final title = (d['title'] ?? 'Untitled').toString();
+                              return DropdownMenuItem(value: id, child: Text(title));
+                            }
+                            try {
+                              final id = d.id.toString();
+                              final title = (d.title ?? 'Untitled').toString();
+                              return DropdownMenuItem(value: id, child: Text(title));
+                            } catch (_) {
+                              final text = d.toString();
+                              return DropdownMenuItem(value: text, child: Text(text));
+                            }
+                          }),
                         ],
                       ),
                     ),
@@ -493,13 +893,13 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                                     'Requested by: ${request.requestedByName}',
                                     style: const TextStyle(color: FlownetColors.coolGray),
                                   ),
-                                  if (request.deliverableId != null) 
+if (_getSprintName(request).isNotEmpty)
                                     Text(
-                                      'Deliverable: ${request.deliverableId}',
-                                      style: const TextStyle(color: FlownetColors.electricBlue),
+                                      'Sprint: ${_getSprintName(request)}',
+                                      style: const TextStyle(color: FlownetColors.electricBlue, fontWeight: FontWeight.bold),
                                     ),
                                   Text(
-                                    'Date: ${request.requestedAt.day}/${request.requestedAt.month}/${request.requestedAt.year}',
+                                    'Date: ${_formatSaDate(request.requestedAt)}',
                                     style: const TextStyle(color: FlownetColors.coolGray),
                                   ),
                                   const SizedBox(height: 8),
@@ -556,13 +956,18 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
                                     ),
                                   ],
                                   IconButton(
+                                    icon: const Icon(Icons.visibility, color: FlownetColors.electricBlue),
+                                    onPressed: () => _openAssociatedReport(request),
+                                    tooltip: 'View Associated Report',
+                                  ),
+                                  IconButton(
                                     icon: const Icon(Icons.info, color: FlownetColors.coolGray),
                                     onPressed: () => _showRequestDetails(request),
                                     tooltip: 'View Details',
                                   ),
                                 ],
                               ),
-                              onTap: () => _showRequestDetails(request),
+                              onTap: () => _openAssociatedReport(request),
                             ),
                           );
                         },
@@ -573,3 +978,4 @@ class _ApprovalRequestsScreenState extends State<ApprovalRequestsScreen> {
     );
   }
 }
+

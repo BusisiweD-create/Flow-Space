@@ -24,7 +24,10 @@ INSERT INTO permissions (name, description) VALUES
 ('manage_projects', 'Create and manage projects'),
 ('manage_sprints', 'Create and manage sprints'),
 ('view_reports', 'View and generate reports'),
-('manage_notifications', 'Manage system notifications');
+('manage_notifications', 'Manage system notifications'),
+('view_sprints', 'View sprint boards and lists'),
+('update_tickets', 'Update ticket status and progress'),
+('update_sprint_status', 'Update sprint status');
 
 -- Insert role permissions
 -- Team Member permissions
@@ -32,7 +35,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT ur.id, p.id 
 FROM user_roles ur, permissions p 
 WHERE ur.name = 'teamMember' 
-AND p.name IN ('create_deliverable', 'edit_deliverable', 'view_reports');
+AND p.name IN ('create_deliverable', 'edit_deliverable', 'view_reports', 'view_sprints', 'update_tickets', 'update_sprint_status');
 
 -- Delivery Lead permissions
 INSERT INTO role_permissions (role_id, permission_id) 
@@ -140,12 +143,12 @@ INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip
 ((SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1), 
  'user_registered', 'user', (SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1),
  '{"email": "admin@flowspace.com", "role": "systemAdmin"}', 
- '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+ '127.0.0.1', 'Mozilla/5.0 (Windows) AppleWebKit/537.36'),
 ((SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1), 
  'deliverable_created', 'deliverable', '550e8400-e29b-41d4-a716-446655440010',
  '{"title": "User Authentication System", "status": "draft"}', 
- '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+ '127.0.0.1', 'Mozilla/5.0 (Windows) AppleWebKit/537.36'),
 ((SELECT id FROM users WHERE email = 'admin@flowspace.com' LIMIT 1), 
  'deliverable_submitted', 'deliverable', '550e8400-e29b-41d4-a716-446655440010',
  '{"title": "User Authentication System", "status": "submitted"}', 
- '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+ '127.0.0.1', 'Mozilla/5.0 (Windows) AppleWebKit/537.36');

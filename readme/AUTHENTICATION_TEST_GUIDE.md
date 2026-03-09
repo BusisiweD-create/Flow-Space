@@ -19,22 +19,22 @@ start-backend.bat
 # Option 2: Manual start
 cd backend
 npm install
-node server.js
+cd backend\node-backend && npm start
 ```
 
-The server should start on `http://localhost:3001`
+The server should start on `http://localhost:8000`
 
 ### 2. Test Backend Endpoints
 
 ```bash
 # Test server health
-curl http://localhost:3001/api/health
+curl http://localhost:8000/health
 
 # Test database connection
-curl http://localhost:3001/api/test-db
+curl http://localhost:8000/api/test-db
 
 # Test registration
-curl -X POST http://localhost:3001/api/v1/auth/register \
+curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -46,7 +46,7 @@ curl -X POST http://localhost:3001/api/v1/auth/register \
   }'
 
 # Test login
-curl -X POST http://localhost:3001/api/v1/auth/login \
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -102,7 +102,7 @@ flutter test test_auth_integration.dart
 
 ### ✅ Successful Authentication Flow
 
-1. **Backend Server**: Starts without errors on port 3001
+1. **Backend Server**: Starts without errors on port 8000
 2. **Database Connection**: Health check returns success
 3. **Registration**: Returns success with user data and token
 4. **Login**: Returns success with user data and token
@@ -113,13 +113,13 @@ flutter test test_auth_integration.dart
 
 1. **"Database connection failed"**
    - Ensure PostgreSQL is running
-   - Check database credentials in `backend/server.js`
+   - Check database credentials in `backend/node-backend/src/config/database.js`
    - Verify database exists: `flow_space`
 
 2. **"Network error" in Flutter**
    - Ensure backend server is running
-   - Check if Flutter app can reach `localhost:3001`
-   - Try using `10.0.2.2:3001` for Android emulator
+   - Check if Flutter app can reach `localhost:8000`
+   - Try using `10.0.2.2:8000` for Android emulator
 
 3. **"Invalid credentials" always**
    - Check if user exists in database
@@ -138,7 +138,7 @@ flutter test test_auth_integration.dart
 ```bash
 # Check backend logs
 cd backend
-node server.js
+cd backend\node-backend && npm start
 
 # Look for these log messages:
 # ✅ Connected to PostgreSQL database
@@ -169,14 +169,7 @@ SELECT email, is_active FROM users WHERE email = 'test@example.com';
 
 ## Test Data
 
-Use these test accounts for consistent testing:
-
-| Email | Password | Role | Status |
-|-------|----------|------|--------|
-| test@example.com | testpassword123 | teamMember | Active |
-| admin@example.com | admin123 | systemAdmin | Active |
-| lead@example.com | lead123 | deliveryLead | Active |
-| client@example.com | client123 | clientReviewer | Active |
+For testing purposes, create test accounts in your development environment with appropriate roles and permissions.
 
 ## Troubleshooting
 

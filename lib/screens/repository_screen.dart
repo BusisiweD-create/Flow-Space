@@ -2,19 +2,24 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 import '../models/repository_file.dart';
 import '../services/document_service.dart';
 import '../services/auth_service.dart';
 import '../services/sprint_database_service.dart';
+import '../services/realtime_service.dart';
 import '../services/deliverable_service.dart';
+import '../services/sign_off_report_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import '../widgets/audit_history_widget.dart';
+import '../widgets/app_modal.dart';
 
 class RepositoryScreen extends StatefulWidget {
-  const RepositoryScreen({super.key});
+  final String? projectKey;
+  const RepositoryScreen({super.key, this.projectKey});
 
   @override
   State<RepositoryScreen> createState() => _RepositoryScreenState();
@@ -24,12 +29,14 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   final DocumentService _documentService = DocumentService(AuthService());
   final SprintDatabaseService _sprintService = SprintDatabaseService();
   final DeliverableService _deliverableService = DeliverableService();
+  final SignOffReportService _reportService = SignOffReportService(AuthService());
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _tagsController = TextEditingController();
   
   List<RepositoryFile> _documents = [];
   List<RepositoryFile> _filteredDocuments = [];
+  Map<String, String> _reportTitles = {};
   bool _isLoading = false;
   String _selectedFileType = 'all';
   String _searchQuery = '';
@@ -45,8 +52,79 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDocuments();
-    _loadFilters();
+    Future.microtask(() async {
+      try {
+        await AuthService().initialize();
+      } catch (_) {}
+      try {
+        final token = AuthService().accessToken;
+        if (token != null && token.isNotEmpty) {
+          await RealtimeService().initialize(authToken: token);
+          RealtimeService().on('document_uploaded', (data) {
+            try {
+              final doc = RepositoryFile.fromJson(Map<String, dynamic>.from(data));
+              setState(() {
+                // Remove existing document with same ID to prevent duplicates
+                _documents.removeWhere((d) => d.id == doc.id);
+                _documents = [doc, ..._documents];
+              });
+              _filterDocuments();
+            } catch (_) {
+              _loadDocuments();
+            }
+          });
+          RealtimeService().on('document_deleted', (data) {
+            try {
+              final id = (data is Map && data['id'] != null) ? data['id'].toString() : null;
+              if (id != null) {
+                setState(() {
+                  _documents.removeWhere((d) => d.id == id);
+                  _filteredDocuments.removeWhere((d) => d.id == id);
+                });
+              } else {
+                _loadDocuments();
+              }
+            } catch (_) {
+              _loadDocuments();
+            }
+          });
+        }
+      } catch (_) {}
+      if (!mounted) return;
+      await _loadFilters();
+      _loadReports();
+      await _loadDocuments();
+    });
+  }
+
+  Future<void> _loadReports() async {
+    try {
+      final response = await _reportService.getSignOffReports();
+      if (response.isSuccess && response.data != null) {
+        final reportsData = response.data is List 
+            ? response.data as List
+            : (response.data!['data'] as List? ?? []);
+        
+        final Map<String, String> titles = {};
+        for (final json in reportsData) {
+            final id = json['id']?.toString();
+            if (id == null) continue;
+            
+            final contentRaw = json['content'] as Map<String, dynamic>?;
+            final title = contentRaw?['reportTitle']?.toString() ?? 
+                          json['reportTitle']?.toString() ?? 
+                          json['report_title']?.toString() ?? 
+                          'Untitled Report';
+            titles[id] = title;
+        }
+        
+        if (mounted) {
+            setState(() {
+                _reportTitles = titles;
+            });
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadFilters() async {
@@ -62,6 +140,17 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
           _deliverables = deliverablesResponse.data!['deliverables'] as List? ?? [];
         }
       });
+
+      if (widget.projectKey != null && widget.projectKey!.isNotEmpty) {
+        for (final p in _projects) {
+          final key = (p['key'] ?? '').toString();
+          if (key == widget.projectKey) {
+            _selectedProjectId = p['id']?.toString();
+            _selectedSprintId = null;
+            break;
+          }
+        }
+      }
     } catch (e) {
       // Silently fail - filters will just be empty
     }
@@ -75,15 +164,18 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
         fileType: _selectedFileType != 'all' ? _selectedFileType : null,
         projectId: _selectedProjectId,
+        sprintId: _selectedSprintId,
+        deliverableId: _selectedDeliverableId,
         from: _dateFrom?.toIso8601String(),
         to: _dateTo?.toIso8601String(),
       );
       
       if (response.isSuccess) {
         setState(() {
-          _documents = (response.data!['documents'] as List).cast<RepositoryFile>();
+          _documents = (response.data!['documents'] as List).cast<RepositoryFile>().toList();
           _filteredDocuments = _documents;
         });
+        _filterDocuments();
       } else {
         _showErrorSnackBar('Failed to load documents: ${response.error}');
       }
@@ -103,6 +195,13 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
 
       if (result != null && result.files.isNotEmpty) {
         final pickedFile = result.files.first;
+
+        // Check for JSON file
+        final fileName = pickedFile.name.toLowerCase();
+        if (fileName.endsWith('.json')) {
+          _showErrorSnackBar('JSON files cannot be uploaded.');
+          return;
+        }
         
         // For web platform, we need to handle the file differently
         if (kIsWeb) {
@@ -119,7 +218,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   void _showUploadDialog(String filePath) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: FlownetColors.graphiteGray,
@@ -202,7 +301,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   void _showWebUploadDialog(PlatformFile pickedFile) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: FlownetColors.graphiteGray,
@@ -374,7 +473,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   Future<void> _previewDocument(RepositoryFile document) async {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
@@ -389,17 +488,22 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   void _filterDocuments() {
     setState(() {
       _filteredDocuments = _documents.where((doc) {
-        final matchesSearch = _searchQuery.isEmpty || 
-            doc.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            doc.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            (doc.tags != null && doc.tags!.toLowerCase().contains(_searchQuery.toLowerCase())) ||
-            doc.uploaderName?.toLowerCase().contains(_searchQuery.toLowerCase()) == true ||
-            doc.uploader.toLowerCase().contains(_searchQuery.toLowerCase());
-        
-        final matchesFileType = _selectedFileType == 'all' || 
+        final q = _searchQuery.toLowerCase();
+        final matchesSearch = q.isEmpty ||
+            doc.name.toLowerCase().contains(q) ||
+            doc.description.toLowerCase().contains(q) ||
+            (doc.tags != null && doc.tags!.toLowerCase().contains(q)) ||
+            (doc.uploaderName?.toLowerCase().contains(q) == true) ||
+            doc.uploader.toLowerCase().contains(q);
+
+        final matchesFileType = _selectedFileType == 'all' ||
             doc.fileType.toLowerCase() == _selectedFileType.toLowerCase();
-        
-        return matchesSearch && matchesFileType;
+
+        final inDateRange = (_dateFrom == null && _dateTo == null) ||
+            ((_dateFrom == null || doc.uploadDate.isAfter(_dateFrom!)) &&
+             (_dateTo == null || doc.uploadDate.isBefore(_dateTo!)));
+
+        return matchesSearch && matchesFileType && inDateRange;
       }).toList();
     });
   }
@@ -426,7 +530,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
       scrollable: false,
       useGlassContainer: false,
       appBar: AppBar(
-        title: const FlownetLogo(showText: true),
+        title: const FlownetLogo(),
         backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
@@ -499,15 +603,25 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                         items: [
                           const DropdownMenuItem<String?>(value: null, child: Text('All Projects')),
                           ..._projects.map((p) => DropdownMenuItem<String?>(
-                            value: p['id'] as String,
-                            child: Text(p['name'] as String? ?? 'Unknown'),
+                            value: p['id']?.toString(),
+                            child: Text((p['name'] ?? 'Unknown').toString()),
                           ),),
                         ],
                         onChanged: (value) {
                           setState(() {
                             _selectedProjectId = value;
-                            _selectedSprintId = null; // Reset sprint when project changes
+                            _selectedSprintId = null;
                           });
+                          try {
+                            final proj = _projects.firstWhere(
+                              (p) => p['id']?.toString() == value,
+                              orElse: () => {},
+                            );
+                            final key = proj.isNotEmpty ? (proj['key'] ?? '').toString() : '';
+                            if (key.isNotEmpty) {
+                              GoRouter.of(context).go('/repository/$key');
+                            }
+                          } catch (_) {}
                           _loadDocuments();
                         },
                       ),
@@ -519,10 +633,12 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                         hint: 'All Sprints',
                         items: [
                           const DropdownMenuItem<String?>(value: null, child: Text('All Sprints')),
-                          ..._sprints.where((s) => _selectedProjectId == null || s['project_id'] == _selectedProjectId).map((s) => DropdownMenuItem<String?>(
-                            value: s['id'] as String,
-                            child: Text(s['name'] as String? ?? 'Unknown'),
-                          ),),
+                          ..._sprints
+                              .where((s) => _selectedProjectId == null || (s['project_id']?.toString() == _selectedProjectId))
+                              .map((s) => DropdownMenuItem<String?>(
+                                value: s['id']?.toString(),
+                                child: Text((s['name'] ?? 'Unknown').toString()),
+                              ),),
                         ],
                         onChanged: (value) {
                           setState(() => _selectedSprintId = value);
@@ -539,11 +655,11 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
                           const DropdownMenuItem<String?>(value: null, child: Text('All Deliverables')),
                           ..._deliverables.map((d) {
                             // Handle both Map and Deliverable object
-                            final id = d is Map ? (d['id'] as String?) : (d.id as String?);
-                            final title = d is Map ? (d['title'] as String?) : (d.title as String?);
+                            final id = d is Map ? d['id'] : d.id;
+                            final title = d is Map ? d['title'] : d.title;
                             return DropdownMenuItem<String?>(
-                              value: id,
-                              child: Text(title ?? 'Unknown'),
+                              value: id?.toString(),
+                              child: Text((title ?? 'Unknown').toString()),
                             );
                           }),
                         ],
@@ -636,29 +752,51 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     );
   }
 
+  String _getDisplayName(RepositoryFile document) {
+     final name = document.name;
+     String? reportId;
+     
+     // Try to extract ID from various patterns
+     // 1. Exact match: ID.pdf
+     var match = RegExp(r'^([a-zA-Z0-9-]+)\.pdf$').firstMatch(name);
+     
+     // 2. Prefix match: report_ID.pdf or Title_ID.pdf
+     match ??= RegExp(r'[._-]([a-zA-Z0-9-]+)\.pdf$').firstMatch(name);
+
+     if (match != null) {
+       reportId = match.group(1);
+     }
+     
+     if (reportId != null && _reportTitles.containsKey(reportId)) {
+         return '${_reportTitles[reportId]}.pdf';
+     }
+     
+     return name;
+  }
+
   Widget _buildDocumentCard(RepositoryFile document) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       color: FlownetColors.graphiteGray.withValues(alpha: 0.6),
       child: ListTile(
-                    leading: CircleAvatar(
+        leading: CircleAvatar(
           backgroundColor: _getFileTypeColor(document.fileType),
-                      child: Text(
+          child: Text(
             document.fileType.toUpperCase().substring(0, 1),
-                        style: const TextStyle(
-                          color: FlownetColors.pureWhite,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-          document.name,
+            style: const TextStyle(
+              color: FlownetColors.pureWhite,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(
+          _getDisplayName(document),
           style: const TextStyle(
             color: FlownetColors.pureWhite,
             fontWeight: FontWeight.bold,
           ),
-                    ),
-                    subtitle: Column(
+        ),
+        subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
             Text(
@@ -753,7 +891,9 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';
   }
 
   String _formatDateShort(DateTime date) {
@@ -776,9 +916,19 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
         fillColor: FlownetColors.charcoalBlack,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       ),
+      isExpanded: true,
       style: const TextStyle(color: FlownetColors.pureWhite, fontSize: 14),
       dropdownColor: FlownetColors.graphiteGray,
       items: items,
+      selectedItemBuilder: (context) => items
+          .map((item) => Align(
+                alignment: Alignment.centerLeft,
+                child: DefaultTextStyle.merge(
+                  overflow: TextOverflow.ellipsis,
+                  child: item.child,
+                ),
+              ))
+          .toList(),
       onChanged: onChanged,
     );
   }
@@ -816,7 +966,7 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
   }
 
   void _showDocumentAuditHistory(String documentId) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => Dialog(
         backgroundColor: FlownetColors.graphiteGray,
@@ -875,3 +1025,4 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     );
   }
 }
+

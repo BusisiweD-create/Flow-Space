@@ -64,7 +64,7 @@ class _EpicManagementScreenState extends State<EpicManagementScreen> {
     final descriptionController = TextEditingController();
     DateTime? startDate;
     DateTime? targetDate;
-    List<String> selectedSprintIds = [];
+    final List<String> selectedSprintIds = [];
 
     showDialog(
       context: context,

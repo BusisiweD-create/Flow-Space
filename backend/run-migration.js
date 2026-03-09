@@ -15,11 +15,9 @@ async function runMigration() {
   try {
     console.log('🚀 Starting database migration...');
     
-    // Read the SQL file - try new migration file first, then fallback
-    let sqlFilePath = path.join(__dirname, 'database/migrations/add_missing_tables.sql');
-    if (!fs.existsSync(sqlFilePath)) {
-      sqlFilePath = path.join(__dirname, 'create_missing_tables.sql');
-    }
+    // Read the main migration file that creates all required tables
+    // File lives at repo root: ../database_migrations.sql relative to backend/
+    const sqlFilePath = path.join(__dirname, '..', 'database_migrations.sql');
     console.log(`📄 Using migration file: ${sqlFilePath}`);
     const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
     

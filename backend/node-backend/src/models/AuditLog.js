@@ -38,7 +38,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(100)
     },
     entity_id: {
-      type: DataTypes.INTEGER
+      type: DataTypes.STRING(255)
     },
     entity_name: {
       type: DataTypes.STRING(255)
@@ -123,7 +123,7 @@ module.exports = (sequelize, DataTypes) => {
       action,
       action_category: entity.constructor.name.toLowerCase(),
       entity_type: entity.constructor.name.toLowerCase(),
-      entity_id: entity.id,
+      entity_id: entity.id ? entity.id.toString() : null,
       entity_name: entityName,
       old_values: oldValues,
       new_values: newValues,

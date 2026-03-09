@@ -133,10 +133,7 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                     // Render existing signature if available
                     if (widget.existingSignature != null)
                       Positioned.fill(
-                        child: Image.memory(
-                          base64Decode(widget.existingSignature!),
-                          fit: BoxFit.contain,
-                        ),
+                        child: _buildExistingSignature(),
                       ),
                     // Draw signature canvas
                     CustomPaint(
@@ -201,6 +198,49 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
         ),
       ],
     );
+  }
+
+  /// Build existing signature with error handling
+  Widget _buildExistingSignature() {
+    try {
+      // Check if existingSignature looks like JSON
+      final trimmedData = widget.existingSignature!.trim();
+      if (trimmedData.startsWith('{') || trimmedData.startsWith('[') || 
+          trimmedData.startsWith('"success"') || trimmedData.startsWith('"error"')) {
+        return Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: Text('Invalid signature data'),
+          ),
+        );
+      }
+
+      final Uint8List imageBytes = base64Decode(
+        widget.existingSignature!.contains(',') 
+          ? widget.existingSignature!.split(',').last 
+          : widget.existingSignature!
+      );
+      
+      return Image.memory(
+        imageBytes,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[200],
+            child: const Center(
+              child: Text('Failed to load signature'),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      return Container(
+        color: Colors.grey[200],
+        child: const Center(
+          child: Text('Invalid signature format'),
+        ),
+      );
+    }
   }
 }
 

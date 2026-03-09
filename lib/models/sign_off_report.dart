@@ -18,6 +18,8 @@ class SignOffReport {
   final String? sprintPerformanceData;
   final String? knownLimitations;
   final String? nextSteps;
+  final String? preparedBy;
+  final String? preparedByName;
   final ReportStatus status;
   final DateTime createdAt;
   final String createdBy;
@@ -27,8 +29,10 @@ class SignOffReport {
   final String? reviewedBy;
   final String? clientComment;
   final String? changeRequestDetails;
+  final List<dynamic>? changeRequestHistory;
   final DateTime? approvedAt;
   final String? approvedBy;
+
   final String? digitalSignature;
 
   const SignOffReport({
@@ -40,6 +44,8 @@ class SignOffReport {
     this.sprintPerformanceData,
     this.knownLimitations,
     this.nextSteps,
+    this.preparedBy,
+    this.preparedByName,
     required this.status,
     required this.createdAt,
     required this.createdBy,
@@ -49,6 +55,7 @@ class SignOffReport {
     this.reviewedBy,
     this.clientComment,
     this.changeRequestDetails,
+    this.changeRequestHistory,
     this.approvedAt,
     this.approvedBy,
     this.digitalSignature,
@@ -63,6 +70,8 @@ class SignOffReport {
     String? sprintPerformanceData,
     String? knownLimitations,
     String? nextSteps,
+    String? preparedBy,
+    String? preparedByName,
     ReportStatus? status,
     DateTime? createdAt,
     String? createdBy,
@@ -72,6 +81,7 @@ class SignOffReport {
     String? reviewedBy,
     String? clientComment,
     String? changeRequestDetails,
+    List<dynamic>? changeRequestHistory,
     DateTime? approvedAt,
     String? approvedBy,
     String? digitalSignature,
@@ -85,6 +95,8 @@ class SignOffReport {
       sprintPerformanceData: sprintPerformanceData ?? this.sprintPerformanceData,
       knownLimitations: knownLimitations ?? this.knownLimitations,
       nextSteps: nextSteps ?? this.nextSteps,
+      preparedBy: preparedBy ?? this.preparedBy,
+      preparedByName: preparedByName ?? this.preparedByName,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       createdBy: createdBy ?? this.createdBy,
@@ -94,6 +106,7 @@ class SignOffReport {
       reviewedBy: reviewedBy ?? this.reviewedBy,
       clientComment: clientComment ?? this.clientComment,
       changeRequestDetails: changeRequestDetails ?? this.changeRequestDetails,
+      changeRequestHistory: changeRequestHistory ?? this.changeRequestHistory,
       approvedAt: approvedAt ?? this.approvedAt,
       approvedBy: approvedBy ?? this.approvedBy,
       digitalSignature: digitalSignature ?? this.digitalSignature,
@@ -110,6 +123,8 @@ class SignOffReport {
       'sprintPerformanceData': sprintPerformanceData,
       'knownLimitations': knownLimitations,
       'nextSteps': nextSteps,
+      'preparedBy': preparedBy,
+      'preparedByName': preparedByName,
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
       'createdBy': createdBy,
@@ -119,6 +134,7 @@ class SignOffReport {
       'reviewedBy': reviewedBy,
       'clientComment': clientComment,
       'changeRequestDetails': changeRequestDetails,
+      'changeRequestHistory': changeRequestHistory,
       'approvedAt': approvedAt?.toIso8601String(),
       'approvedBy': approvedBy,
       'digitalSignature': digitalSignature,
@@ -126,30 +142,80 @@ class SignOffReport {
   }
 
   factory SignOffReport.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic> content = json['content'] is Map
+        ? Map<String, dynamic>.from(json['content'] as Map)
+        : {};
+
+    final String id = (json['id'] ?? json['report_id'] ?? '').toString();
+    final String deliverableId = (json['deliverableId'] ?? json['deliverable_id'] ?? content['deliverableId'] ?? content['deliverable_id'] ?? '').toString();
+    final String reportTitle = (json['reportTitle'] ?? json['report_title'] ?? content['reportTitle'] ?? content['title'] ?? '').toString();
+    final String reportContent = (json['reportContent'] ?? json['content_text'] ?? content['reportContent'] ?? content['content'] ?? '').toString();
+
+    List<String> sprintIds = [];
+    final dynamic sIds = json['sprintIds'] ?? json['sprint_ids'] ?? content['sprintIds'] ?? content['sprints'];
+    if (sIds is List) {
+      sprintIds = sIds.map((e) => e.toString()).toList();
+    }
+
+    final String? sprintPerformanceData = (json['sprintPerformanceData'] ?? content['sprintPerformanceData'])?.toString();
+    final String? knownLimitations = (json['knownLimitations'] ?? content['knownLimitations'] ?? content['limitations'])?.toString();
+    final String? nextSteps = (json['nextSteps'] ?? content['nextSteps'])?.toString();
+
+    final String? preparedBy = (json['preparedBy'] ?? json['prepared_by'])?.toString();
+    final String? preparedByName = (json['preparedByName'] ?? json['prepared_by_name'])?.toString();
+
+    final String statusStr = (json['status'] ?? json['review_status'] ?? content['status'] ?? '').toString();
+    final ReportStatus status = ReportStatus.values.firstWhere(
+      (e) => e.name == statusStr,
+      orElse: () => ReportStatus.draft,
+    );
+
+    final String createdAtStr = (json['createdAt'] ?? json['created_at'] ?? '').toString();
+    final DateTime createdAt = createdAtStr.isNotEmpty ? DateTime.parse(createdAtStr) : DateTime.now();
+
+    final String createdBy = (json['createdBy'] ?? json['created_by'] ?? content['createdBy'] ?? '').toString();
+
+    final String submittedAtStr = (json['submittedAt'] ?? json['submitted_at'] ?? '').toString();
+    final DateTime? submittedAt = submittedAtStr.isNotEmpty ? DateTime.parse(submittedAtStr) : null;
+    final String? submittedBy = (json['submittedBy'] ?? json['submitted_by'] ?? content['submittedBy'])?.toString();
+
+    final String reviewedAtStr = (json['reviewedAt'] ?? json['approved_at'] ?? json['rejected_at'] ?? '').toString();
+    final DateTime? reviewedAt = reviewedAtStr.isNotEmpty ? DateTime.parse(reviewedAtStr) : null;
+    final String? reviewedBy = (json['reviewedBy'] ?? json['approved_by'] ?? json['rejected_by'] ?? content['reviewedBy'])?.toString();
+
+    final String? clientComment = (json['clientComment'] ?? content['clientComment'] ?? json['comments'])?.toString();
+    final String? changeRequestDetails = (json['changeRequestDetails'] ?? content['changeRequestDetails'])?.toString();
+    final List<dynamic>? changeRequestHistory = (json['changeRequestHistory'] ?? content['changeRequestHistory']);
+
+    final String approvedAtStr = (json['approvedAt'] ?? json['approved_at'] ?? '').toString();
+    final DateTime? approvedAt = approvedAtStr.isNotEmpty ? DateTime.parse(approvedAtStr) : null;
+    final String? approvedBy = (json['approvedBy'] ?? json['approved_by'] ?? content['approvedBy'])?.toString();
+    final String? digitalSignature = (json['digitalSignature'] ?? json['signature'] ?? content['digitalSignature'])?.toString();
+
     return SignOffReport(
-      id: json['id'],
-      deliverableId: json['deliverableId'],
-      reportTitle: json['reportTitle'],
-      reportContent: json['reportContent'],
-      sprintIds: List<String>.from(json['sprintIds']),
-      sprintPerformanceData: json['sprintPerformanceData'],
-      knownLimitations: json['knownLimitations'],
-      nextSteps: json['nextSteps'],
-      status: ReportStatus.values.firstWhere(
-        (e) => e.name == json['status'],
-        orElse: () => ReportStatus.draft,
-      ),
-      createdAt: DateTime.parse(json['createdAt']),
-      createdBy: json['createdBy'],
-      submittedAt: json['submittedAt'] != null ? DateTime.parse(json['submittedAt']) : null,
-      submittedBy: json['submittedBy'],
-      reviewedAt: json['reviewedAt'] != null ? DateTime.parse(json['reviewedAt']) : null,
-      reviewedBy: json['reviewedBy'],
-      clientComment: json['clientComment'],
-      changeRequestDetails: json['changeRequestDetails'],
-      approvedAt: json['approvedAt'] != null ? DateTime.parse(json['approvedAt']) : null,
-      approvedBy: json['approvedBy'],
-      digitalSignature: json['digitalSignature'],
+      id: id,
+      deliverableId: deliverableId,
+      reportTitle: reportTitle,
+      reportContent: reportContent,
+      sprintIds: sprintIds,
+      sprintPerformanceData: sprintPerformanceData,
+      knownLimitations: knownLimitations,
+      nextSteps: nextSteps,
+      preparedBy: preparedBy,
+      preparedByName: preparedByName,
+      status: status,
+      createdAt: createdAt,
+      createdBy: createdBy,
+      submittedAt: submittedAt,
+      submittedBy: submittedBy,
+      reviewedAt: reviewedAt,
+      reviewedBy: reviewedBy,
+      clientComment: clientComment,
+      changeRequestDetails: changeRequestDetails,
+      changeRequestHistory: changeRequestHistory,
+      approvedAt: approvedAt,
+      approvedBy: approvedBy,
+      digitalSignature: digitalSignature,
     );
   }
 

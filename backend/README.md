@@ -6,7 +6,7 @@ This directory contains the database schema and setup scripts for the Flow-Space
 
 ### Database Schema
 - **`database/schema.sql`** - Complete database schema with all tables, indexes, and triggers
-- **`database/seed_data.sql`** - Initial data including roles, permissions, and sample data
+- **`database/seed_data.sql`** - Initial data including roles and permissions
 
 ### Setup Scripts
 - **`setup-database.js`** - Main database setup script

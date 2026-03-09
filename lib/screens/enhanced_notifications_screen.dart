@@ -5,6 +5,7 @@ import '../services/notification_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/app_scaffold.dart';
+import 'notification_detail_screen.dart';
 
 class EnhancedNotificationsScreen extends ConsumerStatefulWidget {
   const EnhancedNotificationsScreen({super.key});
@@ -285,167 +286,82 @@ class _EnhancedNotificationsScreenState extends ConsumerState<EnhancedNotificati
   }
 
   Future<void> _markAsRead(String id) async {
-    // Update UI immediately for responsiveness
+// Optimistic update
     setState(() {
       final index = _notifications.indexWhere((n) => n.id == id);
       if (index != -1) {
         _notifications[index] = _notifications[index].copyWith(isRead: true);
       }
     });
-    
-    // Persist to backend
-    final success = await _notificationService.markAsRead(id);
-    if (!success && mounted) {
-      // Revert if failed
-      setState(() {
-        final index = _notifications.indexWhere((n) => n.id == id);
-        if (index != -1) {
-          _notifications[index] = _notifications[index].copyWith(isRead: false);
-        }
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to mark notification as read'),
-          backgroundColor: Colors.red,
-        ),
-      );
+try {
+      final token = _authService.accessToken;
+      if (token != null) {
+        _notificationService.setAuthToken(token);
+      }
+      await _notificationService.markAsRead(id);
+    } catch (e) {
+      debugPrint('Error marking notification as read: $e');
+      // Revert if needed, but for now we'll just reload on next visit
     }
   }
 
   Future<void> _markAllAsRead() async {
-    // Store original state for potential rollback
-    final originalNotifications = List<NotificationItem>.from(_notifications);
-    
-    // Update UI immediately
+    // Optimistic update
     setState(() {
       _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
     });
-    
-    // Persist to backend
-    final success = await _notificationService.markAllAsRead();
-    if (mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All notifications marked as read'),
-            backgroundColor: FlownetColors.electricBlue,
-          ),
-        );
-      } else {
-        // Revert if failed
-        setState(() {
-          _notifications = originalNotifications;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to mark all notifications as read'),
-            backgroundColor: Colors.red,
-          ),
-        );
+
+    try {
+      final token = _authService.accessToken;
+      if (token != null) {
+        _notificationService.setAuthToken(token);
+      }
+      final success = await _notificationService.markAllAsRead();
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('All notifications marked as read'),
+              backgroundColor: FlownetColors.electricBlue,
+            ),
+          );
+        } else {
+          // If failed, reload to show correct state
+          _loadNotifications();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to update notifications'),
+              backgroundColor: FlownetColors.crimsonRed,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error marking all as read: $e');
+      if (mounted) {
+        _loadNotifications();
       }
     }
   }
 
-  void _showNotificationDetail(NotificationItem notification) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.charcoalBlack,
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: _getNotificationTypeColor(notification.type),
-              child: Icon(
-                _getNotificationTypeIcon(notification.type),
-                color: FlownetColors.pureWhite,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                notification.title,
-                style: const TextStyle(
-                  color: FlownetColors.pureWhite,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              notification.message,
-              style: const TextStyle(
-                color: FlownetColors.pureWhite,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: FlownetColors.slate,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Details',
-                    style: TextStyle(
-                      color: FlownetColors.electricBlue,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Type: ${notification.type.name.toUpperCase()}',
-                    style: const TextStyle(
-                      color: FlownetColors.coolGray,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Text(
-                    'Time: ${_formatTimestamp(notification.timestamp)}',
-                    style: const TextStyle(
-                      color: FlownetColors.coolGray,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Text(
-                    'Status: ${notification.isRead ? "Read" : "Unread"}',
-                    style: TextStyle(
-                      color: notification.isRead ? Colors.green : FlownetColors.electricBlue,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-          if (!notification.isRead)
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _markAsRead(notification.id);
-              },
-              child: const Text('Mark as Read'),
-            ),
-        ],
+  Future<void> _showNotificationDetail(NotificationItem notification) async {
+    final wasRead = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotificationDetailScreen(notification: notification),
       ),
     );
+
+    // If the notification was marked as read in the detail screen (returns true),
+    // update the local state to reflect that.
+    if (wasRead == true && !notification.isRead) {
+      setState(() {
+        final index = _notifications.indexWhere((n) => n.id == notification.id);
+        if (index != -1) {
+          _notifications[index] = _notifications[index].copyWith(isRead: true);
+        }
+      });
+    }
   }
 }

@@ -143,7 +143,7 @@ const createTokens = (userId, email, role) => {
  * @returns {boolean} - True if role is valid
  */
 const validateUserRole = (role) => {
-  const validRoles = ['admin', 'manager', 'user', 'guest'];
+  const validRoles = ['system_admin', 'admin', 'manager', 'user', 'guest'];
   return validRoles.includes(role);
 };
 

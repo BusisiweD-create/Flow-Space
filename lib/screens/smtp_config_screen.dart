@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../config/email_setup_helper.dart';
 import '../config/email_config.dart';
 import '../services/smtp_email_service.dart';
+import '../widgets/app_modal.dart';
 
 class SmtpConfigScreen extends StatefulWidget {
   const SmtpConfigScreen({super.key});
@@ -119,7 +120,7 @@ class _SmtpConfigScreenState extends State<SmtpConfigScreen> {
         steps = EmailSetupHelper.getGmailSetupSteps();
     }
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
@@ -155,7 +156,7 @@ class _SmtpConfigScreenState extends State<SmtpConfigScreen> {
       useSSL: _useSSL,
     );
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Configuration Code'),
@@ -572,3 +573,4 @@ class _SmtpConfigScreenState extends State<SmtpConfigScreen> {
     super.dispose();
   }
 }
+

@@ -5,15 +5,15 @@ import '../theme/flownet_theme.dart';
 class SprintBoardWidget extends StatefulWidget {
   final String sprintId;
   final String sprintName;
-  final List<JiraIssue> issues;
-  final Function(JiraIssue issue, String newStatus)? onIssueStatusChanged;
+  final List<JiraIssue> deliverables;
+  final Function(JiraIssue deliverable, String newStatus)? onDeliverableStatusChanged;
 
   const SprintBoardWidget({
     super.key,
     required this.sprintId,
     required this.sprintName,
-    required this.issues,
-    this.onIssueStatusChanged,
+    required this.deliverables,
+    this.onDeliverableStatusChanged,
   });
 
   @override
@@ -22,15 +22,55 @@ class SprintBoardWidget extends StatefulWidget {
 
 class _SprintBoardWidgetState extends State<SprintBoardWidget> {
   
-  // Group issues by status
-  Map<String, List<JiraIssue>> get _groupedIssues {
+  // Group deliverables by status
+  Map<String, List<JiraIssue>> get _groupedDeliverables {
     final Map<String, List<JiraIssue>> grouped = {};
     
-    for (final issue in widget.issues) {
-      final status = issue.status ?? 'Unknown';
-      grouped.putIfAbsent(status, () => []).add(issue);
+    for (final deliverable in widget.deliverables) {
+      // Map various status variations to standard columns
+      String status = deliverable.status ?? 'Unknown';
+      
+      // Debug logging for status mapping
+      debugPrint('🎫 Processing deliverable: ${deliverable.summary} with status: "$status"');
+      
+      // Map status variations to standard columns
+      switch (status.toLowerCase()) {
+        case 'todo':
+        case 'to-do':
+        case 'tod o':
+        case 'to do':
+          status = 'To Do';
+          debugPrint('✅ Mapped "$status" to "To Do" for deliverable: ${deliverable.summary}');
+          break;
+        case 'inprogress':
+        case 'in-progress':
+        case 'in progress':
+          status = 'In Progress';
+          debugPrint('✅ Mapped "$status" to "In Progress" for deliverable: ${deliverable.summary}');
+          break;
+        case 'inreview':
+        case 'in-review':
+        case 'in review':
+          status = 'In Review';
+          debugPrint('✅ Mapped "$status" to "In Review" for deliverable: ${deliverable.summary}');
+          break;
+        case 'done':
+        case 'complete':
+        case 'completed':
+          status = 'Done';
+          debugPrint('✅ Mapped "$status" to "Done" for deliverable: ${deliverable.summary}');
+          break;
+        default:
+          // Fallback: put unknown statuses in "To Do" column
+          status = 'To Do';
+          debugPrint('⚠️ Unknown status "$status", mapping to "To Do" for deliverable: ${deliverable.summary}');
+          break;
+      }
+      
+      grouped.putIfAbsent(status, () => []).add(deliverable);
     }
     
+    debugPrint('📊 Final grouping: ${grouped.keys.map((k) => '$k: ${grouped[k]!.length}').join(', ')}');
     return grouped;
   }
 
@@ -61,43 +101,47 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Force state update when deliverables change
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.deliverables.isNotEmpty) {
+        setState(() {});
+        debugPrint('🔄 Forced board update with ${widget.deliverables.length} deliverables');
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Sprint Header
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: FlownetColors.charcoalBlack.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: FlownetColors.electricBlue.withValues(alpha: 0.3)),
-          ),
+        // Sprint Title and Status
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.timer, color: FlownetColors.electricBlue, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.sprintName,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: FlownetColors.pureWhite,
-                        fontWeight: FontWeight.bold,
-                      ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.sprintName,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: FlownetColors.pureWhite,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(height: 4),
+                  ),
+                  const SizedBox(height: 4),
+                  if (widget.deliverables.isNotEmpty)
                     Text(
-                      '${widget.issues.length} issues',
+                      '${widget.deliverables.length} deliverables',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: FlownetColors.pureWhite.withValues(alpha: 0.7),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
               _buildSprintStats(),
             ],
@@ -135,15 +179,15 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
   }
 
   Widget _buildSprintStats() {
-    final totalIssues = widget.issues.length;
-    final completedIssues = widget.issues.where((issue) => issue.status == 'Done').length;
-    final progress = totalIssues > 0 ? (completedIssues / totalIssues) * 100 : 0.0;
+    final totalDeliverables = widget.deliverables.length;
+    final completedDeliverables = widget.deliverables.where((d) => d.status == 'Done').length;
+    final progress = totalDeliverables > 0 ? (completedDeliverables / totalDeliverables) * 100 : 0.0;
 
     return Row(
       children: [
         _buildStatItem('Progress', '${progress.toStringAsFixed(1)}%'),
         const SizedBox(width: 16),
-        _buildStatItem('Completed', '$completedIssues/$totalIssues'),
+        _buildStatItem('Completed', '$completedDeliverables/$totalDeliverables'),
       ],
     );
   }
@@ -173,15 +217,15 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
     final status = column['status'] as String;
     final color = column['color'] as Color;
     final icon = column['icon'] as IconData;
-    final issues = _groupedIssues[status] ?? [];
+    final deliverables = _groupedDeliverables[status] ?? [];
 
     return Container(
       margin: const EdgeInsets.only(right: 0),
       child: DragTarget<JiraIssue>(
         onAcceptWithDetails: (details) {
-          final issue = details.data;
-          if (widget.onIssueStatusChanged != null) {
-            widget.onIssueStatusChanged!(issue, status);
+          final deliverable = details.data;
+          if (widget.onDeliverableStatusChanged != null) {
+            widget.onDeliverableStatusChanged!(deliverable, status);
           }
         },
         builder: (context, candidateData, rejectedData) {
@@ -210,14 +254,18 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
               children: [
                 Icon(icon, color: color, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  status,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -225,7 +273,7 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${issues.length}',
+                    '${deliverables.length}',
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
@@ -238,16 +286,16 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
           ),
           const SizedBox(height: 12),
 
-          // Issues List
+          // Deliverables List
           Expanded(
-            child: issues.isEmpty
+            child: deliverables.isEmpty
                 ? _buildEmptyColumn(status)
                 : ListView.builder(
-                    itemCount: issues.length,
+                    itemCount: deliverables.length,
                     itemBuilder: (context, index) {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: _buildIssueCard(issues[index]),
+                        child: _buildDeliverableCard(deliverables[index]),
                       );
                     },
                   ),
@@ -284,7 +332,7 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
             ),
             const SizedBox(height: 8),
             Text(
-              'No $status issues',
+              'No $status deliverables',
               style: TextStyle(
                 color: FlownetColors.pureWhite.withValues(alpha: 0.5),
                 fontSize: 14,
@@ -296,9 +344,9 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
     );
   }
 
-  Widget _buildIssueCard(JiraIssue issue) {
+  Widget _buildDeliverableCard(JiraIssue deliverable) {
     return Draggable<JiraIssue>(
-      data: issue,
+      data: deliverable,
       feedback: Material(
         elevation: 4,
         borderRadius: BorderRadius.circular(8),
@@ -314,7 +362,7 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
             ),
           ),
           child: Text(
-            issue.summary,
+            deliverable.summary,
             style: const TextStyle(
               color: FlownetColors.pureWhite,
               fontSize: 12,
@@ -351,10 +399,10 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
             color: FlownetColors.pureWhite.withValues(alpha: 0.1),
           ),
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Issue Key and Type
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          // Deliverable Key and Type
           Row(
             children: [
               Container(
@@ -364,7 +412,7 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  issue.key,
+                  deliverable.key,
                   style: const TextStyle(
                     color: FlownetColors.electricBlue,
                     fontSize: 10,
@@ -373,7 +421,7 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
                 ),
               ),
               const SizedBox(width: 8),
-              if (issue.issueType != null)
+              if (deliverable.issueType != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
@@ -381,7 +429,7 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    issue.issueType!,
+                    deliverable.issueType!,
                     style: const TextStyle(
                       color: Colors.blue,
                       fontSize: 10,
@@ -392,58 +440,75 @@ class _SprintBoardWidgetState extends State<SprintBoardWidget> {
           ),
           const SizedBox(height: 8),
 
-          // Issue Summary
+          // Deliverable Summary
           Text(
-            issue.summary,
+            deliverable.summary,
             style: const TextStyle(
               color: FlownetColors.pureWhite,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
-          // Issue Details
-          Row(
+          // Deliverable Details
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              if (issue.priority != null) ...[
-                _buildPriorityChip(issue.priority!),
-                const SizedBox(width: 8),
-              ],
-              if (issue.assignee != null) ...[
-                Icon(
-                  Icons.person,
-                  size: 14,
-                  color: FlownetColors.pureWhite.withValues(alpha: 0.6),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    issue.assignee!,
-                    style: TextStyle(
-                      color: FlownetColors.pureWhite.withValues(alpha: 0.6),
-                      fontSize: 12,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+              if (deliverable.priority != null)
+                _buildPriorityChip(deliverable.priority!),
+              if (deliverable.assignee != null)
+                _buildAssigneeChip(deliverable.assignee!),
             ],
           ),
 
-          // Labels
-          if (issue.labels != null && issue.labels!.isNotEmpty) ...[
+          if (deliverable.labels != null && deliverable.labels!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Wrap(
               spacing: 4,
               runSpacing: 4,
-              children: issue.labels!.take(3).map((label) => _buildLabelChip(label)).toList(),
+              children: deliverable.labels!.take(3).map((label) => _buildLabelChip(label)).toList(),
             ),
           ],
         ],
       ),
+    ),
+    );
+  }
+
+  Widget _buildAssigneeChip(String assignee) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: FlownetColors.pureWhite.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: FlownetColors.pureWhite.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.person_outline,
+            color: FlownetColors.pureWhite,
+            size: 14,
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              assignee,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: FlownetColors.pureWhite.withValues(alpha: 0.7),
+                fontSize: 10,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

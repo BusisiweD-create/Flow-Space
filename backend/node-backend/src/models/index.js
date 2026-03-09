@@ -5,6 +5,8 @@ const { DataTypes } = require('sequelize');
 const Deliverable = require('./Deliverable');
 const Sprint = require('./Sprint');
 const DeliverableSprint = require('./DeliverableSprint');
+const EpicFeature = require('./EpicFeature');
+const EpicFeatureSprint = require('./EpicFeatureSprint');
 const Signoff = require('./Signoff');
 const AuditLog = require('./AuditLog');
 const User = require('./User');
@@ -12,6 +14,11 @@ const UserProfile = require('./UserProfile');
 const RefreshToken = require('./RefreshToken');
 const UserSettings = require('./UserSettings');
 const Notification = require('./Notification');
+const Project = require('./Project');
+const ApprovalRequest = require('./ApprovalRequest');
+const Ticket = require('./Ticket');
+const DeliverableArtifact = require('./DeliverableArtifact');
+const ProjectMember = require('./ProjectMember');
 
 // Function to initialize models with the database connection
 function initializeModels(sequelize) {
@@ -19,13 +26,20 @@ function initializeModels(sequelize) {
     Deliverable: Deliverable(sequelize, DataTypes),
     Sprint: Sprint(sequelize, DataTypes),
     DeliverableSprint: DeliverableSprint(sequelize, DataTypes),
+    EpicFeature: EpicFeature(sequelize, DataTypes),
+    EpicFeatureSprint: EpicFeatureSprint(sequelize, DataTypes),
     Signoff: Signoff(sequelize, DataTypes),
     AuditLog: AuditLog(sequelize, DataTypes),
     User: User(sequelize, DataTypes),
     UserProfile: UserProfile(sequelize, DataTypes),
     RefreshToken: RefreshToken(sequelize, DataTypes),
     UserSettings: UserSettings(sequelize, DataTypes),
-    Notification: Notification(sequelize, DataTypes)
+    Notification: Notification(sequelize, DataTypes),
+    Project: Project(sequelize, DataTypes),
+    ApprovalRequest: ApprovalRequest(sequelize, DataTypes),
+    Ticket: Ticket(sequelize, DataTypes),
+    DeliverableArtifact: DeliverableArtifact(sequelize, DataTypes),
+    ProjectMember: ProjectMember(sequelize, DataTypes)
   };
 
   // Set up associations

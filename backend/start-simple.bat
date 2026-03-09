@@ -4,7 +4,7 @@ echo Flow-Space Backend Server
 echo ========================================
 echo Database: flow_space @ localhost
 echo Environment: local
-echo Port: 3001
+echo Port: 8000
 echo ========================================
 echo.
 
@@ -18,7 +18,8 @@ if not exist "node_modules" (
     echo.
 )
 
-echo Starting server on port 3001...
+echo Starting server on port 8000...
+set PORT=8000
 echo.
 
 node server.js
