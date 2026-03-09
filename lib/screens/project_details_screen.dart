@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:khono/models/project.dart';
+import '../models/project.dart';
 import '../services/api_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/glass_card.dart';
@@ -243,6 +243,22 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        context.push('/sprint-console?projectId=${project.id}');
+                      },
+                      icon: const Icon(Icons.timer),
+                      label: const Text('Manage Sprints'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.secondary,
+                        foregroundColor: theme.colorScheme.onSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -263,7 +279,11 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            Navigator.of(context).pop();
+                            if (context.canPop()) {
+                              Navigator.of(context).pop();
+                            } else {
+                              context.go('/projects');
+                            }
                           },
                           icon: const Icon(Icons.arrow_back),
                           label: const Text('Back to Projects'),
@@ -365,4 +385,5 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
+
 }

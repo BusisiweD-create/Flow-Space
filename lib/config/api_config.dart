@@ -2,7 +2,7 @@ class ApiConfig {
   // Base API configuration - prioritize production URL for deployed apps
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:3001/api',
+    defaultValue: 'http://localhost:8000/api',
   );
   
   // Get baseUrl without /v1 to avoid double versioning
@@ -14,7 +14,8 @@ class ApiConfig {
   static const Duration tokenRefreshBuffer = Duration(minutes: 5);
 
   // Environment-specific URLs
-  static const String developmentUrl = 'http://localhost:3001/api';
+  // Use 127.0.0.1 instead of localhost for better Flutter Web compatibility
+  static const String developmentUrl = 'http://127.0.0.1:8001/api';
   static const String stagingUrl = 'https://staging-api.flownet.works';
   static const String productionUrl = 'https://flow-space.onrender.com/api';
 
@@ -107,11 +108,11 @@ class ApiConfig {
   static Map<String, String> get defaultHeaders => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'Flownet-Mobile/1.0.0',
       };
 
   static Map<String, String> getAuthHeaders(String token) => {
-        ...defaultHeaders,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'Authorization': 'Bearer $token',
       };
 

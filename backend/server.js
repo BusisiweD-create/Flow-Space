@@ -151,19 +151,23 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // Allow specific origins
+    // Allow specific origins including 127.0.0.1 for local dev
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:8080',
+      'http://localhost:8081',
       'http://127.0.0.1:3000',
-      'http://127.0.0.1:8080'
+      'http://127.0.0.1:8080',
+      'http://127.0.0.1:8081',
+      'http://127.0.0.1:8000',
+      'http://127.0.0.1:8001'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('⚠️  CORS: Allowing origin:', origin);
-      callback(null, true); // Allow all in development
+      console.log('⚠️  CORS: Allowing origin (dev mode):', origin);
+      callback(null, true); // Allow all in development to fix the issue
     }
   },
   credentials: true,
@@ -878,6 +882,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
         [email]
       );
     } catch (colErr) {
+      console.log('Login schema error (first try):', colErr.message);
       if (colErr?.message && /column.*does not exist/i.test(colErr.message)) {
         result = await pool.query(
           'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
@@ -897,6 +902,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     }
 
     const user = result.rows[0];
+    console.log(`✅ User found: ${user.email} (ID: ${user.id})`);
 
     // Check if user is active
     if (!user.is_active) {
@@ -939,7 +945,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
       ? `${user.first_name} ${user.last_name}`.trim()
       : (user.first_name || user.last_name || user.email));
 
-    console.log(`✅ User logged in: ${user.email}`);
+    console.log(`✅ User logged in successfully: ${user.email}`);
 
     res.json({
       success: true,
@@ -2913,8 +2919,8 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
              TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')) as assigned_to_name,
              s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
+      LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
       LEFT JOIN sprints s ON d.sprint_id = s.id
     `;
 
@@ -2941,8 +2947,8 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
                  COALESCE(u1.name, '') as created_by_name,
                  COALESCE(u2.name, '') as assigned_to_name
           FROM deliverables d
-          LEFT JOIN users u1 ON d.created_by = u1.id
-          LEFT JOIN users u2 ON d.assigned_to = u2.id
+          LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
+          LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
         `;
 
         const fallbackParams = [];
@@ -3098,8 +3104,8 @@ app.get('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
              TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')) as assigned_to_name,
              s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
+      LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
       LEFT JOIN sprints s ON d.sprint_id = s.id
       WHERE d.id = $1
     `;
@@ -4131,6 +4137,68 @@ app.put('/api/v1/approval-requests/:id', authenticateToken, async (req, res) => 
       return res.status(503).json({ success: false, error: 'Approval requests feature is not available (database table missing)' });
     }
     res.status(500).json({ success: false, error: 'Failed to update approval request' });
+  }
+});
+
+// Approve an approval request (alias)
+app.put('/api/v1/approval-requests/:id/approve', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const review_reason = req.body?.review_reason || req.body?.comments || null;
+
+    const result = await pool.query(
+      `UPDATE approval_requests 
+       SET status = 'approved', review_reason = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [review_reason, userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Approval request not found' });
+    }
+
+    const updatedRequest = result.rows[0];
+    io.emit('approval-request:changed', { type: 'updated', id: updatedRequest.id, status: updatedRequest.status });
+    res.json({ success: true, data: updatedRequest });
+  } catch (error) {
+    console.error('Approve approval request error:', error);
+    if (error && error.code === '42P01') {
+      return res.status(503).json({ success: false, error: 'Approval requests feature is not available (database table missing)' });
+    }
+    res.status(500).json({ success: false, error: 'Failed to approve approval request' });
+  }
+});
+
+// Reject an approval request (alias)
+app.put('/api/v1/approval-requests/:id/reject', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const review_reason = req.body?.review_reason || req.body?.comments || null;
+
+    const result = await pool.query(
+      `UPDATE approval_requests 
+       SET status = 'rejected', review_reason = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [review_reason, userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Approval request not found' });
+    }
+
+    const updatedRequest = result.rows[0];
+    io.emit('approval-request:changed', { type: 'updated', id: updatedRequest.id, status: updatedRequest.status });
+    res.json({ success: true, data: updatedRequest });
+  } catch (error) {
+    console.error('Reject approval request error:', error);
+    if (error && error.code === '42P01') {
+      return res.status(503).json({ success: false, error: 'Approval requests feature is not available (database table missing)' });
+    }
+    res.status(500).json({ success: false, error: 'Failed to reject approval request' });
   }
 });
 
@@ -7565,10 +7633,10 @@ app.get('/api/v1/projects/:projectId/available-sprints', authenticateToken, asyn
 });
 
 // Start the server
-// Use 3001 in development so Flutter app (default localhost:3001) can connect; respect PORT in production
+// Use 8000 in development; respect PORT in production
 const PORT = process.env.NODE_ENV === 'production'
-  ? (parseInt(process.env.PORT, 10) || 3001)
-  : 3001;
+  ? (parseInt(process.env.PORT, 10) || 8000)
+  : 8000;
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);
@@ -7589,7 +7657,7 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Dashboard: http://localhost:${PORT}`);
   console.log(`🔗 API Base: http://localhost:${PORT}/api/v1`);

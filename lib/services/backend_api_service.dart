@@ -212,7 +212,7 @@ class BackendApiService {
   }
 
   Future<ApiResponse> updateSprintStatus(String sprintId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/sprints/$sprintId/status', body: updates);
+    return await _apiClient.put('/sprints/$sprintId', body: updates);
   }
 
   Future<ApiResponse> runDiagnostics() async {

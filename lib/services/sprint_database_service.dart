@@ -164,44 +164,61 @@ String? description,
 debugPrint('📡 Sprint creation response: ${response.statusCode}');
 
       if (response.isSuccess) {
-        final data = response.data;
-        if (data['success'] == true) {
-          debugPrint('✅ Sprint "$name" created successfully');
-          
-          // Send notification for sprint creation
-          try {
-            final token = _authService.accessToken;
-            if (token != null) {
-              _notificationService.setAuthToken(token);
-              final user = _authService.currentUser;
-              final userName = user?.name ?? 'Unknown User';
-              
-              await _notificationService.notifySprintCreated(
-                sprintName: name,
-                projectName: projectId ?? 'Current Project',
-                createdBy: userName,
-              );
-            }
-          } catch (e) {
-            debugPrint('❌ Error sending sprint creation notification: $e');
-          }
-          
-          final Map<String, dynamic> created;
-          if (data['data'] is Map) {
-            created = Map<String, dynamic>.from(data['data']);
-          } else {
-            created = Map<String, dynamic>.from(data);
-            // Remove success field if it's there
-            created.remove('success');
-          }
-          // Cache: prepend to global and project-specific cache
-          try {
-            await _prependCachedSprint(created, projectId: projectId);
-          } catch (_) {}
-          return created;
-        } else {
-          throw Exception(data['error'] ?? 'Failed to create sprint');
+        // Handle various response formats from the backend
+        final dynamic rawData = response.data;
+        
+        debugPrint('✅ Sprint creation response data: $rawData');
+        
+        if (rawData == null) {
+          throw Exception('Server returned success but no data');
         }
+
+        // Send notification for sprint creation
+        try {
+          final token = _authService.accessToken;
+          if (token != null) {
+            _notificationService.setAuthToken(token);
+            final user = _authService.currentUser;
+            final userName = user?.name ?? 'Unknown User';
+            
+            await _notificationService.notifySprintCreated(
+              sprintName: name,
+              projectName: projectId ?? 'Current Project',
+              createdBy: userName,
+            );
+          }
+        } catch (e) {
+          debugPrint('❌ Error sending sprint creation notification: $e');
+        }
+        
+        final Map<String, dynamic> created;
+        
+        // Check if data is already the sprint object (common with ApiClient unwrapping)
+        if (rawData is Map) {
+          final mapData = Map<String, dynamic>.from(rawData);
+          
+          if (mapData.containsKey('data') && mapData['data'] is Map) {
+             // Case: { success: true, data: { ...sprint... } }
+             created = Map<String, dynamic>.from(mapData['data']);
+          } else if (mapData.containsKey('sprint') && mapData['sprint'] is Map) {
+             // Case: { success: true, sprint: { ...sprint... } }
+             created = Map<String, dynamic>.from(mapData['sprint']);
+          } else {
+             // Case: { ...sprint... } (direct object)
+             created = mapData;
+             created.remove('success'); // Clean up if mixed
+          }
+        } else {
+          // Fallback or error
+          debugPrint('❌ Unexpected response data format: $rawData');
+          throw Exception('Unexpected response format from server');
+        }
+
+        // Cache: prepend to global and project-specific cache
+        try {
+          await _prependCachedSprint(created, projectId: projectId);
+        } catch (_) {}
+        return created;
       } else {
         debugPrint('❌ Failed to create sprint: ${response.error ?? 'Unknown error'}');
         throw Exception(response.error ?? 'Failed to create sprint');

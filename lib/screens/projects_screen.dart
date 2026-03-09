@@ -107,18 +107,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                   child: const Text('All Projects'),
                                 ),
                                 const SizedBox(width: 12),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    context.go('/sprint-console');
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: theme.colorScheme.primary,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  ),
-                                  child: const Text('Sprint Console'),
-                                ),
-                                const SizedBox(width: 12),
                                 ElevatedButton.icon(
                                   onPressed: () {
                                     setState(() {
@@ -199,11 +187,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: GlassCard(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: InkWell(
+        onTap: () {
+          context.push('/projects/${project.id}/details');
+        },
+        borderRadius: BorderRadius.circular(20), // Match GlassCard radius if possible, or just standard
+        child: GlassCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Row(
               children: [
                 Expanded(
@@ -316,6 +309,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

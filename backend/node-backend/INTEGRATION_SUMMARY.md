@@ -109,8 +109,8 @@ The Flutter welcome screen now:
 
 ### For Production:
 1. Ensure environment variables are set
-2. Backend runs on port 3001
-3. Frontend connects to `http://localhost:3001/api/v1/auth/validate-token`
+2. Backend runs on port 8000
+3. Frontend connects to `http://localhost:8000/api/v1/auth/validate-token`
 4. Users paste tokens on welcome screen and get redirected automatically
 
 ## 🔒 Security Features

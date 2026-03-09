@@ -6,8 +6,8 @@ This document explains how to configure and switch between different environment
 
 - **PROD**: Production environment (`https://flow-space.onrender.com/api/v1`)
 - **SIT**: System Integration Testing (`https://flow-space-sit.onrender.com/api/v1`)
-- **DEV**: Development environment (`http://localhost:3001/api/v1`)
-- **LOCAL**: Local development (`http://localhost:3001/api/v1`)
+- **DEV**: Development environment (`http://localhost:8000/api/v1`)
+- **LOCAL**: Local development (`http://localhost:8000/api/v1`)
 
 ## Current Environment
 
@@ -62,7 +62,7 @@ static const String _currentEnvironment = 'SIT'; // Change this value
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `NODE_ENV` | Environment name | `sit`, `prod`, `dev` |
-| `PORT` | Server port | `3001` |
+| `PORT` | Server port | `8000` |
 | `DB_HOST` | Database host | `localhost` |
 | `DB_PORT` | Database port | `5432` |
 | `DB_NAME` | Database name | `flow_space_sit` |
@@ -79,8 +79,8 @@ The frontend automatically uses the correct API URL based on the environment:
 static const Map<String, String> _environmentUrls = {
   'PROD': 'https://flow-space.onrender.com/api/v1',
   'SIT': 'https://flow-space-sit.onrender.com/api/v1',
-  'DEV': 'http://localhost:3001/api/v1',
-  'LOCAL': 'http://localhost:3001/api/v1',
+  'DEV': 'http://localhost:8000/api/v1',
+  'LOCAL': 'http://localhost:8000/api/v1',
 };
 ```
 
@@ -115,7 +115,7 @@ When the backend starts, you'll see:
 ==================================================
 Environment variables loaded from: .env.sit
 NODE_ENV: sit
-PORT: 3001
+PORT: 8000
 ==================================================
 ```
 

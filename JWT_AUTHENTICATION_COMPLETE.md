@@ -12,7 +12,7 @@ The JWT token authentication system is now complete and ready for production use
 - User clicks "OPEN" button
 
 ### 2. **Frontend Processing**
-- Flutter app sends token to `http://localhost:3001/api/v1/auth/validate-token`
+- Flutter app sends token to `http://localhost:8000/api/v1/auth/validate-token`
 - Shows loading indicator during validation
 - Handles success/error responses appropriately
 

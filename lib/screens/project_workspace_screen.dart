@@ -1240,7 +1240,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
                 if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
                 } else {
-                  context.go('/sprint-console');
+                  context.go('/projects');
                 }
               },
               style: OutlinedButton.styleFrom(
