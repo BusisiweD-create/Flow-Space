@@ -16,6 +16,11 @@ class SchedulerService {
       errors: []
     };
 
+    const dialect = typeof sequelize.getDialect === 'function' ? sequelize.getDialect() : null;
+    if (dialect === 'sqlite') {
+      return results;
+    }
+
     try {
       // --- 1. Reminders for Reports ---
       const dueReports = await sequelize.query(
