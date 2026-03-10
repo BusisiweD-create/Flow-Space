@@ -158,6 +158,22 @@ class ProjectDetailsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        context.push('/sprint-console?projectId=${project.id}');
+                      },
+                      icon: const Icon(Icons.timer),
+                      label: const Text('Manage Sprints'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.secondary,
+                        foregroundColor: theme.colorScheme.onSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -178,7 +194,11 @@ class ProjectDetailsScreen extends StatelessWidget {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            Navigator.of(context).pop();
+                            if (context.canPop()) {
+                              Navigator.of(context).pop();
+                            } else {
+                              context.go('/projects');
+                            }
                           },
                           icon: const Icon(Icons.arrow_back),
                           label: const Text('Back to Projects'),
@@ -280,4 +300,5 @@ class ProjectDetailsScreen extends StatelessWidget {
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
+
 }

@@ -4,11 +4,12 @@ class ApiConfig {
     'API_BASE_URL',
     defaultValue: 'http://localhost:8000/api',
   );
-  
+
   // Get baseUrl without /v1 to avoid double versioning
   static String get baseUrl {
     return _baseUrl.replaceAll('/v1', '');
   }
+
   static const String apiVersion = '/v1';
   static const Duration requestTimeout = Duration(seconds: 30);
   static const Duration tokenRefreshBuffer = Duration(minutes: 5);
@@ -80,7 +81,10 @@ class ApiConfig {
   }
 
   static String replacePathParameter(
-      String endpoint, String parameter, String value) {
+    String endpoint,
+    String parameter,
+    String value,
+  ) {
     return endpoint.replaceAll('{$parameter}', value);
   }
 
@@ -105,15 +109,15 @@ class ApiConfig {
 
   // API Headers
   static Map<String, String> get defaultHeaders => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Flownet-Mobile/1.0.0',
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
   static Map<String, String> getAuthHeaders(String token) => {
-        ...defaultHeaders,
-        'Authorization': 'Bearer $token',
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Authorization': 'Bearer $token',
+  };
 
   // Error codes
   static const int unauthorizedCode = 401;
@@ -125,8 +129,9 @@ class ApiConfig {
   // Retry configuration
   static const int maxRetryAttempts = 3;
   static const Duration retryDelay = Duration(seconds: 2);
-  static const Duration exponentialBackoffMultiplier =
-      Duration(milliseconds: 500);
+  static const Duration exponentialBackoffMultiplier = Duration(
+    milliseconds: 500,
+  );
 
   // Cache configuration
   static const Duration cacheExpiry = Duration(minutes: 5);

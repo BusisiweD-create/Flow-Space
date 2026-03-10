@@ -1304,7 +1304,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
               ),
               TextButton(
                 onPressed: () {
-                  context.go('/repository');
+                  context.go('/deliverables');
                 },
                 child: const Text(
                   'View All',
@@ -1336,7 +1336,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.go('/repository'),
+        onTap: () => context.go('/deliverables'),
         child: GlassCard(
           padding: const EdgeInsets.all(16),
           borderRadius: 12.0,

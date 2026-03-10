@@ -8,6 +8,7 @@ class Environment {
       'A social learning platform built with Flutter';
 
   // API Configuration - Use const for production URL from build
+  // Reverting to localhost
   static const String _apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: "http://localhost:8000/api/v1",

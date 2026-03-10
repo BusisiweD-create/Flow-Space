@@ -48,6 +48,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/sprint-console',
         requiredPermission: 'view_sprints',
       ),
+      // Sprints accessed via Projects
       const _NavItem(
         label: 'Deliverables',
         icon: Icons.rocket_launch_outlined,

@@ -636,7 +636,7 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/sprint-console');
+              context.go('/projects');
             }
           },
         ),

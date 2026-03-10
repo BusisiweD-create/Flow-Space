@@ -41,9 +41,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             tooltip: 'Create Deliverable',
           ),
           IconButton(
-            icon: const Icon(Icons.timeline),
-            onPressed: () => context.go('/sprint-console'),
-            tooltip: 'Sprint Console',
+            icon: const Icon(Icons.folder),
+            onPressed: () => context.go('/projects'),
+            tooltip: 'Projects',
           ),
           const NotificationCenterWidget(),
           IconButton(
@@ -240,10 +240,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   children: [
                     TextButton.icon(
                       onPressed: () {
-                        _showSprintManagementDialog();
+                        context.go('/projects');
                       },
-                      icon: const Icon(Icons.timeline),
-                      label: const Text('View Details'),
+                      icon: const Icon(Icons.folder),
+                      label: const Text('View Projects'),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
@@ -389,23 +389,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         title: const Text('Settings'),
         content:
             const Text('Settings panel will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSprintManagementDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sprint Management'),
-        content: const Text(
-            'Sprint management features will be implemented in the next phase.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
