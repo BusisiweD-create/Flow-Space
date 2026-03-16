@@ -13,7 +13,6 @@ import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import 'report_editor_screen.dart';
@@ -829,30 +828,6 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       useBackgroundImage: true,
       centered: false,
       scrollable: false,
-      appBar: AppBar(
-        title: const FlownetLogo(),
-        backgroundColor: Colors.transparent,
-        foregroundColor: FlownetColors.pureWhite,
-        centerTitle: false,
-        elevation: 0,
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ReportEditorScreen(),
-                ),
-              ).then((_) => _loadReports());
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Create Report'),
-            style: TextButton.styleFrom(
-              foregroundColor: FlownetColors.electricBlue,
-            ),
-          ),
-        ],
-      ),
       body: Column(
         children: [
           // Search and Filter Bar
