@@ -12,10 +12,15 @@ class AppIcons {
         'active': 'assets/icons/Home_Dashboard active.png.png',
         'inactive': 'assets/icons/Home_Dashboard inactive.png.png',
       },
+      // Projects folder icon (all roles)
+      'projects': {
+        'active': 'assets/icons/Repository_Project active.png.png',
+        'inactive': 'assets/icons/Repository_Project inactive.png.png',
+      },
       // Deliverables rocket icon (all roles)
       'deliverables': {
-        'active': 'assets/icons/Deliverables active.png.png',
-        'inactive': 'assets/icons/Deliverables inactive.png.png',
+        'active': 'assets/Icons/Deliverables_rocket_active.png',
+        'inactive': 'assets/Icons/Deliverables_rocket_inactive.png',
       },
       'sprints': {
         'active': 'assets/icons/Sprints console active.png.png',
@@ -83,6 +88,7 @@ class AppIcons {
   }) {
     final iconMap = <String, IconData>{
       'dashboard': Icons.dashboard_outlined,
+      'projects': Icons.folder_outlined,
       'deliverables': Icons.rocket_launch_outlined,
       'sprints': Icons.timer_outlined,
       'notifications': Icons.notifications_outlined,

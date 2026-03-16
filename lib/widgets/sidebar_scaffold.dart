@@ -73,7 +73,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         icon: Icons.assignment_outlined,
         iconName: 'deliverables',
         route: '/deliverables-overview',
-        requiredPermission: 'view_all_deliverables',
+        requiredPermission: null,
       ),
       const _NavItem(
         label: 'Timeline',
