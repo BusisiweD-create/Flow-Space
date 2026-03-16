@@ -76,9 +76,15 @@ Future.microtask(() async {
       );
       
       if (response.isSuccess) {
-        final list = (response.data!['requests'] as List<dynamic>)
-            .map((item) => core.ApprovalRequest.fromJson(item as Map<String, dynamic>))
-            .toList();
+        final raw = response.data;
+        final items = raw is Map ? (raw['requests'] as List? ?? const []) : const [];
+        final list = items.map((item) {
+          if (item is core.ApprovalRequest) return item;
+          if (item is Map) {
+            return core.ApprovalRequest.fromJson(item.cast<String, dynamic>());
+          }
+          return core.ApprovalRequest.fromJson(<String, dynamic>{});
+        }).toList();
         final merged = await _mergeSignOffFallback(list);
         setState(() {
           _requests = merged;

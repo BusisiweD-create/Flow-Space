@@ -1,4 +1,5 @@
-const { Pool } = require('pg');
+import pg from 'pg';
+const { Pool } = pg;
 
 const pool = new Pool({
   host: 'localhost',
@@ -12,9 +13,17 @@ async function listAllUsers() {
   try {
     console.log('Listing all registered users and their roles...\n');
     
+    // Get table columns
+    const columns = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users'
+    `);
+    console.log('Columns:', columns.rows.map(r => r.column_name).join(', '));
+    
     // Get all users ordered by registration date
     const result = await pool.query(`
-      SELECT id, email, name, role, created_at 
+      SELECT *
       FROM users 
       ORDER BY created_at DESC
     `);
@@ -37,7 +46,8 @@ async function listAllUsers() {
       console.log('='.repeat(80));
       
       result.rows.forEach((user, index) => {
-        console.log(`\n${index + 1}. ${user.name}`);
+        const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'No Name';
+        console.log(`\n${index + 1}. ${fullName}`);
         console.log('   Email:', user.email);
         console.log('   Role:', user.role);
         console.log('   User ID:', user.id);

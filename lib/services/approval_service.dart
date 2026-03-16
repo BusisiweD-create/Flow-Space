@@ -87,7 +87,7 @@ class ApprovalService {
       };
 
       debugPrint('🔍 Fetching approval requests with params: $queryParams');
-      final response = await _apiClient.get('/approval-requests', queryParams: queryParams);
+      final response = await _apiClient.get('/approvals', queryParams: queryParams);
 
       debugPrint('📡 Approval requests response: ${response.statusCode} - ${response.isSuccess}');
       
@@ -147,7 +147,7 @@ class ApprovalService {
       if (token == null) {
         return ApiResponse.error('No authentication token available');
       }
-      final uri = Uri.parse('$_baseUrl/approval-requests');
+      final uri = Uri.parse('$_baseUrl/approvals');
       final response = await http.post(
         uri,
         headers: {
@@ -155,10 +155,11 @@ class ApprovalService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'title': 'Approval request for deliverable',
-          'description': comments ?? '',
+          'deliverable_id': deliverableId,
+          'requested_by': requestedBy,
+          if (comments != null) 'comments': comments,
           if (category != null) 'category': category,
-          'priority': priority,
+          if (priority.isNotEmpty) 'priority': priority,
         }),
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -204,7 +205,7 @@ class ApprovalService {
         return ApiResponse.error('No authentication token available');
       }
 
-final uri = Uri.parse('$_baseUrl/approval-requests/$requestId');
+      final uri = Uri.parse('$_baseUrl/approvals/$requestId');
       final response = await http.get(
         uri,
         headers: {
@@ -267,15 +268,22 @@ final uri = Uri.parse('$_baseUrl/approval-requests/$requestId');
       if (token == null) {
         return ApiResponse.error('No authentication token available');
       }
+      if (deliverableId == null || deliverableId.isEmpty) {
+        return ApiResponse.error('Deliverable ID is required');
+      }
+      final requestedBy = _authService.currentUser?.id.toString();
+      if (requestedBy == null || requestedBy.isEmpty) {
+        return ApiResponse.error('Requester ID is required');
+      }
 
-      final response = await _apiClient.post('/approval-requests', body: {
-        'title': title,
-        'description': description,
+      final response = await _apiClient.post('/approvals', body: {
+        'deliverable_id': deliverableId,
+        'requested_by': requestedBy,
+        'comments': description,
         'priority': priority,
         'category': category,
-        'deliverable_id': deliverableId,
-        'evidence_links': evidenceLinks,
-        'definition_of_done': definitionOfDone,
+        if (evidenceLinks != null) 'evidence_links': evidenceLinks,
+        if (definitionOfDone != null) 'definition_of_done': definitionOfDone,
       });
 
       if (response.isSuccess && response.data != null) {
@@ -296,8 +304,8 @@ final uri = Uri.parse('$_baseUrl/approval-requests/$requestId');
         return ApiResponse.error('No authentication token available');
       }
 
-final approvedBy = _authService.currentUser?.id.toString() ?? '';
-final response = await _apiClient.put('/approval-requests/$requestId/approve', body: {
+      final approvedBy = _authService.currentUser?.id.toString() ?? '';
+      final response = await _apiClient.put('/approvals/$requestId/approve', body: {
         'comments': reason,
         'approved_by': approvedBy,
       });
@@ -320,8 +328,8 @@ final response = await _apiClient.put('/approval-requests/$requestId/approve', b
         return ApiResponse.error('No authentication token available');
       }
 
-final approvedBy = _authService.currentUser?.id.toString() ?? '';
-final response = await _apiClient.put('/approval-requests/$requestId/reject', body: {
+      final approvedBy = _authService.currentUser?.id.toString() ?? '';
+      final response = await _apiClient.put('/approvals/$requestId/reject', body: {
         'comments': reason,
         'approved_by': approvedBy,
       });

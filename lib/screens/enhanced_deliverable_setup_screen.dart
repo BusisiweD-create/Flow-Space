@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,8 @@ import '../widgets/flownet_logo.dart';
 import '../widgets/ai_readiness_gate_widget.dart';
 import '../services/deliverable_service.dart';
 import '../services/sprint_database_service.dart';
+import '../services/project_service.dart';
+import '../services/backend_api_service.dart';
 import '../models/dod_item.dart';
 class EnhancedDeliverableSetupScreen extends ConsumerStatefulWidget {
   const EnhancedDeliverableSetupScreen({super.key});
@@ -28,19 +32,80 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
   final List<ReadinessItem> _readinessItems = [];
   final DeliverableService _deliverableService = DeliverableService();
   final SprintDatabaseService _sprintService = SprintDatabaseService();
+  
   ReadinessStatus _currentReadinessStatus = ReadinessStatus.red;
   bool _hasInternalApproval = false;
   
+  String? _selectedProjectId;
+  String? _ownerId;
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _availableSprints = [];
   bool _isLoadingSprints = true;
+  List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _projects = [];
 
   @override
   void initState() {
     super.initState();
+    try {
+      final ri = GoRouter.of(context).routeInformationProvider.value;
+      final Uri uri = ri.uri;
+      final sprintId = uri.queryParameters['sprintId'];
+      final projectId = uri.queryParameters['projectId'];
+      if (sprintId != null && sprintId.isNotEmpty && !_selectedSprints.contains(sprintId)) {
+        _selectedSprints.add(sprintId);
+      }
+      if (projectId != null && projectId.isNotEmpty) {
+        _selectedProjectId = projectId;
+      }
+    } catch (_) {}
     _initializeReadinessItems();
     _loadSprints();
+    _loadUsers();
+    _loadProjects();
   }
+
+  Future<void> _loadUsers() async {
+      try {
+        final backend = BackendApiService();
+        final response = await backend.getUsers();
+        if (mounted && response.isSuccess && response.data != null) {
+          setState(() {
+            if (response.data is List) {
+              _users = List<Map<String, dynamic>>.from(response.data);
+            } else if (response.data is Map && response.data['users'] != null) {
+              _users = List<Map<String, dynamic>>.from(response.data['users']);
+            } else if (response.data is Map && response.data['data'] != null) {
+              _users = List<Map<String, dynamic>>.from(response.data['data']);
+            }
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading users: $e');
+      }
+    }
+
+   Future<void> _loadProjects() async {
+     try {
+       final projects = await ProjectService.getAllProjects();
+       if (mounted) {
+         setState(() {
+           _projects = projects.map((p) => {
+             'id': p.id,
+             'name': p.name,
+           }).toList();
+           
+           // If _selectedProjectId is set but not in list, check if we need to clear it or if it's valid
+           // But since we want to pre-select, we should ensure the type matches
+           if (_selectedProjectId != null && !_projects.any((p) => p['id']?.toString() == _selectedProjectId)) {
+             debugPrint('⚠️ Selected project ID $_selectedProjectId not found in loaded projects');
+           }
+         });
+       }
+     } catch (e) {
+       debugPrint('Error loading projects: $e');
+     }
+   }
 
   Future<void> _loadSprints() async {
     setState(() => _isLoadingSprints = true);
@@ -328,6 +393,8 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
         dueDate: _dueDate,
         sprintId: _selectedSprints.isNotEmpty ? _selectedSprints.first : null,
         sprintIds: _selectedSprints,
+        assignedTo: _ownerId,
+        projectId: _selectedProjectId,
       );
       
       if (mounted) {
@@ -485,6 +552,56 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Description is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Owner Dropdown
+              DropdownButtonFormField<String?>(
+                value: _users.any((u) => u['id']?.toString() == _ownerId) ? _ownerId : null,
+                decoration: const InputDecoration(
+                  labelText: 'Owner',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Unassigned')),
+                  ..._users.map((user) {
+                    final name = user['name'] ?? user['email'] ?? 'Unknown';
+                    return DropdownMenuItem(
+                      value: user['id']?.toString(),
+                      child: Text(name),
+                    );
+                  }),
+                ],
+                onChanged: (value) => setState(() => _ownerId = value),
+              ),
+              const SizedBox(height: 16),
+
+              // Project Dropdown
+              DropdownButtonFormField<String?>(
+                value: _projects.any((p) => p['id']?.toString() == _selectedProjectId) ? _selectedProjectId : null,
+                decoration: const InputDecoration(
+                  labelText: 'Project',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.work),
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Select Project')),
+                  ..._projects.map((project) {
+                    final name = project['name'] ?? 'Unknown Project';
+                    return DropdownMenuItem(
+                      value: project['id']?.toString(),
+                      child: Text(name),
+                    );
+                  }),
+                ],
+                onChanged: (value) => setState(() => _selectedProjectId = value),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Project is required';
                   }
                   return null;
                 },

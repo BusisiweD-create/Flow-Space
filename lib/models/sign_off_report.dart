@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 enum ReportStatus {
@@ -25,13 +27,16 @@ class SignOffReport {
   final String createdBy;
   final DateTime? submittedAt;
   final String? submittedBy;
+  final String? submittedByName;
   final DateTime? reviewedAt;
   final String? reviewedBy;
+  final String? reviewedByName;
   final String? clientComment;
   final String? changeRequestDetails;
   final List<dynamic>? changeRequestHistory;
   final DateTime? approvedAt;
   final String? approvedBy;
+  final String? approvedByName;
 
   final String? digitalSignature;
 
@@ -51,13 +56,16 @@ class SignOffReport {
     required this.createdBy,
     this.submittedAt,
     this.submittedBy,
+    this.submittedByName,
     this.reviewedAt,
     this.reviewedBy,
+    this.reviewedByName,
     this.clientComment,
     this.changeRequestDetails,
     this.changeRequestHistory,
     this.approvedAt,
     this.approvedBy,
+    this.approvedByName,
     this.digitalSignature,
   });
 
@@ -77,13 +85,16 @@ class SignOffReport {
     String? createdBy,
     DateTime? submittedAt,
     String? submittedBy,
+    String? submittedByName,
     DateTime? reviewedAt,
     String? reviewedBy,
+    String? reviewedByName,
     String? clientComment,
     String? changeRequestDetails,
     List<dynamic>? changeRequestHistory,
     DateTime? approvedAt,
     String? approvedBy,
+    String? approvedByName,
     String? digitalSignature,
   }) {
     return SignOffReport(
@@ -102,13 +113,16 @@ class SignOffReport {
       createdBy: createdBy ?? this.createdBy,
       submittedAt: submittedAt ?? this.submittedAt,
       submittedBy: submittedBy ?? this.submittedBy,
+      submittedByName: submittedByName ?? this.submittedByName,
       reviewedAt: reviewedAt ?? this.reviewedAt,
       reviewedBy: reviewedBy ?? this.reviewedBy,
+      reviewedByName: reviewedByName ?? this.reviewedByName,
       clientComment: clientComment ?? this.clientComment,
       changeRequestDetails: changeRequestDetails ?? this.changeRequestDetails,
       changeRequestHistory: changeRequestHistory ?? this.changeRequestHistory,
       approvedAt: approvedAt ?? this.approvedAt,
       approvedBy: approvedBy ?? this.approvedBy,
+      approvedByName: approvedByName ?? this.approvedByName,
       digitalSignature: digitalSignature ?? this.digitalSignature,
     );
   }
@@ -130,21 +144,34 @@ class SignOffReport {
       'createdBy': createdBy,
       'submittedAt': submittedAt?.toIso8601String(),
       'submittedBy': submittedBy,
+      'submittedByName': submittedByName,
       'reviewedAt': reviewedAt?.toIso8601String(),
       'reviewedBy': reviewedBy,
+      'reviewedByName': reviewedByName,
       'clientComment': clientComment,
       'changeRequestDetails': changeRequestDetails,
       'changeRequestHistory': changeRequestHistory,
       'approvedAt': approvedAt?.toIso8601String(),
       'approvedBy': approvedBy,
+      'approvedByName': approvedByName,
       'digitalSignature': digitalSignature,
     };
   }
 
   factory SignOffReport.fromJson(Map<String, dynamic> json) {
-    final Map<String, dynamic> content = json['content'] is Map
-        ? Map<String, dynamic>.from(json['content'] as Map)
-        : {};
+    final dynamic contentRaw = json['content'];
+    final Map<String, dynamic> content = contentRaw is Map
+        ? Map<String, dynamic>.from(contentRaw)
+        : (contentRaw is String
+            ? (() {
+                try {
+                  final decoded = jsonDecode(contentRaw);
+                  return decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+                } catch (_) {
+                  return <String, dynamic>{};
+                }
+              })()
+            : <String, dynamic>{});
 
     final String id = (json['id'] ?? json['report_id'] ?? '').toString();
     final String deliverableId = (json['deliverableId'] ?? json['deliverable_id'] ?? content['deliverableId'] ?? content['deliverable_id'] ?? '').toString();
@@ -161,8 +188,16 @@ class SignOffReport {
     final String? knownLimitations = (json['knownLimitations'] ?? content['knownLimitations'] ?? content['limitations'])?.toString();
     final String? nextSteps = (json['nextSteps'] ?? content['nextSteps'])?.toString();
 
-    final String? preparedBy = (json['preparedBy'] ?? json['prepared_by'])?.toString();
-    final String? preparedByName = (json['preparedByName'] ?? json['prepared_by_name'])?.toString();
+    final String? preparedBy = (json['preparedBy'] ?? json['prepared_by'] ?? content['preparedBy'] ?? content['prepared_by'])?.toString();
+    final String? preparedByName = (json['preparedByName'] ??
+            json['prepared_by_name'] ??
+            content['preparedByName'] ??
+            content['prepared_by_name'] ??
+            json['createdByName'] ??
+            json['created_by_name'] ??
+            content['createdByName'] ??
+            content['created_by_name'])
+        ?.toString();
 
     final String statusStr = (json['status'] ?? json['review_status'] ?? content['status'] ?? '').toString();
     final ReportStatus status = ReportStatus.values.firstWhere(
@@ -173,15 +208,33 @@ class SignOffReport {
     final String createdAtStr = (json['createdAt'] ?? json['created_at'] ?? '').toString();
     final DateTime createdAt = createdAtStr.isNotEmpty ? DateTime.parse(createdAtStr) : DateTime.now();
 
-    final String createdBy = (json['createdBy'] ?? json['created_by'] ?? content['createdBy'] ?? '').toString();
+    final String createdBy = (json['createdByName'] ??
+            json['created_by_name'] ??
+            json['createdBy'] ??
+            json['created_by'] ??
+            content['createdByName'] ??
+            content['created_by_name'] ??
+            content['createdBy'] ??
+            '')
+        .toString();
 
     final String submittedAtStr = (json['submittedAt'] ?? json['submitted_at'] ?? '').toString();
     final DateTime? submittedAt = submittedAtStr.isNotEmpty ? DateTime.parse(submittedAtStr) : null;
     final String? submittedBy = (json['submittedBy'] ?? json['submitted_by'] ?? content['submittedBy'])?.toString();
+    final String? submittedByName = (json['submittedByName'] ??
+            json['submitted_by_name'] ??
+            content['submittedByName'] ??
+            content['submitted_by_name'])
+        ?.toString();
 
     final String reviewedAtStr = (json['reviewedAt'] ?? json['approved_at'] ?? json['rejected_at'] ?? '').toString();
     final DateTime? reviewedAt = reviewedAtStr.isNotEmpty ? DateTime.parse(reviewedAtStr) : null;
     final String? reviewedBy = (json['reviewedBy'] ?? json['approved_by'] ?? json['rejected_by'] ?? content['reviewedBy'])?.toString();
+    final String? reviewedByName = (json['reviewedByName'] ??
+            json['reviewed_by_name'] ??
+            content['reviewedByName'] ??
+            content['reviewed_by_name'])
+        ?.toString();
 
     final String? clientComment = (json['clientComment'] ?? content['clientComment'] ?? json['comments'])?.toString();
     final String? changeRequestDetails = (json['changeRequestDetails'] ?? content['changeRequestDetails'])?.toString();
@@ -190,6 +243,11 @@ class SignOffReport {
     final String approvedAtStr = (json['approvedAt'] ?? json['approved_at'] ?? '').toString();
     final DateTime? approvedAt = approvedAtStr.isNotEmpty ? DateTime.parse(approvedAtStr) : null;
     final String? approvedBy = (json['approvedBy'] ?? json['approved_by'] ?? content['approvedBy'])?.toString();
+    final String? approvedByName = (json['approvedByName'] ??
+            json['approved_by_name'] ??
+            content['approvedByName'] ??
+            content['approved_by_name'])
+        ?.toString();
     final String? digitalSignature = (json['digitalSignature'] ?? json['signature'] ?? content['digitalSignature'])?.toString();
 
     return SignOffReport(
@@ -208,13 +266,16 @@ class SignOffReport {
       createdBy: createdBy,
       submittedAt: submittedAt,
       submittedBy: submittedBy,
+      submittedByName: submittedByName,
       reviewedAt: reviewedAt,
       reviewedBy: reviewedBy,
+      reviewedByName: reviewedByName,
       clientComment: clientComment,
       changeRequestDetails: changeRequestDetails,
       changeRequestHistory: changeRequestHistory,
       approvedAt: approvedAt,
       approvedBy: approvedBy,
+      approvedByName: approvedByName,
       digitalSignature: digitalSignature,
     );
   }

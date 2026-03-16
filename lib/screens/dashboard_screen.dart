@@ -7,7 +7,7 @@ import '../widgets/metrics_card.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/notification_center_widget.dart';
-import '../services/backend_api_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/app_modal.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -41,9 +41,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             tooltip: 'Create Deliverable',
           ),
           IconButton(
-            icon: const Icon(Icons.timeline),
-            onPressed: () => context.go('/sprint-console'),
-            tooltip: 'Sprint Console',
+            icon: const Icon(Icons.folder),
+            onPressed: () => context.go('/projects'),
+            tooltip: 'Projects',
           ),
           const NotificationCenterWidget(),
           IconButton(
@@ -240,10 +240,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   children: [
                     TextButton.icon(
                       onPressed: () {
-                        _showSprintManagementDialog();
+                        context.go('/projects');
                       },
-                      icon: const Icon(Icons.timeline),
-                      label: const Text('View Details'),
+                      icon: const Icon(Icons.folder),
+                      label: const Text('View Projects'),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
@@ -399,23 +399,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  void _showSprintManagementDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sprint Management'),
-        content: const Text(
-            'Sprint management features will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showAllDeliverablesDialog() {
     showDialog(
       context: context,
@@ -466,7 +449,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
               // Call backend logout API and clear local tokens
               try {
-                await BackendApiService().signOut();
+                await AuthService().signOut();
               } catch (e) {
                 // Even if backend logout fails, clear local tokens
                 debugPrint('Logout error: $e');
@@ -477,7 +460,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 // Use WidgetsBinding to safely navigate after async operation
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
-                    GoRouter.of(context).go('/');
+                    GoRouter.of(context).go('/login');
                   }
                 });
               }

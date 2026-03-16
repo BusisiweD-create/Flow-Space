@@ -225,7 +225,7 @@ Both features are now **fully functional**:
 - PDFs use standard fonts (Helvetica) for maximum compatibility
 - Signature images are embedded directly in PDF
 - Download works across all browsers (Chrome, Firefox, Safari, Edge)
-- Backend is running on `http://localhost:3001`
+- Backend is running on `http://localhost:8000`
 - Frontend is running on `http://localhost:5000`
 
 ---

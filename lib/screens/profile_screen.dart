@@ -50,7 +50,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _loadProfileData() async {
     try {
       final profile = await ProfileService.getUserProfile();
-      setState(() {
+      setState(() async {
         _firstNameController.text = profile['first_name'] ?? '';
         _lastNameController.text = profile['last_name'] ?? '';
         _emailController.text = profile['email'] ?? '';
@@ -64,12 +64,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           final base = Uri.parse(Environment.apiBaseUrl);
           final apiPic = '${base.scheme}://${base.host}:${base.port.toString()}/api/v1/profile/$uid/picture';
           _profileImageUrl = apiPic;
+          await _fetchProfileImageBytes(uid);
         }
       });
-      final uid = (profile['user_id'] ?? profile['userId'])?.toString();
-      if (uid != null && uid.isNotEmpty) {
-        await _fetchProfileImageBytes(uid);
-      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to load profile: $e')),

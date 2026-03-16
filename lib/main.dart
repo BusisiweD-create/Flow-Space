@@ -7,7 +7,6 @@ import 'screens/welcome_screen.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
-import 'services/project_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/email_verification_screen.dart';
@@ -21,14 +20,13 @@ import 'screens/report_view_screen.dart';
 import 'screens/client_review_screen.dart';
 import 'models/sign_off_report.dart';
 import 'models/deliverable.dart';
-import 'models/project.dart';
 import 'screens/report_repository_screen.dart';
 // Approvals unified: use ApprovalRequestsScreen
 import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/projects_screen.dart';
-import 'screens/project_details_screen.dart';
+import 'screens/project_create_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/send_reminder_screen.dart';
 import 'screens/role_dashboard_screen.dart';
@@ -40,6 +38,7 @@ import 'screens/sprint_board_screen.dart';
 import 'screens/timeline_screen.dart';
 import 'screens/system_metrics_screen.dart';
 import 'screens/system_health_screen.dart';
+import 'screens/projects_overview_screen.dart';
 import 'screens/audit_logs_screen.dart';
 // Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
@@ -100,15 +99,6 @@ class KhonoApp extends StatelessWidget {
       },
     );
   }
-}
-
-Future<Project> _getProjectDetails(String projectId) async {
-  final projects = await ProjectService.getAllProjects();
-  final project = projects.firstWhere(
-    (p) => p.id == projectId,
-    orElse: () => throw Exception('Project not found'),
-  );
-  return project;
 }
 
 final GoRouter _router = GoRouter(
@@ -185,31 +175,6 @@ final GoRouter _router = GoRouter(
       ),
     ),
     GoRoute(
-      path: '/projects/:projectId/details',
-      builder: (context, state) {
-        final projectId = state.pathParameters['projectId']!;
-        return RoleGuard(
-          requiredPermission: 'authenticated',
-          child: SidebarScaffold(
-            child: FutureBuilder<Project>(
-              future: _getProjectDetails(projectId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (snapshot.hasData) {
-                  return ProjectDetailsScreen(project: snapshot.data!);
-                } else {
-                  return const Center(child: Text('Project not found'));
-                }
-              },
-            ),
-          ),
-        );
-      },
-    ),
-    GoRoute(
       path: '/projects/:projectId/edit',
       builder: (context, state) {
         final projectId = state.pathParameters['projectId']!;
@@ -226,7 +191,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RoleGuard(
         requiredPermission: 'authenticated',
         child: SidebarScaffold(
-          child: ProjectSetupScreen(),
+          child: ProjectWorkspaceScreen(projectId: 'new'),
         ),
       ),
     ),
@@ -297,10 +262,11 @@ final GoRouter _router = GoRouter(
       path: '/report-editor/:deliverableId',
       builder: (context, state) {
         final deliverableId = state.pathParameters['deliverableId']!;
+        final reportId = state.uri.queryParameters['reportId'];
         return RouteGuard(
           route: '/report-editor',
           child: SidebarScaffold(
-            child: ReportEditorScreen(deliverableId: deliverableId),
+            child: ReportEditorScreen(deliverableId: deliverableId, reportId: reportId),
           ),
         );
       },
@@ -313,6 +279,18 @@ final GoRouter _router = GoRouter(
           route: '/report-builder', // Using same guard as builder for now
           child: SidebarScaffold(
             child: ReportViewScreen(reportId: reportId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/report-sent/:reportId',
+      builder: (context, state) {
+        final reportId = state.pathParameters['reportId']!;
+        return RouteGuard(
+          route: '/report-builder',
+          child: SidebarScaffold(
+            child: ReportViewScreen(reportId: reportId, showPostSubmitBanner: true),
           ),
         );
       },
@@ -585,6 +563,15 @@ final GoRouter _router = GoRouter(
         route: '/project-workspace',
         child: SidebarScaffold(
           child: ProjectWorkspaceScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/projects',
+      builder: (context, state) => const RouteGuard(
+        route: '/projects',
+        child: SidebarScaffold(
+          child: ProjectsOverviewScreen(),
         ),
       ),
     ),
