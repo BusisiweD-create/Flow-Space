@@ -466,4 +466,110 @@ router.post('/change-password', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * @route POST /api/auth/validate-token
+ * @desc Validate external JWT token and return user information
+ * @access Public
+ */
+router.post('/validate-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        error: 'Token is required',
+        message: 'Please provide a JWT token for validation'
+      });
+    }
+
+    // Validate the JWT token
+    const decodedToken = validateJwtToken(token);
+    
+    // Extract user information
+    const userInfo = extractUserInfo(decodedToken);
+    
+    // Get user role from token (if available)
+    let userRole = decodedToken.role || decodedToken.user_role || 'user';
+    
+    // Check if roles is an array and extract relevant role
+    if (decodedToken.roles && Array.isArray(decodedToken.roles)) {
+      // Look for specific roles in the roles array
+      const roleMapping = {
+        'system admin': ['system admin', 'system_admin', 'admin', 'system administrator'],
+        'client reviewer': ['client reviewer', 'client_reviewer', 'client'],
+        'delivery lead': ['delivery lead', 'delivery_lead', 'delivery'],
+        'team member': ['team member', 'team_member', 'team']
+      };
+      
+      // Find the first matching role
+      for (const [mappedRole, keywords] of Object.entries(roleMapping)) {
+        if (decodedToken.roles.some(role => 
+          keywords.some(keyword => role.toLowerCase().includes(keyword.toLowerCase()))
+        )) {
+          userRole = mappedRole;
+          break;
+        }
+      }
+    }
+    
+    // Determine dashboard URL based on role
+    const dashboardUrl = getDashboardUrl(userRole);
+    
+    // Return success response with user information
+    res.json({
+      success: true,
+      message: 'Token validated successfully',
+      user: {
+        ...userInfo,
+        role: userRole
+      },
+      redirect: {
+        url: dashboardUrl,
+        role: userRole
+      },
+      token: decodedToken // Include full decoded token for additional data
+    });
+
+  } catch (error) {
+    if (error instanceof JWTValidationError) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid token',
+        message: error.message
+      });
+    } else {
+      console.error('Unexpected error in token validation:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Validation failed',
+        message: 'An unexpected error occurred during token validation'
+      });
+    }
+  }
+});
+
+/**
+ * Helper function to determine dashboard URL based on user role
+ * @param {string} role - User role
+ * @returns {string} Dashboard URL
+ */
+function getDashboardUrl(role) {
+  const dashboardRoutes = {
+    'system admin': '/admin/dashboard',
+    'system_admin': '/admin/dashboard',
+    'client reviewer': '/client/dashboard',
+    'client_reviewer': '/client/dashboard',
+    'delivery lead': '/delivery/dashboard',
+    'delivery_lead': '/delivery/dashboard',
+    'team member': '/team/dashboard',
+    'team_member': '/team/dashboard',
+    'admin': '/admin/dashboard',
+    'manager': '/manager/dashboard', 
+    'developer': '/developer/dashboard',
+    'user': '/user/dashboard'
+  };
+  
+  return dashboardRoutes[role.toLowerCase()] || '/user/dashboard';
+}
+
 module.exports = router;
