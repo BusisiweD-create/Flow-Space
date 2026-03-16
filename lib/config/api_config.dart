@@ -2,7 +2,7 @@ class ApiConfig {
   // Base API configuration - prioritize production URL for deployed apps
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://flow-space.onrender.com/api',
+    defaultValue: 'https://backend-532p.onrender.com/api',
   );
   static const String apiVersion = '/v1';
   static const Duration requestTimeout = Duration(seconds: 30);

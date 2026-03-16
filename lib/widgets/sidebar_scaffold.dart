@@ -1,4 +1,3 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
@@ -43,12 +42,53 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   static const double _sidebarWidth = 280;
   static const double _collapsedWidth = 80;
 
+  // Navigation history tracking
+  List<String> _navigationHistory = ['/dashboard'];
+  int _historyIndex = 0;
+
+  // Track navigation history
+  void _updateNavigationHistory(String route) {
+    if (_navigationHistory.isEmpty ||
+        _navigationHistory[_historyIndex] != route) {
+      // Remove any forward history when navigating to new route
+      if (_historyIndex < _navigationHistory.length - 1) {
+        _navigationHistory =
+            _navigationHistory.take(_historyIndex + 1).toList();
+      }
+
+      setState(() {
+        _navigationHistory.add(route);
+        _historyIndex = _navigationHistory.length - 1;
+      });
+    }
+  }
+
+  // Navigate back
+  void _navigateBack() {
+    if (_historyIndex > 0) {
+      setState(() {
+        _historyIndex--;
+      });
+      context.go(_navigationHistory[_historyIndex]);
+    }
+  }
+
+  // Navigate forward
+  void _navigateForward() {
+    if (_historyIndex < _navigationHistory.length - 1) {
+      setState(() {
+        _historyIndex++;
+      });
+      context.go(_navigationHistory[_historyIndex]);
+    }
+  }
+
   List<_NavItem> get _navItems {
     final authService = AuthService();
     final allItems = [
       // Work-focused items only
       const _NavItem(
-        label: 'Dashboard', 
+        label: 'Dashboard',
         icon: Icons.dashboard_outlined,
         iconName: 'dashboard',
         route: '/dashboard',
@@ -62,8 +102,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null,
       ),
       const _NavItem(
-        label: 'Sprints', 
-        icon: Icons.timer_outlined, 
+        label: 'Sprints',
+        icon: Icons.timer_outlined,
         iconName: 'sprints',
         route: '/sprint-console',
         requiredPermission: 'view_sprints',
@@ -91,15 +131,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'view_approvals',
       ),
       const _NavItem(
-        label: 'Repository', 
-        icon: Icons.folder_outlined, 
+        label: 'Repository',
+        icon: Icons.folder_outlined,
         iconName: 'repository',
         route: '/repository',
         requiredPermission: 'view_all_deliverables',
       ),
       const _NavItem(
-        label: 'Reports', 
-        icon: Icons.assessment_outlined, 
+        label: 'Reports',
+        icon: Icons.assessment_outlined,
         iconName: 'reports',
         route: '/report-repository',
         requiredPermission: 'view_all_deliverables',
@@ -158,6 +198,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     final routeLocation = GoRouterState.of(context).uri.path;
     final isDesktop = MediaQuery.of(context).size.width > 768;
 
+    // Track navigation history
+    _updateNavigationHistory(routeLocation);
+
     if (isDesktop) {
       return Scaffold(
         backgroundColor: Colors.transparent,
@@ -189,132 +232,133 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       color: Colors.transparent,
                     ),
                     child: Column(
-                        children: [
-                          // Header with logo and collapse toggle
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                left: 12, right: 12, top: 24, bottom: 16,),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Image.asset(
-                                  'assets/Icons/Red_Khono_Discs.png',
-                                  width: _collapsed ? 28 : 64,
-                                  height: _collapsed ? 28 : 64,
-                                  fit: BoxFit.contain,
-                                ),
-                                IconButton(
-                                  onPressed: _toggleSidebar,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    _collapsed
-                                        ? Icons.chevron_right
-                                        : Icons.chevron_left,
-                                    color: FlownetColors.textSecondary,
-                                    size: 20,
-                                  ),
-                                ),
-                              ],
-                            ),
+                      children: [
+                        // Header with logo and collapse toggle
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 12,
+                            right: 12,
+                            top: 24,
+                            bottom: 16,
                           ),
-                          // Navigation items (pill-style highlight like reference UI)
-                          Expanded(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              itemCount: _navItems.length,
-                              itemExtent: 56, // Match Busisiwe sidebar height
-                              cacheExtent: 200,
-                              addAutomaticKeepAlives: true,
-                              itemBuilder: (context, index) {
-                                final item = _navItems[index];
-                                final active =
-                                    routeLocation.startsWith(item.route);
-                                return Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    // Active item: soft pill-shaped dark highlight, no red border
-                                    color: active
-                                        ? Colors.white.withAlpha(
-                                            (0.08 * 255).round(),
-                                          )
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: () {
-                                        if (!routeLocation
-                                            .startsWith(item.route)) {
-                                          context.go(item.route);
-                                        }
-                                      },
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: _collapsed ? 8 : 16,
-                                          vertical: 12,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment: _collapsed
-                                              ? MainAxisAlignment.center
-                                              : MainAxisAlignment.start,
-                                          children: [
-                                            SizedBox(
-                                              width: 24,
-                                              height: 24,
-                                              child: AppIcons.getIconWidget(
-                                                item.iconName,
-                                                fallbackIcon: item.icon,
-                                                isActive: active,
-                                                size: 20,
-                                                color: active
-                                                    ? FlownetColors.pureWhite
-                                                    : FlownetColors
-                                                        .textSecondary,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Image.asset(
+                                'assets/Icons/Red_Khono_Discs.png',
+                                width: _collapsed ? 28 : 64,
+                                height: _collapsed ? 28 : 64,
+                                fit: BoxFit.contain,
+                              ),
+                              IconButton(
+                                onPressed: _toggleSidebar,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                icon: Icon(
+                                  _collapsed
+                                      ? Icons.chevron_right
+                                      : Icons.chevron_left,
+                                  color: FlownetColors.textSecondary,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Navigation items (pill-style highlight like reference UI)
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            itemCount: _navItems.length,
+                            itemExtent: 56, // Match Busisiwe sidebar height
+                            cacheExtent: 200,
+                            addAutomaticKeepAlives: true,
+                            itemBuilder: (context, index) {
+                              final item = _navItems[index];
+                              final active =
+                                  routeLocation.startsWith(item.route);
+                              return Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  // Active item: soft pill-shaped dark highlight, no red border
+                                  color: active
+                                      ? Colors.white.withAlpha(
+                                          (0.08 * 255).round(),
+                                        )
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      if (!routeLocation
+                                          .startsWith(item.route)) {
+                                        context.go(item.route);
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: _collapsed ? 8 : 16,
+                                        vertical: 12,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: _collapsed
+                                            ? MainAxisAlignment.center
+                                            : MainAxisAlignment.start,
+                                        children: [
+                                          SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: AppIcons.getIconWidget(
+                                              item.iconName,
+                                              fallbackIcon: item.icon,
+                                              isActive: active,
+                                              size: 20,
+                                              color: active
+                                                  ? FlownetColors.pureWhite
+                                                  : FlownetColors.textSecondary,
+                                            ),
+                                          ),
+                                          if (!_collapsed) ...[
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                item.label,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
-                                            if (!_collapsed) ...[
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Text(
-                                                  item.label,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.w500,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
                                           ],
-                                        ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                                );
-                              },
-                            ),
+                                ),
+                              );
+                            },
                           ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                            child: _buildLogoutButton(),
-                          ),
-                          SidebarVersionDisplay(
-                            isSidebarCollapsed: _collapsed,
-                          ),
-                        ],
-                      ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                          child: _buildLogoutButton(),
+                        ),
+                        SidebarVersionDisplay(
+                          isSidebarCollapsed: _collapsed,
+                        ),
+                      ],
                     ),
                   ),
                 ),
+              ),
               Expanded(
                 child: Container(
                   color: Colors.transparent,
@@ -323,12 +367,16 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       // Top navigation bar with user menu
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8,),
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withAlpha((0.08 * 255).round()),
                           border: const Border(
                             bottom: BorderSide(
-                                color: FlownetColors.slate, width: 1,),
+                              color: FlownetColors.slate,
+                              width: 1,
+                            ),
                           ),
                         ),
                         child: Builder(
@@ -340,31 +388,26 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 if (routeLocation != '/dashboard') ...[
                                   IconButton(
                                     icon: const Icon(Icons.arrow_back),
-                                    onPressed: () {
-                                      if (GoRouter.of(context).canPop()) {
-                                        GoRouter.of(context).pop();
-                                      } else {
-                                        GoRouter.of(context).go('/dashboard');
-                                      }
-                                    },
+                                    onPressed: _historyIndex > 0
+                                        ? _navigateBack
+                                        : null,
                                     tooltip: 'Back',
-                                    color: FlownetColors.pureWhite,
+                                    color: _historyIndex > 0
+                                        ? FlownetColors.pureWhite
+                                        : FlownetColors.textSecondary,
                                   ),
                                   const SizedBox(width: 8),
                                   IconButton(
                                     icon: const Icon(Icons.arrow_forward),
-                                    onPressed: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              'Forward navigation coming soon',),
-                                          backgroundColor:
-                                              FlownetColors.amberOrange,
-                                        ),
-                                      );
-                                    },
+                                    onPressed: _historyIndex <
+                                            _navigationHistory.length - 1
+                                        ? _navigateForward
+                                        : null,
                                     tooltip: 'Forward',
-                                    color: FlownetColors.pureWhite,
+                                    color: _historyIndex <
+                                            _navigationHistory.length - 1
+                                        ? FlownetColors.pureWhite
+                                        : FlownetColors.textSecondary,
                                   ),
                                 ],
                                 const Spacer(),
@@ -402,11 +445,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: Image.asset(
-            'assets/Icons/Red_Khono_Discs.png',
-            width: 32,
-            height: 32,
-            fit: BoxFit.contain,
+          title: Text(
+            _getPageTitle(routeLocation),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           centerTitle: false,
           actions: [
@@ -465,10 +510,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       final active = routeLocation.startsWith(item.route);
                       return Container(
                         margin: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2,),
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: active
-                              ? FlownetColors.crimsonRed.withAlpha((0.1 * 255).round())
+                              ? FlownetColors.crimsonRed
+                                  .withAlpha((0.1 * 255).round())
                               : null,
                           borderRadius: BorderRadius.circular(12),
                           border: active
@@ -496,9 +544,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                               color: active
                                   ? FlownetColors.crimsonRed
                                   : FlownetColors.pureWhite,
-                              fontWeight: active
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
+                              fontWeight:
+                                  active ? FontWeight.w600 : FontWeight.normal,
                             ),
                           ),
                           onTap: () {
@@ -540,12 +587,16 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               if (routeLocation != '/dashboard')
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8,),
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: const BoxDecoration(
                     color: FlownetColors.graphiteGray,
                     border: Border(
                       bottom: BorderSide(
-                          color: FlownetColors.slate, width: 1,),
+                        color: FlownetColors.slate,
+                        width: 1,
+                      ),
                     ),
                   ),
                   child: Row(
@@ -563,9 +614,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                  'Forward navigation coming soon',),
-                              backgroundColor:
-                                  FlownetColors.amberOrange,
+                                'Forward navigation coming soon',
+                              ),
+                              backgroundColor: FlownetColors.amberOrange,
                             ),
                           );
                         },
@@ -714,7 +765,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       case '/profile':
         return 'Profile';
       default:
-        return 'Flownet Workspaces';
+        return 'Dashboard';
     }
   }
 }
@@ -734,7 +785,8 @@ class _UserAvatarButton extends StatelessWidget {
         child: FutureBuilder<Uint8List?>(
           future: _loadAvatarBytes(user?.id),
           builder: (context, snapshot) {
-            final hasImage = snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
+            final hasImage =
+                snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
             return CircleAvatar(
               radius: 16,
               backgroundImage: hasImage ? MemoryImage(snapshot.data!) : null,
@@ -750,26 +802,34 @@ class _UserAvatarButton extends StatelessWidget {
     try {
       if (userId == null || userId.isEmpty) return null;
       final base = Uri.parse(ApiService.baseUrl);
-      final url = '${base.scheme}://${base.host}:${base.port.toString()}/api/v1/profile/$userId/picture?t=${DateTime.now().millisecondsSinceEpoch}';
+      final url =
+          '${base.scheme}://${base.host}:${base.port.toString()}/api/v1/profile/$userId/picture?t=${DateTime.now().millisecondsSinceEpoch}';
       final headers = await ApiService.getAuthHeaders();
       final resp = await http.get(Uri.parse(url), headers: headers);
-      
+
       if (resp.statusCode == 200) {
         final bodyBytes = resp.bodyBytes;
-        
+
         // Check if response is actually image data (not JSON)
         if (bodyBytes.isNotEmpty) {
           // Check file header to detect if it's an image
           final header = bodyBytes.take(4).toList();
           // Common image file signatures: PNG (0x89 0x50 0x4E 0x47), JPEG (0xFF 0xD8 0xFF 0xE0)
-          final isImage = (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) ||
-                          (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF && header[3] == 0xE0);
-          
+          final isImage = (header[0] == 0x89 &&
+                  header[1] == 0x50 &&
+                  header[2] == 0x4E &&
+                  header[3] == 0x47) ||
+              (header[0] == 0xFF &&
+                  header[1] == 0xD8 &&
+                  header[2] == 0xFF &&
+                  header[3] == 0xE0);
+
           if (isImage) {
             return bodyBytes;
           } else {
             // Response is likely JSON, not an image
-            debugPrint('?????? Avatar endpoint returned non-image data for user $userId');
+            debugPrint(
+                '?????? Avatar endpoint returned non-image data for user $userId');
             return null;
           }
         }
