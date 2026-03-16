@@ -71,7 +71,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
         _sprints = sprintsData;
       });
     } catch (e) {
-      print('Error loading sprints: $e');
+      debugPrint('Error loading sprints: $e');
     }
   }
 
@@ -98,7 +98,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
         ];
       });
     } catch (e) {
-      print('Error loading project members: $e');
+      debugPrint('Error loading project members: $e');
     }
   }
 
@@ -243,7 +243,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                     Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: _getStatusColor(_project!['status']).withOpacity(0.1),
+                                        color: _getStatusColor(_project!['status']).withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
                                           color: _getStatusColor(_project!['status']),
@@ -312,7 +312,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                 child: GlassCard(
                                   child: Column(
                                     children: [
-                                      Icon(
+                                      const Icon(
                                         Icons.calendar_today,
                                         color: FlownetColors.primary,
                                         size: 24,
@@ -345,7 +345,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                 child: GlassCard(
                                   child: Column(
                                     children: [
-                                      Icon(
+                                      const Icon(
                                         Icons.timer,
                                         color: FlownetColors.primary,
                                         size: 24,
@@ -376,7 +376,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                 child: GlassCard(
                                   child: Column(
                                     children: [
-                                      Icon(
+                                      const Icon(
                                         Icons.people,
                                         color: FlownetColors.primary,
                                         size: 24,
@@ -499,7 +499,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                     children: [
                                       CircleAvatar(
                                         radius: 20,
-                                        backgroundColor: FlownetColors.primary.withOpacity(0.1),
+                                        backgroundColor: FlownetColors.primary.withValues(alpha: 0.1),
                                         child: member['avatar'] != null
                                             ? ClipRRect(
                                                 borderRadius: BorderRadius.circular(20),
@@ -510,7 +510,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                                   fit: BoxFit.cover,
                                                 ),
                                               )
-                                            : Icon(
+                                            : const Icon(
                                                 Icons.person,
                                                 color: FlownetColors.primary,
                                                 size: 20,
@@ -584,10 +584,10 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                       padding: const EdgeInsets.all(16),
                                       child: Column(
                                         children: [
-                                          Icon(
+                                          const Icon(
                                             Icons.timer,
                                             size: 48,
-                                            color: Colors.grey[400],
+                                            color: Color(0xFFBDBDBD),
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
@@ -609,12 +609,12 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                         color: FlownetColors.surface,
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(
-                                          color: Colors.grey.withOpacity(0.3),
+                                          color: Colors.grey.withValues(alpha: 0.3),
                                         ),
                                       ),
                                       child: Row(
                                         children: [
-                                          Icon(
+                                          const Icon(
                                             Icons.timer,
                                             color: FlownetColors.primary,
                                             size: 20,
@@ -649,7 +649,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                               vertical: 4,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: _getStatusColor(sprint['status']).withOpacity(0.1),
+                                              color: _getStatusColor(sprint['status']).withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(12),
                                               border: Border.all(
                                                 color: _getStatusColor(sprint['status']),
@@ -681,7 +681,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: _getStatusColor(_project!['status']).withOpacity(0.1),
+        color: _getStatusColor(_project!['status']).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _getStatusColor(_project!['status']),
@@ -702,7 +702,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: _getPriorityColor(_project!['priority']).withOpacity(0.1),
+        color: _getPriorityColor(_project!['priority']).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _getPriorityColor(_project!['priority']),

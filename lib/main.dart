@@ -25,8 +25,6 @@ import 'screens/report_repository_screen.dart';
 import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
-import 'screens/projects_screen.dart';
-import 'screens/project_create_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/send_reminder_screen.dart';
 import 'screens/role_dashboard_screen.dart';
@@ -52,7 +50,6 @@ import 'screens/skill_assessment_screen.dart';
 import 'screens/deliverable_detail_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
-import 'screens/project_setup_screen.dart';
 import 'screens/project_details_screen.dart';
 
 void main() async {

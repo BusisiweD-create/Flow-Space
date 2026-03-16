@@ -1,4 +1,3 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
@@ -596,81 +595,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     await AuthService().signOut();
     if (!mounted) return;
 router.go('/');
-  }
-
-  void _showMainMenu(BuildContext context) {
-    // Capture router before async operation
-    final router = GoRouter.of(context);
-    
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        MediaQuery.of(context).size.width - 200,
-        100,
-        MediaQuery.of(context).size.width,
-        100,
-      ),
-      items: <PopupMenuEntry<String>>[
-        const PopupMenuItem<String>(
-          value: 'profile',
-          child: Row(
-            children: [
-              Icon(Icons.person_outline, size: 20),
-              SizedBox(width: 8),
-              Text('Profile'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'settings',
-          child: Row(
-            children: [
-              Icon(Icons.settings_outlined, size: 20),
-              SizedBox(width: 8),
-              Text('Settings'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'notifications',
-          child: Row(
-            children: [
-              Icon(Icons.notifications_outlined, size: 20),
-              SizedBox(width: 8),
-              Text('Notifications'),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(
-            children: [
-              Icon(Icons.logout, size: 20, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Logout', style: TextStyle(color: Colors.red)),
-            ],
-          ),
-        ),
-      ],
-    ).then((value) {
-      if (value != null && mounted) {
-        switch (value) {
-          case 'profile':
-            if (mounted) router.go('/profile');
-            break;
-          case 'settings':
-            if (mounted) router.go('/settings');
-            break;
-          case 'notifications':
-            if (mounted) router.go('/notifications');
-            break;
-          case 'logout':
-            if (mounted) _handleLogout(router);
-            break;
-        }
-      }
-    });
   }
 
   Widget _buildLogoutButton() {

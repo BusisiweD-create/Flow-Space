@@ -993,7 +993,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
       console.log('Login schema error (first try):', colErr.message);
       if (colErr?.message && /column.*does not exist/i.test(colErr.message)) {
         result = await pool.query(
-          'SELECT id, email, hashed_password, name, role, created_at, is_active FROM users WHERE email = $1',
+          'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
           [email]
         );
       } else {
@@ -7861,10 +7861,8 @@ app.get('/api/v1/projects/:projectId/available-sprints', authenticateToken, asyn
 });
 
 // Start the server
-// Use 8000 in development; respect PORT in production
-const PORT = process.env.NODE_ENV === 'production'
-  ? (parseInt(process.env.PORT, 10) || 8000)
-  : 8000;
+// Use PORT from environment variable or default to 3001
+const PORT = parseInt(process.env.PORT, 10) || 3001;
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);
