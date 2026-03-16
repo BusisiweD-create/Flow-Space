@@ -17,7 +17,6 @@ const EmailVerificationScreen({super.key, required this.email, this.verification
 }
 
 class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScreen> {
-  final ErrorHandler _errorHandler = ErrorHandler();
   int _resendCountdown = 0;
   String? _verificationCode;
   bool _isVerifying = false;
@@ -61,7 +60,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
 
   Future<void> _verifyEmail() async {
     if (_verificationCode == null || _verificationCode!.isEmpty) {
-      _errorHandler.showErrorSnackBar(context, 'Please enter the verification code');
+      ErrorHandler().showErrorSnackBar(context, 'Please enter the verification code');
       return;
     }
 
@@ -82,7 +81,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
           : (authService.currentUser?.email ?? '');
 
       if (effectiveEmail.isEmpty) {
-        _errorHandler.showErrorSnackBar(
+        ErrorHandler().showErrorSnackBar(
           context,
           'Email is missing. Please log in again or restart the verification flow.',
         );
@@ -105,7 +104,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
         }
       } else {
         if (mounted) {
-          _errorHandler.showErrorSnackBar(
+          ErrorHandler().showErrorSnackBar(
             context,
             response.error ?? 'Verification failed. Please check your code and try again.',
           );
@@ -113,7 +112,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
       }
     } catch (e) {
       if (mounted) {
-        _errorHandler.showErrorSnackBar(context, 'Error: $e');
+        ErrorHandler().showErrorSnackBar(context, 'Error: $e');
       }
     } finally {
       if (mounted) {
@@ -411,7 +410,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
           );
           _startResendCountdown();
         } else {
-          _errorHandler.showErrorSnackBar(
+          ErrorHandler().showErrorSnackBar(
             context,
             response.error ?? 'Failed to resend verification email. Please try again.',
           );
@@ -419,7 +418,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
       }
     } catch (e) {
       if (mounted) {
-        _errorHandler.showErrorSnackBar(context, 'Error: $e');
+        ErrorHandler().showErrorSnackBar(context, 'Error: $e');
       }
     }
   }

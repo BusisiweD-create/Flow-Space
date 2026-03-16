@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../models/deliverable.dart';
 import '../services/deliverable_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/user_data_service.dart';
+import '../models/user.dart';
 
 class DeliverableSetupScreen extends ConsumerStatefulWidget {
   const DeliverableSetupScreen({super.key});
@@ -31,6 +33,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   List<Map<String, dynamic>> _projects = [];
   bool _isSaving = false;
   bool _isGenerating = false;
+  bool _isLoadingUsers = false;
 
   @override
   void initState() {
@@ -68,29 +71,55 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   }
 
   Future<void> _loadUsers() async {
+    setState(() => _isLoadingUsers = true);
     try {
-      final backendApiService = BackendApiService();
-      final response = await backendApiService.getUsers(limit: 100);
+      debugPrint('🔍 Loading users for deliverable assignment...');
+      final List<User> users = await UserDataService().getUsers(limit: 1000);
+      debugPrint('✅ Successfully loaded ${users.length} users from backend');
+      setState(() {
+        _users = users.map((user) {
+          // Handle name construction properly
+          String displayName = user.name.trim();
+          
+          // Fallback to email if name is empty
+          if (displayName.isEmpty) {
+            displayName = user.email.trim();
+          }
+          
+          debugPrint('👤 Processed user: $displayName (${user.email})');
+          
+          return {
+            'id': user.id,
+            'name': displayName,
+            'email': user.email,
+            'role': user.role.name,
+            'originalRole': user.role.name,
+            'isActive': user.isActive,
+            'emailVerified': user.emailVerified,
+          };
+        }).where((user) => user['isActive'] == true).toList();
+        _isLoadingUsers = false;
+      });
+      debugPrint('✅ Processed ${_users.length} active users for deliverable assignment');
       
-      if (response.isSuccess && response.data != null) {
-        List<dynamic> usersList = [];
-        if (response.data is List) {
-          usersList = response.data as List;
-        } else if (response.data is Map) {
-          final data = response.data as Map<String, dynamic>;
-          usersList = data['data'] as List? ?? data['users'] as List? ?? [];
-        }
-        
-        setState(() {
-          _users = usersList
-              .where((u) => u != null)
-              .map((u) => u is Map ? Map<String, dynamic>.from(u) : <String, dynamic>{})
-              .where((m) => m.isNotEmpty)
-              .toList();
-        });
+      // Debug: Print user data for verification
+      for (final user in _users) {
+        debugPrint('  👤 ${user["name"]} (${user["email"]}) - Role: ${user["role"]}');
       }
+      
     } catch (e) {
-      debugPrint('Error loading users: $e');
+      setState(() => _isLoadingUsers = false);
+      debugPrint('❌ Error loading users: $e');
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load users. Please check your connection and try again.'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -468,42 +497,74 @@ sprintIds: _selectedSprints,
               // Owner
               DropdownButtonFormField<String>(
                 initialValue: _ownerId,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Owner',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                  helperText: 'Select the team member responsible for this deliverable',
+                  prefixIcon: _isLoadingUsers 
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(Icons.person),
+                  helperText: _isLoadingUsers 
+                    ? 'Loading users...' 
+                    : 'Select the team member responsible for this deliverable',
+                  suffixIcon: _users.isEmpty && !_isLoadingUsers
+                    ? IconButton(
+                        icon: Icon(Icons.refresh),
+                        onPressed: _loadUsers,
+                        tooltip: 'Retry loading users',
+                      )
+                    : null,
                 ),
                 items: [
-                  DropdownMenuItem<String>(
+                  const DropdownMenuItem<String>(
                     value: null,
-                    child: Text(_users.isEmpty ? 'Unassigned (Loading...)' : 'Unassigned'),
+                    child: Text('Unassigned'),
                   ),
-                  ..._users.map((user) {
-                    String name = user['name'] ?? '';
-                    if (name.isEmpty) {
-                      final first = user['first_name'] ?? user['firstName'] ?? '';
-                      final last = user['last_name'] ?? user['lastName'] ?? '';
-                      if (first.isNotEmpty || last.isNotEmpty) {
-                        name = '$first $last'.trim();
+                  if (!_isLoadingUsers && _users.isNotEmpty)
+                    ..._users.map((user) {
+                      String name = user['name'] ?? '';
+                      if (name.isEmpty) {
+                        name = user['email'] ?? 'Unknown';
                       }
-                    }
-                    if (name.isEmpty) {
-                      name = user['email'] ?? 'Unknown';
-                    }
-                    
-                    final role = user['role']?.toString() ?? '';
-                    if (role.isNotEmpty) {
-                      name = '$name ($role)';
-                    }
-                    
-                    return DropdownMenuItem<String>(
-                      value: user['id'].toString(),
-                      child: Text(name),
-                    );
-                  }),
+                      
+                      final role = user['role']?.toString() ?? '';
+                      if (role.isNotEmpty) {
+                        name = '$name ($role)';
+                      }
+                      
+                      return DropdownMenuItem<String>(
+                        value: user['id'].toString(),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.person,
+                              size: 16,
+                              color: user['isActive'] == true ? Colors.green : Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  color: user['isActive'] == true ? null : Colors.grey,
+                                ),
+                              ),
+                            ),
+                            if (user['emailVerified'] == true)
+                              const Icon(
+                                Icons.verified,
+                                size: 16,
+                                color: Colors.blue,
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
                 ],
-                onChanged: (value) {
+                onChanged: _isLoadingUsers ? null : (value) {
                   setState(() {
                     _ownerId = value;
                   });

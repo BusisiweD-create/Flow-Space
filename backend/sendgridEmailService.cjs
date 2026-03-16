@@ -13,7 +13,7 @@ class SendGridEmailService {
 
     this.sendgrid = sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     this.fromName = process.env.FROM_NAME || 'Flownet Workspaces';
-    this.fromEmail = process.env.FROM_EMAIL || 'noreply@flownet.works';
+    this.fromEmail = process.env.FROM_EMAIL || 'dhlamininaomi1@gmail.com';
     this.replyTo = process.env.EMAIL_REPLY_TO || this.fromEmail;
     
     // Enhanced validation

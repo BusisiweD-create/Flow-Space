@@ -487,7 +487,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                     ),
                     onTap: () {
                       Navigator.pop(context);
-                      _handleLogout();
+                      final router = GoRouter.of(context);
+                      _handleLogout(router);
                     },
                   ),
                 ),
@@ -564,8 +565,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     }
   }
 
-  Future<void> _handleLogout() async {
-    final router = GoRouter.of(context);
+  Future<void> _handleLogout(GoRouter router) async {
     await AuthService().signOut();
     if (!mounted) return;
     router.go('/');
@@ -630,17 +630,16 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       if (value != null && mounted) {
         switch (value) {
           case 'profile':
-            router.go('/profile');
+            if (mounted) router.go('/profile');
             break;
           case 'settings':
-            router.go('/settings');
+            if (mounted) router.go('/settings');
             break;
           case 'notifications':
-            router.go('/notifications');
+            if (mounted) router.go('/notifications');
             break;
           case 'logout':
-            // Call logout without passing context across async gap
-            _handleLogout();
+            if (mounted) _handleLogout(router);
             break;
         }
       }
@@ -661,7 +660,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       ),
       child: _collapsed
           ? IconButton(
-              onPressed: () => _handleLogout(),
+              onPressed: () {
+                final router = GoRouter.of(context);
+                _handleLogout(router);
+              },
               icon: AppIcons.getIconWidget(
                 'logout',
                 fallbackIcon: Icons.logout,
@@ -673,7 +675,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               padding: const EdgeInsets.all(12),
             )
           : TextButton.icon(
-              onPressed: () => _handleLogout(),
+              onPressed: () {
+                final router = GoRouter.of(context);
+                _handleLogout(router);
+              },
               icon: AppIcons.getIconWidget(
                 'logout',
                 fallbackIcon: Icons.logout,

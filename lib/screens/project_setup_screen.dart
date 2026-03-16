@@ -192,7 +192,10 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
   Future<void> _loadAvailableUsers() async {
     setState(() => _isLoadingUsers = true);
     try {
+      debugPrint('🔍 Loading available users from backend...');
       final List<User> users = await UserDataService().getUsers(limit: 1000);
+      debugPrint('✅ Successfully loaded ${users.length} users from backend');
+      
       setState(() {
         _availableUsers = users.map((user) {
           final displayName = (user.name.isNotEmpty ? user.name : user.email).trim();
@@ -201,25 +204,44 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
             'name': displayName.isNotEmpty ? displayName : user.id,
             'email': user.email,
             'role': user.role.name,
+            'originalRole': user.role.name, // Store original role for removal
+            'isActive': user.isActive,
+            'emailVerified': user.emailVerified,
           };
-        }).toList();
+        }).where((user) => user['isActive'] == true).toList(); // Only show active users
         _isLoadingUsers = false;
       });
+      
+      debugPrint('✅ Processed ${_availableUsers.length} active users for display');
     } catch (e) {
       setState(() => _isLoadingUsers = false);
-      _showErrorSnackBar('Error loading users: $e');
+      debugPrint('❌ Error loading users: $e');
+      _showErrorSnackBar('Failed to load users from server. Please check your connection and try again.');
     }
   }
 
   void _addTeamMember(Map<String, dynamic> user) {
     setState(() {
       if (!_teamMembers.any((member) => member['id'] == user['id'])) {
-        _teamMembers.add({
-          ...user,
-          'role': 'member', // Default role
+        final teamMember = {
+          'id': user['id'], // Real database ID from backend
+          'name': user['name'],
+          'email': user['email'],
+          'role': user['role'], // User's system role
+          'projectRole': 'member', // Role within this project
+          'originalRole': user['originalRole'] ?? user['role'],
+          'isActive': user['isActive'] ?? true,
+          'emailVerified': user['emailVerified'] ?? false,
           'addedAt': DateTime.now().toIso8601String(),
-        });
+        };
+        
+        _teamMembers.add(teamMember);
         _availableUsers.removeWhere((u) => u['id'] == user['id']);
+        
+        debugPrint('✅ Added team member: ${user['name']} (${user['id']}) to project');
+        debugPrint('📊 Current team members: ${_teamMembers.length}');
+      } else {
+        debugPrint('⚠️ User ${user['name']} is already a team member');
       }
     });
   }
@@ -264,7 +286,20 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         'priority': _selectedPriority.name,
         'startDate': _startDate!.toIso8601String(),
         'endDate': _endDate!.toIso8601String(),
+        'members': _teamMembers.map((member) => {
+          'id': member['id'], // Real database ID
+          'name': member['name'],
+          'email': member['email'],
+          'role': member['projectRole'] ?? 'member', // Role within project
+          'systemRole': member['role'], // User's system role
+          'addedAt': member['addedAt'],
+        }).toList(),
       };
+
+      debugPrint('💾 Saving project with ${_teamMembers.length} team members');
+      for (final member in _teamMembers) {
+        debugPrint('  - Member: ${member['name']} (${member['id']})');
+      }
 
       Project? savedProject;
       
@@ -809,37 +844,126 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Team Member'),
+        title: Text(_isLoadingUsers ? 'Loading Users...' : 'Add Team Member'),
         content: SizedBox(
           width: double.maxFinite,
+          height: 400,
           child: _isLoadingUsers
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                  shrinkWrap: true,
-                  children: _availableUsers.map((user) {
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.grey[300],
-                        child: Text(user['name'][0].toUpperCase()),
-                      ),
-                      title: Text(user['name']),
-                      subtitle: Text(user['email']),
-                      trailing: ElevatedButton(
-                        onPressed: () {
-                          _addTeamMember(user);
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text('Add'),
-                      ),
-                    );
-                  }).toList(),
-                ),
+              ? const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Fetching available users from server...'),
+                    SizedBox(height: 8),
+                    Text(
+                      'Please wait',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                )
+              : _availableUsers.isEmpty
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.person_off, size: 48, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'No Available Users',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'All users are already assigned to this project',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        Text(
+                          'Available Users (${_availableUsers.length})',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: ListView(
+                            children: _availableUsers.map((user) {
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.blue[100],
+                                  child: Text(
+                                    user['name'][0].toUpperCase(),
+                                    style: TextStyle(
+                                      color: Colors.blue[800],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                title: Text(user['name']),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(user['email']),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green[100],
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            user['role'],
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.green[800],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        if (user['emailVerified'] == true) ...[
+                                          const SizedBox(width: 4),
+                                          Icon(Icons.verified, size: 12, color: Colors.green[600]),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                trailing: ElevatedButton(
+                                  onPressed: () {
+                                    _addTeamMember(user);
+                                    Navigator.of(context).pop();
+                                    _showSuccessSnackBar('${user['name']} added to project team');
+                                  },
+                                  child: const Text('Add'),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
+          if (!_isLoadingUsers && _availableUsers.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _loadAvailableUsers(); // Refresh the list
+              },
+              child: const Text('Refresh'),
+            ),
         ],
       ),
     );
