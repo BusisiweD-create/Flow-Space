@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
 import '../services/auth_service.dart';
-import '../models/user.dart';
-import '../models/user_role.dart';
 import '../utils/app_icons.dart';
 import 'background_image.dart';
 import 'sidebar_version_display.dart';
@@ -315,74 +313,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                   color: Colors.transparent,
                   child: Column(
                     children: [
-                      // Top navigation bar with user menu
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8,),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha((0.08 * 255).round()),
-                          border: const Border(
-                            bottom: BorderSide(
-                                color: FlownetColors.slate, width: 1,),
-                          ),
-                        ),
-                        child: Builder(
-                          builder: (context) {
-                            final user = AuthService().currentUser;
-                            return Row(
-                              children: [
-                                // Only show back/forward buttons on non-dashboard pages
-                                if (routeLocation != '/dashboard') ...[
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_back),
-                                    onPressed: () {
-                                      if (GoRouter.of(context).canPop()) {
-                                        GoRouter.of(context).pop();
-                                      } else {
-                                        GoRouter.of(context).go('/dashboard');
-                                      }
-                                    },
-                                    tooltip: 'Back',
-                                    color: FlownetColors.pureWhite,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_forward),
-                                    onPressed: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              'Forward navigation coming soon',),
-                                          backgroundColor:
-                                              FlownetColors.amberOrange,
-                                        ),
-                                      );
-                                    },
-                                    tooltip: 'Forward',
-                                    color: FlownetColors.pureWhite,
-                                  ),
-                                ],
-                                const Spacer(),
-                                // Centered page title (role-based on dashboard)
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      _getPageTitle(routeLocation, user),
-                                      style: const TextStyle(
-                                        color: FlownetColors.textSecondary,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const Spacer(),
-                                // Hamburger menu (far right)
-                                _buildTopNavIcons(),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
                       Expanded(child: widget.child),
                     ],
                   ),
@@ -539,90 +469,5 @@ router.go('/');
         ),
       ),
     );
-  }
-
-  Widget _buildTopNavIcons() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Hamburger menu with dropdown (Profile, Settings, Notifications)
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.menu, color: FlownetColors.pureWhite),
-          tooltip: 'Menu',
-          onSelected: (String value) {
-            switch (value) {
-              case 'profile':
-                context.go('/profile');
-                break;
-              case 'settings':
-                context.go('/settings');
-                break;
-              case 'notifications':
-                context.go('/notifications');
-                break;
-            }
-          },
-          itemBuilder: (BuildContext context) => [
-            const PopupMenuItem<String>(
-              value: 'profile',
-              child: Row(
-                children: [
-                  Icon(Icons.person_outline, size: 20),
-                  SizedBox(width: 8),
-                  Text('Profile'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'settings',
-              child: Row(
-                children: [
-                  Icon(Icons.settings_outlined, size: 20),
-                  SizedBox(width: 8),
-                  Text('Settings'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'notifications',
-              child: Row(
-                children: [
-                  Icon(Icons.notifications_outlined, size: 20),
-                  SizedBox(width: 8),
-                  Text('Notifications'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  String _getPageTitle(String route, [User? user]) {
-    if (route == '/dashboard') {
-      if (user != null) {
-        return '${user.role.displayName} Dashboard';
-      }
-      return 'Dashboard';
-    }
-    switch (route) {
-      case '/deliverables-overview':
-        return 'Deliverables';
-      case '/approval-requests':
-        return 'Approval Requests';
-      case '/notifications':
-        return 'Notifications';
-      case '/repository':
-        return 'Repository';
-      case '/sprint-console':
-        return 'Sprint Console';
-      case '/settings':
-        return 'Settings';
-      case '/profile':
-        return 'Profile';
-      default:
-        return 'Flownet Workspaces';
-    }
   }
 }
