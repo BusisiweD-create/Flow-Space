@@ -677,10 +677,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       },
                     ),
                     ListTile(
-                      leading: const Icon(Icons.flag),
-                      title: const Text('Open Sprint Console'),
+                      leading: const Icon(Icons.folder),
+                      title: const Text('View Projects'),
                       onTap: () {
-                        context.go('/sprint-console');
+                        context.go('/projects');
                       },
                     ),
                     ListTile(
@@ -804,9 +804,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.flag_outlined,
-                label: 'Open Sprint Console',
-                onTap: () => context.go('/sprint-console'),
+                icon: Icons.folder_outlined,
+                label: 'View Projects',
+                onTap: () => context.go('/projects'),
               ),
             ),
           ),
@@ -849,7 +849,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildCardHeader(Icons.assignment_outlined, 'My Deliverables',
-                      route: '/repository'),
+                      route: '/deliverables'),
                   const SizedBox(height: 8),
                   Builder(builder: (context) {
                     final uid = _currentUser?.id.toString() ?? '';

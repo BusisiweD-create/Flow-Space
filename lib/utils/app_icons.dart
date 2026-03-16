@@ -7,9 +7,15 @@ class AppIcons {
     // Map app iconName keys to the exact icon filenames.
     // NOTE: icon files use a double extension: *.png.png
     final iconPaths = <String, Map<String, String>>{
+      // Use Home_Dashboard artwork for the main dashboard icon
       'dashboard': {
-        'active': 'assets/icons/Dashboard active.png.png',
-        'inactive': 'assets/icons/Dashboard inactive.png.png',
+        'active': 'assets/icons/Home_Dashboard active.png.png',
+        'inactive': 'assets/icons/Home_Dashboard inactive.png.png',
+      },
+      // Deliverables rocket icon (all roles)
+      'deliverables': {
+        'active': 'assets/icons/Deliverables active.png.png',
+        'inactive': 'assets/icons/Deliverables inactive.png.png',
       },
       'sprints': {
         'active': 'assets/icons/Sprints console active.png.png',
@@ -77,6 +83,7 @@ class AppIcons {
   }) {
     final iconMap = <String, IconData>{
       'dashboard': Icons.dashboard_outlined,
+      'deliverables': Icons.rocket_launch_outlined,
       'sprints': Icons.timer_outlined,
       'notifications': Icons.notifications_outlined,
       'approvals': Icons.check_box_outlined,

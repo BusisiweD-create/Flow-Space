@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../services/sprint_database_service.dart';
-import '../services/backend_api_service.dart';
 import '../services/realtime_service.dart';
 import '../services/auth_service.dart';
 import '../services/jira_service.dart';
@@ -12,7 +10,6 @@ import '../models/deliverable.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/sprint_board_widget.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/app_modal.dart';
 
 class SprintBoardScreen extends ConsumerStatefulWidget {
   final String sprintId;
@@ -39,41 +36,17 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   List<JiraIssue> _issues = [];
   List<Deliverable> _deliverables = [];
   Map<String, dynamic>? _sprintDetails;
-  List<Map<String, dynamic>> _users = [];
   
   // UI State
   bool _isLoading = false;
-  bool _isCreatingDeliverable = false;
-  bool _useAiForDeliverable = false;
-  bool _isGeneratingAi = false;
 
   @override
   void initState() {
     super.initState();
     _loadSprintData();
-    _loadUsers();
     _setupRealtime();
   }
 
-  Future<void> _loadUsers() async {
-    try {
-      final backend = BackendApiService();
-      final response = await backend.getUsers(limit: 100);
-      if (mounted && response.isSuccess && response.data != null) {
-        final raw = response.data;
-        List<dynamic> list = [];
-        if (raw is List) {
-          list = raw;
-        } else if (raw is Map) {
-          list = (raw['users'] ?? raw['data'] ?? []) as List<dynamic>;
-        }
-        
-        setState(() {
-          _users = list.map((u) => u is Map<String, dynamic> ? u : Map<String, dynamic>.from(u as Map)).toList();
-        });
-      }
-    } catch (_) {}
-  }
 
   Future<void> _loadSprintData() async {
     setState(() {
@@ -309,266 +282,13 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   }
 
   void _showCreateDeliverableDialog() {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final assigneeController = TextEditingController();
-    final aiPromptController = TextEditingController();
-    String selectedPriority = 'Medium';
-
-    showAppDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.charcoalBlack,
-        title: const Text(
-          'Create Deliverable',
-          style: TextStyle(color: FlownetColors.pureWhite),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: SwitchListTile(
-                      value: _useAiForDeliverable,
-                      onChanged: (v) {
-                        setState(() {
-                          _useAiForDeliverable = v;
-                        });
-                      },
-                      title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
-                    ),
-                  ),
-                ],
-              ),
-              if (_useAiForDeliverable) ...[
-                TextField(
-                  controller: aiPromptController,
-                  maxLines: 3,
-                  style: const TextStyle(color: FlownetColors.pureWhite),
-                  decoration: const InputDecoration(
-                    labelText: 'AI Prompt (requirements/context)',
-                    labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(color: FlownetColors.electricBlue),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _isGeneratingAi
-                        ? null
-                        : () async {
-                            setState(() { _isGeneratingAi = true; });
-                            try {
-                              final backend = BackendApiService();
-                              final messages = [
-                                {
-                                  'role': 'system',
-                                  'content': 'You generate concise deliverables for a project. Return JSON with keys: title, description.'
-                                },
-                                {
-                                  'role': 'user',
-                                  'content': 'Sprint: ${widget.sprintName}. Context: ${_sprintDetails?['description'] ?? ''}. Requirements: ${aiPromptController.text}'.trim()
-                                },
-                              ];
-                              final resp = await backend.aiChat(messages, temperature: 0.4, maxTokens: 256);
-                              if (resp.isSuccess && resp.data != null) {
-                                final data = resp.data as Map<String, dynamic>;
-                                final content = (data['content'] ?? '').toString();
-                                String t = '';
-                                String d = '';
-                                try {
-                                  final parsed = content.startsWith('{') ? jsonDecode(content) : null;
-                                  if (parsed is Map) {
-                                    t = (parsed['title'] ?? '').toString();
-                                    d = (parsed['description'] ?? '').toString();
-                                  }
-                                } catch (_) {}
-                                if (t.isEmpty) {
-                                  final lines = content.split('\n').where((e) => e.trim().isNotEmpty).toList();
-                                  t = lines.isNotEmpty ? lines.first.trim() : 'New Deliverable';
-                                  d = lines.skip(1).join('\n').trim();
-                                  if (d.isEmpty) d = content.trim();
-                                }
-                                titleController.text = t;
-                                descriptionController.text = d;
-                              }
-                            } catch (_) {}
-                            setState(() { _isGeneratingAi = false; });
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: FlownetColors.electricBlue,
-                      foregroundColor: FlownetColors.pureWhite,
-                    ),
-                    icon: _isGeneratingAi
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.auto_awesome),
-                    label: const Text('Generate with AI'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              TextField(
-                controller: titleController,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Deliverable Title',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                maxLines: 3,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: assigneeController.text.isNotEmpty && _users.any((u) => u['email'] == assigneeController.text) ? assigneeController.text : null,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Owner',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-                dropdownColor: FlownetColors.charcoalBlack,
-                items: [
-                  const DropdownMenuItem<String>(
-                    value: null,
-                    child: Text('Unassigned', style: TextStyle(color: FlownetColors.pureWhite)),
-                  ),
-                  ..._users.map((u) {
-                    final email = u['email']?.toString() ?? '';
-                    final name = '${u['first_name'] ?? ''} ${u['last_name'] ?? ''}'.trim();
-                    final display = name.isNotEmpty ? '$name ($email)' : email;
-                    return DropdownMenuItem<String>(
-                      value: email,
-                      child: Text(display, style: const TextStyle(color: FlownetColors.pureWhite)),
-                    );
-                  }),
-                ],
-                onChanged: (val) {
-                  assigneeController.text = val ?? '';
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: selectedPriority,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-                dropdownColor: FlownetColors.charcoalBlack,
-                items: const [
-                  DropdownMenuItem(value: 'Low', child: Text('Low', style: TextStyle(color: FlownetColors.pureWhite))),
-                  DropdownMenuItem(value: 'Medium', child: Text('Medium', style: TextStyle(color: FlownetColors.pureWhite))),
-                  DropdownMenuItem(value: 'High', child: Text('High', style: TextStyle(color: FlownetColors.pureWhite))),
-                  DropdownMenuItem(value: 'Critical', child: Text('Critical', style: TextStyle(color: FlownetColors.pureWhite))),
-                ],
-                onChanged: (value) => selectedPriority = value ?? 'Medium',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: FlownetColors.pureWhite),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleController.text.isNotEmpty) {
-                final navigator = Navigator.of(context);
-                await _createDeliverable(
-                  titleController.text,
-                  descriptionController.text,
-                  assigneeController.text,
-                  selectedPriority,
-                );
-                navigator.pop();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: FlownetColors.electricBlue,
-              foregroundColor: FlownetColors.pureWhite,
-            ),
-            child: const Text('Create Deliverable'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _createDeliverable(String title, String description, String ownerEmail, String priority) async {
-    try {
-      setState(() {
-        _isCreatingDeliverable = true;
-      });
-
-      final projectId = _sprintDetails?['project_id']?.toString() ?? _sprintDetails?['projectId']?.toString();
-
-      // Create deliverable via API
-      final response = await _deliverableService.createDeliverable(
-        title: title,
-        description: description,
-        priority: priority,
-        status: 'Draft',
-        assignedTo: ownerEmail.isNotEmpty ? ownerEmail : null,
-        projectId: projectId,
-        sprintIds: [widget.sprintId],
-      );
-
-      if (response.isSuccess) {
-        _showSnackBar('✅ Deliverable "$title" created successfully!');
-        await _loadDeliverables(); // Refresh deliverables
-      } else {
-        _showSnackBar('❌ Failed to create deliverable: ${response.error}', isError: true);
-      }
-    } catch (e) {
-      _showSnackBar('Error creating deliverable: $e', isError: true);
-    } finally {
-      setState(() {
-        _isCreatingDeliverable = false;
-      });
-    }
+    final projectId = _sprintDetails?['project_id']?.toString() ?? _sprintDetails?['projectId']?.toString();
+    final params = <String, String>{
+      'sprintId': widget.sprintId,
+      if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
+    };
+    final uri = Uri(path: '/enhanced-deliverable-setup', queryParameters: params);
+    context.go(uri.toString());
   }
 
 
@@ -662,7 +382,7 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
           Row(
             children: [
               DropdownButton<String>(
-                value: (_sprintDetails?['status'] ?? 'planning')?.toString(),
+                value: _normalizeSprintStatus((_sprintDetails?['status'] ?? 'planning')?.toString()),
                 items: const [
                   DropdownMenuItem(value: 'planning', child: Text('Planning')),
                   DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
@@ -727,6 +447,16 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
         ],
       ),
     );
+  }
+
+  String _normalizeSprintStatus(String? status) {
+    final s = (status ?? '').toLowerCase().trim();
+    if (s.isEmpty) return 'planning';
+    if (s == 'in_progress' || s == 'in progress') return 'in_progress';
+    if (s == 'completed' || s == 'done') return 'completed';
+    if (s == 'planning' || s == 'planned' || s == 'to do') return 'planning';
+    if (s == 'cancelled') return 'cancelled';
+    return 'planning';
   }
 
   Widget _buildSprintInfoChip(String label, String value, Color color) {
@@ -906,7 +636,7 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/sprint-console');
+              context.go('/projects');
             }
           },
         ),
@@ -956,17 +686,8 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
         },
         backgroundColor: FlownetColors.electricBlue,
         foregroundColor: FlownetColors.pureWhite,
-        icon: _isCreatingDeliverable 
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(FlownetColors.pureWhite),
-                ),
-              )
-            : const Icon(Icons.add),
-        label: Text(_isCreatingDeliverable ? 'Creating...' : 'Create Deliverable'),
+        icon: const Icon(Icons.add),
+        label: const Text('Create Deliverable'),
       ),
     );
   }

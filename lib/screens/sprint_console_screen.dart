@@ -493,7 +493,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
           if (_selectedProjectKey == null) ...[
             _buildProjectsSection(),
             const SizedBox(height: 24),
-            _buildAllSprintsSection(),
+            // _buildAllSprintsSection(), // Hidden as per request to nest sprints under projects
           ] else ...[
             _buildSelectedProjectSprintsView(),
           ],
@@ -677,57 +677,6 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     );
   }
 
-  /// Shows all sprints when no project is selected so newly created sprints are visible.
-  Widget _buildAllSprintsSection() {
-    final theme = Theme.of(context);
-    final onSurfaceColor = theme.colorScheme.onSurface;
-
-    return Column(
-      key: _sprintsSectionKey,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sprints',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: onSurfaceColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'All sprints — select a project above to filter',
-                  style: TextStyle(
-                    color: onSurfaceColor.withAlpha(179),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-            GlassButton(
-              text: 'Create Sprint',
-              onPressed: _showCreateSprintDialog,
-              icon: const Icon(Icons.add, size: 16),
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (_sprints.isEmpty)
-          _buildEmptyState(
-            'No sprints yet',
-            'Create a sprint using the button above or select a project to create one there',
-          )
-        else
-          _buildSprintsList(List<Map<String, dynamic>>.from(_sprints)),
-      ],
-    );
-  }
 
   Widget _buildSelectedProjectSprintsView() {
     Map<String, dynamic> selected = const {};
@@ -808,6 +757,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       return status != 'completed' && status != 'done';
     });
 
+    // Check permissions
+    final auth = AuthService();
+
     return Column(
       key: _sprintsSectionKey,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -820,16 +772,24 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () {
-                    setState(() {
-                      _selectedProjectKey = null;
-                      _selectedSprintId = null;
-                      _sprints.clear();
-                      _tickets.clear();
-                    });
-                    context.go('/sprint-console');
-                    _loadData();
+                    if (widget.initialProjectKey != null && widget.initialProjectKey!.isNotEmpty) {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/projects/${project['id']}/details');
+                      }
+                    } else {
+                      setState(() {
+                        _selectedProjectKey = null;
+                        _selectedSprintId = null;
+                        _sprints.clear();
+                        _tickets.clear();
+                      });
+                      context.go('/sprint-console');
+                      _loadData();
+                    }
                   },
-                  tooltip: 'Back to projects',
+                  tooltip: 'Back',
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -841,15 +801,16 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 ),
               ],
             ),
-            ElevatedButton.icon(
-              onPressed: hasActiveSprint ? null : _showCreateSprintDialog,
-              icon: const Icon(Icons.add),
-              label: Text(hasActiveSprint ? 'Complete Active Sprint to Add' : 'Create Sprint'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: hasActiveSprint ? Colors.grey : primaryColor,
-                foregroundColor: theme.colorScheme.onPrimary,
+            if (auth.hasPermission('create_sprint'))
+              ElevatedButton.icon(
+                onPressed: hasActiveSprint ? null : _showCreateSprintDialog,
+                icon: const Icon(Icons.add),
+                label: Text(hasActiveSprint ? 'Complete Active Sprint to Add' : 'Create Sprint'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: hasActiveSprint ? Colors.grey : primaryColor,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 12),
