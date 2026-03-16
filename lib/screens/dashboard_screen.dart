@@ -31,7 +31,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final dashboardState = ref.watch(dashboardNotifierProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Flow-Space Dashboard'),
+        title: const Text('Dashboard'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         actions: [

@@ -52,7 +52,6 @@ import 'screens/skill_assessment_screen.dart';
 import 'screens/deliverable_detail_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
-import 'screens/project_setup_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -199,7 +198,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RoleGuard(
         requiredPermission: 'authenticated',
         child: SidebarScaffold(
-          child: ProjectSetupScreen(),
+          child: ProjectWorkspaceScreen(projectId: 'new'),
         ),
       ),
     ),
@@ -270,10 +269,11 @@ final GoRouter _router = GoRouter(
       path: '/report-editor/:deliverableId',
       builder: (context, state) {
         final deliverableId = state.pathParameters['deliverableId']!;
+        final reportId = state.uri.queryParameters['reportId'];
         return RouteGuard(
           route: '/report-editor',
           child: SidebarScaffold(
-            child: ReportEditorScreen(deliverableId: deliverableId),
+            child: ReportEditorScreen(deliverableId: deliverableId, reportId: reportId),
           ),
         );
       },
@@ -286,6 +286,18 @@ final GoRouter _router = GoRouter(
           route: '/report-builder', // Using same guard as builder for now
           child: SidebarScaffold(
             child: ReportViewScreen(reportId: reportId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/report-sent/:reportId',
+      builder: (context, state) {
+        final reportId = state.pathParameters['reportId']!;
+        return RouteGuard(
+          route: '/report-builder',
+          child: SidebarScaffold(
+            child: ReportViewScreen(reportId: reportId, showPostSubmitBanner: true),
           ),
         );
       },

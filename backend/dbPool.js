@@ -18,12 +18,26 @@ function createPool() {
     });
   }
 
-  // SUPER SAFE SSL CONFIGURATION - Always works for Render
+  // SAFE SSL CONFIGURATION - Respect DB_SSL setting
+  const sslEnabled = process.env.DB_SSL === 'true';
+  console.log('🔒 SSL Enabled:', sslEnabled);
+  
+  if (!process.env.DATABASE_URL) {
+    return new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      database: process.env.DB_NAME || 'flow_space',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+      ssl: sslEnabled,
+    });
+  }
+
   return new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: {
+    ssl: sslEnabled ? {
       rejectUnauthorized: false,
-    },
+    } : false,
   });
 }
 

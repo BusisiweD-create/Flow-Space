@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -143,9 +145,21 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         debugPrint('📋 Parsed ${reportsData.length} reports');
         setState(() {
           _reports = reportsData.map((json) {
-            final contentRaw = json['content'] as Map<String, dynamic>?;
-            final content = (contentRaw != null && contentRaw.isNotEmpty)
-                ? contentRaw
+            final dynamic contentRaw = json['content'];
+            final Map<String, dynamic>? parsedContent = contentRaw is Map
+                ? Map<String, dynamic>.from(contentRaw)
+                : (contentRaw is String
+                    ? (() {
+                        try {
+                          final decoded = jsonDecode(contentRaw);
+                          return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+                        } catch (_) {
+                          return null;
+                        }
+                      })()
+                    : null);
+            final content = (parsedContent != null && parsedContent.isNotEmpty)
+                ? parsedContent
                 : {
                     'reportTitle': json['reportTitle'] ?? json['report_title'],
                     'reportContent': json['reportContent'] ?? json['report_content'],
@@ -156,6 +170,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   };
             final reviews = json['reviews'] as List? ?? [];
             final latestReview = reviews.isNotEmpty ? reviews[0] : null;
+            final preparedByName = (json['preparedByName'] ??
+                    json['prepared_by_name'] ??
+                    content['preparedByName'] ??
+                    content['prepared_by_name'] ??
+                    json['createdByName'] ??
+                    json['created_by_name'])
+                ?.toString();
             return SignOffReport(
               id: json['id']?.toString() ?? '',
               deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString() ?? '',
@@ -165,9 +186,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               sprintPerformanceData: content['sprintPerformanceData']?.toString(),
               knownLimitations: content['knownLimitations']?.toString(),
               nextSteps: content['nextSteps']?.toString(),
+              preparedBy: (json['preparedBy'] ?? json['prepared_by'] ?? content['preparedBy'] ?? content['prepared_by'])?.toString(),
+              preparedByName: preparedByName,
               status: _parseStatus(json['status']?.toString() ?? 'draft'),
               createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
-              createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? 'Unknown',
+              createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? json['created_by']?.toString() ?? '',
               submittedAt: null,
               submittedBy: null,
               reviewedAt: latestReview != null && latestReview['approved_at'] != null ? _parseDateTime(latestReview['approved_at']) : null,
@@ -188,9 +211,21 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               : (alt.data!['data'] as List? ?? []);
           setState(() {
             _reports = reportsData.map((json) {
-              final contentRaw = json['content'] as Map<String, dynamic>?;
-              final content = (contentRaw != null && contentRaw.isNotEmpty)
-                  ? contentRaw
+              final dynamic contentRaw = json['content'];
+              final Map<String, dynamic>? parsedContent = contentRaw is Map
+                  ? Map<String, dynamic>.from(contentRaw)
+                  : (contentRaw is String
+                      ? (() {
+                          try {
+                            final decoded = jsonDecode(contentRaw);
+                            return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+                          } catch (_) {
+                            return null;
+                          }
+                        })()
+                      : null);
+              final content = (parsedContent != null && parsedContent.isNotEmpty)
+                  ? parsedContent
                   : {
                       'reportTitle': json['reportTitle'] ?? json['report_title'],
                       'reportContent': json['reportContent'] ?? json['report_content'],
@@ -201,6 +236,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                     };
               final reviews = json['reviews'] as List? ?? [];
               final latestReview = reviews.isNotEmpty ? reviews[0] : null;
+              final preparedByName = (json['preparedByName'] ??
+                      json['prepared_by_name'] ??
+                      content['preparedByName'] ??
+                      content['prepared_by_name'] ??
+                      json['createdByName'] ??
+                      json['created_by_name'])
+                  ?.toString();
               return SignOffReport(
                 id: json['id']?.toString() ?? '',
                 deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString() ?? '',
@@ -210,9 +252,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                 sprintPerformanceData: content['sprintPerformanceData']?.toString(),
                 knownLimitations: content['knownLimitations']?.toString(),
                 nextSteps: content['nextSteps']?.toString(),
+                preparedBy: (json['preparedBy'] ?? json['prepared_by'] ?? content['preparedBy'] ?? content['prepared_by'])?.toString(),
+                preparedByName: preparedByName,
                 status: _parseStatus(json['status']?.toString() ?? 'draft'),
                 createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
-                createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? 'Unknown',
+                createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? json['created_by']?.toString() ?? '',
                 submittedAt: null,
                 submittedBy: null,
                 reviewedAt: latestReview != null && latestReview['approved_at'] != null ? _parseDateTime(latestReview['approved_at']) : null,
@@ -1203,7 +1247,9 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   Expanded(
                     child: _buildInfoItem(
                       Icons.person,
-                      report.createdBy,
+                      (report.preparedByName?.trim().isNotEmpty ?? false)
+                          ? report.preparedByName!.trim()
+                          : (report.createdBy.isNotEmpty ? report.createdBy : '—'),
                     ),
                   ),
                   Expanded(

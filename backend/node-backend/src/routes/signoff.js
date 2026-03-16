@@ -109,12 +109,40 @@ router.get('/', async (req, res) => {
       results = [];
     }
     const rawRows = Array.isArray(results) ? results : [];
-    const userIds = [...new Set(rawRows.map(r => r.created_by).filter(Boolean))];
-    const users = userIds.length > 0 ? await User.findAll({ where: { id: userIds } }) : [];
-    const userMap = new Map(users.map(u => [u.id, `${u.first_name || ''} ${u.last_name || ''}`.trim()]));
+    const looksLikeUserId = (v) => {
+      if (!v) return false;
+      const s = String(v);
+      if (!s || s.trim().length < 8) return false;
+      if (s.includes('@')) return false;
+      if (/\s/.test(s)) return false;
+      return /^[a-f0-9-]{8,}$/i.test(s);
+    };
+    const userIds = new Set(rawRows.map((r) => r.created_by).filter(Boolean));
+    for (const row of rawRows) {
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const submittedBy = c.submittedBy || c.submitted_by;
+      const reviewedBy = c.reviewedBy || c.reviewed_by;
+      const approvedBy = c.approvedBy || c.approved_by;
+      if (looksLikeUserId(submittedBy)) userIds.add(String(submittedBy));
+      if (looksLikeUserId(reviewedBy)) userIds.add(String(reviewedBy));
+      if (looksLikeUserId(approvedBy)) userIds.add(String(approvedBy));
+    }
+    const users =
+      userIds.size > 0
+        ? await User.findAll({ where: { id: [...userIds] } })
+        : [];
+    const userMap = new Map(
+      users.map((u) => [
+        u.id,
+        (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
+      ])
+    );
     const reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+        const submittedBy = c.submittedBy || c.submitted_by;
+        const reviewedBy = c.reviewedBy || c.reviewed_by;
+        const approvedBy = c.approvedBy || c.approved_by;
         return {
           id: row.id,
           deliverableId: (row.deliverable_id || '').toString(),
@@ -131,13 +159,25 @@ router.get('/', async (req, res) => {
           createdBy: (row.created_by || '').toString(),
           createdByName: userMap.get(row.created_by) || null,
           submittedAt: c.submittedAt || c.submitted_at,
-          submittedBy: c.submittedBy || c.submitted_by,
+          submittedBy: submittedBy,
+          submittedByName:
+            c.submittedByName ||
+            c.submitted_by_name ||
+            (looksLikeUserId(submittedBy) ? (userMap.get(String(submittedBy)) || null) : null),
           reviewedAt: c.reviewedAt || c.reviewed_at,
-          reviewedBy: c.reviewedBy || c.reviewed_by,
+          reviewedBy: reviewedBy,
+          reviewedByName:
+            c.reviewedByName ||
+            c.reviewed_by_name ||
+            (looksLikeUserId(reviewedBy) ? (userMap.get(String(reviewedBy)) || null) : null),
           clientComment: c.clientComment || c.client_comment,
           changeRequestDetails: c.changeRequestDetails || c.change_request_details,
           approvedAt: c.approvedAt || c.approved_at,
-          approvedBy: c.approvedBy || c.approved_by,
+          approvedBy: approvedBy,
+          approvedByName:
+            c.approvedByName ||
+            c.approved_by_name ||
+            (looksLikeUserId(approvedBy) ? (userMap.get(String(approvedBy)) || null) : null),
           digitalSignature: c.digitalSignature || c.digital_signature,
         };
       } catch (e) {
@@ -207,8 +247,37 @@ router.get('/:id', async (req, res) => {
       }
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const looksLikeUserId = (v) => {
+        if (!v) return false;
+        const s = String(v);
+        if (!s || s.trim().length < 8) return false;
+        if (s.includes('@')) return false;
+        if (/\s/.test(s)) return false;
+        return /^[a-f0-9-]{8,}$/i.test(s);
+      };
       const creator = row.created_by ? await User.findByPk(row.created_by) : null;
-      const createdByName = creator ? `${creator.first_name} ${creator.last_name}` : null;
+      const createdByName = creator
+        ? (creator.name ||
+            `${creator.first_name || ''} ${creator.last_name || ''}`.trim() ||
+            creator.username ||
+            creator.email ||
+            null)
+        : null;
+      const submittedBy = c.submittedBy || c.submitted_by;
+      const reviewedBy = c.reviewedBy || c.reviewed_by;
+      const approvedBy = c.approvedBy || c.approved_by;
+      const extraIds = [];
+      if (looksLikeUserId(submittedBy)) extraIds.push(String(submittedBy));
+      if (looksLikeUserId(reviewedBy)) extraIds.push(String(reviewedBy));
+      if (looksLikeUserId(approvedBy)) extraIds.push(String(approvedBy));
+      const extraUsers =
+        extraIds.length > 0 ? await User.findAll({ where: { id: [...new Set(extraIds)] } }) : [];
+      const userMap = new Map(
+        extraUsers.map((u) => [
+          u.id,
+          (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
+        ])
+      );
       const report = {
         id: row.id,
         deliverableId: (row.deliverable_id || '').toString(),
@@ -225,13 +294,25 @@ router.get('/:id', async (req, res) => {
         createdBy: (row.created_by || '').toString(),
         createdByName: createdByName,
         submittedAt: c.submittedAt || c.submitted_at,
-        submittedBy: c.submittedBy || c.submitted_by,
+        submittedBy: submittedBy,
+        submittedByName:
+          c.submittedByName ||
+          c.submitted_by_name ||
+          (looksLikeUserId(submittedBy) ? (userMap.get(String(submittedBy)) || null) : null),
         reviewedAt: c.reviewedAt || c.reviewed_at,
-        reviewedBy: c.reviewedBy || c.reviewed_by,
+        reviewedBy: reviewedBy,
+        reviewedByName:
+          c.reviewedByName ||
+          c.reviewed_by_name ||
+          (looksLikeUserId(reviewedBy) ? (userMap.get(String(reviewedBy)) || null) : null),
         clientComment: c.clientComment || c.client_comment,
         changeRequestDetails: c.changeRequestDetails || c.change_request_details,
         approvedAt: c.approvedAt || c.approved_at,
-        approvedBy: c.approvedBy || c.approved_by,
+        approvedBy: approvedBy,
+        approvedByName:
+          c.approvedByName ||
+          c.approved_by_name ||
+          (looksLikeUserId(approvedBy) ? (userMap.get(String(approvedBy)) || null) : null),
         digitalSignature: c.digitalSignature || c.digital_signature,
       };
       return res.json(report);
@@ -464,6 +545,16 @@ router.post('/:id/approve', async (req, res) => {
         // Try to use clientId from body if provided
         approvedBy = clientId;
       }
+
+      const user = req.user || {};
+      const actorId = user.id || null;
+      const actorEmail = user.email || clientEmail || null;
+      const actorName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        actorEmail ||
+        'Unknown User';
       
       // Seal check: Prevent re-approval
       const [existing] = await sequelize.query(
@@ -475,8 +566,8 @@ router.post('/:id/approve', async (req, res) => {
       }
 
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('approvedAt', NOW(), 'approvedBy', $3::text, 'clientComment', $4::text, 'digitalSignature', $5::text, 'clientEmail', $6::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
-        { bind: [id, 'approved', approvedBy, comment ?? null, digitalSignature ?? null, clientEmail] }
+        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'clientComment', $5::text, 'digitalSignature', $6::text, 'clientEmail', $7::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, 'approved', (actorId ?? approvedBy), actorName, comment ?? null, digitalSignature ?? null, clientEmail] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -533,20 +624,18 @@ router.post('/:id/approve', async (req, res) => {
       // Create Audit Log
       try {
         const { AuditLog } = require('../models');
-        const user = req.user || {};
-        const actorName = user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User');
-          
         await AuditLog.create({
-          entity_type: 'signoff',
-          entity_id: report.id,
           action: 'approved',
-          actor_id: user.id || null,
-          actor_name: actorName,
+          user_id: actorId,
+          user_email: actorEmail,
+          user_role: user.role || null,
+          entity_type: 'signoff',
+          entity_id: report.id.toString(),
+          entity_name: report.reportTitle,
           details: { 
             comment: comment ?? null,
-            digital_signature: digitalSignature ? 'Signed' : null
+            digital_signature: digitalSignature ? 'Signed' : null,
+            actor_name: actorName
           },
           created_at: new Date()
         });
@@ -599,9 +688,18 @@ router.post('/:id/submit', async (req, res) => {
       if (curStatus !== 'draft' && curStatus !== 'change_requested') {
         return res.status(409).json({ error: 'Invalid report state for submission' });
       }
+      const user = req.user || {};
+      const submitterId = (user.id || ownerId || null);
+      const submitterEmail = user.email || null;
+      const submitterName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        submitterEmail ||
+        'Unknown User';
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
-        { bind: [id, 'submitted', (req.user && req.user.id) || null] }
+        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        { bind: [id, 'submitted', submitterId, submitterName] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -626,18 +724,15 @@ router.post('/:id/submit', async (req, res) => {
       // Create Audit Log
       try {
         const { AuditLog } = require('../models');
-        const user = req.user || {};
-        const actorName = user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User');
-          
         await AuditLog.create({
-          entity_type: 'signoff',
-          entity_id: report.id,
           action: 'submitted',
-          actor_id: user.id || null,
-          actor_name: actorName,
-          details: { status: 'submitted' },
+          user_id: submitterId,
+          user_email: submitterEmail,
+          user_role: user.role || null,
+          entity_type: 'signoff',
+          entity_id: report.id.toString(),
+          entity_name: report.reportTitle,
+          details: { status: 'submitted', actor_name: submitterName },
           created_at: new Date()
         });
       } catch (auditErr) {
@@ -892,6 +987,16 @@ router.post('/:id/request-changes', async (req, res) => {
         // Try to use clientId from body if provided
         reviewedBy = clientId;
       }
+
+      const user = req.user || {};
+      const actorId = user.id || null;
+      const actorEmail = user.email || clientEmail || null;
+      const actorName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        actorEmail ||
+        'Unknown User';
       
       await ensureReportsTable();
       const [existing] = await sequelize.query(
@@ -926,6 +1031,7 @@ router.post('/:id/request-changes', async (req, res) => {
         changeRequestDetails: changeRequestDetails ?? null,
         reviewedAt: new Date().toISOString(),
         reviewedBy: reviewedBy ? String(reviewedBy) : (curC.reviewedBy || null),
+        reviewedByName: actorName,
         clientEmail: clientEmail || curC.clientEmail || null
       };
       const [results] = await sequelize.query(
@@ -1039,18 +1145,15 @@ router.post('/:id/request-changes', async (req, res) => {
       // Create Audit Log
       try {
         const { AuditLog } = require('../models');
-        const user = req.user || {};
-        const actorName = user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User');
-          
         await AuditLog.create({
-          entity_type: 'signoff',
-          entity_id: report.id,
           action: 'request_changes',
-          actor_id: user.id || null,
-          actor_name: actorName,
-          details: { change_request_details: changeRequestDetails },
+          user_id: actorId,
+          user_email: actorEmail,
+          user_role: user.role || null,
+          entity_type: 'signoff',
+          entity_id: report.id.toString(),
+          entity_name: report.reportTitle,
+          details: { change_request_details: changeRequestDetails, actor_name: actorName },
           created_at: new Date()
         });
       } catch (auditErr) {
@@ -1241,18 +1344,25 @@ router.post('/client-review-links', async (req, res) => {
     try {
       const { AuditLog } = require('../models');
       const user = req.user || {};
+      const actorEmail = user.email || null;
+      const actorName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        actorEmail ||
+        'Unknown User';
       await AuditLog.create({
-        entity_type: 'signoff',
-        entity_id: reportId,
         action: 'review_link_created',
-        actor_id: user.id || null,
-        actor_name: user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User'),
+        user_id: user.id || null,
+        user_email: actorEmail,
+        user_role: user.role || null,
+        entity_type: 'signoff',
+        entity_id: reportId.toString(),
         details: { 
           clientEmail,
           expiresAt: expiresAt.toISOString(),
-          tokenType: 'client_review'
+          tokenType: 'client_review',
+          actor_name: actorName
         },
         created_at: new Date()
       });

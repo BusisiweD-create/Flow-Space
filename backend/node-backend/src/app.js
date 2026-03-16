@@ -337,12 +337,14 @@ async function startServer() {
       const dbConnectionString = process.env.DATABASE_URL;
       if (dbConnectionString) {
         databaseNotificationService.initialize(dbConnectionString)
-          .then(() => {
-            console.log('✅ Database notification service initialized');
-            
-            // Integrate socket service with database notification service
-            databaseNotificationService.setSocketService(socketService);
-            console.log('✅ Real-time services integrated successfully');
+          .then((ok) => {
+            if (ok) {
+              console.log('✅ Database notification service initialized');
+              databaseNotificationService.setSocketService(socketService);
+              console.log('✅ Real-time services integrated successfully');
+            } else {
+              console.warn('⚠️ Database notification service unavailable; continuing without LISTEN/NOTIFY');
+            }
           })
           .catch(error => {
             console.error('❌ Failed to initialize database notification service:', error);
