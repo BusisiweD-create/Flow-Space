@@ -324,13 +324,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         setState(() {
           _auditLogsError = response.error ?? 'Failed to load audit logs';
         });
-        debugPrint('❌ Error loading audit logs: \${_auditLogsError}');
+        debugPrint('❌ Error loading audit logs: $_auditLogsError');
       }
     } catch (e) {
       setState(() {
-        _auditLogsError = 'Failed to load audit logs: \$e';
+        _auditLogsError = 'Failed to load audit logs: $e';
       });
-      debugPrint('❌ Exception loading audit logs: \$e');
+      debugPrint('❌ Exception loading audit logs: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -450,7 +450,98 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         imagePath: 'assets/Icons/khono_bg.png',
         withGlassEffect: false,
         overlayOpacity: 0.25,
-        child: _buildRoleSpecificContent(),
+        child: Column(
+          children: [
+            // Role header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Row(
+                children: [
+                  const SizedBox(width: 48), // Space for hamburger menu alignment
+                  Expanded(
+                    child: Text(
+                      '${_currentUser!.role.displayName} Dashboard',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Builder(
+                    builder: (context) => PopupMenuButton<String>(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'profile':
+                            context.go('/profile');
+                            break;
+                          case 'notifications':
+                            context.go('/notifications');
+                            break;
+                          case 'settings':
+                            context.go('/settings');
+                            break;
+                          case 'logout':
+                            _handleLogout();
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'profile',
+                          child: Row(
+                            children: [
+                              Icon(Icons.person),
+                              SizedBox(width: 8),
+                              Text('Profile'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'notifications',
+                          child: Row(
+                            children: [
+                              Icon(Icons.notifications),
+                              SizedBox(width: 8),
+                              Text('Notifications'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'settings',
+                          child: Row(
+                            children: [
+                              Icon(Icons.settings),
+                              SizedBox(width: 8),
+                              Text('Settings'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'logout',
+                          child: Row(
+                            children: [
+                              Icon(Icons.logout),
+                              SizedBox(width: 8),
+                              Text('Logout'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Main content
+            Expanded(
+              child: _buildRoleSpecificContent(),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: _buildRoleSpecificFAB(),
     );
@@ -2421,5 +2512,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         ),
       ),
     );
+  }
+
+  void _handleLogout() async {
+    try {
+      await _authService.signOut();
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      debugPrint('Logout error: $e');
+      if (mounted) {
+        context.go('/');
+      }
+    }
   }
 }
