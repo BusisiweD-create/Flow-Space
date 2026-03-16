@@ -14,8 +14,8 @@ class AppIcons {
       },
       // Deliverables rocket icon (all roles)
       'deliverables': {
-        'active': 'assets/icons/Deliverables active.png.png',
-        'inactive': 'assets/icons/Deliverables inactive.png.png',
+        'active': 'assets/icons/Approval Requests active.png.png',
+        'inactive': 'assets/icons/Approval Requests inactive.png.png',
       },
       'sprints': {
         'active': 'assets/icons/Sprints console active.png.png',

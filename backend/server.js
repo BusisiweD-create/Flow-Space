@@ -1456,7 +1456,7 @@ app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
       const deliverablesParams = [];
 
       if (userRole === 'teamMember') {
-        deliverablesQuery += ' WHERE assigned_to = $1 OR created_by = $1';
+        deliverablesQuery += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
         deliverablesParams.push(userId);
       }
 
@@ -1636,7 +1636,7 @@ app.get('/api/v1/count', authenticateToken, async (req, res) => {
       case 'deliverables':
         query = 'SELECT COUNT(*) FROM deliverables';
         if (userRole === 'teamMember') {
-          query += ' WHERE assigned_to = $1 OR created_by = $1';
+          query += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
           params.push(userId);
         }
         break;
@@ -3036,7 +3036,7 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+      query += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
       params.push(userId);
     }
     // deliveryLead, clientReviewer and other roles can see all deliverables
@@ -3061,7 +3061,7 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
 
         const fallbackParams = [];
         if (userRole === 'teamMember') {
-          fallbackQuery += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+          fallbackQuery += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
           fallbackParams.push(userId);
         }
 
@@ -3219,7 +3219,7 @@ app.get('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
     `;
     const params = [id];
     if (userRole === 'teamMember') {
-      query += ' AND (d.assigned_to = $2 OR d.created_by = $2)';
+      query += ' AND (d.assigned_to = $2::uuid OR d.created_by = $2::uuid)';
       params.push(userId);
     }
     const result = await pool.query(query, params);
@@ -4414,7 +4414,7 @@ app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ` AND (r.created_by = $${++paramCount} OR d.assigned_to = $${paramCount})`;
+      query += ` AND (r.created_by = $${++paramCount}::uuid OR d.assigned_to = $${paramCount}::uuid)`;
       params.push(userId);
     } else if (userRole === 'clientReviewer') {
       // Client reviewers can see all reports
@@ -6472,7 +6472,7 @@ app.get('/api/v1/epics', authenticateToken, async (req, res) => {
     
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE e.created_by = $1';
+      query += ' WHERE e.created_by = $1::uuid';
       params.push(userId);
     }
     
@@ -7422,7 +7422,7 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
     
     // Filter by user role - team members can only see their own deliverables
     if (req.user.role === 'teamMember') {
-      query += ` AND (d.created_by = $${params.length + 1} OR d.assigned_to = $${params.length + 1})`;
+      query += ` AND (d.created_by = $${params.length + 1}::uuid OR d.assigned_to = $${params.length + 1}::uuid)`;
       params.push(userId);
     }
     
