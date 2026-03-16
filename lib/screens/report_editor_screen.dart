@@ -514,14 +514,17 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
             }
           }
         } else {
-          // Just saving as draft
-          debugPrint('✅ Report saved as draft successfully');
+          // Just saving (could be draft or submitted report update)
+          final isSubmittedReport = _existingReport?.status == ReportStatus.submitted;
+          debugPrint('✅ Report ${isSubmittedReport ? 'updated' : 'saved as draft'} successfully');
           if (!mounted) return;
           await showDialog<void>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Draft Saved'),
-              content: const Text('Your report draft was saved successfully.'),
+              title: Text(isSubmittedReport ? 'Report Updated' : 'Draft Saved'),
+              content: Text(isSubmittedReport 
+                  ? 'Your submitted report was updated successfully.'
+                  : 'Your report draft was saved successfully.'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
@@ -772,7 +775,9 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         actions: [
-          if (widget.reportId != null && _existingReport?.status == ReportStatus.draft)
+          if (widget.reportId != null && 
+              (_existingReport?.status == ReportStatus.draft || 
+               _existingReport?.status == ReportStatus.submitted))
             TextButton.icon(
               onPressed: _isSaving ? null : () => _saveReport(false),
               icon: _isSaving 
@@ -785,24 +790,26 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       ),
                     )
                   : const Icon(Icons.save),
-              label: Text(_isSaving ? 'Saving...' : 'Save Draft'),
+              label: Text(_isSaving ? 'Saving...' : _existingReport?.status == ReportStatus.submitted ? 'Update Report' : 'Save Draft'),
               style: TextButton.styleFrom(foregroundColor: FlownetColors.electricBlue),
             ),
-          TextButton.icon(
-            onPressed: _isSaving ? null : () => _saveReport(true),
-            icon: _isSaving 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: FlownetColors.electricBlue,
-                    ),
-                  )
-                : const Icon(Icons.send),
-            label: Text(_isSaving ? 'Submitting...' : 'Submit'),
-            style: TextButton.styleFrom(foregroundColor: FlownetColors.electricBlue),
-          ),
+          // Only show Submit button for draft reports
+          if (_existingReport?.status != ReportStatus.submitted)
+            TextButton.icon(
+              onPressed: _isSaving ? null : () => _saveReport(true),
+              icon: _isSaving 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: FlownetColors.electricBlue,
+                      ),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(_isSaving ? 'Submitting...' : 'Submit'),
+              style: TextButton.styleFrom(foregroundColor: FlownetColors.electricBlue),
+            ),
         ],
       ),
       body: _isLoading
@@ -814,6 +821,33 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Status indicator for submitted reports
+                    if (_existingReport?.status == ReportStatus.submitted) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'You are editing a submitted report. Updates will be saved immediately.',
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     Text(
                       widget.reportId != null ? 'Edit Sign-Off Report' : 'Create Sign-Off Report',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
