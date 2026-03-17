@@ -206,7 +206,7 @@
     },
     {
       "name": "firebase_core",
-      "version": "4.2.1",
+      "version": "2.32.0",
       "dependencies": [
         "firebase_core_platform_interface",
         "firebase_core_web",
@@ -664,7 +664,7 @@
     },
     {
       "name": "meta",
-      "version": "1.17.0",
+      "version": "1.16.0",
       "dependencies": []
     },
     {
@@ -956,7 +956,7 @@
     },
     {
       "name": "test_api",
-      "version": "0.7.7",
+      "version": "0.7.6",
       "dependencies": [
         "async",
         "boolean_selector",
@@ -1021,7 +1021,7 @@
     },
     {
       "name": "firebase_core_web",
-      "version": "3.3.0",
+      "version": "2.24.0",
       "dependencies": [
         "firebase_core_platform_interface",
         "flutter",
@@ -1032,7 +1032,7 @@
     },
     {
       "name": "firebase_core_platform_interface",
-      "version": "6.0.2",
+      "version": "5.4.2",
       "dependencies": [
         "collection",
         "flutter",
