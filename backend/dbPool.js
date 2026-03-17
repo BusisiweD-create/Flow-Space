@@ -18,21 +18,12 @@ function createPool() {
     });
   }
 
-  // SAFE SSL CONFIGURATION - Respect DB_SSL setting
-  const sslEnabled = process.env.DB_SSL === 'true';
+  // SSL CONFIGURATION - Enable SSL in production, respect DB_SSL setting
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+  const sslEnabled = process.env.DB_SSL === 'true' || isProduction;
   console.log('🔒 SSL Enabled:', sslEnabled);
+  console.log('🌍 Production Environment:', isProduction);
   
-  if (!process.env.DATABASE_URL) {
-    return new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      database: process.env.DB_NAME || 'flow_space',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      ssl: sslEnabled,
-    });
-  }
-
   return new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: sslEnabled ? {
