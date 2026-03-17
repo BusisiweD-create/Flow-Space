@@ -212,7 +212,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         _availableUsers = users.map((user) {
           final displayName =
               (user.name.isNotEmpty ? user.name : user.email).trim();
-          return {
+          final userMap = {
             'id': user.id,
             'name': displayName.isNotEmpty ? displayName : 'Unknown User',
             'email': user.email,
@@ -221,8 +221,15 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
             'isActive': user.isActive,
             'emailVerified': user.emailVerified,
           };
+          debugPrint('🔍 Processed user: ${userMap['name']} (${userMap['id']}) - Active: ${userMap['isActive']}');
+          return userMap;
         }).where((user) => user['isActive'] == true).toList(); // Only show active users
         _isLoadingUsers = false;
+        
+        debugPrint('✅ Final available users count: ${_availableUsers.length}');
+        for (final user in _availableUsers) {
+          debugPrint('  - ${user['name']} (${user['id']})');
+        }
       });
       
       debugPrint('✅ Processed ${_availableUsers.length} active users for display');
@@ -781,8 +788,8 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           ),
           DropdownButton<String>(
             value: member['role'],
-            icon: Icon(Icons.arrow_drop_down, size: 20),
-            underline: SizedBox(),
+            icon: const Icon(Icons.arrow_drop_down, size: 20),
+            underline: const SizedBox(),
             isDense: true,
             style: const TextStyle(
               fontSize: 12,
@@ -1331,27 +1338,38 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<Map<String, dynamic>>(
               value: _selectedProjectOwner,
-              hint: const Text('Select project owner',
-                  style: TextStyle(color: Color(0xFFA0AEC0))),
+              hint: Text(
+                _isLoadingUsers ? 'Loading users...' : 'Select project owner',
+                style: const TextStyle(color: Color(0xFFA0AEC0)),
+              ),
               style: const TextStyle(
                 fontSize: 16,
                 color: Color(0xFF1A202C),
                 fontWeight: FontWeight.w400,
               ),
               isExpanded: true,
+              icon: const Icon(Icons.arrow_drop_down),
+              dropdownColor: Colors.white,
+              menuMaxHeight: 200,
               items: _availableUsers.map((user) {
+                debugPrint('🔍 Adding user to dropdown: ${user['name']} (${user['id']})');
                 return DropdownMenuItem<Map<String, dynamic>>(
                   value: user,
-                  child: Text(
-                    user['name'],
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF1A202C),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 250),
+                    child: Text(
+                      user['name'],
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF1A202C),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 );
               }).toList(),
               onChanged: (Map<String, dynamic>? user) {
+                debugPrint('🔍 Selected project owner: ${user?['name']}');
                 setState(() {
                   _selectedProjectOwner = user;
                 });
@@ -1359,6 +1377,17 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
             ),
           ),
         ),
+        if (_availableUsers.isEmpty && !_isLoadingUsers)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'No available users. Please add users first.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.red,
+              ),
+            ),
+          ),
       ],
     );
   }
