@@ -99,6 +99,45 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     }
   }
 
+  String _getOwnerDisplayName(Map<String, dynamic> project) {
+    // Debug the entire project structure
+    debugPrint('🔍 Full project data: $project');
+    
+    // Try different possible owner field names and formats
+    final ownerName = project['owner_name'];
+    final ownerId = project['owner_id'];
+    
+    debugPrint('🔍 Owner name value: $ownerName');
+    debugPrint('🔍 Owner name type: ${ownerName.runtimeType}');
+    debugPrint('🔍 Owner ID: $ownerId');
+    
+    if (ownerName != null) {
+      if (ownerName is String) {
+        debugPrint('🔍 Owner name is string: $ownerName');
+        return ownerName.isNotEmpty ? ownerName : 'Not assigned';
+      } else if (ownerName is Map) {
+        debugPrint('🔍 Owner name is map: ${ownerName.keys.toList()}');
+        // If owner_name is an object, try to extract name from it
+        final name = ownerName['name']?.toString() ?? 
+                     ownerName['first_name']?.toString() ?? 
+                     ownerName['email']?.toString() ?? 
+                     'Unknown Owner';
+        debugPrint('🔍 Extracted owner name: $name');
+        return name;
+      } else {
+        debugPrint('🔍 Owner name is other type: ${ownerName.toString()}');
+        return ownerName.toString();
+      }
+    }
+    
+    // Fallback to owner_id or default message
+    if (ownerId != null) {
+      return 'Owner ID: ${ownerId.toString().substring(0, 8)}...';
+    }
+    
+    return 'Not assigned';
+  }
+
   Future<void> _checkActiveSprints() async {
     if (widget.projectId == null || _isEditing) return;
 
@@ -419,6 +458,10 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                           setState(() {
                             _selectedProject = project;
                             _selectedProjectId = project?['id']?.toString();
+                            // Debug project data structure
+                            debugPrint('🔍 Selected project data: ${project?.keys.toList()}');
+                            debugPrint('🔍 Owner name field: ${project?['owner_name']}');
+                            debugPrint('🔍 Owner name type: ${project?['owner_name'].runtimeType}');
                           });
                         },
                         validator: (value) {
@@ -431,7 +474,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                 const SizedBox(height: 16),
                 
                 // Show project owner when project is selected
-                if (_selectedProject != null && _selectedProject!['owner_name'] != null) ...[
+                if (_selectedProject != null) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -443,11 +486,13 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                       children: [
                         Icon(Icons.person, color: Colors.blue.shade700),
                         const SizedBox(width: 8),
-                        Text(
-                          'Project Owner: ${_selectedProject!['owner_name']}',
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.w500,
+                        Expanded(
+                          child: Text(
+                            'Project Owner: ${_getOwnerDisplayName(_selectedProject!)}',
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],

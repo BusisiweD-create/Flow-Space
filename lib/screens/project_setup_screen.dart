@@ -201,7 +201,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
               (user.name.isNotEmpty ? user.name : user.email).trim();
           return {
             'id': user.id,
-            'name': displayName.isNotEmpty ? displayName : user.id,
+            'name': displayName.isNotEmpty ? displayName : 'Unknown User',
             'email': user.email,
             'role': user.role.name,
             'originalRole': user.role.name, // Store original role for removal
@@ -433,6 +433,24 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    
+    // Handle case where name might be an object representation
+    if (name.startsWith('{') || name.startsWith('[')) {
+      return '?'; // Return default for object representations
+    }
+    
+    // Split by spaces and take first letter of first two parts
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty) {
+      return parts[0][0].toUpperCase();
+    }
+    return '?';
   }
 
   Future<void> _selectDate(BuildContext context,
@@ -911,7 +929,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
                                 leading: CircleAvatar(
                                   backgroundColor: Colors.blue[100],
                                   child: Text(
-                                    user['name'][0].toUpperCase(),
+                                    _getInitials(user['name']),
                                     style: TextStyle(
                                       color: Colors.blue[800],
                                       fontWeight: FontWeight.bold,
