@@ -94,21 +94,29 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   }
 
   Future<void> _loadData() async {
+    debugPrint('🔍 Starting to load data for report editor...');
     setState(() => _isLoading = true);
     
     try {
       // Load deliverables from backend (real-time data)
+      debugPrint('📦 Loading deliverables...');
       await _loadDeliverables();
+      debugPrint('✅ Deliverables loaded: ${_deliverables.length}');
       
       // Load users
+      debugPrint('👥 Loading users...');
       await _loadUsers();
+      debugPrint('✅ Users loaded: ${_users.length}');
       
       // Load sprints
       try {
+        debugPrint('🏃 Loading sprints...');
         final sprintsList = await _sprintService.getSprints();
         _sprints = sprintsList;
+        debugPrint('✅ Sprints loaded: ${_sprints.length}');
       } catch (e) {
-        debugPrint('Error loading sprints: $e');
+        debugPrint('⚠️ Error loading sprints: $e');
+        _sprints = []; // Ensure it's not null
       }
       
       // If editing, load existing report
@@ -169,17 +177,27 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
       }
     } catch (e) {
       debugPrint('❌ Error loading data: $e');
+      debugPrint('❌ Stack trace: ${e.runtimeType}');
+      
+      // Even if loading fails, show the form with empty data
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading data: $e'),
-            backgroundColor: Colors.red,
+            content: Text('Some data failed to load: $e'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _loadData,
+            ),
           ),
         );
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        debugPrint('🔍 Loading completed. Is loading: $_isLoading');
       }
     }
   }

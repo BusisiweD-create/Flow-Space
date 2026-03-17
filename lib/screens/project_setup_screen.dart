@@ -43,6 +43,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
   final List<Map<String, dynamic>> _teamMembers = [];
   List<Map<String, dynamic>> _availableUsers = [];
   bool _isLoadingUsers = false;
+  Map<String, dynamic>? _selectedProjectOwner;
 
   final Map<String, String?> _validationErrors = {
     'name': null,
@@ -79,8 +80,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
 
   Future<void> _loadProject() async {
     if (widget.projectId == null) return;
-
-    setState(() => _isLoading = true);
+    
     try {
       final project = await ProjectService.getProjectById(widget.projectId!);
       if (project != null) {
@@ -90,24 +90,37 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           _descriptionController.text = project.description;
           _clientNameController.text = project.clientName ?? '';
           _keyController.text = project.key;
-
-          final loadedType = project.projectType;
-          if (_projectTypes.contains(loadedType)) {
-            _selectedProjectType = loadedType;
-          } else if (loadedType.toLowerCase() == 'software') {
-            _selectedProjectType = 'Fixed Scope';
-          } else {
-            _selectedProjectType = _projectTypes.first;
-          }
+          _selectedProjectType = project.projectType;
           _selectedStatus = project.status;
           _selectedPriority = project.priority;
           _startDate = project.startDate;
           _endDate = project.endDate;
+          
+          // Load project owner if available
+          if (project.ownerId != null) {
+            _selectedProjectOwner = {
+              'id': project.ownerId,
+              'name': 'Project Owner', // We don't have ownerName in the model
+            };
+          }
+          
+          // Load team members
+          _teamMembers.clear();
+          if (project.members.isNotEmpty) {
+            _teamMembers.addAll(project.members.map((member) => {
+              'id': member.userId,
+              'name': member.userName,
+              'email': member.userEmail,
+              'role': member.role.name,
+              'projectRole': member.role.name,
+              'addedAt': member.assignedAt.toIso8601String(),
+            }));
+          }
         });
       }
     } catch (e) {
       _showErrorSnackBar('Error loading project: $e');
-    } finally {
+    }finally {
       setState(() => _isLoading = false);
     }
   }
@@ -199,17 +212,24 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         _availableUsers = users.map((user) {
           final displayName =
               (user.name.isNotEmpty ? user.name : user.email).trim();
-          return {
+          final userMap = {
             'id': user.id,
-            'name': displayName.isNotEmpty ? displayName : user.id,
+            'name': displayName.isNotEmpty ? displayName : 'Unknown User',
             'email': user.email,
             'role': user.role.name,
             'originalRole': user.role.name, // Store original role for removal
             'isActive': user.isActive,
             'emailVerified': user.emailVerified,
           };
+          debugPrint('🔍 Processed user: ${userMap['name']} (${userMap['id']}) - Active: ${userMap['isActive']}');
+          return userMap;
         }).where((user) => user['isActive'] == true).toList(); // Only show active users
         _isLoadingUsers = false;
+        
+        debugPrint('✅ Final available users count: ${_availableUsers.length}');
+        for (final user in _availableUsers) {
+          debugPrint('  - ${user['name']} (${user['id']})');
+        }
       });
       
       debugPrint('✅ Processed ${_availableUsers.length} active users for display');
@@ -286,6 +306,8 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         'priority': _selectedPriority.name,
         'startDate': _startDate!.toIso8601String(),
         'endDate': _endDate!.toIso8601String(),
+        'owner_id': _selectedProjectOwner?['id'],
+        'owner_name': _selectedProjectOwner?['name'],
         'members': _teamMembers.map((member) => {
           'id': member['id'], // Real database ID
           'name': member['name'],
@@ -433,6 +455,24 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    
+    // Handle case where name might be an object representation
+    if (name.startsWith('{') || name.startsWith('[')) {
+      return '?'; // Return default for object representations
+    }
+    
+    // Split by spaces and take first letter of first two parts
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty) {
+      return parts[0][0].toUpperCase();
+    }
+    return '?';
   }
 
   Future<void> _selectDate(BuildContext context,
@@ -584,6 +624,8 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           _buildModernKeyField(),
           const SizedBox(height: 16),
           _buildModernDescriptionField(),
+          const SizedBox(height: 16),
+          _buildModernProjectOwnerField(),
         ],
       ),
     );
@@ -713,7 +755,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
             radius: 16,
             backgroundColor: Colors.blue[100],
             child: Text(
-              member['name'][0].toUpperCase(),
+              _getInitials(member['name']),
               style: TextStyle(
                 color: Colors.blue[700],
                 fontWeight: FontWeight.bold,
@@ -746,6 +788,13 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           ),
           DropdownButton<String>(
             value: member['role'],
+            icon: const Icon(Icons.arrow_drop_down, size: 20),
+            underline: const SizedBox(),
+            isDense: true,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF1A202C),
+            ),
             items: ['owner', 'admin', 'member', 'viewer'].map((role) {
               return DropdownMenuItem(
                 value: role,
@@ -911,7 +960,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
                                 leading: CircleAvatar(
                                   backgroundColor: Colors.blue[100],
                                   child: Text(
-                                    user['name'][0].toUpperCase(),
+                                    _getInitials(user['name']),
                                     style: TextStyle(
                                       color: Colors.blue[800],
                                       fontWeight: FontWeight.bold,
@@ -1262,6 +1311,83 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildModernProjectOwnerField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Project Owner*',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF4A5568),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<Map<String, dynamic>>(
+              value: _selectedProjectOwner,
+              hint: Text(
+                _isLoadingUsers ? 'Loading users...' : 'Select project owner',
+                style: const TextStyle(color: Color(0xFFA0AEC0)),
+              ),
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFF1A202C),
+                fontWeight: FontWeight.w400,
+              ),
+              isExpanded: true,
+              icon: const Icon(Icons.arrow_drop_down),
+              dropdownColor: Colors.white,
+              menuMaxHeight: 200,
+              items: _availableUsers.map((user) {
+                debugPrint('🔍 Adding user to dropdown: ${user['name']} (${user['id']})');
+                return DropdownMenuItem<Map<String, dynamic>>(
+                  value: user,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 250),
+                    child: Text(
+                      user['name'],
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF1A202C),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (Map<String, dynamic>? user) {
+                debugPrint('🔍 Selected project owner: ${user?['name']}');
+                setState(() {
+                  _selectedProjectOwner = user;
+                });
+              },
+            ),
+          ),
+        ),
+        if (_availableUsers.isEmpty && !_isLoadingUsers)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'No available users. Please add users first.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.red,
+              ),
+            ),
+          ),
       ],
     );
   }
