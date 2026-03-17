@@ -3107,9 +3107,9 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
              TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')) as assigned_to_name,
              s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-      LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
     `;
 
     let params = [];
@@ -3135,8 +3135,8 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
                  COALESCE(u1.name, '') as created_by_name,
                  COALESCE(u2.name, '') as assigned_to_name
           FROM deliverables d
-          LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-          LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
+          LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+          LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
         `;
 
         const fallbackParams = [];
@@ -7248,9 +7248,9 @@ app.get('/api/v1/projects/:projectId/deliverables', authenticateToken, async (re
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE d.project_id = $1
     `;
     
@@ -7509,9 +7509,9 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE (d.project_id IS NULL OR d.project_id != $1)
     `;
     
