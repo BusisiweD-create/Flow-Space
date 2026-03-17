@@ -308,6 +308,14 @@ async function startServer() {
     if (!syncOk) {
       console.warn('⚠️ Database sync failed; continuing without alter sync');
     }
+
+    try {
+      if (sequelize.getDialect() === 'postgres') {
+        await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
+      }
+    } catch (e) {
+      console.warn('⚠️ Unable to ensure sprints.created_by column; continuing', e?.message || e);
+    }
     
     // Sync database (use with caution in production)
     if (process.env.NODE_ENV === 'development') {
