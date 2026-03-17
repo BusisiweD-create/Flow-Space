@@ -786,10 +786,13 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('🔍 Building ReportEditorScreen - isLoading: $_isLoading, deliverables: ${_deliverables.length}');
+    
+    // TEMPORARY: Force show form even during loading for debugging
     return SidebarScaffold(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: _isLoading
+        body: _isLoading && _deliverables.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -798,6 +801,67 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Debug info
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Debug: isLoading=$_isLoading, deliverables=${_deliverables.length}, users=${_users.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // TEST: Simple title field to verify form is working
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round())),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Report Title',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _titleController,
+                              decoration: const InputDecoration(
+                                hintText: 'Enter report title...',
+                                hintStyle: TextStyle(color: Colors.white54),
+                                border: OutlineInputBorder(),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white54),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: FlownetColors.electricBlue),
+                                ),
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter a report title';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
                       // Status indicator for submitted reports
                       if (_existingReport?.status == ReportStatus.submitted) ...[
                         Container(
@@ -942,7 +1006,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     ],
                     
                     // Deliverable Selection
-                    _isLoadingDeliverables
+                    // TEMPORARY: Bypass loading check for debugging
+                    _isLoadingDeliverables && _deliverables.isEmpty
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.all(16.0),
