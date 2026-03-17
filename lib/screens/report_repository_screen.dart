@@ -828,6 +828,20 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       useBackgroundImage: true,
       centered: false,
       scrollable: false,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ReportEditorScreen(),
+            ),
+          ).then((_) => _loadReports());
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Create Report'),
+        backgroundColor: FlownetColors.electricBlue,
+        foregroundColor: Colors.white,
+      ),
       body: Column(
         children: [
           // Search and Filter Bar
