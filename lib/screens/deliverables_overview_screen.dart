@@ -14,6 +14,7 @@ import 'package:khono/services/auth_service.dart';
 import 'package:khono/services/deliverable_service.dart';
 import 'package:khono/config/environment.dart';
 import 'package:khono/widgets/deliverable_card.dart';
+import 'package:khono/theme/flownet_theme.dart';
 
 class DeliverablesOverviewScreen extends StatefulWidget {
   const DeliverablesOverviewScreen({super.key});
@@ -454,8 +455,12 @@ class _DeliverablesOverviewScreenState
           ),
         ],
         currentIndex: _currentNavIndex,
-        selectedItemColor: Theme.of(context).primaryColor,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: FlownetColors.crimsonRed,
+        unselectedItemColor: FlownetColors.graphiteGray,
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
+        iconSize: 22,
+        showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         onTap: _onNavTapped,
       ),

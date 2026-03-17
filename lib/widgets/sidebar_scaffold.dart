@@ -42,6 +42,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   bool _collapsed = false;
   static const double _sidebarWidth = 280;
   static const double _collapsedWidth = 80;
+  static const double _logoMinCollapsedSize = 44;
+  static const double _logoExpandedSize = 64;
+
+  double _logoSizeFor(double screenWidth) {
+    // Responsive "breakpoints" so the logo stays readable on all widths.
+    final expanded = screenWidth >= 1024 ? _logoExpandedSize : 56.0;
+    final collapsed = screenWidth >= 1024 ? _logoMinCollapsedSize : 40.0;
+    return _collapsed ? collapsed : expanded;
+  }
 
   List<_NavItem> get _navItems {
     final authService = AuthService();
@@ -156,6 +165,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   Widget build(BuildContext context) {
     final routeLocation = GoRouterState.of(context).uri.path;
     final isDesktop = MediaQuery.of(context).size.width > 768;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final logoSize = _logoSizeFor(screenWidth);
 
     if (isDesktop) {
       return Scaffold(
@@ -193,28 +204,46 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                           Padding(
                             padding: const EdgeInsets.only(
                                 left: 12, right: 12, top: 24, bottom: 16,),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Image.asset(
-                                  'assets/Icons/Red_Khono_Discs.png',
-                                  width: _collapsed ? 28 : 64,
-                                  height: _collapsed ? 28 : 64,
-                                  fit: BoxFit.contain,
-                                ),
-                                IconButton(
-                                  onPressed: _toggleSidebar,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    _collapsed
-                                        ? Icons.chevron_right
-                                        : Icons.chevron_left,
-                                    color: FlownetColors.textSecondary,
-                                    size: 20,
+                            child: SizedBox(
+                              height: logoSize,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  // Centered logo (universal home navigation)
+                                  Material(
+                                    type: MaterialType.transparency,
+                                    child: InkWell(
+                                      onTap: () => context.go('/dashboard'),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(6),
+                                        child: Image.asset(
+                                          'assets/Icons/Red_Khono_Discs.png',
+                                          width: logoSize,
+                                          height: logoSize,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  // Collapse toggle (kept intact, aligned right)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: IconButton(
+                                      onPressed: _toggleSidebar,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: Icon(
+                                        _collapsed
+                                            ? Icons.chevron_right
+                                            : Icons.chevron_left,
+                                        color: FlownetColors.textSecondary,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           // Navigation items (pill-style highlight like reference UI)
@@ -401,11 +430,21 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: Image.asset(
-            'assets/Icons/Red_Khono_Discs.png',
-            width: 32,
-            height: 32,
-            fit: BoxFit.contain,
+          title: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: () => context.go('/dashboard'),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Image.asset(
+                  'assets/Icons/Red_Khono_Discs.png',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
           ),
           centerTitle: false,
           actions: [
@@ -444,11 +483,24 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Image.asset(
-                      'assets/Icons/Red_Khono_Discs.png',
-                      width: 72,
-                      height: 72,
-                      fit: BoxFit.contain,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.go('/dashboard');
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Image.asset(
+                            'assets/Icons/Red_Khono_Discs.png',
+                            width: 72,
+                            height: 72,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -698,6 +750,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       return 'Dashboard';
     }
     switch (route) {
+      case '/report-repository':
+        return 'Reports';
       case '/deliverables-overview':
         return 'Deliverables';
       case '/approval-requests':

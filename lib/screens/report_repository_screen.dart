@@ -27,6 +27,8 @@ class ReportRepositoryScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen> {
+  static const Color _reportsAccentBlue = Color(0xFF0623B1);
+
   List<SignOffReport> _reports = [];
   List<RepositoryFile> _reportDocuments = [];
   String _selectedFilter = 'all';
@@ -407,7 +409,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           backgroundColor: FlownetColors.graphiteGray,
           title: const Row(
             children: [
-              Icon(Icons.comment, color: FlownetColors.electricBlue),
+              Icon(Icons.comment, color: _reportsAccentBlue),
               SizedBox(width: 8),
               Text(
                 'Add Client Feedback',
@@ -438,7 +440,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   onChanged: (value) {
                     setState(() => requestChanges = value ?? false);
                   },
-                  activeColor: FlownetColors.electricBlue,
+                  activeColor: _reportsAccentBlue,
                   checkColor: FlownetColors.pureWhite,
                 ),
                 const SizedBox(height: 16),
@@ -460,7 +462,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       borderSide: BorderSide(color: FlownetColors.slate),
                     ),
                     focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: FlownetColors.electricBlue),
+                      borderSide: const BorderSide(color: _reportsAccentBlue),
                     ),
                   ),
                 ),
@@ -496,7 +498,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: requestChanges 
                     ? FlownetColors.amberOrange 
-                    : FlownetColors.electricBlue,
+                    : _reportsAccentBlue,
                 foregroundColor: FlownetColors.pureWhite,
               ),
             ),
@@ -796,7 +798,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: FlownetColors.electricBlue,
+              primary: _ReportRepositoryScreenState._reportsAccentBlue,
               surface: FlownetColors.surfaceLight,
             ),
           ),
@@ -848,7 +850,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             icon: const Icon(Icons.add),
             label: const Text('Create Report'),
             style: TextButton.styleFrom(
-              foregroundColor: FlownetColors.electricBlue,
+              foregroundColor: FlownetColors.crimsonRed,
             ),
           ),
         ],
@@ -916,7 +918,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                     IconButton(
                       icon: Icon(
                         _showAdvancedFilters ? Icons.filter_alt_off : Icons.filter_alt,
-                        color: _showAdvancedFilters ? FlownetColors.electricBlue : FlownetColors.coolGray,
+                        color: _showAdvancedFilters ? _reportsAccentBlue : FlownetColors.coolGray,
                       ),
                       tooltip: 'Advanced Filters',
                       onPressed: () {
@@ -943,11 +945,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               length: 2,
               child: Column(
                 children: [
-                  const TabBar(
-                    labelColor: FlownetColors.electricBlue,
+                  TabBar(
+                    labelColor: _reportsAccentBlue,
                     unselectedLabelColor: FlownetColors.coolGray,
-                    indicatorColor: FlownetColors.electricBlue,
-                    tabs: [
+                    indicatorColor: _reportsAccentBlue,
+                    tabs: const [
                       Tab(text: 'Reports', icon: Icon(Icons.assignment)),
                       Tab(text: 'Documents', icon: Icon(Icons.folder)),
                     ],
@@ -1078,8 +1080,8 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   spacing: 4,
                   children: document.tags!.split(',').map((tag) => Chip(
                     label: Text(tag.trim(), style: const TextStyle(fontSize: 10)),
-                    backgroundColor: FlownetColors.electricBlue.withValues(alpha: 0.2),
-                    labelStyle: const TextStyle(color: FlownetColors.electricBlue),
+                    backgroundColor: _reportsAccentBlue.withValues(alpha: 0.2),
+                    labelStyle: const TextStyle(color: _reportsAccentBlue),
                   ),).toList(),
                 ),
               ),
@@ -1089,12 +1091,12 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.visibility, color: FlownetColors.electricBlue),
+              icon: const Icon(Icons.visibility, color: _reportsAccentBlue),
               onPressed: () => _previewDocument(document),
               tooltip: 'Preview',
             ),
             IconButton(
-              icon: const Icon(Icons.download, color: FlownetColors.electricBlue),
+              icon: const Icon(Icons.download, color: _reportsAccentBlue),
               onPressed: () => _downloadDocument(document),
               tooltip: 'Download',
             ),
@@ -1118,7 +1120,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       case 'txt':
         return FlownetColors.slate;
       default:
-        return FlownetColors.electricBlue;
+        return _reportsAccentBlue;
     }
   }
 
@@ -1161,7 +1163,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         _loadReports();
       },
       backgroundColor: FlownetColors.slate,
-      selectedColor: FlownetColors.electricBlue,
+      selectedColor: _reportsAccentBlue,
       labelStyle: TextStyle(
         color: isSelected ? Colors.white : Colors.grey,
       ),
@@ -1314,7 +1316,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       icon: const Icon(Icons.edit, size: 16),
                       label: const Text('Edit'),
                       style: TextButton.styleFrom(
-                        foregroundColor: FlownetColors.electricBlue,
+                        foregroundColor: _reportsAccentBlue,
                       ),
                     ),
                   ],
@@ -1348,7 +1350,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       icon: const Icon(Icons.comment, size: 16),
                       label: const Text('Feedback'),
                       style: TextButton.styleFrom(
-                        foregroundColor: FlownetColors.electricBlue,
+                        foregroundColor: _reportsAccentBlue,
                       ),
                     ),
                   ],
@@ -1360,7 +1362,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       icon: const Icon(Icons.download, size: 16),
                       label: const Text('Export'),
                       style: TextButton.styleFrom(
-                        foregroundColor: FlownetColors.electricBlue,
+                        foregroundColor: _reportsAccentBlue,
                       ),
                     ),
                   ],
@@ -1460,12 +1462,12 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.picture_as_pdf, color: FlownetColors.electricBlue),
+                leading: const Icon(Icons.picture_as_pdf, color: _reportsAccentBlue),
                 title: const Text('PDF', style: TextStyle(color: FlownetColors.pureWhite)),
                 onTap: () => Navigator.pop(context, 'pdf'),
               ),
               ListTile(
-                leading: const Icon(Icons.print, color: FlownetColors.electricBlue),
+                leading: const Icon(Icons.print, color: _reportsAccentBlue),
                 title: const Text('Print', style: TextStyle(color: FlownetColors.pureWhite)),
                 onTap: () => Navigator.pop(context, 'print'),
               ),
