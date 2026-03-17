@@ -148,7 +148,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final routeLocation = GoRouterState.of(context).uri.path;
+    String routeLocation = '/';
+    try {
+      final router = GoRouter.maybeOf(context);
+      final uri = router?.routeInformationProvider.value.uri;
+      if (uri != null) {
+        routeLocation = uri.path;
+      } else {
+        routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
+      }
+    } catch (_) {
+      routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
+    }
     final isDesktop = MediaQuery.of(context).size.width > 768;
 
     if (isDesktop) {
