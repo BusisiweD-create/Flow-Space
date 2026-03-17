@@ -1065,6 +1065,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                           )
                                         : DropdownButtonFormField<String>(
                                             isExpanded: true,
+                                            // ignore: deprecated_member_use
                                             value: _deliverables.any((d) {
                                               try {
                                                 final id = d is Map ? d['id']?.toString() : d.id?.toString();
