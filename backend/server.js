@@ -5856,6 +5856,19 @@ app.post('/api/v1/release-readiness/analyze', authenticateToken, async (req, res
     - Sprint IDs: ${normalizedSprints.length}
     - Has metrics: ${Object.keys(sprintMetrics || {}).length > 0}`);
 
+    // Test database connection before proceeding
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connection verified');
+    } catch (dbError) {
+      console.error('❌ Database connection error:', dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        details: dbError.message,
+      });
+    }
+
     // Initialize OpenAI if available
     await initializeOpenAI();
 
@@ -5940,6 +5953,13 @@ Return ONLY valid JSON in this exact format:
         }
       } catch (aiError) {
         console.error('⚠️  OpenAI API error, falling back to rule-based analysis:', aiError.message);
+        
+        // Check if it's a rate limit/quota error
+        if (aiError.message.includes('429') || aiError.message.includes('quota') || aiError.message.includes('rate limit')) {
+          console.log('💰 OpenAI quota exceeded - using rule-based analysis');
+          console.log('💡 To enable AI analysis, please check your OpenAI billing at: https://platform.openai.com/account/billing/usage');
+        }
+        
         // Fall through to rule-based analysis
       }
     }

@@ -39,4 +39,36 @@ pool.on('connect', () => {
   console.log('✅ Connected to PostgreSQL database via DATABASE_URL');
 });
 
+pool.on('error', (err) => {
+  console.error('❌ Database pool error:', err.message);
+  console.error('❌ Database error details:', err);
+});
+
+pool.on('remove', () => {
+  console.log('🔌 Database connection removed from pool');
+});
+
+// Test the database connection on startup
+const testConnection = async () => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query('SELECT NOW() as current_time, version() as version');
+    client.release();
+    console.log('✅ Database connection test successful');
+    console.log('📊 Database time:', result.rows[0].current_time);
+    console.log('🗄️  Database version:', result.rows[0].version.split(' ')[0]);
+  } catch (error) {
+    console.error('❌ Database connection test failed:', error.message);
+    console.error('❌ Connection details:', {
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      nodeEnv: process.env.NODE_ENV,
+      isRender: process.env.RENDER === 'true',
+      sslEnabled: process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production' || process.env.RENDER === 'true'
+    });
+  }
+};
+
+// Test connection after a short delay to ensure the app is fully started
+setTimeout(testConnection, 2000);
+
 export default pool;
