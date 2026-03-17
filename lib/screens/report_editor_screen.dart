@@ -86,7 +86,12 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
       final users = await _userService.getUsers(limit: 1000);
       setState(() {
         _users = users;
-        _preparedById ??= _authService.currentUser?.id;
+        final currentUserId = _authService.currentUser?.id;
+        if (currentUserId != null && _users.any((u) => u.id == currentUserId)) {
+          _preparedById ??= currentUserId;
+        } else if (_preparedById == null || !_users.any((u) => u.id == _preparedById)) {
+          _preparedById = _users.isNotEmpty ? _users.first.id : null;
+        }
       });
     } catch (e) {
       debugPrint('Error loading users: $e');
@@ -1060,7 +1065,17 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                           )
                                         : DropdownButtonFormField<String>(
                                             isExpanded: true,
-                                            initialValue: _selectedDeliverableId,
+                                            // ignore: deprecated_member_use
+                                            value: _deliverables.any((d) {
+                                              try {
+                                                final id = d is Map ? d['id']?.toString() : d.id?.toString();
+                                                return id == _selectedDeliverableId;
+                                              } catch (_) {
+                                                return false;
+                                              }
+                                            })
+                                                ? _selectedDeliverableId
+                                                : null,
                                             decoration: const InputDecoration(
                                               labelText: 'Deliverable *',
                                               border: OutlineInputBorder(),
@@ -1156,7 +1171,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         // ignore: deprecated_member_use
-                        value: _preparedById,
+                        value: _users.any((u) => u.id == _preparedById) ? _preparedById : null,
                         decoration: const InputDecoration(
                           labelText: 'Prepared By *',
                           border: OutlineInputBorder(),
