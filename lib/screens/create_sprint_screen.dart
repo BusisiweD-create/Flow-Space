@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../models/project.dart';
 import '../services/sprint_database_service.dart';
 
 class CreateSprintScreen extends StatefulWidget {
@@ -32,9 +31,9 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
   final TextEditingController _plannedPointsController = TextEditingController();
   
   // Project selection
-  final List<Project> _projects = [];
-  Project? _selectedProject;
-  final bool _isLoadingProjects = false;
+  List<Map<String, dynamic>> _projects = [];
+  Map<String, dynamic>? _selectedProject;
+  bool _isLoadingProjects = false;
   String? _selectedProjectId;
   final TextEditingController _committedPointsController = TextEditingController();
   final TextEditingController _completedPointsController = TextEditingController();
@@ -68,9 +67,75 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     super.initState();
     _fetchProjectDates();
     _checkActiveSprints();
+    _loadProjects(); // Load projects for dropdown
     if (_isEditing) {
       _fillSprintData();
     }
+  }
+
+  Future<void> _loadProjects() async {
+    if (widget.projectId != null) return; // Don't load if project is pre-selected
+
+    setState(() {
+      _isLoadingProjects = true;
+    });
+
+    try {
+      final projects = await _sprintService.getProjects();
+      
+      if (mounted) {
+        setState(() {
+          _projects = projects;
+          _isLoadingProjects = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading projects: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingProjects = false;
+        });
+      }
+    }
+  }
+
+  String _getOwnerDisplayName(Map<String, dynamic> project) {
+    // Debug the entire project structure
+    debugPrint('🔍 Full project data: $project');
+    
+    // Try different possible owner field names and formats
+    final ownerName = project['owner_name'];
+    final ownerId = project['owner_id'];
+    
+    debugPrint('🔍 Owner name value: $ownerName');
+    debugPrint('🔍 Owner name type: ${ownerName.runtimeType}');
+    debugPrint('🔍 Owner ID: $ownerId');
+    
+    if (ownerName != null) {
+      if (ownerName is String) {
+        debugPrint('🔍 Owner name is string: $ownerName');
+        return ownerName.isNotEmpty ? ownerName : 'Not assigned';
+      } else if (ownerName is Map) {
+        debugPrint('🔍 Owner name is map: ${ownerName.keys.toList()}');
+        // If owner_name is an object, try to extract name from it
+        final name = ownerName['name']?.toString() ?? 
+                     ownerName['first_name']?.toString() ?? 
+                     ownerName['email']?.toString() ?? 
+                     'Unknown Owner';
+        debugPrint('🔍 Extracted owner name: $name');
+        return name;
+      } else {
+        debugPrint('🔍 Owner name is other type: ${ownerName.toString()}');
+        return ownerName.toString();
+      }
+    }
+    
+    // Fallback to owner_id or default message
+    if (ownerId != null) {
+      return 'Owner ID: ${ownerId.toString().substring(0, 8)}...';
+    }
+    
+    return 'Not assigned';
   }
 
   Future<void> _checkActiveSprints() async {
@@ -375,7 +440,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         padding: EdgeInsets.all(16.0),
                         child: Center(child: CircularProgressIndicator()),
                       )
-                    : DropdownButtonFormField<Project>(
+                    : DropdownButtonFormField<Map<String, dynamic>>(
                         initialValue: _selectedProject,
                         decoration: const InputDecoration(
                           labelText: 'Project *',
@@ -384,15 +449,19 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         ),
                         hint: const Text('Select a project'),
                         items: _projects.map((project) {
-                          return DropdownMenuItem<Project>(
+                          return DropdownMenuItem<Map<String, dynamic>>(
                             value: project,
-                            child: Text(project.name),
+                            child: Text(project['name']?.toString() ?? 'Unnamed Project'),
                           );
                         }).toList(),
-                        onChanged: (Project? project) {
+                        onChanged: (Map<String, dynamic>? project) {
                           setState(() {
                             _selectedProject = project;
-                            _selectedProjectId = project?.id;
+                            _selectedProjectId = project?['id']?.toString();
+                            // Debug project data structure
+                            debugPrint('🔍 Selected project data: ${project?.keys.toList()}');
+                            debugPrint('🔍 Owner name field: ${project?['owner_name']}');
+                            debugPrint('🔍 Owner name type: ${project?['owner_name'].runtimeType}');
                           });
                         },
                         validator: (value) {
@@ -403,6 +472,34 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         },
                       ),
                 const SizedBox(height: 16),
+                
+                // Show project owner when project is selected
+                if (_selectedProject != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      border: Border.all(color: Colors.blue.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.person, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Project Owner: ${_getOwnerDisplayName(_selectedProject!)}',
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ] else if (widget.projectName != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),

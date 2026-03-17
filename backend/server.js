@@ -22,6 +22,30 @@ import pool from './dbPool.js'; // your Postgres pool connection
 import SendGridEmailService from './sendgridEmailService.js';
 import EmailService from './emailService.js';
 
+// OpenAI initialization
+let openai = null;
+let openaiInitialized = false;
+
+async function initializeOpenAI() {
+  if (openaiInitialized) return;
+  
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const { default: OpenAI } = await import('openai');
+      openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+      console.log('✅ OpenAI initialized');
+    } catch (error) {
+      console.warn('⚠️ OpenAI not available:', error.message);
+    }
+  } else {
+    console.log('ℹ️ OpenAI API key not provided - using local analysis only');
+  }
+  
+  openaiInitialized = true;
+}
+
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
@@ -1456,7 +1480,7 @@ app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
       const deliverablesParams = [];
 
       if (userRole === 'teamMember') {
-        deliverablesQuery += ' WHERE assigned_to = $1 OR created_by = $1';
+        deliverablesQuery += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
         deliverablesParams.push(userId);
       }
 
@@ -1577,46 +1601,102 @@ app.get('/api/v1/audit-logs', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    const { limit = 50, offset = 0 } = req.query;
+    const { limit = 50, offset = 0, action, user_id: userIdFilter } = req.query;
 
-    let query = `
-      SELECT 
-        al.id,
-        al.user_id,
-        al.entity_type,
-        al.entity_id,
-        al.action,
-        al.description,
-        al.old_values,
-        al.new_values,
-        al.ip_address,
-        al.user_agent,
-        al.created_at,
-        u.name as user_name,
-        u.email as user_email
-      FROM activity_logs al
-      LEFT JOIN users u ON al.user_id = u.id
-      ORDER BY al.created_at DESC
-      LIMIT $1 OFFSET $2
-    `;
+    // Check if audit_logs table exists, fallback to activity_logs
+    let useAuditLogs = false;
+    try {
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'audit_logs'
+        )
+      `);
+      useAuditLogs = tableCheck.rows[0].exists;
+    } catch (error) {
+      console.warn('Could not check audit_logs table:', error.message);
+    }
 
-    const params = [parseInt(limit), parseInt(offset)];
+    let query, params;
+    
+    if (useAuditLogs) {
+      // Use audit_logs table if it exists
+      query = `
+        SELECT 
+          al.id,
+          al.user_id,
+          al.action,
+          al.resource_type as entity_type,
+          al.resource_id as entity_id,
+          al.details,
+          al.created_at,
+          u.name as user_name,
+          u.email as user_email
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE 1=1
+      `;
+      params = [];
+      
+      if (action) {
+        query += ` AND al.action = $${params.length + 1}`;
+        params.push(action);
+      }
+      if (userIdFilter) {
+        query += ` AND al.user_id = $${params.length + 1}`;
+        params.push(userIdFilter);
+      }
+    } else {
+      // Fallback to activity_logs table
+      query = `
+        SELECT 
+          al.id,
+          al.user_id,
+          al.action,
+          al.entity_type,
+          al.entity_id,
+          al.description as details,
+          al.created_at,
+          u.name as user_name,
+          u.email as user_email
+        FROM activity_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE 1=1
+      `;
+      params = [];
+      
+      if (action) {
+        query += ` AND al.action = $${params.length + 1}`;
+        params.push(action);
+      }
+      if (userIdFilter) {
+        query += ` AND al.user_id = $${params.length + 1}`;
+        params.push(userIdFilter);
+      }
+    }
+
+    query += ` ORDER BY al.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+
     const result = await pool.query(query, params);
 
+    // Return in the expected format
     res.json({
       success: true,
-      data: result.rows,
-      pagination: {
+      data: {
+        audit_logs: result.rows,
+        total: result.rows.length,
         limit: parseInt(limit),
-        offset: parseInt(offset),
-        total: result.rows.length
+        offset: parseInt(offset)
       }
     });
+
   } catch (error) {
     console.error('Audit logs error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch audit logs'
+      error: 'Failed to fetch audit logs',
+      message: error.message
     });
   }
 });
@@ -1636,7 +1716,7 @@ app.get('/api/v1/count', authenticateToken, async (req, res) => {
       case 'deliverables':
         query = 'SELECT COUNT(*) FROM deliverables';
         if (userRole === 'teamMember') {
-          query += ' WHERE assigned_to = $1 OR created_by = $1';
+          query += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
           params.push(userId);
         }
         break;
@@ -3027,16 +3107,16 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
              TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')) as assigned_to_name,
              s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-      LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
     `;
 
     let params = [];
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+      query += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
       params.push(userId);
     }
     // deliveryLead, clientReviewer and other roles can see all deliverables
@@ -3055,13 +3135,13 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
                  COALESCE(u1.name, '') as created_by_name,
                  COALESCE(u2.name, '') as assigned_to_name
           FROM deliverables d
-          LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-          LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
+          LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+          LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
         `;
 
         const fallbackParams = [];
         if (userRole === 'teamMember') {
-          fallbackQuery += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+          fallbackQuery += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
           fallbackParams.push(userId);
         }
 
@@ -3219,7 +3299,7 @@ app.get('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
     `;
     const params = [id];
     if (userRole === 'teamMember') {
-      query += ' AND (d.assigned_to = $2 OR d.created_by = $2)';
+      query += ' AND (d.assigned_to = $2::uuid OR d.created_by = $2::uuid)';
       params.push(userId);
     }
     const result = await pool.query(query, params);
@@ -4414,7 +4494,7 @@ app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ` AND (r.created_by = $${++paramCount} OR d.assigned_to = $${paramCount})`;
+      query += ` AND (r.created_by = $${++paramCount}::uuid OR d.assigned_to = $${paramCount}::uuid)`;
       params.push(userId);
     } else if (userRole === 'clientReviewer') {
       // Client reviewers can see all reports
@@ -5776,6 +5856,22 @@ app.post('/api/v1/release-readiness/analyze', authenticateToken, async (req, res
     - Sprint IDs: ${normalizedSprints.length}
     - Has metrics: ${Object.keys(sprintMetrics || {}).length > 0}`);
 
+    // Test database connection before proceeding
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connection verified');
+    } catch (dbError) {
+      console.error('❌ Database connection error:', dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        details: dbError.message,
+      });
+    }
+
+    // Initialize OpenAI if available
+    await initializeOpenAI();
+
     // Try OpenAI AI analysis first (if available)
     if (openai) {
       try {
@@ -5857,6 +5953,13 @@ Return ONLY valid JSON in this exact format:
         }
       } catch (aiError) {
         console.error('⚠️  OpenAI API error, falling back to rule-based analysis:', aiError.message);
+        
+        // Check if it's a rate limit/quota error
+        if (aiError.message.includes('429') || aiError.message.includes('quota') || aiError.message.includes('rate limit')) {
+          console.log('💰 OpenAI quota exceeded - using rule-based analysis');
+          console.log('💡 To enable AI analysis, please check your OpenAI billing at: https://platform.openai.com/account/billing/usage');
+        }
+        
         // Fall through to rule-based analysis
       }
     }
@@ -6472,7 +6575,7 @@ app.get('/api/v1/epics', authenticateToken, async (req, res) => {
     
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE e.created_by = $1';
+      query += ' WHERE e.created_by = $1::uuid';
       params.push(userId);
     }
     
@@ -7145,9 +7248,9 @@ app.get('/api/v1/projects/:projectId/deliverables', authenticateToken, async (re
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE d.project_id = $1
     `;
     
@@ -7406,9 +7509,9 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE (d.project_id IS NULL OR d.project_id != $1)
     `;
     
@@ -7422,7 +7525,7 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
     
     // Filter by user role - team members can only see their own deliverables
     if (req.user.role === 'teamMember') {
-      query += ` AND (d.created_by = $${params.length + 1} OR d.assigned_to = $${params.length + 1})`;
+      query += ` AND (d.created_by = $${params.length + 1}::uuid OR d.assigned_to = $${params.length + 1}::uuid)`;
       params.push(userId);
     }
     
