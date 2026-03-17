@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../models/project.dart';
 import '../services/sprint_database_service.dart';
 
 class CreateSprintScreen extends StatefulWidget {
@@ -32,9 +31,9 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
   final TextEditingController _plannedPointsController = TextEditingController();
   
   // Project selection
-  final List<Project> _projects = [];
-  Project? _selectedProject;
-  final bool _isLoadingProjects = false;
+  List<Map<String, dynamic>> _projects = [];
+  Map<String, dynamic>? _selectedProject;
+  bool _isLoadingProjects = false;
   String? _selectedProjectId;
   final TextEditingController _committedPointsController = TextEditingController();
   final TextEditingController _completedPointsController = TextEditingController();
@@ -68,8 +67,35 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
     super.initState();
     _fetchProjectDates();
     _checkActiveSprints();
+    _loadProjects(); // Load projects for dropdown
     if (_isEditing) {
       _fillSprintData();
+    }
+  }
+
+  Future<void> _loadProjects() async {
+    if (widget.projectId != null) return; // Don't load if project is pre-selected
+
+    setState(() {
+      _isLoadingProjects = true;
+    });
+
+    try {
+      final projects = await _sprintService.getProjects();
+      
+      if (mounted) {
+        setState(() {
+          _projects = projects;
+          _isLoadingProjects = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading projects: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingProjects = false;
+        });
+      }
     }
   }
 
@@ -375,7 +401,7 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         padding: EdgeInsets.all(16.0),
                         child: Center(child: CircularProgressIndicator()),
                       )
-                    : DropdownButtonFormField<Project>(
+                    : DropdownButtonFormField<Map<String, dynamic>>(
                         initialValue: _selectedProject,
                         decoration: const InputDecoration(
                           labelText: 'Project *',
@@ -384,15 +410,15 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         ),
                         hint: const Text('Select a project'),
                         items: _projects.map((project) {
-                          return DropdownMenuItem<Project>(
+                          return DropdownMenuItem<Map<String, dynamic>>(
                             value: project,
-                            child: Text(project.name),
+                            child: Text(project['name']?.toString() ?? 'Unnamed Project'),
                           );
                         }).toList(),
-                        onChanged: (Project? project) {
+                        onChanged: (Map<String, dynamic>? project) {
                           setState(() {
                             _selectedProject = project;
-                            _selectedProjectId = project?.id;
+                            _selectedProjectId = project?['id']?.toString();
                           });
                         },
                         validator: (value) {
@@ -403,6 +429,32 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
                         },
                       ),
                 const SizedBox(height: 16),
+                
+                // Show project owner when project is selected
+                if (_selectedProject != null && _selectedProject!['owner_name'] != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      border: Border.all(color: Colors.blue.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.person, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Project Owner: ${_selectedProject!['owner_name']}',
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ] else if (widget.projectName != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
