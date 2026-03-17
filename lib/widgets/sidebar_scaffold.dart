@@ -384,7 +384,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 decoration: const BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: FlownetColors.lightGrey,
+                      color: FlownetColors.coolGray,
                       width: 0.5,
                     ),
                   ),
@@ -423,6 +423,49 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         ),
       );
     }
+  }
+
+  Widget _buildNavigationItems({required bool isMobile}) {
+    final routeLocation = GoRouterState.of(context).uri.path;
+
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: _navItems.length,
+      itemBuilder: (context, index) {
+        final item = _navItems[index];
+        final active = routeLocation.startsWith(item.route);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: active ? Colors.white.withOpacity(0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ListTile(
+            leading: AppIcons.getIconWidget(
+              item.iconName,
+              fallbackIcon: item.icon,
+              isActive: active,
+              size: 20,
+              color: active ? Colors.white : FlownetColors.textSecondary,
+            ),
+            title: Text(
+              item.label,
+              style: TextStyle(
+                color: active ? Colors.white : FlownetColors.textSecondary,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            onTap: () {
+              if (!routeLocation.startsWith(item.route)) {
+                context.go(item.route);
+                Navigator.pop(context); // Close drawer on mobile
+              }
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleLogout(BuildContext ctx) async {

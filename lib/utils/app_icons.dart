@@ -9,65 +9,65 @@ class AppIcons {
     final iconPaths = <String, Map<String, String>>{
       // Use Home_Dashboard artwork for the main dashboard icon
       'dashboard': {
-        'active': 'assets/icons/Home_Dashboard active.png.png',
-        'inactive': 'assets/icons/Home_Dashboard inactive.png.png',
+        'active': 'assets/Icons/Home_Dashboard active.png.png',
+        'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
       },
       // Deliverables rocket icon (all roles)
       'deliverables': {
-        'active': 'assets/icons/Approval Requests active.png.png',
-        'inactive': 'assets/icons/Approval Requests inactive.png.png',
+        'active': 'assets/Icons/Approval Requests active.png.png',
+        'inactive': 'assets/Icons/Approval Requests inactive.png.png',
       },
       'sprints': {
-        'active': 'assets/icons/Sprints console active.png.png',
-        'inactive': 'assets/icons/Sprints console inactive.png.png',
+        'active': 'assets/Icons/Sprints console active.png.png',
+        'inactive': 'assets/Icons/Sprints console inactive.png.png',
       },
       'notifications': {
-        'active': 'assets/icons/Notifications active.png.png',
-        'inactive': 'assets/icons/Notifications inactive.png.png',
+        'active': 'assets/Icons/Notifications active.png.png',
+        'inactive': 'assets/Icons/Notifications inactive.png.png',
       },
       'repository': {
-        'active': 'assets/icons/Repository_Project active.png.png',
-        'inactive': 'assets/icons/Repository_Project inactive.png.png',
+        'active': 'assets/Icons/Repository_Project active.png.png',
+        'inactive': 'assets/Icons/Repository_Project inactive.png.png',
       },
       'approval_requests': {
-        'active': 'assets/icons/Approval Requests active.png.png',
-        'inactive': 'assets/icons/Approval Requests inactive.png.png',
+        'active': 'assets/Icons/Approval Requests active.png.png',
+        'inactive': 'assets/Icons/Approval Requests inactive.png.png',
       },
       'approvals': {
-        'active': 'assets/icons/Data_Approvals active.png.png',
-        'inactive': 'assets/icons/Data_Approvals inactive.png.png',
+        'active': 'assets/Icons/Data_Approvals active.png.png',
+        'inactive': 'assets/Icons/Data_Approvals inactive.png.png',
       },
       'reports': {
-        'active': 'assets/icons/Reports active.png.png',
-        'inactive': 'assets/icons/Reports inactive.png.png',
+        'active': 'assets/Icons/Reports active.png.png',
+        'inactive': 'assets/Icons/Reports inactive.png.png',
       },
       'role_management': {
-        'active': 'assets/icons/Role Managemet active.png.png',
-        'inactive': 'assets/icons/Role Managemet inactive.png.png',
+        'active': 'assets/Icons/Role Managemet active.png.png',
+        'inactive': 'assets/Icons/Role Managemet inactive.png.png',
       },
       'settings': {
-        'active': 'assets/icons/Settings active.png.png',
-        'inactive': 'assets/icons/Settings inactive.png.png',
+        'active': 'assets/Icons/Settings active.png.png',
+        'inactive': 'assets/Icons/Settings inactive.png.png',
       },
       'account': {
-        'active': 'assets/icons/Profile page active.png.png',
-        'inactive': 'assets/icons/Profile page inactive.png.png',
+        'active': 'assets/Icons/Profile page active.png.png',
+        'inactive': 'assets/Icons/Profile page inactive.png.png',
       },
       'logout': {
-        'active': 'assets/icons/Logout button active.png.png',
-        'inactive': 'assets/icons/Logout button inactive.png.png',
+        'active': 'assets/Icons/Logout button active.png.png',
+        'inactive': 'assets/Icons/Logout button inactive.png.png',
       },
       'timeline': {
-        'active': 'assets/icons/Timeline Page active.png.png',
-        'inactive': 'assets/icons/Timeline Page inactive.png.png',
+        'active': 'assets/Icons/Timeline Page active.png.png',
+        'inactive': 'assets/Icons/Timeline Page inactive.png.png',
       },
       'teams': {
-        'active': 'assets/icons/Home_Dashboard active.png.png',
-        'inactive': 'assets/icons/Home_Dashboard inactive.png.png',
+        'active': 'assets/Icons/Home_Dashboard active.png.png',
+        'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
       },
       'urgent_notifications': {
-        'active': 'assets/icons/Urgent Notifications active.png.png',
-        'inactive': 'assets/icons/Urgent Notifications inactive.png.png',
+        'active': 'assets/Icons/Urgent Notifications active.png.png',
+        'inactive': 'assets/Icons/Urgent Notifications inactive.png.png',
       },
     };
 
