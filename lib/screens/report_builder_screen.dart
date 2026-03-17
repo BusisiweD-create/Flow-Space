@@ -96,18 +96,24 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
         });
       }
     } catch (e) {
-      debugPrint('Error loading deliverable data: \$e');
+      debugPrint('Error loading deliverable data: $e');
+      // Always set loading to false even on error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load deliverable data. Please try again.'),
+          SnackBar(
+            content: Text('Error loading deliverable: $e'),
             backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _loadDeliverableData,
+            ),
           ),
         );
       }
       setState(() {
         _isLoading = false;
-        _deliverable = null;
+        _deliverable = null; // Keep null to trigger error state
         _sprintMetrics = [];
       });
     }
@@ -414,9 +420,51 @@ void togglePreview() {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading || _deliverable == null) {
+    // Show form even if deliverable fails to load, but show loading indicator during initial load
+    if (_isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    // If deliverable failed to load, show error message but still allow form editing
+    if (_deliverable == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Create Report'),
+          backgroundColor: FlownetColors.graphiteGray,
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              // Error message
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Deliverable data could not be loaded. You can still create a report manually.',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Show the form
+              buildEditMode(),
+            ],
+          ),
+        ),
       );
     }
 
