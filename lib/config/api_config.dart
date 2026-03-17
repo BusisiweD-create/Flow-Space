@@ -9,7 +9,7 @@ class ApiConfig {
   static const Duration tokenRefreshBuffer = Duration(minutes: 5);
 
   // Environment-specific URLs
-  static const String developmentUrl = 'http://localhost:3001/api';
+  static const String developmentUrl = 'http://localhost:8000/api';
   static const String stagingUrl = 'https://staging-api.flownet.works';
   static const String productionUrl = 'https://flow-space.onrender.com/api';
 
@@ -71,7 +71,7 @@ class ApiConfig {
 
   // Helper methods
   static String getFullUrl(String endpoint) {
-    return '$baseUrl$apiVersion$endpoint';
+    return '$environmentBaseUrl$apiVersion$endpoint';
   }
 
   static String replacePathParameter(
