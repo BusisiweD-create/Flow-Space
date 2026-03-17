@@ -57,26 +57,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     }
   }
 
-  // Navigate back
-  void _navigateBack() {
-    if (_historyIndex > 0) {
-      setState(() {
-        _historyIndex--;
-      });
-      context.go(_navigationHistory[_historyIndex]);
-    }
-  }
-
-  // Navigate forward
-  void _navigateForward() {
-    if (_historyIndex < _navigationHistory.length - 1) {
-      setState(() {
-        _historyIndex++;
-      });
-      context.go(_navigationHistory[_historyIndex]);
-    }
-  }
-
   List<_NavItem> get _navItems {
     final authService = AuthService();
     final allItems = [
@@ -438,7 +418,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: active ? Colors.white.withOpacity(0.1) : Colors.transparent,
+            color: active
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: ListTile(

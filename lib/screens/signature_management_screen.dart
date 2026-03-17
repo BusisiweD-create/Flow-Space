@@ -58,7 +58,7 @@ class _SignatureManagementScreenState extends State<SignatureManagementScreen> {
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => SignatureCreationDialog(),
+      builder: (context) => const SignatureCreationDialog(),
     );
 
     setState(() => _isCreatingNew = false);
@@ -124,7 +124,7 @@ class _SignatureManagementScreenState extends State<SignatureManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Signature'),
-        content: Text('Are you sure you want to delete this signature?'),
+        content: const Text('Are you sure you want to delete this signature?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -445,7 +445,7 @@ class _SignatureCreationDialogState extends State<SignatureCreationDialog> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: _signatureType,
+                            initialValue: _signatureType,
                             decoration: const InputDecoration(
                               labelText: 'Signature Type',
                               border: OutlineInputBorder(),

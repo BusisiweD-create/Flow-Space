@@ -30,7 +30,7 @@ class _EnhancedSigningWidgetState extends State<EnhancedSigningWidget> {
   List<UserSignature> _savedSignatures = [];
   UserSignature? _defaultSignature;
   String? _selectedSignatureId;
-  bool _useDocuSign = false;
+  final bool _useDocuSign = false;
   late final SignatureService _signatureService;
 
   @override
@@ -395,7 +395,7 @@ class _EnhancedSigningWidgetState extends State<EnhancedSigningWidget> {
                           ? Theme.of(context)
                               .colorScheme
                               .primary
-                              .withOpacity(0.1)
+                              .withValues(alpha: 0.1)
                           : Colors.transparent,
                       border: Border.all(
                         color: isSelected
@@ -487,14 +487,14 @@ class _EnhancedSigningWidgetState extends State<EnhancedSigningWidget> {
         border: Border.all(color: Colors.grey[300]!),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.create,
               size: 48,
-              color: Colors.grey[400],
+              color: Colors.grey.shade400,
             ),
             const SizedBox(height: 12),
             const Text(

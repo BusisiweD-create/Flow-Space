@@ -11,17 +11,19 @@ class DeliverableSetupScreen extends ConsumerStatefulWidget {
   const DeliverableSetupScreen({super.key});
 
   @override
-  ConsumerState<DeliverableSetupScreen> createState() => _DeliverableSetupScreenState();
+  ConsumerState<DeliverableSetupScreen> createState() =>
+      _DeliverableSetupScreenState();
 }
 
-class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen> {
+class _DeliverableSetupScreenState
+    extends ConsumerState<DeliverableSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _dodController = TextEditingController();
   final _evidenceLinksController = TextEditingController();
   final _deliverableService = DeliverableService();
-  
+
   String _priority = 'medium';
   String _status = 'draft';
   DateTime? _dueDate;
@@ -47,20 +49,22 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
     try {
       final backendApiService = BackendApiService();
       final response = await backendApiService.getProjects();
-      
+
       if (response.isSuccess && response.data != null) {
         List<dynamic> projectsList = [];
         if (response.data is List) {
           projectsList = response.data as List;
         } else if (response.data is Map) {
           final data = response.data as Map<String, dynamic>;
-          projectsList = data['data'] as List? ?? data['projects'] as List? ?? [];
+          projectsList =
+              data['data'] as List? ?? data['projects'] as List? ?? [];
         }
-        
+
         setState(() {
           _projects = projectsList
               .where((p) => p != null)
-              .map((p) => p is Map ? Map<String, dynamic>.from(p) : <String, dynamic>{})
+              .map((p) =>
+                  p is Map ? Map<String, dynamic>.from(p) : <String, dynamic>{})
               .where((m) => m.isNotEmpty)
               .toList();
         });
@@ -77,46 +81,51 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       final List<User> users = await UserDataService().getUsers(limit: 1000);
       debugPrint('✅ Successfully loaded ${users.length} users from backend');
       setState(() {
-        _users = users.map((user) {
-          // Handle name construction properly
-          String displayName = user.name.trim();
-          
-          // Fallback to email if name is empty
-          if (displayName.isEmpty) {
-            displayName = user.email.trim();
-          }
-          
-          debugPrint('👤 Processed user: $displayName (${user.email})');
-          
-          return {
-            'id': user.id,
-            'name': displayName,
-            'email': user.email,
-            'role': user.role.name,
-            'originalRole': user.role.name,
-            'isActive': user.isActive,
-            'emailVerified': user.emailVerified,
-          };
-        }).where((user) => user['isActive'] == true).toList();
+        _users = users
+            .map((user) {
+              // Handle name construction properly
+              String displayName = user.name.trim();
+
+              // Fallback to email if name is empty
+              if (displayName.isEmpty) {
+                displayName = user.email.trim();
+              }
+
+              debugPrint('👤 Processed user: $displayName (${user.email})');
+
+              return {
+                'id': user.id,
+                'name': displayName,
+                'email': user.email,
+                'role': user.role.name,
+                'originalRole': user.role.name,
+                'isActive': user.isActive,
+                'emailVerified': user.emailVerified,
+              };
+            })
+            .where((user) => user['isActive'] == true)
+            .toList();
         _isLoadingUsers = false;
       });
-      debugPrint('✅ Processed ${_users.length} active users for deliverable assignment');
-      
+      debugPrint(
+          '✅ Processed ${_users.length} active users for deliverable assignment');
+
       // Debug: Print user data for verification
       for (final user in _users) {
-        debugPrint('  👤 ${user["name"]} (${user["email"]}) - Role: ${user["role"]}');
+        debugPrint(
+            '  👤 ${user["name"]} (${user["email"]}) - Role: ${user["role"]}');
       }
-      
     } catch (e) {
       setState(() => _isLoadingUsers = false);
       debugPrint('❌ Error loading users: $e');
       // Show error message to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load users. Please check your connection and try again.'),
+          const SnackBar(
+            content: Text(
+                'Failed to load users. Please check your connection and try again.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -129,23 +138,22 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       // Use BackendApiService for sprints
       final backendApiService = BackendApiService();
       final response = await backendApiService.getSprints();
-      
-      debugPrint('📦 Sprint response: isSuccess=${response.isSuccess}, data=${response.data}');
-      
+
+      debugPrint(
+          '📦 Sprint response: isSuccess=${response.isSuccess}, data=${response.data}');
+
       if (response.isSuccess && response.data != null) {
         List<dynamic> sprintsList = [];
-        
+
         if (response.data is List) {
           sprintsList = response.data as List;
         } else if (response.data is Map) {
           final data = response.data as Map<String, dynamic>;
-          sprintsList = data['data'] as List? ?? 
-                       data['sprints'] as List? ?? 
-                       [];
+          sprintsList = data['data'] as List? ?? data['sprints'] as List? ?? [];
         }
-        
+
         debugPrint('📦 Parsed sprints list: ${sprintsList.length} items');
-        
+
         setState(() {
           _availableSprints = sprintsList
               .where((s) => s != null) // Filter out nulls
@@ -185,23 +193,28 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       final messages = [
         {
           'role': 'system',
-          'content': 'Write a concise professional deliverable title. Max 12 words.'
+          'content':
+              'Write a concise professional deliverable title. Max 12 words.'
         },
         {
           'role': 'user',
-          'content': 'Description: ${_descriptionController.text}\nPriority: $_priority\nDue: ${_dueDate?.toIso8601String() ?? ''}\nSprints: ${_selectedSprints.join(', ')}'
+          'content':
+              'Description: ${_descriptionController.text}\nPriority: $_priority\nDue: ${_dueDate?.toIso8601String() ?? ''}\nSprints: ${_selectedSprints.join(', ')}'
         }
       ];
-      final resp = await BackendApiService().aiChat(messages, temperature: 0.6, maxTokens: 40);
+      final resp = await BackendApiService()
+          .aiChat(messages, temperature: 0.6, maxTokens: 40);
       if (resp.isSuccess && resp.data != null) {
-        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
-        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        final data =
+            resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content =
+            (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
         if (content.isNotEmpty) {
           _titleController.text = content.trim();
         }
       }
-    } catch (_) {}
-    finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
   }
@@ -213,23 +226,28 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       final messages = [
         {
           'role': 'system',
-          'content': 'Write a clear deliverable description summarizing scope, outcomes, and constraints.'
+          'content':
+              'Write a clear deliverable description summarizing scope, outcomes, and constraints.'
         },
         {
           'role': 'user',
-          'content': 'Title: ${_titleController.text}\nPriority: $_priority\nDue: ${_dueDate?.toIso8601String() ?? ''}\nSprints: ${_selectedSprints.join(', ')}\nDefinition of Done: ${_dodController.text}'
+          'content':
+              'Title: ${_titleController.text}\nPriority: $_priority\nDue: ${_dueDate?.toIso8601String() ?? ''}\nSprints: ${_selectedSprints.join(', ')}\nDefinition of Done: ${_dodController.text}'
         }
       ];
-      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 160);
+      final resp = await BackendApiService()
+          .aiChat(messages, temperature: 0.7, maxTokens: 160);
       if (resp.isSuccess && resp.data != null) {
-        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
-        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        final data =
+            resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content =
+            (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
         if (content.isNotEmpty) {
           _descriptionController.text = content.trim();
         }
       }
-    } catch (_) {}
-    finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
   }
@@ -241,23 +259,28 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       final messages = [
         {
           'role': 'system',
-          'content': 'Propose 5-8 acceptance criteria as a checklist, one per line.'
+          'content':
+              'Propose 5-8 acceptance criteria as a checklist, one per line.'
         },
         {
           'role': 'user',
-          'content': 'Title: ${_titleController.text}\nDescription: ${_descriptionController.text}'
+          'content':
+              'Title: ${_titleController.text}\nDescription: ${_descriptionController.text}'
         }
       ];
-      final resp = await BackendApiService().aiChat(messages, temperature: 0.7, maxTokens: 200);
+      final resp = await BackendApiService()
+          .aiChat(messages, temperature: 0.7, maxTokens: 200);
       if (resp.isSuccess && resp.data != null) {
-        final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
-        final content = (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
+        final data =
+            resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+        final content =
+            (data['content'] ?? (data['data']?['content']))?.toString() ?? '';
         if (content.isNotEmpty) {
           _dodController.text = content.trim();
         }
       }
-    } catch (_) {}
-    finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
   }
@@ -283,14 +306,17 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
 
     try {
       debugPrint('📦 Creating deliverable: ${_titleController.text}');
-      
+
       // Use DeliverableService which handles authentication automatically
       final response = await _deliverableService.createDeliverable(
         title: _titleController.text,
-        description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
-        definitionOfDone: _dodController.text.isEmpty 
-            ? null 
-            : _dodController.text.split('\n')
+        description: _descriptionController.text.isEmpty
+            ? null
+            : _descriptionController.text,
+        definitionOfDone: _dodController.text.isEmpty
+            ? null
+            : _dodController.text
+                .split('\n')
                 .map((s) => s.trim())
                 .where((s) => s.isNotEmpty)
                 .map((s) => DoDItem(text: s))
@@ -298,7 +324,7 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
         priority: _priority,
         status: _status,
         dueDate: _dueDate,
-sprintIds: _selectedSprints,
+        sprintIds: _selectedSprints,
         ownerId: _ownerId,
         projectId: _selectedProjectId,
         evidenceLinks: _evidenceLinksController.text
@@ -310,7 +336,7 @@ sprintIds: _selectedSprints,
 
       if (mounted) {
         setState(() => _isSaving = false);
-        
+
         if (response.isSuccess) {
           try {
             Deliverable? created;
@@ -319,22 +345,23 @@ sprintIds: _selectedSprints,
               if (m['deliverable'] is Deliverable) {
                 created = m['deliverable'] as Deliverable;
               } else if (m['deliverable'] is Map) {
-                created = Deliverable.fromJson(Map<String, dynamic>.from(m['deliverable'] as Map));
+                created = Deliverable.fromJson(
+                    Map<String, dynamic>.from(m['deliverable'] as Map));
               } else if (m['id'] != null) {
                 created = Deliverable(
                   id: m['id'].toString(),
                   title: _titleController.text,
                   description: _descriptionController.text,
-                  definitionOfDone: _dodController.text.split('\n')
+                  definitionOfDone: _dodController.text
+                      .split('\n')
                       .map((s) => s.trim())
                       .where((s) => s.isNotEmpty)
                       .map((s) => DoDItem(text: s))
                       .toList(),
                   priority: _priority,
                   status: DeliverableStatus.values.firstWhere(
-                    (e) => e.name == _status, 
-                    orElse: () => DeliverableStatus.draft
-                  ),
+                      (e) => e.name == _status,
+                      orElse: () => DeliverableStatus.draft),
                   dueDate: _dueDate ?? DateTime.now(),
                   createdBy: '',
                   assignedTo: null,
@@ -343,8 +370,11 @@ sprintIds: _selectedSprints,
                   createdByName: null,
                   assignedToName: null,
                   createdAt: DateTime.now(),
-                  evidenceLinks: _evidenceLinksController.text.isNotEmpty 
-                      ? _evidenceLinksController.text.split(',').map((e) => e.trim()).toList() 
+                  evidenceLinks: _evidenceLinksController.text.isNotEmpty
+                      ? _evidenceLinksController.text
+                          .split(',')
+                          .map((e) => e.trim())
+                          .toList()
                       : [],
                 );
               }
@@ -360,7 +390,8 @@ sprintIds: _selectedSprints,
                 try {
                   GoRouter.of(context).go('/report-editor/${created.id}');
                 } catch (_) {
-                  Navigator.of(context).pushNamed('/report-editor/${created.id}');
+                  Navigator.of(context)
+                      .pushNamed('/report-editor/${created.id}');
                 }
               }
             }
@@ -377,7 +408,8 @@ sprintIds: _selectedSprints,
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('❌ Failed to create deliverable: ${response.error ?? "Unknown error"}'),
+              content: Text(
+                  '❌ Failed to create deliverable: ${response.error ?? "Unknown error"}'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 5),
             ),
@@ -387,7 +419,7 @@ sprintIds: _selectedSprints,
     } catch (e, stackTrace) {
       debugPrint('❌ Error creating deliverable: $e');
       debugPrint('📚 Stack trace: $stackTrace');
-      
+
       if (mounted) {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -460,7 +492,8 @@ sprintIds: _selectedSprints,
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
-                  onPressed: _isGenerating ? null : _generateDescriptionSuggestion,
+                  onPressed:
+                      _isGenerating ? null : _generateDescriptionSuggestion,
                   icon: const Icon(Icons.auto_awesome),
                   label: const Text('Suggest with AI'),
                 ),
@@ -499,24 +532,24 @@ sprintIds: _selectedSprints,
                 initialValue: _ownerId,
                 decoration: InputDecoration(
                   labelText: 'Owner',
-                  border: OutlineInputBorder(),
-                  prefixIcon: _isLoadingUsers 
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(Icons.person),
-                  helperText: _isLoadingUsers 
-                    ? 'Loading users...' 
-                    : 'Select the team member responsible for this deliverable',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: _isLoadingUsers
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.person),
+                  helperText: _isLoadingUsers
+                      ? 'Loading users...'
+                      : 'Select the team member responsible for this deliverable',
                   suffixIcon: _users.isEmpty && !_isLoadingUsers
-                    ? IconButton(
-                        icon: Icon(Icons.refresh),
-                        onPressed: _loadUsers,
-                        tooltip: 'Retry loading users',
-                      )
-                    : null,
+                      ? IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: _loadUsers,
+                          tooltip: 'Retry loading users',
+                        )
+                      : null,
                 ),
                 items: [
                   const DropdownMenuItem<String>(
@@ -529,12 +562,12 @@ sprintIds: _selectedSprints,
                       if (name.isEmpty) {
                         name = user['email'] ?? 'Unknown';
                       }
-                      
+
                       final role = user['role']?.toString() ?? '';
                       if (role.isNotEmpty) {
                         name = '$name ($role)';
                       }
-                      
+
                       return DropdownMenuItem<String>(
                         value: user['id'].toString(),
                         child: Row(
@@ -542,14 +575,18 @@ sprintIds: _selectedSprints,
                             Icon(
                               Icons.person,
                               size: 16,
-                              color: user['isActive'] == true ? Colors.green : Colors.grey,
+                              color: user['isActive'] == true
+                                  ? Colors.green
+                                  : Colors.grey,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 name,
                                 style: TextStyle(
-                                  color: user['isActive'] == true ? null : Colors.grey,
+                                  color: user['isActive'] == true
+                                      ? null
+                                      : Colors.grey,
                                 ),
                               ),
                             ),
@@ -564,11 +601,13 @@ sprintIds: _selectedSprints,
                       );
                     }),
                 ],
-                onChanged: _isLoadingUsers ? null : (value) {
-                  setState(() {
-                    _ownerId = value;
-                  });
-                },
+                onChanged: _isLoadingUsers
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _ownerId = value;
+                        });
+                      },
                 validator: (value) {
                   if (_status != 'draft' && (value == null || value.isEmpty)) {
                     return 'Owner must be selected before deliverable is marked Active/In Progress';
@@ -591,10 +630,13 @@ sprintIds: _selectedSprints,
                 items: [
                   DropdownMenuItem<String>(
                     value: null,
-                    child: Text(_projects.isEmpty ? 'No projects available' : 'Select Project'),
+                    child: Text(_projects.isEmpty
+                        ? 'No projects available'
+                        : 'Select Project'),
                   ),
                   ..._projects.map((project) {
-                    final name = project['name'] ?? project['key'] ?? 'Unknown Project';
+                    final name =
+                        project['name'] ?? project['key'] ?? 'Unknown Project';
                     return DropdownMenuItem<String>(
                       value: project['id'].toString(),
                       child: Text(name),
@@ -628,9 +670,11 @@ sprintIds: _selectedSprints,
                       ),
                       items: const [
                         DropdownMenuItem(value: 'low', child: Text('Low')),
-                        DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                        DropdownMenuItem(
+                            value: 'medium', child: Text('Medium')),
                         DropdownMenuItem(value: 'high', child: Text('High')),
-                        DropdownMenuItem(value: 'critical', child: Text('Critical')),
+                        DropdownMenuItem(
+                            value: 'critical', child: Text('Critical')),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -650,9 +694,12 @@ sprintIds: _selectedSprints,
                       ),
                       items: const [
                         DropdownMenuItem(value: 'draft', child: Text('Draft')),
-                        DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
-                        DropdownMenuItem(value: 'review', child: Text('Review')),
-                        DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                        DropdownMenuItem(
+                            value: 'in_progress', child: Text('In Progress')),
+                        DropdownMenuItem(
+                            value: 'review', child: Text('Review')),
+                        DropdownMenuItem(
+                            value: 'completed', child: Text('Completed')),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -713,7 +760,8 @@ sprintIds: _selectedSprints,
                     final isSelected = _selectedSprints.contains(idStr);
                     return CheckboxListTile(
                       title: Text(sprint['name']?.toString() ?? ''),
-                      subtitle: Text('${sprint['start_date']} - ${sprint['end_date']}'),
+                      subtitle: Text(
+                          '${sprint['start_date']} - ${sprint['end_date']}'),
                       value: isSelected,
                       onChanged: (value) {
                         setState(() {
@@ -748,7 +796,8 @@ sprintIds: _selectedSprints,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Text(
@@ -772,6 +821,4 @@ sprintIds: _selectedSprints,
     _evidenceLinksController.dispose();
     super.dispose();
   }
-
 }
-
