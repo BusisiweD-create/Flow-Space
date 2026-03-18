@@ -169,17 +169,17 @@ final ApiClient _apiClient = ApiClient();
         final raw = jsonDecode(response.body);
         final mapped = {
           'id': raw['filename']?.toString() ?? '',
-          'name': raw['originalName']?.toString() ?? raw['filename']?.toString() ?? 'Uploaded File',
+          'name': raw['title']?.toString() ?? raw['originalName']?.toString() ?? raw['filename']?.toString() ?? 'Uploaded File',
           'fileType': (raw['filename']?.toString() ?? '').split('.').last,
           'uploaded_at': DateTime.now().toIso8601String(),
-          'uploaded_by': _authService.currentUser?.id.toString() ?? 'system',
+          'uploaded_by': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
           'size': raw['size']?.toString(),
           'description': description ?? '',
-          'uploader': _authService.currentUser?.id.toString() ?? 'system',
+          'uploader': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
           'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
           'file_path': raw['url'],
           'tags': tags,
-          'uploader_name': _authService.currentUser?.name ?? 'System',
+          'uploader_name': raw['uploaderName']?.toString() ?? _authService.currentUser?.name ?? 'System',
         };
         final document = RepositoryFile.fromJson(mapped);
         return ApiResponse.success({'document': document}, response.statusCode);
@@ -244,17 +244,17 @@ final ApiClient _apiClient = ApiClient();
         final raw = jsonDecode(response.body);
         final mapped = {
           'id': raw['filename']?.toString() ?? '',
-          'name': raw['originalName']?.toString() ?? fileName,
+          'name': raw['title']?.toString() ?? raw['originalName']?.toString() ?? fileName,
           'fileType': (fileName).split('.').last,
           'uploaded_at': DateTime.now().toIso8601String(),
-          'uploaded_by': _authService.currentUser?.id.toString() ?? 'system',
+          'uploaded_by': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
           'size': raw['size']?.toString(),
           'description': description ?? '',
-          'uploader': _authService.currentUser?.id.toString() ?? 'system',
+          'uploader': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
           'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
           'file_path': raw['url'],
           'tags': tags,
-          'uploader_name': _authService.currentUser?.name ?? 'System',
+          'uploader_name': raw['uploaderName']?.toString() ?? _authService.currentUser?.name ?? 'System',
         };
         final document = RepositoryFile.fromJson(mapped);
         return ApiResponse.success({'document': document}, response.statusCode);
