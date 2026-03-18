@@ -295,13 +295,6 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       return ApiResponse.error('HTTP error: ${e.message}');
     } catch (e) {
       debugPrint('API request error: $e');
-      final msg = e.toString();
-      if (msg.contains('Failed to fetch') || msg.contains('ClientException') ||
-          msg.contains('Connection refused') || msg.contains('Connection closed')) {
-        return ApiResponse.error(
-          'Cannot connect to the server. Make sure the backend is running at ${Environment.apiBaseUrl.replaceAll('/api/v1', '')}',
-        );
-      }
       return ApiResponse.error('An unexpected error occurred: $e');
     }
   }
@@ -342,13 +335,6 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       return ApiResponse.error('HTTP error: ${e.message}');
     } catch (e) {
       debugPrint('Unauthenticated API request error: $e');
-      final msg = e.toString();
-      if (msg.contains('Failed to fetch') || msg.contains('ClientException') ||
-          msg.contains('Connection refused') || msg.contains('Connection closed')) {
-        return ApiResponse.error(
-          'Cannot connect to the server. Make sure the backend is running at ${Environment.apiBaseUrl.replaceAll('/api/v1', '')}',
-        );
-      }
       return ApiResponse.error('An unexpected error occurred: $e');
     }
   }
@@ -399,13 +385,6 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       return ApiResponse.error('HTTP error: ${e.message}');
     } catch (e) {
       debugPrint('Token-based API request error: $e');
-      final msg = e.toString();
-      if (msg.contains('Failed to fetch') || msg.contains('ClientException') ||
-          msg.contains('Connection refused') || msg.contains('Connection closed')) {
-        return ApiResponse.error(
-          'Cannot connect to the server. Make sure the backend is running at ${Environment.apiBaseUrl.replaceAll('/api/v1', '')}',
-        );
-      }
       return ApiResponse.error('An unexpected error occurred: $e');
     }
   }

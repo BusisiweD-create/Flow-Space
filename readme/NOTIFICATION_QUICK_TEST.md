@@ -121,7 +121,7 @@ title                                  | type                        | recipient
 **Check:**
 ```bash
 # 1. Is backend running?
-curl http://localhost:3001/api/v1/users
+curl http://localhost:8000/api/v1/users
 # Should return: {"error":"Access token required"}
 
 # 2. Check database

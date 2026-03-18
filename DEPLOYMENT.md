@@ -93,7 +93,7 @@ DB_NAME=flow_space
 DB_USER=postgres
 
 # API
-API_BASE_URL=http://localhost:3001/api/v1
+API_BASE_URL=http://localhost:8000/api/v1
 DEBUG_MODE=true
 ```
 
@@ -159,7 +159,7 @@ flutter test --coverage
 
 ### Local Development:
 - Frontend: http://localhost:57828
-- Backend API: http://localhost:3001/api/v1
+- Backend API: http://localhost:8000/api/v1
 - Database: postgresql://localhost:5432/flow_space
 
 ### Production:

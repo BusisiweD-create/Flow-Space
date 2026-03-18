@@ -298,7 +298,7 @@ class SendGridEmailService {
 
 3. **Registration Test**:
    ```bash
-   curl -X POST http://localhost:3001/api/v1/auth/register \
+   curl -X POST http://localhost:8000/api/v1/auth/register \
      -H "Content-Type: application/json" \
      -d '{
        "email": "test@example.com",

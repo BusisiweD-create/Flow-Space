@@ -492,7 +492,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
               ),
             );
             if (!mounted) return;
-            context.go('/report-repository');
+            context.go('/report-sent/$reportId');
           } else {
             debugPrint('❌ Submit failed: ${submitResponse.error}');
             if (mounted) {
