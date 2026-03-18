@@ -149,7 +149,7 @@ final ApiClient _apiClient = ApiClient();
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/documents'),
+        Uri.parse('$_baseUrl/files/upload'),
       );
 
       request.headers['Authorization'] = 'Bearer $token';
@@ -167,8 +167,21 @@ final ApiClient _apiClient = ApiClient();
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final raw = jsonDecode(response.body);
-        final dynamic docRaw = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
-        final document = RepositoryFile.fromJson(Map<String, dynamic>.from(docRaw as Map));
+        final mapped = {
+          'id': raw['filename']?.toString() ?? '',
+          'name': raw['title']?.toString() ?? raw['originalName']?.toString() ?? raw['filename']?.toString() ?? 'Uploaded File',
+          'fileType': (raw['filename']?.toString() ?? '').split('.').last,
+          'uploaded_at': DateTime.now().toIso8601String(),
+          'uploaded_by': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
+          'size': raw['size']?.toString(),
+          'description': description ?? '',
+          'uploader': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
+          'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
+          'file_path': raw['url'],
+          'tags': tags,
+          'uploader_name': raw['uploaderName']?.toString() ?? _authService.currentUser?.name ?? 'System',
+        };
+        final document = RepositoryFile.fromJson(mapped);
         return ApiResponse.success({'document': document}, response.statusCode);
       } else {
         final errorBody = response.body;
@@ -203,7 +216,7 @@ final ApiClient _apiClient = ApiClient();
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/documents'),
+        Uri.parse('$_baseUrl/files/upload'),
       );
 
       request.headers['Authorization'] = 'Bearer $token';
@@ -229,8 +242,21 @@ final ApiClient _apiClient = ApiClient();
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final raw = jsonDecode(response.body);
-        final dynamic docRaw = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
-        final document = RepositoryFile.fromJson(Map<String, dynamic>.from(docRaw as Map));
+        final mapped = {
+          'id': raw['filename']?.toString() ?? '',
+          'name': raw['title']?.toString() ?? raw['originalName']?.toString() ?? fileName,
+          'fileType': (fileName).split('.').last,
+          'uploaded_at': DateTime.now().toIso8601String(),
+          'uploaded_by': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
+          'size': raw['size']?.toString(),
+          'description': description ?? '',
+          'uploader': raw['uploadedBy']?.toString() ?? _authService.currentUser?.id.toString() ?? 'system',
+          'size_in_mb': ((raw['size'] ?? 0) as num) / (1024 * 1024),
+          'file_path': raw['url'],
+          'tags': tags,
+          'uploader_name': raw['uploaderName']?.toString() ?? _authService.currentUser?.name ?? 'System',
+        };
+        final document = RepositoryFile.fromJson(mapped);
         return ApiResponse.success({'document': document}, response.statusCode);
       } else {
         final errorBody = response.body;

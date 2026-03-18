@@ -92,6 +92,9 @@ class User {
           displayName = '$firstName $lastName'.trim();
         }
       }
+      if (displayName.isEmpty) {
+        displayName = json['email']?.toString() ?? '';
+      }
 
       // Handle role mapping
        final roleStr = json['role']?.toString().toLowerCase().replaceAll(RegExp(r'[\s_-]'), '') ?? '';

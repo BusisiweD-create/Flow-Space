@@ -18,9 +18,9 @@ class Environment {
       return _apiBaseUrl;
     }
 
-    // Fallback to production URL if deployed on Render
+    // Fallback if deployed but build-time URL wasn't provided
     if (isRenderDeployed) {
-      return "https://flow-space.onrender.com/api/v1";
+      return "https://backend-532p.onrender.com/api/v1";
     }
 
     // Default to localhost for development
@@ -60,8 +60,7 @@ class Environment {
     try {
       final uri = Uri.base;
       return uri.host.contains('onrender.com') ||
-          uri.host.contains('flownet.works') ||
-          (!uri.host.contains('localhost') && !uri.host.contains('127.0.0.1'));
+          uri.host.contains('flownet.works');
     } catch (e) {
       return false;
     }

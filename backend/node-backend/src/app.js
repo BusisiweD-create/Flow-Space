@@ -312,6 +312,8 @@ async function startServer() {
     try {
       if (sequelize.getDialect() === 'postgres') {
         await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
+        await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id UUID");
+        await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by UUID");
       }
     } catch (e) {
       console.warn('⚠️ Unable to ensure sprints.created_by column; continuing', e?.message || e);
