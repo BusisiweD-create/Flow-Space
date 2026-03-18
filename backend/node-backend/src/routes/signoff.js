@@ -27,6 +27,26 @@ function buildUserDisplayName(u) {
   return '';
 }
 
+function sanitizeReportTitle(value) {
+  const title = String(value || '').trim();
+  if (!title) return title;
+  const hasDigit = (s) => /\d/.test(String(s || ''));
+
+  const bracketed = /^(.*)\s*[\[\(]\s*([A-Za-z0-9-]{6,})\s*[\]\)]\s*$/.exec(title);
+  if (bracketed && hasDigit(bracketed[2])) {
+    const base = String(bracketed[1] || '').trim();
+    return base || title;
+  }
+
+  const dashed = /^(.*)\s*[-–—]\s*([A-Za-z0-9-]{6,})\s*$/.exec(title);
+  if (dashed && hasDigit(dashed[2])) {
+    const base = String(dashed[1] || '').trim();
+    return base || title;
+  }
+
+  return title;
+}
+
 async function resolveActorIdentity({ userId, email }) {
   const uuidLike = (v) => typeof v === 'string' && /^[0-9a-fA-F-]{36}$/.test(v);
   const emailLike = (v) => typeof v === 'string' && v.includes('@') && v.trim() !== '';
@@ -218,16 +238,23 @@ router.get('/', async (req, res) => {
     }
     const usersById = userIds.size > 0 ? await User.findAll({ where: { id: [...userIds] } }) : [];
     const usersByEmail = emails.size > 0 ? await User.findAll({ where: { email: [...emails] } }) : [];
-    const userMap = new Map();
+    const userNameMap = new Map();
+    const userRoleMap = new Map();
     for (const u of usersById) {
       const display = buildUserDisplayName(u);
-      if (u.id) userMap.set(u.id, display);
-      if (u.email) userMap.set(u.email, display);
+      const roleVal = u && u.role ? String(u.role) : null;
+      if (u.id) userNameMap.set(u.id, display);
+      if (u.email) userNameMap.set(u.email, display);
+      if (u.id && roleVal) userRoleMap.set(u.id, roleVal);
+      if (u.email && roleVal) userRoleMap.set(u.email, roleVal);
     }
     for (const u of usersByEmail) {
       const display = buildUserDisplayName(u);
-      if (u.id) userMap.set(u.id, display);
-      if (u.email) userMap.set(u.email, display);
+      const roleVal = u && u.role ? String(u.role) : null;
+      if (u.id) userNameMap.set(u.id, display);
+      if (u.email) userNameMap.set(u.email, display);
+      if (u.id && roleVal) userRoleMap.set(u.id, roleVal);
+      if (u.email && roleVal) userRoleMap.set(u.email, roleVal);
     }
     let reports = rawRows.map((row) => {
       try {
@@ -250,24 +277,41 @@ router.get('/', async (req, res) => {
           preparedByName:
             c.preparedByName ||
             c.prepared_by_name ||
-            userMap.get(preparedBy) ||
-            userMap.get((row.created_by || '').toString()) ||
+            userNameMap.get(preparedBy) ||
+            userNameMap.get((row.created_by || '').toString()) ||
+            null,
+          preparedByRole:
+            c.preparedByRole ||
+            c.prepared_by_role ||
+            userRoleMap.get(preparedBy) ||
+            userRoleMap.get((row.created_by || '').toString()) ||
             null,
           createdAt: row.created_at,
           createdBy: (row.created_by || '').toString(),
-          createdByName: userMap.get(row.created_by) || null,
+          createdByName: userNameMap.get(row.created_by) || null,
           submittedAt: c.submittedAt || c.submitted_at,
           submittedBy: submittedBy,
           submittedByName:
             c.submittedByName ||
             c.submitted_by_name ||
-            (looksLikeUserId(submittedBy) ? (userMap.get(String(submittedBy)) || null) : null),
+            userNameMap.get(String(submittedBy)) ||
+            null,
+          submittedByRole:
+            c.submittedByRole ||
+            c.submitted_by_role ||
+            userRoleMap.get(String(submittedBy)) ||
+            null,
           reviewedAt: c.reviewedAt || c.reviewed_at,
           reviewedBy: reviewedBy,
           reviewedByName:
             c.reviewedByName ||
             c.reviewed_by_name ||
-            userMap.get(String(reviewedBy)) ||
+            userNameMap.get(String(reviewedBy)) ||
+            null,
+          reviewedByRole:
+            c.reviewedByRole ||
+            c.reviewed_by_role ||
+            userRoleMap.get(String(reviewedBy)) ||
             null,
           clientComment: c.clientComment || c.client_comment,
           changeRequestDetails: c.changeRequestDetails || c.change_request_details,
@@ -276,7 +320,12 @@ router.get('/', async (req, res) => {
           approvedByName:
             c.approvedByName ||
             c.approved_by_name ||
-            userMap.get(String(approvedBy)) ||
+            userNameMap.get(String(approvedBy)) ||
+            null,
+          approvedByRole:
+            c.approvedByRole ||
+            c.approved_by_role ||
+            userRoleMap.get(String(approvedBy)) ||
             null,
           digitalSignature: c.digitalSignature || c.digital_signature,
         };
@@ -290,7 +339,7 @@ router.get('/', async (req, res) => {
           status: row.status || 'draft',
           createdAt: row.created_at,
           createdBy: (row.created_by || '').toString(),
-          createdByName: userMap.get(row.created_by) || null,
+          createdByName: userNameMap.get(row.created_by) || null,
         };
       }
     });
@@ -390,11 +439,15 @@ router.get('/:id', async (req, res) => {
         extraIds.length > 0 ? await User.findAll({ where: { id: [...new Set(extraIds)] } }) : [];
       const extraUsersByEmail =
         emails.length > 0 ? await User.findAll({ where: { email: [...new Set(emails)] } }) : [];
-      const userMap = new Map();
+      const userNameMap = new Map();
+      const userRoleMap = new Map();
       for (const u of [...extraUsers, ...extraUsersByEmail]) {
         const display = buildUserDisplayName(u);
-        if (u.id) userMap.set(u.id, display);
-        if (u.email) userMap.set(u.email, display);
+        const roleVal = u && u.role ? String(u.role) : null;
+        if (u.id) userNameMap.set(u.id, display);
+        if (u.email) userNameMap.set(u.email, display);
+        if (u.id && roleVal) userRoleMap.set(u.id, roleVal);
+        if (u.email && roleVal) userRoleMap.set(u.email, roleVal);
       }
       const report = {
         id: row.id,
@@ -409,8 +462,13 @@ router.get('/:id', async (req, res) => {
         preparedByName:
           c.preparedByName ||
           c.prepared_by_name ||
-          userMap.get(String(preparedBy)) ||
+          userNameMap.get(String(preparedBy)) ||
           createdByName ||
+          null,
+        preparedByRole:
+          c.preparedByRole ||
+          c.prepared_by_role ||
+          userRoleMap.get(String(preparedBy)) ||
           null,
         status: row.status || 'draft',
         createdAt: row.created_at,
@@ -421,14 +479,24 @@ router.get('/:id', async (req, res) => {
         submittedByName:
           c.submittedByName ||
           c.submitted_by_name ||
-          userMap.get(String(submittedBy)) ||
+          userNameMap.get(String(submittedBy)) ||
+          null,
+        submittedByRole:
+          c.submittedByRole ||
+          c.submitted_by_role ||
+          userRoleMap.get(String(submittedBy)) ||
           null,
         reviewedAt: c.reviewedAt || c.reviewed_at,
         reviewedBy: reviewedBy,
         reviewedByName:
           c.reviewedByName ||
           c.reviewed_by_name ||
-          userMap.get(String(reviewedBy)) ||
+          userNameMap.get(String(reviewedBy)) ||
+          null,
+        reviewedByRole:
+          c.reviewedByRole ||
+          c.reviewed_by_role ||
+          userRoleMap.get(String(reviewedBy)) ||
           null,
         clientComment: c.clientComment || c.client_comment,
         changeRequestDetails: c.changeRequestDetails || c.change_request_details,
@@ -437,7 +505,12 @@ router.get('/:id', async (req, res) => {
         approvedByName:
           c.approvedByName ||
           c.approved_by_name ||
-          userMap.get(String(approvedBy)) ||
+          userNameMap.get(String(approvedBy)) ||
+          null,
+        approvedByRole:
+          c.approvedByRole ||
+          c.approved_by_role ||
+          userRoleMap.get(String(approvedBy)) ||
           null,
         digitalSignature: c.digitalSignature || c.digital_signature,
       };
@@ -493,6 +566,7 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: 'reportContent is required' });
       }
       const actor = await resolveActorIdentity({ userId: String(req.user.id), email: req.user.email });
+      const actorRole = actor.role ? String(actor.role) : (req.user && req.user.role ? String(req.user.role) : null);
       const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
       const content = {
         reportTitle,
@@ -503,7 +577,8 @@ router.post('/', async (req, res) => {
         nextSteps,
         status: normalizedStatus,
         preparedBy: actor.id,
-        preparedByName: actor.name
+        preparedByName: actor.name,
+        preparedByRole: actorRole
       };
       const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
       const contentExpr = dialect === 'postgres' ? '$4::jsonb' : '$4';
@@ -525,6 +600,7 @@ router.post('/', async (req, res) => {
         status: row.status || normalizedStatus,
         preparedBy: c.preparedBy || c.prepared_by,
         preparedByName: c.preparedByName || c.prepared_by_name,
+        preparedByRole: c.preparedByRole || c.prepared_by_role,
         createdAt: row.created_at,
         createdBy: (row.created_by || '').toString(),
         createdByName: actor.name
@@ -699,6 +775,8 @@ router.post('/:id/approve', async (req, res) => {
       const actorId = identity.id || null;
       const actorEmail = identity.email || null;
       const actorName = identity.name;
+      const actorRole =
+        identity.role ? String(identity.role) : (user.role ? String(user.role) : (reviewToken ? 'clientReviewer' : null));
       
       // Seal check: Prevent re-approval
       const [existing] = await sequelize.query(
@@ -710,8 +788,8 @@ router.post('/:id/approve', async (req, res) => {
       }
 
       const [results] = await sequelize.query(
-        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'clientComment', $5::text, 'digitalSignature', $6::text, 'clientEmail', $7::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
-        { bind: [id, 'approved', (actorId ?? approvedBy), actorName, comment ?? null, digitalSignature ?? null, clientEmail] }
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'reviewedByRole', $5::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'approvedByRole', $5::text, 'clientComment', $6::text, 'digitalSignature', $7::text, 'clientEmail', $8::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [id, 'approved', (actorId ?? approvedBy), actorName, actorRole, comment ?? null, digitalSignature ?? null, clientEmail] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -730,9 +808,11 @@ router.post('/:id/approve', async (req, res) => {
         approvedAt: c.approvedAt || c.approved_at,
         approvedBy: c.approvedBy || c.approved_by,
         approvedByName: c.approvedByName || c.approved_by_name || actorName,
+        approvedByRole: c.approvedByRole || c.approved_by_role || actorRole,
         reviewedAt: c.reviewedAt || c.reviewed_at,
         reviewedBy: c.reviewedBy || c.reviewed_by,
         reviewedByName: c.reviewedByName || c.reviewed_by_name || actorName,
+        reviewedByRole: c.reviewedByRole || c.reviewed_by_role || actorRole,
         clientComment: c.clientComment || c.client_comment,
         digitalSignature: c.digitalSignature || c.digital_signature
       };
@@ -821,7 +901,7 @@ router.post('/:id/submit', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const [existing] = await sequelize.query(
-        `SELECT id, created_by, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
+        `SELECT id, created_by, status, content FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -844,9 +924,13 @@ router.post('/:id/submit', async (req, res) => {
       const submitterId = identity.id || ownerId || null;
       const submitterEmail = identity.email || null;
       const submitterName = identity.name;
+      const submitterRole = identity.role ? String(identity.role) : (user.role ? String(user.role) : null);
+      const curContent = cur && cur.content ? (typeof cur.content === 'string' ? safeParseJson(cur.content) : cur.content) : {};
+      const originalTitle = (curContent && (curContent.reportTitle || curContent.report_title)) ? (curContent.reportTitle || curContent.report_title) : 'Untitled Report';
+      const sanitizedTitle = sanitizeReportTitle(originalTitle);
       const [results] = await sequelize.query(
-        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
-        { bind: [id, 'submitted', submitterId, submitterName] }
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text, 'submittedByRole', $5::text, 'reportTitle', $6::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [id, 'submitted', submitterId, submitterName, submitterRole, sanitizedTitle] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -867,7 +951,8 @@ router.post('/:id/submit', async (req, res) => {
         createdBy: (row.created_by || '').toString(),
         submittedAt: c.submittedAt || c.submitted_at,
         submittedBy: c.submittedBy || c.submitted_by,
-        submittedByName: c.submittedByName || c.submitted_by_name || submitterName
+        submittedByName: c.submittedByName || c.submitted_by_name || submitterName,
+        submittedByRole: c.submittedByRole || c.submitted_by_role || submitterRole
       };
       // Create Audit Log
       try {
@@ -891,7 +976,7 @@ router.post('/:id/submit', async (req, res) => {
         global.realtimeEvents.emit('report_submitted', {
           id: report.id,
           deliverableId: report.deliverableId,
-          reportTitle: report.reportTitle,
+          reportTitle: sanitizeReportTitle(report.reportTitle),
           created_by: report.createdBy
         });
       }
@@ -1144,6 +1229,8 @@ router.post('/:id/request-changes', async (req, res) => {
       const actorId = identity.id || null;
       const actorEmail = identity.email || null;
       const actorName = identity.name;
+      const actorRole =
+        identity.role ? String(identity.role) : (user.role ? String(user.role) : (reviewToken ? 'clientReviewer' : null));
       
       await ensureReportsTable();
       const [existing] = await sequelize.query(
@@ -1179,6 +1266,7 @@ router.post('/:id/request-changes', async (req, res) => {
         reviewedAt: new Date().toISOString(),
         reviewedBy: reviewedBy ? String(reviewedBy) : (curC.reviewedBy || null),
         reviewedByName: actorName,
+        reviewedByRole: actorRole,
         clientEmail: clientEmail || curC.clientEmail || null
       };
       const [results] = await sequelize.query(
@@ -1199,7 +1287,8 @@ router.post('/:id/request-changes', async (req, res) => {
         changeRequestDetails: c.changeRequestDetails || c.change_request_details,
         reviewedAt: c.reviewedAt || c.reviewed_at,
         reviewedBy: c.reviewedBy || c.reviewed_by,
-        reviewedByName: c.reviewedByName || c.reviewed_by_name || actorName
+        reviewedByName: c.reviewedByName || c.reviewed_by_name || actorName,
+        reviewedByRole: c.reviewedByRole || c.reviewed_by_role || actorRole
       };
       try {
         const did = parseInt(row.deliverable_id);
