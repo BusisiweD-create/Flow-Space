@@ -251,20 +251,29 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
       );
 
       if (_isEditing) {
-        await ApiService.updateProject(project);
+        final updateSuccess = await ApiService.updateProject(project);
+        
+        if (updateSuccess) {
+          // Update the current project data with the new values
+          setState(() {
+            _currentProject = project;
+          });
+          
+          try {
+            // Link selected deliverables to this project by updating their project_id
+            for (final deliverableId in _deliverableIds) {
+              await ApiService.linkDeliverableToProject(project.id, deliverableId);
+            }
 
-        try {
-          // Link selected deliverables to this project by updating their project_id
-          for (final deliverableId in _deliverableIds) {
-            await ApiService.linkDeliverableToProject(project.id, deliverableId);
-          }
+            if (_sprintIds.isNotEmpty) {
+              await ApiService.associateSprintWithProject(project.id, _sprintIds);
+            }
+          } catch (_) {}
 
-          if (_sprintIds.isNotEmpty) {
-            await ApiService.associateSprintWithProject(project.id, _sprintIds);
-          }
-        } catch (_) {}
-
-        _showSuccessSnackBar('Project updated successfully');
+          _showSuccessSnackBar('Project updated successfully');
+        } else {
+          _showErrorSnackBar('Failed to update project');
+        }
       } else {
         final createdProject = await ApiService.createProjectModel(project);
 
@@ -292,7 +301,9 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
             Navigator.of(context).pop(true);
           } else {
             if (_isEditing) {
-              context.go('/project-workspace/${project.id}');
+              // Force refresh by adding timestamp to URL
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              context.go('/project-workspace/${project.id}?refresh=$timestamp');
             } else {
               context.go('/projects');
             }

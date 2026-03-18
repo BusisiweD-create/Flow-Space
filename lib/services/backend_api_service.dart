@@ -406,6 +406,10 @@ class BackendApiService {
   }
 
   // Project member management
+  Future<ApiResponse> getProjectMembers(String projectId) async {
+    return await _apiClient.get('/projects/$projectId/members');
+  }
+
   Future<ApiResponse> addProjectMember(String projectId, Map<String, dynamic> memberData) async {
     return await _apiClient.post('/projects/$projectId/members', body: memberData);
   }

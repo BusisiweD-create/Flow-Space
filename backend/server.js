@@ -22,6 +22,30 @@ import pool from './dbPool.js'; // your Postgres pool connection
 import SendGridEmailService from './sendgridEmailService.js';
 import EmailService from './emailService.js';
 
+// OpenAI initialization
+let openai = null;
+let openaiInitialized = false;
+
+async function initializeOpenAI() {
+  if (openaiInitialized) return;
+  
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const { default: OpenAI } = await import('openai');
+      openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+      console.log('✅ OpenAI initialized');
+    } catch (error) {
+      console.warn('⚠️ OpenAI not available:', error.message);
+    }
+  } else {
+    console.log('ℹ️ OpenAI API key not provided - using local analysis only');
+  }
+  
+  openaiInitialized = true;
+}
+
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
@@ -608,15 +632,14 @@ function validateEmail(email) {
     return { valid: false, error: 'This email domain appears to be invalid or non-existent' };
   }
   
-  // Enhanced username validation - detect fake patterns even on legitimate domains
+  // Enhanced username validation - detect fake patterns but allow legitimate ones
   const suspiciousUsernamePatterns = [
     /^(test|fake|dummy|sample|example|demo|user|admin|support|info|contact)/i,  // generic usernames
-    /^[a-z]+\d{3,}$/,  // usernames ending with 3+ numbers (like thembus123)
-    /^[a-z]{1,2}\d{2,}$/,  // short usernames with numbers (like ab123)
-    /^(no|not|fake|invalid|nonexistent|random|temp|temporal)/i,  // suspicious words
-    /^.{1,3}\d{2,}$/,  // very short usernames with numbers
-    /^[a-z]{20,}$/,  // unusually long usernames
     /^(test|demo|sample)\d*@/i,  // test/demo accounts with numbers
+    /^(no|not|fake|invalid|nonexistent|random|temp|temporal)/i,  // suspicious words
+    /^[a-z]{1,2}\d{4,}$/,  // very short usernames with many numbers (like ab1234)
+    /^[a-z]{25,}$/,  // unusually long usernames
+    /^\d{5,}@/,  // usernames that are mostly numbers
   ];
   
   if (suspiciousUsernamePatterns.some(pattern => pattern.test(username))) {
@@ -628,7 +651,7 @@ function validateEmail(email) {
   const fakeCombinations = [
     /^(test|fake|dummy|sample|example|demo)@(gmail|yahoo|outlook|hotmail)\.com$/i,
     /^(user|admin|support|info|contact)@(gmail|yahoo|outlook|hotmail)\.com$/i,
-    /^[a-z]{1,3}\d{2,}@(gmail|yahoo|outlook|hotmail)\.com$/i,
+    /^[a-z]{1,2}\d{4,}@(gmail|yahoo|outlook|hotmail)\.com$/i,  // Only block very short usernames with many numbers
   ];
   
   if (fakeCombinations.some(pattern => pattern.test(email))) {
@@ -994,7 +1017,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
       console.log('Login schema error (first try):', colErr.message);
       if (colErr?.message && /column.*does not exist/i.test(colErr.message)) {
         result = await pool.query(
-          'SELECT id, email, hashed_password, name, role, created_at, is_active FROM users WHERE email = $1',
+          'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
           [email]
         );
       } else {
@@ -1457,7 +1480,7 @@ app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
       const deliverablesParams = [];
 
       if (userRole === 'teamMember') {
-        deliverablesQuery += ' WHERE assigned_to = $1 OR created_by = $1';
+        deliverablesQuery += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
         deliverablesParams.push(userId);
       }
 
@@ -1578,46 +1601,102 @@ app.get('/api/v1/audit-logs', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    const { limit = 50, offset = 0 } = req.query;
+    const { limit = 50, offset = 0, action, user_id: userIdFilter } = req.query;
 
-    let query = `
-      SELECT 
-        al.id,
-        al.user_id,
-        al.entity_type,
-        al.entity_id,
-        al.action,
-        al.description,
-        al.old_values,
-        al.new_values,
-        al.ip_address,
-        al.user_agent,
-        al.created_at,
-        u.name as user_name,
-        u.email as user_email
-      FROM activity_logs al
-      LEFT JOIN users u ON al.user_id = u.id
-      ORDER BY al.created_at DESC
-      LIMIT $1 OFFSET $2
-    `;
+    // Check if audit_logs table exists, fallback to activity_logs
+    let useAuditLogs = false;
+    try {
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'audit_logs'
+        )
+      `);
+      useAuditLogs = tableCheck.rows[0].exists;
+    } catch (error) {
+      console.warn('Could not check audit_logs table:', error.message);
+    }
 
-    const params = [parseInt(limit), parseInt(offset)];
+    let query, params;
+    
+    if (useAuditLogs) {
+      // Use audit_logs table if it exists
+      query = `
+        SELECT 
+          al.id,
+          al.user_id,
+          al.action,
+          al.resource_type as entity_type,
+          al.resource_id as entity_id,
+          al.details,
+          al.created_at,
+          u.name as user_name,
+          u.email as user_email
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE 1=1
+      `;
+      params = [];
+      
+      if (action) {
+        query += ` AND al.action = $${params.length + 1}`;
+        params.push(action);
+      }
+      if (userIdFilter) {
+        query += ` AND al.user_id = $${params.length + 1}`;
+        params.push(userIdFilter);
+      }
+    } else {
+      // Fallback to activity_logs table
+      query = `
+        SELECT 
+          al.id,
+          al.user_id,
+          al.action,
+          al.entity_type,
+          al.entity_id,
+          al.description as details,
+          al.created_at,
+          u.name as user_name,
+          u.email as user_email
+        FROM activity_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE 1=1
+      `;
+      params = [];
+      
+      if (action) {
+        query += ` AND al.action = $${params.length + 1}`;
+        params.push(action);
+      }
+      if (userIdFilter) {
+        query += ` AND al.user_id = $${params.length + 1}`;
+        params.push(userIdFilter);
+      }
+    }
+
+    query += ` ORDER BY al.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+
     const result = await pool.query(query, params);
 
+    // Return in the expected format
     res.json({
       success: true,
-      data: result.rows,
-      pagination: {
+      data: {
+        audit_logs: result.rows,
+        total: result.rows.length,
         limit: parseInt(limit),
-        offset: parseInt(offset),
-        total: result.rows.length
+        offset: parseInt(offset)
       }
     });
+
   } catch (error) {
     console.error('Audit logs error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch audit logs'
+      error: 'Failed to fetch audit logs',
+      message: error.message
     });
   }
 });
@@ -1637,7 +1716,7 @@ app.get('/api/v1/count', authenticateToken, async (req, res) => {
       case 'deliverables':
         query = 'SELECT COUNT(*) FROM deliverables';
         if (userRole === 'teamMember') {
-          query += ' WHERE assigned_to = $1 OR created_by = $1';
+          query += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
           params.push(userId);
         }
         break;
@@ -3028,16 +3107,16 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
              TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')) as assigned_to_name,
              s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-      LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
     `;
 
     let params = [];
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+      query += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
       params.push(userId);
     }
     // deliveryLead, clientReviewer and other roles can see all deliverables
@@ -3056,13 +3135,13 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
                  COALESCE(u1.name, '') as created_by_name,
                  COALESCE(u2.name, '') as assigned_to_name
           FROM deliverables d
-          LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-          LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
+          LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+          LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
         `;
 
         const fallbackParams = [];
         if (userRole === 'teamMember') {
-          fallbackQuery += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+          fallbackQuery += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
           fallbackParams.push(userId);
         }
 
@@ -3220,7 +3299,7 @@ app.get('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
     `;
     const params = [id];
     if (userRole === 'teamMember') {
-      query += ' AND (d.assigned_to = $2 OR d.created_by = $2)';
+      query += ' AND (d.assigned_to = $2::uuid OR d.created_by = $2::uuid)';
       params.push(userId);
     }
     const result = await pool.query(query, params);
@@ -4415,7 +4494,7 @@ app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ` AND (r.created_by = $${++paramCount} OR d.assigned_to = $${paramCount})`;
+      query += ` AND (r.created_by = $${++paramCount}::uuid OR d.assigned_to = $${paramCount}::uuid)`;
       params.push(userId);
     } else if (userRole === 'clientReviewer') {
       // Client reviewers can see all reports
@@ -5652,9 +5731,100 @@ app.post('/api/v1/docusign/webhook', express.raw({ type: 'application/json' }), 
 
 // ==================== AI RELEASE READINESS ENDPOINTS ====================
 
-// AI-powered release readiness analysis
+// GET endpoint for release readiness analysis (compatibility)
+app.get('/api/v1/release-readiness/analyze', authenticateToken, async (req, res) => {
+  try {
+    // For GET requests, return a simple status or analysis based on query params
+    const { deliverableId } = req.query;
+    
+    console.log('🔍 GET release-readiness/analyze called for deliverable:', deliverableId);
+    
+    if (!deliverableId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Deliverable ID is required for GET requests',
+      });
+    }
+    
+    // Try to get deliverable data for analysis
+    const deliverableQuery = await pool.query(`
+      SELECT id, title, description, definition_of_done, evidence, priority, status
+      FROM deliverables 
+      WHERE id = $1
+    `, [deliverableId]);
+    
+    if (deliverableQuery.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Deliverable not found',
+      });
+    }
+    
+    const deliverable = deliverableQuery.rows[0];
+    
+    // Perform simple analysis
+    const definitionOfDone = deliverable.definition_of_done || [];
+    const evidence = deliverable.evidence || [];
+    
+    const issues = [];
+    const recommendations = [];
+    const risks = [];
+    const missingItems = [];
+    let status = 'green';
+    let confidence = 0.9;
+    
+    // Basic analysis
+    if (!definitionOfDone || definitionOfDone.length === 0) {
+      issues.push('Definition of Done is empty');
+      recommendations.push('Add Definition of Done criteria');
+      missingItems.push('Definition of Done items');
+      status = 'red';
+      confidence = 0.7;
+    }
+    
+    if (!evidence || evidence.length === 0) {
+      issues.push('No evidence links provided');
+      recommendations.push('Add evidence links');
+      missingItems.push('Evidence links');
+      if (status === 'green') status = 'amber';
+    }
+    
+    const aiInsights = status === 'green' 
+      ? '✅ Deliverable appears ready for review'
+      : status === 'amber'
+      ? '💡 Some improvements recommended'
+      : '⚠️ Multiple issues need to be addressed';
+    
+    res.json({
+      success: true,
+      data: {
+        status,
+        confidence,
+        issues,
+        recommendations,
+        risks,
+        missingItems,
+        priorityActions: recommendations.slice(0, 3),
+        aiInsights,
+      },
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in GET release readiness analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze readiness',
+      message: error.message,
+    });
+  }
+});
+
+// AI-powered release readiness analysis (POST)
 app.post('/api/v1/release-readiness/analyze', authenticateToken, async (req, res) => {
   try {
+    console.log('🔍 POST release-readiness/analyze called');
+    console.log('📋 Request body keys:', Object.keys(req.body));
+    
     const {
       deliverableId,
       deliverableTitle,
@@ -5666,6 +5836,42 @@ app.post('/api/v1/release-readiness/analyze', authenticateToken, async (req, res
       knownLimitations,
     } = req.body;
 
+    // Input validation
+    if (!deliverableTitle && !deliverableId) {
+      console.log('❌ Missing deliverableTitle or deliverableId');
+      return res.status(400).json({
+        success: false,
+        error: 'Either deliverableTitle or deliverableId is required',
+      });
+    }
+
+    // Normalize arrays
+    const normalizedDoD = Array.isArray(definitionOfDone) ? definitionOfDone : [];
+    const normalizedEvidence = Array.isArray(evidenceLinks) ? evidenceLinks : [];
+    const normalizedSprints = Array.isArray(sprintIds) ? sprintIds : [];
+    
+    console.log(`📊 Analysis parameters:
+    - DoD items: ${normalizedDoD.length}
+    - Evidence links: ${normalizedEvidence.length}
+    - Sprint IDs: ${normalizedSprints.length}
+    - Has metrics: ${Object.keys(sprintMetrics || {}).length > 0}`);
+
+    // Test database connection before proceeding
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connection verified');
+    } catch (dbError) {
+      console.error('❌ Database connection error:', dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        details: dbError.message,
+      });
+    }
+
+    // Initialize OpenAI if available
+    await initializeOpenAI();
+
     // Try OpenAI AI analysis first (if available)
     if (openai) {
       try {
@@ -5675,15 +5881,15 @@ DELIVERABLE INFORMATION:
 Title: ${deliverableTitle || 'Untitled'}
 Description: ${deliverableDescription || 'No description provided'}
 
-DEFINITION OF DONE (${definitionOfDone.length} items):
-${definitionOfDone.length > 0 ? definitionOfDone.map((item, i) => `${i + 1}. ${item}`).join('\n') : 'None provided'}
+DEFINITION OF DONE (${normalizedDoD.length} items):
+${normalizedDoD.length > 0 ? normalizedDoD.map((item, i) => `${i + 1}. ${item}`).join('\n') : 'None provided'}
 
-EVIDENCE LINKS (${evidenceLinks.length} links):
-${evidenceLinks.length > 0 ? evidenceLinks.map((link, i) => `${i + 1}. ${link}`).join('\n') : 'None provided'}
+EVIDENCE LINKS (${normalizedEvidence.length} links):
+${normalizedEvidence.length > 0 ? normalizedEvidence.map((link, i) => `${i + 1}. ${link}`).join('\n') : 'None provided'}
 
 SPRINT INFORMATION:
-- Sprints Linked: ${sprintIds.length}
-- Sprint Metrics: ${JSON.stringify(sprintMetrics, null, 2)}
+- Sprints Linked: ${normalizedSprints.length}
+- Sprint Metrics: ${JSON.stringify(sprintMetrics || {}, null, 2)}
 ${knownLimitations ? `- Known Limitations: ${knownLimitations}` : ''}
 
 ANALYSIS REQUIREMENTS:
@@ -5747,6 +5953,13 @@ Return ONLY valid JSON in this exact format:
         }
       } catch (aiError) {
         console.error('⚠️  OpenAI API error, falling back to rule-based analysis:', aiError.message);
+        
+        // Check if it's a rate limit/quota error
+        if (aiError.message.includes('429') || aiError.message.includes('quota') || aiError.message.includes('rate limit')) {
+          console.log('💰 OpenAI quota exceeded - using rule-based analysis');
+          console.log('💡 To enable AI analysis, please check your OpenAI billing at: https://platform.openai.com/account/billing/usage');
+        }
+        
         // Fall through to rule-based analysis
       }
     }
@@ -5761,13 +5974,13 @@ Return ONLY valid JSON in this exact format:
     let confidence = 0.9;
 
     // Analyze Definition of Done
-    if (definitionOfDone.length === 0) {
+    if (normalizedDoD.length === 0) {
       issues.push('Definition of Done is empty');
       recommendations.push('Add at least 3-5 Definition of Done criteria to ensure quality standards');
       missingItems.push('Definition of Done items');
       status = 'red';
       confidence = 0.7;
-    } else if (definitionOfDone.length < 3) {
+    } else if (normalizedDoD.length < 3) {
       issues.push('Definition of Done has fewer than 3 items');
       recommendations.push('Consider adding more DoD criteria for comprehensive quality assurance');
       status = 'amber';
@@ -5775,30 +5988,30 @@ Return ONLY valid JSON in this exact format:
     }
 
     // Analyze Evidence Links
-    if (evidenceLinks.length === 0) {
+    if (normalizedEvidence.length === 0) {
       issues.push('No evidence links provided');
       recommendations.push('Add evidence links: demo, repository, test results, documentation');
       missingItems.push('Evidence links (demo, repo, tests, docs)');
       status = 'red';
       confidence = 0.6;
     } else {
-      const hasDemo = evidenceLinks.some(link => 
+      const hasDemo = normalizedEvidence.some(link => 
         link.toLowerCase().includes('demo') || 
         link.toLowerCase().includes('video') ||
         link.toLowerCase().includes('screencast')
       );
-      const hasRepo = evidenceLinks.some(link => 
+      const hasRepo = normalizedEvidence.some(link => 
         link.toLowerCase().includes('repo') || 
         link.toLowerCase().includes('github') || 
         link.toLowerCase().includes('gitlab') ||
         link.toLowerCase().includes('bitbucket')
       );
-      const hasTests = evidenceLinks.some(link => 
+      const hasTests = normalizedEvidence.some(link => 
         link.toLowerCase().includes('test') || 
         link.toLowerCase().includes('coverage') ||
         link.toLowerCase().includes('qa')
       );
-      const hasDocs = evidenceLinks.some(link => 
+      const hasDocs = normalizedEvidence.some(link => 
         link.toLowerCase().includes('doc') || 
         link.toLowerCase().includes('guide') ||
         link.toLowerCase().includes('wiki')
@@ -5831,7 +6044,7 @@ Return ONLY valid JSON in this exact format:
     }
 
     // Analyze Sprint Association
-    if (sprintIds.length === 0) {
+    if (normalizedSprints.length === 0) {
       issues.push('No sprints linked to deliverable');
       recommendations.push('Link at least one sprint to show development progress and metrics');
       missingItems.push('Linked sprints');
@@ -5903,11 +6116,20 @@ Return ONLY valid JSON in this exact format:
         aiInsights,
       },
     });
+    
+    console.log(`✅ Analysis completed successfully - Status: ${status}, Confidence: ${confidence}`);
+    
   } catch (error) {
-    console.error('Error in AI readiness analysis:', error);
+    console.error('❌ Error in AI readiness analysis:', error);
+    console.error('❌ Stack trace:', error.stack);
+    console.error('❌ Request body:', JSON.stringify(req.body, null, 2));
+    
+    // Return detailed error information
     res.status(500).json({
       success: false,
       error: 'Failed to analyze readiness',
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -6353,7 +6575,7 @@ app.get('/api/v1/epics', authenticateToken, async (req, res) => {
     
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE e.created_by = $1';
+      query += ' WHERE e.created_by = $1::uuid';
       params.push(userId);
     }
     
@@ -7026,9 +7248,9 @@ app.get('/api/v1/projects/:projectId/deliverables', authenticateToken, async (re
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE d.project_id = $1
     `;
     
@@ -7287,9 +7509,9 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE (d.project_id IS NULL OR d.project_id != $1)
     `;
     
@@ -7303,7 +7525,7 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
     
     // Filter by user role - team members can only see their own deliverables
     if (req.user.role === 'teamMember') {
-      query += ` AND (d.created_by = $${params.length + 1} OR d.assigned_to = $${params.length + 1})`;
+      query += ` AND (d.created_by = $${params.length + 1}::uuid OR d.assigned_to = $${params.length + 1}::uuid)`;
       params.push(userId);
     }
     
@@ -7742,10 +7964,8 @@ app.get('/api/v1/projects/:projectId/available-sprints', authenticateToken, asyn
 });
 
 // Start the server
-// Use 8000 in development; respect PORT in production
-const PORT = process.env.NODE_ENV === 'production'
-  ? (parseInt(process.env.PORT, 10) || 8000)
-  : 8000;
+// Use PORT from environment variable or default to 3001
+const PORT = parseInt(process.env.PORT, 10) || 3001;
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);

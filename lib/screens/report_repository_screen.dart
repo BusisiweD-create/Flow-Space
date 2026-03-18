@@ -13,7 +13,6 @@ import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import 'report_editor_screen.dart';
@@ -1100,6 +1099,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               onPressed: () => _downloadDocument(document),
               tooltip: 'Download',
             ),
+            // Delete button - only for system admins, delivery leads, and document uploader
+            if (_canDeleteDocument(document))
+              IconButton(
+                icon: const Icon(Icons.delete, color: FlownetColors.crimsonRed),
+                onPressed: () => _confirmDeleteDocument(document),
+                tooltip: 'Delete',
+              ),
           ],
         ),
         isThreeLine: true,
@@ -1206,6 +1212,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                             child: Icon(Icons.lock, color: FlownetColors.emeraldGreen, size: 16),
                           ),
                         ],
+                        if (report.status == ReportStatus.submitted) ...[
+                          const SizedBox(width: 8),
+                          const Tooltip(
+                            message: 'Submitted (Editable)',
+                            child: Icon(Icons.edit, color: Colors.orange, size: 16),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1301,8 +1314,9 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Edit button for draft and change_requested reports
+                  // Edit button for draft, submitted, and change_requested reports
                   if (report.status == ReportStatus.draft || 
+                      report.status == ReportStatus.submitted ||
                       report.status == ReportStatus.changeRequested) ...[
                     TextButton.icon(
                       onPressed: () {
@@ -1437,6 +1451,85 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         messenger.showSnackBar(
           SnackBar(
             content: Text('Error deleting report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  bool _canDeleteDocument(RepositoryFile document) {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) return false;
+    
+    // System admins can delete any document
+    if (currentUser.role == UserRole.systemAdmin) return true;
+    
+    // Delivery leads can delete any document
+    if (currentUser.role == UserRole.deliveryLead) return true;
+    
+    // Document uploader can delete their own documents
+    // Check by uploader ID or uploader email/name match
+    if (document.uploader == currentUser.id) return true;
+    if (document.uploaderName == currentUser.email) return true;
+    
+    return false;
+  }
+
+  Future<void> _confirmDeleteDocument(RepositoryFile document) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Delete Document', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: Text(
+          'Are you sure you want to delete "${_getDisplayName(document)}"?\n\nThis action cannot be undone.',
+          style: const TextStyle(color: FlownetColors.coolGray),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Delete', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        final response = await _documentService.deleteDocument(document.id);
+        if (response.isSuccess) {
+          setState(() {
+            _reportDocuments.removeWhere((doc) => doc.id == document.id);
+          });
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Document deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadReportDocuments(); // Refresh the document list
+        } else {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete document: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Error deleting document: $e'),
             backgroundColor: Colors.red,
           ),
         );

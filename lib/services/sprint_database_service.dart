@@ -486,22 +486,99 @@ if (response.isSuccess) {
       for (final lp in local) {
         try {
           final id = lp['id']?.toString();
-          if (id == null || id.isEmpty) {
-            continue;
+          if (id != null && !merged.any((p) => p['id']?.toString() == id)) {
+            merged.add(lp);
           }
-          final existingIndex = merged.indexWhere((p) => p['id']?.toString() == id);
-          if (existingIndex >= 0) {
-            merged[existingIndex] = lp;
-          } else {
-            merged.insert(0, lp);
-          }
-        } catch (_) {}
+        } catch (_) {
+          // Skip invalid local projects
+        }
       }
 
       return merged;
     } catch (e) {
       debugPrint('❌ Error fetching projects via ApiService: $e');
       return [];
+    }
+  }
+
+  /// Get project members for a specific project
+  Future<List<Map<String, dynamic>>> getProjectMembers(String projectId) async {
+    try {
+      debugPrint('Fetching project members for project: $projectId');
+      final response = await _backendApiService.getProjectMembers(projectId);
+      
+      if (response.isSuccess && response.data != null) {
+        final dynamic data = response.data;
+        final List<Map<String, dynamic>> members = [];
+        
+        if (data is Map) {
+          final List<dynamic> items = data['data'] ?? data['members'] ?? data['users'] ?? [];
+          for (final item in items) {
+            if (item is Map) {
+              members.add(Map<String, dynamic>.from(item));
+            }
+          }
+        } else if (data is List) {
+          for (final item in data) {
+            if (item is Map) {
+              members.add(Map<String, dynamic>.from(item));
+            }
+          }
+        }
+        
+        debugPrint('✅ Found ${members.length} project members');
+        
+        // Debug: Print the actual structure of members data
+        debugPrint('=== DEBUG: Project Members Data Structure ===');
+        for (final member in members) {
+          debugPrint('Member data: $member');
+        }
+        debugPrint('=== END DEBUG ===');
+        
+        return members;
+      } else {
+        debugPrint('❌ Failed to fetch project members: ${response.error ?? 'Unknown error'}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching project members: $e');
+      return [];
+    }
+  }
+
+  /// Delete a project
+  Future<bool> deleteProject(String projectId) async {
+    try {
+      debugPrint('🗑️ Deleting project: $projectId');
+      final response = await _backendApiService.deleteProject(projectId);
+      
+      if (response.isSuccess) {
+        debugPrint('✅ Project $projectId deleted successfully');
+        
+        // Remove from local cache if it exists
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final jsonStr = prefs.getString('local_created_projects');
+          if (jsonStr != null && jsonStr.isNotEmpty) {
+            final decoded = jsonDecode(jsonStr);
+            if (decoded is List) {
+              final projects = List<Map<String, dynamic>>.from(decoded);
+              projects.removeWhere((p) => p['id']?.toString() == projectId);
+              await prefs.setString('local_created_projects', jsonEncode(projects));
+            }
+          }
+        } catch (e) {
+          debugPrint('❌ Error updating local cache: $e');
+        }
+        
+        return true;
+      } else {
+        debugPrint('❌ Failed to delete project: ${response.error ?? 'Unknown error'}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting project: $e');
+      return false;
     }
   }
 

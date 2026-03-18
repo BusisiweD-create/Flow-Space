@@ -29,6 +29,15 @@ class Environment {
     return _apiBaseUrl;
   }
 
+  // Base URL without version for endpoints that already include version
+  static String get baseUrlWithoutVersion {
+    final baseUrl = apiBaseUrl;
+    if (baseUrl.endsWith('/api/v1')) {
+      return baseUrl.replaceAll('/api/v1', '');
+    }
+    return baseUrl;
+  }
+
   static const int apiTimeout = 30000;
 
   // Feature Flags
