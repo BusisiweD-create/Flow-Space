@@ -7742,10 +7742,8 @@ app.get('/api/v1/projects/:projectId/available-sprints', authenticateToken, asyn
 });
 
 // Start the server
-// Use 8000 in development; respect PORT in production
-const PORT = process.env.NODE_ENV === 'production'
-  ? (parseInt(process.env.PORT, 10) || 8000)
-  : 8000;
+// Always respect PORT; default to 8000 if unset
+const PORT = parseInt(process.env.PORT, 10) || 8000;
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);
