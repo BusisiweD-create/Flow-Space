@@ -779,332 +779,339 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
           child: Container(
             padding: const EdgeInsets.all(24),
             width: 600,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Sign Report Before Submission',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: FlownetColors.pureWhite,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close,
-                          color: FlownetColors.pureWhite),
-                      onPressed: () => Navigator.pop(context, null),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Please sign this report to confirm its accuracy before submission.',
-                  style: TextStyle(
-                    color: FlownetColors.coolGray,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Signature type selection
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[600]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Choose Signature Method:',
+                        'Sign Report Before Submission',
                         style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                           color: FlownetColors.pureWhite,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () =>
-                                  setState(() => signatureType = 'drawn'),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: signatureType == 'drawn'
-                                      ? FlownetColors.electricBlue
-                                      : Colors.grey[700],
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: FlownetColors.pureWhite),
+                        onPressed: () => Navigator.pop(context, null),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Please sign this report to confirm its accuracy before submission.',
+                    style: TextStyle(
+                      color: FlownetColors.coolGray,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Signature type selection
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[600]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Choose Signature Method:',
+                          style: TextStyle(
+                            color: FlownetColors.pureWhite,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => signatureType = 'drawn'),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
                                     color: signatureType == 'drawn'
                                         ? FlownetColors.electricBlue
-                                        : Colors.grey[500]!,
+                                        : Colors.grey[700],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: signatureType == 'drawn'
+                                          ? FlownetColors.electricBlue
+                                          : Colors.grey[500]!,
+                                    ),
                                   ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(Icons.draw,
-                                        color: signatureType == 'drawn'
-                                            ? Colors.white
-                                            : Colors.grey[400]),
-                                    const SizedBox(height: 4),
-                                    Text('Draw Signature',
-                                        style: TextStyle(
+                                  child: Column(
+                                    children: [
+                                      Icon(Icons.draw,
                                           color: signatureType == 'drawn'
                                               ? Colors.white
-                                              : Colors.grey[400],
-                                          fontSize: 12,
-                                        )),
-                                  ],
+                                              : Colors.grey[400]),
+                                      const SizedBox(height: 4),
+                                      Text('Draw Signature',
+                                          style: TextStyle(
+                                            color: signatureType == 'drawn'
+                                                ? Colors.white
+                                                : Colors.grey[400],
+                                            fontSize: 12,
+                                          )),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () =>
-                                  setState(() => signatureType = 'typed'),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: signatureType == 'typed'
-                                      ? FlownetColors.electricBlue
-                                      : Colors.grey[700],
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => signatureType = 'typed'),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
                                     color: signatureType == 'typed'
                                         ? FlownetColors.electricBlue
-                                        : Colors.grey[500]!,
+                                        : Colors.grey[700],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: signatureType == 'typed'
+                                          ? FlownetColors.electricBlue
+                                          : Colors.grey[500]!,
+                                    ),
                                   ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(Icons.keyboard,
-                                        color: signatureType == 'typed'
-                                            ? Colors.white
-                                            : Colors.grey[400]),
-                                    const SizedBox(height: 4),
-                                    Text('Type Signature',
-                                        style: TextStyle(
+                                  child: Column(
+                                    children: [
+                                      Icon(Icons.keyboard,
                                           color: signatureType == 'typed'
                                               ? Colors.white
-                                              : Colors.grey[400],
-                                          fontSize: 12,
-                                        )),
-                                  ],
+                                              : Colors.grey[400]),
+                                      const SizedBox(height: 4),
+                                      Text('Type Signature',
+                                          style: TextStyle(
+                                            color: signatureType == 'typed'
+                                                ? Colors.white
+                                                : Colors.grey[400],
+                                            fontSize: 12,
+                                          )),
+                                    ],
+                                  ),
                                 ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Signature input area
+                  if (signatureType == 'drawn') ...[
+                    SignatureCaptureWidget(
+                      key: _signatureKey,
+                      allowSignatureReuse: true,
+                      showAuditInfo: true,
+                      reportId: widget.reportId,
+                    ),
+                  ] else if (signatureType == 'typed') ...[
+                    Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.grey[400]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: TextField(
+                        onChanged: (value) {
+                          signatureData = value;
+                        },
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontFamily:
+                              'Dancing Script', // Cursive font for signature
+                          color: Colors.black,
+                          height: 1.5,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Type your signature here',
+                          hintStyle: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 18,
+                            fontFamily: 'Dancing Script',
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(16),
+                        ),
+                        maxLines: 2,
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // Save signature option
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: saveSignature,
+                              onChanged: (value) {
+                                setState(() {
+                                  saveSignature = value ?? false;
+                                });
+                              },
+                              activeColor: FlownetColors.electricBlue,
+                            ),
+                            const Text(
+                              'Save this signature for future use',
+                              style: TextStyle(
+                                color: FlownetColors.pureWhite,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (saveSignature) ...[
+                          const SizedBox(height: 8),
+                          TextField(
+                            onChanged: (value) {
+                              signatureName = value;
+                            },
+                            decoration: const InputDecoration(
+                              hintText:
+                                  'Enter a name for this signature (e.g., "Business Signature")',
+                              hintStyle: TextStyle(color: Colors.grey),
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.grey),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.grey),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                    color: FlownetColors.electricBlue),
                               ),
                             ),
                           ),
                         ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Signature input area
-                if (signatureType == 'drawn') ...[
-                  SignatureCaptureWidget(
-                    key: _signatureKey,
-                    allowSignatureReuse: true,
-                    showAuditInfo: true,
-                    reportId: widget.reportId,
-                  ),
-                ] else if (signatureType == 'typed') ...[
-                  Container(
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey[400]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: TextField(
-                      onChanged: (value) {
-                        signatureData = value;
-                      },
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontFamily:
-                            'Dancing Script', // Cursive font for signature
-                        color: Colors.black,
-                        height: 1.5,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Type your signature here',
-                        hintStyle: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 18,
-                          fontFamily: 'Dancing Script',
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.all(16),
-                      ),
-                      maxLines: 2,
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 16),
-
-                // Save signature option
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: saveSignature,
-                            onChanged: (value) {
-                              setState(() {
-                                saveSignature = value ?? false;
-                              });
-                            },
-                            activeColor: FlownetColors.electricBlue,
-                          ),
-                          const Text(
-                            'Save this signature for future use',
-                            style: TextStyle(
-                              color: FlownetColors.pureWhite,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (saveSignature) ...[
-                        const SizedBox(height: 8),
-                        TextField(
-                          onChanged: (value) {
-                            signatureName = value;
-                          },
-                          decoration: const InputDecoration(
-                            hintText:
-                                'Enter a name for this signature (e.g., "Business Signature")',
-                            hintStyle: TextStyle(color: Colors.grey),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.grey),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.grey),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide:
-                                  BorderSide(color: FlownetColors.electricBlue),
-                            ),
-                          ),
-                        ),
                       ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, null),
-                      child: const Text('Cancel',
-                          style: TextStyle(color: FlownetColors.coolGray)),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        String? finalSignature;
+                  ),
 
-                        if (signatureType == 'drawn') {
-                          finalSignature =
-                              await _signatureKey.currentState?.getSignature();
-                        } else if (signatureType == 'typed') {
-                          if (signatureData != null &&
-                              signatureData!.isNotEmpty) {
-                            // Convert typed signature to image-like format
-                            finalSignature =
-                                await _convertTypedSignature(signatureData!);
-                          }
-                        }
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, null),
+                        child: const Text('Cancel',
+                            style: TextStyle(color: FlownetColors.coolGray)),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          String? finalSignature;
 
-                        if (!mounted) return;
-                        final navigator = Navigator.of(context);
-                        final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-                        if (finalSignature != null &&
-                            finalSignature.isNotEmpty) {
-                          // Save signature if requested
-                          if (saveSignature &&
-                              signatureName != null &&
-                              signatureName!.isNotEmpty) {
-                            try {
-                              final signatureService =
-                                  SignatureService(ApiClient());
-                              await signatureService.saveSignature(
-                                finalSignature,
-                                signatureType,
-                                false, // Not default for now
-                              );
-
-                              if (mounted) {
-                                scaffoldMessenger.showSnackBar(
-                                  const SnackBar(
-                                    content:
-                                        Text('Signature saved successfully!'),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                scaffoldMessenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error saving signature: $e'),
-                                    backgroundColor: Colors.orange,
-                                  ),
-                                );
-                              }
+                          if (signatureType == 'drawn') {
+                            finalSignature = await _signatureKey.currentState
+                                ?.getSignature();
+                          } else if (signatureType == 'typed') {
+                            if (signatureData != null &&
+                                signatureData!.isNotEmpty) {
+                              // Convert typed signature to image-like format
+                              finalSignature =
+                                  await _convertTypedSignature(signatureData!);
                             }
                           }
 
-                          if (mounted) {
-                            navigator.pop(finalSignature);
+                          if (!mounted) return;
+                          final navigator = Navigator.of(context);
+                          final scaffoldMessenger =
+                              ScaffoldMessenger.of(context);
+
+                          if (finalSignature != null &&
+                              finalSignature.isNotEmpty) {
+                            // Save signature if requested
+                            if (saveSignature &&
+                                signatureName != null &&
+                                signatureName!.isNotEmpty) {
+                              try {
+                                final signatureService =
+                                    SignatureService(ApiClient());
+                                await signatureService.saveSignature(
+                                  finalSignature,
+                                  signatureType,
+                                  false, // Not default for now
+                                );
+
+                                if (mounted) {
+                                  scaffoldMessenger.showSnackBar(
+                                    const SnackBar(
+                                      content:
+                                          Text('Signature saved successfully!'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  scaffoldMessenger.showSnackBar(
+                                    SnackBar(
+                                      content:
+                                          Text('Error saving signature: $e'),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+
+                            if (mounted) {
+                              navigator.pop(finalSignature);
+                            }
+                          } else {
+                            if (mounted) {
+                              scaffoldMessenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please provide a signature'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                            }
                           }
-                        } else {
-                          if (mounted) {
-                            scaffoldMessenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Please provide a signature'),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.check_circle),
-                      label: const Text('Sign & Submit'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: FlownetColors.electricBlue,
-                        foregroundColor: FlownetColors.pureWhite,
+                        },
+                        icon: const Icon(Icons.check_circle),
+                        label: const Text('Sign & Submit'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: FlownetColors.electricBlue,
+                          foregroundColor: FlownetColors.pureWhite,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
