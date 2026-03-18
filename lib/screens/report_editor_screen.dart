@@ -805,6 +805,9 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
               const SizedBox(height: 24),
               SignatureCaptureWidget(
                 key: _signatureKey,
+                allowSignatureReuse: true,
+                showAuditInfo: true,
+                reportId: widget.reportId,
               ),
               const SizedBox(height: 24),
               Row(

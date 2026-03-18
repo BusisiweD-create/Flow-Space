@@ -435,6 +435,8 @@ class _SignatureCreationDialogState extends State<SignatureCreationDialog> {
                 child: Column(
                   children: [
                     SignatureCaptureWidget(
+                      allowSignatureReuse: false,
+                      showAuditInfo: false,
                       onSignatureCaptured: (signatureData) {
                         setState(() => _signatureData = signatureData);
                       },
