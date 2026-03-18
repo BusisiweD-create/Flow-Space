@@ -43,6 +43,9 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
   late final SignatureService _signatureService;
   String? _currentSignatureData;
   DateTime? _signatureTime;
+  bool _isDrawing = false;
+  Offset? _lastPoint;
+  double _currentPenPressure = 1.0;
 
   @override
   void initState() {
@@ -82,6 +85,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     if (point == null) {
       setState(() {
         _points = List.from(_points)..add(null);
+        _isDrawing = false;
+        _lastPoint = null;
       });
       return;
     }
@@ -94,6 +99,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
         _hasSignature = true;
         _signatureTime = DateTime.now();
         _currentSignatureData = null; // Clear saved signature when drawing new one
+        _isDrawing = true;
+        _lastPoint = constrainedPoint;
         widget.onSignatureCaptured?.call(null); // Notify signature started
       });
     }
@@ -111,6 +118,22 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     return Offset(constrainedX, constrainedY);
   }
 
+  /// Interpolate points for smoother drawing
+  List<Offset> _interpolatePoints(Offset start, Offset end) {
+    final distance = (end - start).distance;
+    final steps = (distance / 2).ceil().clamp(1, 8); // Limit interpolation steps
+    
+    if (steps <= 1) return [end];
+    
+    final List<Offset> interpolatedPoints = [];
+    for (int i = 1; i <= steps; i++) {
+      final t = i / steps;
+      final point = Offset.lerp(start, end, t)!;
+      interpolatedPoints.add(point);
+    }
+    return interpolatedPoints;
+  }
+
   void _clearSignature() {
     setState(() {
       _points.clear();
@@ -118,6 +141,9 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
       _currentSignatureData = null;
       _signatureTime = null;
       _selectedSignature = null;
+      _isDrawing = false;
+      _lastPoint = null;
+      _currentPenPressure = 1.0;
       widget.onSignatureCaptured?.call(null);
     });
   }
@@ -340,27 +366,51 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(
-              color: _hasSignature ? Colors.green[600]! : Colors.grey,
-              width: _hasSignature ? 3 : 2,
+              color: _isDrawing 
+                  ? Colors.blue[600]! 
+                  : _hasSignature 
+                      ? Colors.green[600]! 
+                      : Colors.grey,
+              width: _isDrawing ? 4 : _hasSignature ? 3 : 2,
             ),
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 4,
+                color: _isDrawing 
+                    ? Colors.blue.withValues(alpha: 0.2)
+                    : Colors.black.withValues(alpha: 0.1),
+                blurRadius: _isDrawing ? 8 : 4,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
           child: ClipRect(
             child: GestureDetector(
-              onPanUpdate: (DragUpdateDetails details) {
+              onPanStart: (DragStartDetails details) {
                 final RenderBox? renderBox =
                     context.findRenderObject() as RenderBox?;
                 if (renderBox != null) {
                   final Offset localPosition =
                       renderBox.globalToLocal(details.globalPosition);
                   _addPoint(localPosition);
+                }
+              },
+              onPanUpdate: (DragUpdateDetails details) {
+                final RenderBox? renderBox =
+                    context.findRenderObject() as RenderBox?;
+                if (renderBox != null) {
+                  final Offset localPosition =
+                      renderBox.globalToLocal(details.globalPosition);
+                  
+                  // Calculate smooth drawing with interpolation
+                  if (_lastPoint != null && _isDrawing) {
+                    final interpolatedPoints = _interpolatePoints(_lastPoint!, localPosition);
+                    for (final point in interpolatedPoints) {
+                      _addPoint(point);
+                    }
+                  } else {
+                    _addPoint(localPosition);
+                  }
                 }
               },
               onPanEnd: (DragEndDetails details) {
@@ -385,13 +435,17 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                       Positioned.fill(
                         child: _buildExistingSignature(),
                       ),
-                    // Draw signature canvas
+                    // Draw signature canvas with enhanced visibility
                     if (_points.isNotEmpty && _selectedSignature == null)
                       CustomPaint(
-                        painter: SignaturePainter(_points),
+                        painter: SignaturePainter(
+                          _points,
+                          isDrawing: _isDrawing,
+                          currentPenPressure: _currentPenPressure,
+                        ),
                         child: const SizedBox.shrink(),
                       ),
-                    // Placeholder text
+                    // Enhanced placeholder with drawing instructions
                     if (!_hasSignature && widget.existingSignature == null && _selectedSignature == null)
                       const Center(
                         child: Column(
@@ -412,6 +466,15 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                               ),
                             ),
                             SizedBox(height: 4),
+                            Text(
+                              'Use your finger or stylus to draw your signature',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 10,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 2),
                             Text(
                               'Drawing will be constrained to this area',
                               style: TextStyle(
@@ -573,28 +636,68 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
 
 class SignaturePainter extends CustomPainter {
   final List<Offset?> points;
+  final bool isDrawing;
+  final double currentPenPressure;
 
-  SignaturePainter(this.points);
+  SignaturePainter(this.points, {this.isDrawing = false, this.currentPenPressure = 1.0});
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Draw with enhanced visibility
     final Paint paint = Paint()
       ..color = Colors.black
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = 3.0;
+      ..strokeWidth = 3.0 * currentPenPressure
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = true;
 
-    // Draw the signature with smooth lines
+    // Draw signature with smooth lines and enhanced visibility
     for (int i = 0; i < points.length - 1; i++) {
       if (points[i] != null && points[i + 1] != null) {
-        // Add smooth line drawing
-        canvas.drawLine(points[i]!, points[i + 1]!, paint);
+        // Add smooth line drawing with slight thickness variation
+        final start = points[i]!;
+        final end = points[i + 1]!;
+        
+        // Main stroke
+        canvas.drawLine(start, end, paint);
+        
+        // Add subtle shadow for depth when drawing
+        if (isDrawing) {
+          final shadowPaint = Paint()
+            ..color = Colors.black.withValues(alpha: 0.1)
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 4.0 * currentPenPressure
+            ..style = PaintingStyle.stroke
+            ..isAntiAlias = true
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
+          
+          canvas.drawLine(
+            start + const Offset(1, 1),
+            end + const Offset(1, 1),
+            shadowPaint,
+          );
+        }
       }
+    }
+    
+    // Draw current position indicator when actively drawing
+    if (isDrawing && points.isNotEmpty && points.last != null) {
+      final currentPoint = points.last!;
+      final indicatorPaint = Paint()
+        ..color = Colors.blue.withValues(alpha: 0.3)
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+      
+      // Draw small circle at current position
+      canvas.drawCircle(currentPoint, 2.0, indicatorPaint);
     }
   }
 
   @override
   bool shouldRepaint(SignaturePainter oldDelegate) =>
-      oldDelegate.points != points;
+      oldDelegate.points != points || 
+      oldDelegate.isDrawing != isDrawing || 
+      oldDelegate.currentPenPressure != currentPenPressure;
 }
 
 /// Grid painter for signature canvas background
