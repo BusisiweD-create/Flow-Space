@@ -103,16 +103,31 @@ router.get('/', async (req, res) => {
     }
     await ensureReportsTable();
     
-    const { deliverableId } = req.query;
+    const { deliverableId, status } = req.query;
     let results;
     try {
-      if (deliverableId) {
+      const normalizeStatus = (s) => {
+        const x = String(s || '').toLowerCase().replace(/[\s_-]+/g, '');
+        if (!x) return '';
+        if (x === 'underreview') return 'under_review';
+        if (x === 'changerequested') return 'change_requested';
+        return x;
+      };
+      const s = normalizeStatus(status);
+      if (deliverableId && s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 AND LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($2, '-', '')) ORDER BY created_at DESC",
+          { bind: [deliverableId, s], type: QueryTypes.SELECT }
+        );
+      } else if (deliverableId) {
         results = await sequelize.query(
           "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 ORDER BY created_at DESC",
-          { 
-            bind: [deliverableId],
-            type: QueryTypes.SELECT 
-          }
+          { bind: [deliverableId], type: QueryTypes.SELECT }
+        );
+      } else if (s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($1, '-', '')) ORDER BY created_at DESC",
+          { bind: [s], type: QueryTypes.SELECT }
         );
       } else {
         results = await sequelize.query(
