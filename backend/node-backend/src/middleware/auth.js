@@ -52,6 +52,37 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+const optionalAuthenticateToken = async (req, res, next) => {
+  try {
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+    const authHeader = req.headers.authorization;
+    let token = authHeader && authHeader.split(' ')[1];
+    if (!token && req.headers['x-access-token']) {
+      token = String(req.headers['x-access-token']);
+    }
+    if (!token && req.query && (req.query.access_token || req.query.token)) {
+      token = String(req.query.access_token || req.query.token);
+    }
+    if (!token) {
+      return next();
+    }
+    const payload = verifyToken(token);
+    if (!payload || payload.type !== 'access') {
+      return next();
+    }
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role
+    };
+    return next();
+  } catch (_) {
+    return next();
+  }
+};
+
 /**
  * Middleware to require active user
  * @param {object} req - Express request object
@@ -121,6 +152,7 @@ const requireRole = (allowedRoles) => {
 
 module.exports = {
   authenticateToken,
+  optionalAuthenticateToken,
   requireActiveUser,
   requireRole
 };
