@@ -103,16 +103,31 @@ router.get('/', async (req, res) => {
     }
     await ensureReportsTable();
     
-    const { deliverableId } = req.query;
+    const { deliverableId, status } = req.query;
     let results;
     try {
-      if (deliverableId) {
+      const normalizeStatus = (s) => {
+        const x = String(s || '').toLowerCase().replace(/[\s_-]+/g, '');
+        if (!x) return '';
+        if (x === 'underreview') return 'under_review';
+        if (x === 'changerequested') return 'change_requested';
+        return x;
+      };
+      const s = normalizeStatus(status);
+      if (deliverableId && s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 AND LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($2, '-', '')) ORDER BY created_at DESC",
+          { bind: [deliverableId, s], type: QueryTypes.SELECT }
+        );
+      } else if (deliverableId) {
         results = await sequelize.query(
           "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 ORDER BY created_at DESC",
-          { 
-            bind: [deliverableId],
-            type: QueryTypes.SELECT 
-          }
+          { bind: [deliverableId], type: QueryTypes.SELECT }
+        );
+      } else if (s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($1, '-', '')) ORDER BY created_at DESC",
+          { bind: [s], type: QueryTypes.SELECT }
         );
       } else {
         results = await sequelize.query(
@@ -152,7 +167,7 @@ router.get('/', async (req, res) => {
         (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
       ])
     );
-    const reports = rawRows.map((row) => {
+    let reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
         const submittedBy = c.submittedBy || c.submitted_by;
@@ -209,6 +224,16 @@ router.get('/', async (req, res) => {
         };
       }
     });
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const qStatus = String(req.query.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+    if (role === 'clientreviewer') {
+      const allowedStatuses = new Set(['submitted', 'approved', 'underreview', 'under_review']);
+      reports = reports.filter((r) => allowedStatuses.has(String(r.status || '').toLowerCase()));
+      if (qStatus && !allowedStatuses.has(qStatus)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
     if (reports.length === 0) {
       try {
         const signoffs = await Signoff.findAll({
