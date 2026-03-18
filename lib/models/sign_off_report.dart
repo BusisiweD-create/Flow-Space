@@ -22,21 +22,25 @@ class SignOffReport {
   final String? nextSteps;
   final String? preparedBy;
   final String? preparedByName;
+  final String? preparedByRole;
   final ReportStatus status;
   final DateTime createdAt;
   final String createdBy;
   final DateTime? submittedAt;
   final String? submittedBy;
   final String? submittedByName;
+  final String? submittedByRole;
   final DateTime? reviewedAt;
   final String? reviewedBy;
   final String? reviewedByName;
+  final String? reviewedByRole;
   final String? clientComment;
   final String? changeRequestDetails;
   final List<dynamic>? changeRequestHistory;
   final DateTime? approvedAt;
   final String? approvedBy;
   final String? approvedByName;
+  final String? approvedByRole;
 
   final String? digitalSignature;
 
@@ -51,21 +55,25 @@ class SignOffReport {
     this.nextSteps,
     this.preparedBy,
     this.preparedByName,
+    this.preparedByRole,
     required this.status,
     required this.createdAt,
     required this.createdBy,
     this.submittedAt,
     this.submittedBy,
     this.submittedByName,
+    this.submittedByRole,
     this.reviewedAt,
     this.reviewedBy,
     this.reviewedByName,
+    this.reviewedByRole,
     this.clientComment,
     this.changeRequestDetails,
     this.changeRequestHistory,
     this.approvedAt,
     this.approvedBy,
     this.approvedByName,
+    this.approvedByRole,
     this.digitalSignature,
   });
 
@@ -80,21 +88,25 @@ class SignOffReport {
     String? nextSteps,
     String? preparedBy,
     String? preparedByName,
+    String? preparedByRole,
     ReportStatus? status,
     DateTime? createdAt,
     String? createdBy,
     DateTime? submittedAt,
     String? submittedBy,
     String? submittedByName,
+    String? submittedByRole,
     DateTime? reviewedAt,
     String? reviewedBy,
     String? reviewedByName,
+    String? reviewedByRole,
     String? clientComment,
     String? changeRequestDetails,
     List<dynamic>? changeRequestHistory,
     DateTime? approvedAt,
     String? approvedBy,
     String? approvedByName,
+    String? approvedByRole,
     String? digitalSignature,
   }) {
     return SignOffReport(
@@ -108,21 +120,25 @@ class SignOffReport {
       nextSteps: nextSteps ?? this.nextSteps,
       preparedBy: preparedBy ?? this.preparedBy,
       preparedByName: preparedByName ?? this.preparedByName,
+      preparedByRole: preparedByRole ?? this.preparedByRole,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       createdBy: createdBy ?? this.createdBy,
       submittedAt: submittedAt ?? this.submittedAt,
       submittedBy: submittedBy ?? this.submittedBy,
       submittedByName: submittedByName ?? this.submittedByName,
+      submittedByRole: submittedByRole ?? this.submittedByRole,
       reviewedAt: reviewedAt ?? this.reviewedAt,
       reviewedBy: reviewedBy ?? this.reviewedBy,
       reviewedByName: reviewedByName ?? this.reviewedByName,
+      reviewedByRole: reviewedByRole ?? this.reviewedByRole,
       clientComment: clientComment ?? this.clientComment,
       changeRequestDetails: changeRequestDetails ?? this.changeRequestDetails,
       changeRequestHistory: changeRequestHistory ?? this.changeRequestHistory,
       approvedAt: approvedAt ?? this.approvedAt,
       approvedBy: approvedBy ?? this.approvedBy,
       approvedByName: approvedByName ?? this.approvedByName,
+      approvedByRole: approvedByRole ?? this.approvedByRole,
       digitalSignature: digitalSignature ?? this.digitalSignature,
     );
   }
@@ -139,21 +155,25 @@ class SignOffReport {
       'nextSteps': nextSteps,
       'preparedBy': preparedBy,
       'preparedByName': preparedByName,
+      'preparedByRole': preparedByRole,
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
       'createdBy': createdBy,
       'submittedAt': submittedAt?.toIso8601String(),
       'submittedBy': submittedBy,
       'submittedByName': submittedByName,
+      'submittedByRole': submittedByRole,
       'reviewedAt': reviewedAt?.toIso8601String(),
       'reviewedBy': reviewedBy,
       'reviewedByName': reviewedByName,
+      'reviewedByRole': reviewedByRole,
       'clientComment': clientComment,
       'changeRequestDetails': changeRequestDetails,
       'changeRequestHistory': changeRequestHistory,
       'approvedAt': approvedAt?.toIso8601String(),
       'approvedBy': approvedBy,
       'approvedByName': approvedByName,
+      'approvedByRole': approvedByRole,
       'digitalSignature': digitalSignature,
     };
   }
@@ -198,6 +218,11 @@ class SignOffReport {
             content['createdByName'] ??
             content['created_by_name'])
         ?.toString();
+    final String? preparedByRole = (json['preparedByRole'] ??
+            json['prepared_by_role'] ??
+            content['preparedByRole'] ??
+            content['prepared_by_role'])
+        ?.toString();
 
     final String statusStr = (json['status'] ?? json['review_status'] ?? content['status'] ?? '').toString();
     final ReportStatus status = ReportStatus.values.firstWhere(
@@ -226,6 +251,11 @@ class SignOffReport {
             content['submittedByName'] ??
             content['submitted_by_name'])
         ?.toString();
+    final String? submittedByRole = (json['submittedByRole'] ??
+            json['submitted_by_role'] ??
+            content['submittedByRole'] ??
+            content['submitted_by_role'])
+        ?.toString();
 
     final String reviewedAtStr = (json['reviewedAt'] ?? json['approved_at'] ?? json['rejected_at'] ?? '').toString();
     final DateTime? reviewedAt = reviewedAtStr.isNotEmpty ? DateTime.parse(reviewedAtStr) : null;
@@ -234,6 +264,11 @@ class SignOffReport {
             json['reviewed_by_name'] ??
             content['reviewedByName'] ??
             content['reviewed_by_name'])
+        ?.toString();
+    final String? reviewedByRole = (json['reviewedByRole'] ??
+            json['reviewed_by_role'] ??
+            content['reviewedByRole'] ??
+            content['reviewed_by_role'])
         ?.toString();
 
     final String? clientComment = (json['clientComment'] ?? content['clientComment'] ?? json['comments'])?.toString();
@@ -248,6 +283,11 @@ class SignOffReport {
             content['approvedByName'] ??
             content['approved_by_name'])
         ?.toString();
+    final String? approvedByRole = (json['approvedByRole'] ??
+            json['approved_by_role'] ??
+            content['approvedByRole'] ??
+            content['approved_by_role'])
+        ?.toString();
     final String? digitalSignature = (json['digitalSignature'] ?? json['signature'] ?? content['digitalSignature'])?.toString();
 
     return SignOffReport(
@@ -261,21 +301,25 @@ class SignOffReport {
       nextSteps: nextSteps,
       preparedBy: preparedBy,
       preparedByName: preparedByName,
+      preparedByRole: preparedByRole,
       status: status,
       createdAt: createdAt,
       createdBy: createdBy,
       submittedAt: submittedAt,
       submittedBy: submittedBy,
       submittedByName: submittedByName,
+      submittedByRole: submittedByRole,
       reviewedAt: reviewedAt,
       reviewedBy: reviewedBy,
       reviewedByName: reviewedByName,
+      reviewedByRole: reviewedByRole,
       clientComment: clientComment,
       changeRequestDetails: changeRequestDetails,
       changeRequestHistory: changeRequestHistory,
       approvedAt: approvedAt,
       approvedBy: approvedBy,
       approvedByName: approvedByName,
+      approvedByRole: approvedByRole,
       digitalSignature: digitalSignature,
     );
   }

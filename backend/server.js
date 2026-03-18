@@ -2008,8 +2008,8 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     // Ensure creator/owner is also in project_members
     try {
       await pool.query(
-        `INSERT INTO project_members (project_id, user_id, role)
-         VALUES ($1, $2, $3)
+        `INSERT INTO project_members (project_id, user_id, role, joined_at)
+         VALUES ($1, $2, $3, NOW())
          ON CONFLICT (project_id, user_id) DO NOTHING`,
         [result.rows[0].id, ownerIdToUse, 'owner']
       );
@@ -2021,13 +2021,15 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
 
     // Handle additional members if provided
     if (members && Array.isArray(members) && members.length > 0) {
+      console.log(`👥 Adding ${members.length} additional members to project...`);
       for (const member of members) {
         try {
           const memberUserId = member.userId || member.id || member;
-          const memberRole = member.role || 'member';
+          const memberRole = member.role || 'contributor';
+          console.log(`➕ Adding member: ${memberUserId} as ${memberRole}`);
           await pool.query(
-            `INSERT INTO project_members (project_id, user_id, role)
-             VALUES ($1, $2, $3)
+            `INSERT INTO project_members (project_id, user_id, role, joined_at)
+             VALUES ($1, $2, $3, NOW())
              ON CONFLICT (project_id, user_id) DO UPDATE SET role = $3`,
             [result.rows[0].id, memberUserId, memberRole]
           );
@@ -2035,6 +2037,7 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
           console.error('Error adding project member:', memberError);
         }
       }
+      console.log(`✅ Successfully added members to project`);
     }
 
     res.status(201).json({ success: true, data: result.rows[0] });
@@ -2105,7 +2108,45 @@ app.get('/api/v1/projects/:projectId', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
-    res.json({ success: true, data: result.rows[0] });
+
+    // Get project members
+    let projectData = result.rows[0];
+    
+    try {
+      const membersResult = await pool.query(`
+        SELECT 
+          pm.id,
+          pm.project_id,
+          pm.user_id,
+          pm.role,
+          pm.joined_at,
+          u.first_name,
+          u.last_name,
+          u.email
+        FROM project_members pm
+        LEFT JOIN users u ON pm.user_id = u.id
+        WHERE pm.project_id = $1
+        ORDER BY pm.role, u.first_name
+      `, [projectId]);
+      
+      console.log(`🔍 Found ${membersResult.rows.length} members for project ${projectId}`);
+      
+      // Add members to project data
+      projectData.members = membersResult.rows.map(m => ({
+        userId: m.user_id,
+        userName: `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown',
+        userEmail: m.email || '',
+        role: m.role,
+        assignedAt: m.joined_at
+      }));
+      
+      console.log(`✅ Added ${projectData.members.length} members to project response`);
+    } catch (memberError) {
+      console.error('❌ Error fetching project members:', memberError);
+      projectData.members = [];
+    }
+    
+    res.json({ success: true, data: projectData });
   } catch (error) {
     console.error('Error fetching project:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch project' });

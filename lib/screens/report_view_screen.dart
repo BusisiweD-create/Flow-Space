@@ -159,6 +159,27 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
     );
   }
 
+  String _formatRole(String? raw) {
+    final r = (raw ?? '').trim();
+    if (r.isEmpty) return '';
+    final norm = r.toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+    for (final role in UserRole.values) {
+      final rn = role.name.toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+      if (rn == norm) {
+        return role.displayName;
+      }
+    }
+    return r;
+  }
+
+  String _formatActor({required String? name, required String? role}) {
+    final n = (name ?? '').trim();
+    final r = _formatRole(role);
+    if (n.isEmpty) return '';
+    if (r.isEmpty) return n;
+    return '$n ($r)';
+  }
+
   Future<void> _submitClientFeedback(String feedback, bool requestChanges) async {
     if (_report == null) return;
     
@@ -549,15 +570,23 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
                   Expanded(
                     child: buildStatusItem(
                       'Submitted By',
-                      _report!.preparedByName ??
-                          _report!.createdBy,
+                      _formatActor(
+                        name: _report!.submittedByName ?? _report!.submittedBy,
+                        role: _report!.submittedByRole,
+                      ),
                     ),
                   ),
                 ],
               ),
             ],
             const SizedBox(height: 8),
-              buildStatusItem('Prepared By', _report!.preparedByName ?? _report!.createdBy),
+              buildStatusItem(
+                'Prepared By',
+                _formatActor(
+                  name: _report!.preparedByName ?? _report!.createdBy,
+                  role: _report!.preparedByRole,
+                ),
+              ),
               const SizedBox(height: 8),
               buildStatusItem('Report Status', _report!.status.toString().split('.').last.toUpperCase()),
               const SizedBox(height: 8),
@@ -570,14 +599,30 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: buildStatusItem('Reviewed By', _report!.reviewedByName ?? _report!.reviewedBy ?? '')),
+                  Expanded(
+                    child: buildStatusItem(
+                      'Reviewed By',
+                      _formatActor(
+                        name: _report!.reviewedByName ?? _report!.reviewedBy,
+                        role: _report!.reviewedByRole,
+                      ),
+                    ),
+                  ),
                   Expanded(child: buildStatusItem('Reviewed', _report!.reviewedAt != null ? formatDate(_report!.reviewedAt!) : '')),
                 ],
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: buildStatusItem('Approved By', _report!.approvedByName ?? _report!.approvedBy ?? '')),
+                  Expanded(
+                    child: buildStatusItem(
+                      'Approved By',
+                      _formatActor(
+                        name: _report!.approvedByName ?? _report!.approvedBy,
+                        role: _report!.approvedByRole,
+                      ),
+                    ),
+                  ),
                   Expanded(child: buildStatusItem('Approved', _report!.approvedAt != null ? formatDate(_report!.approvedAt!) : '')),
                 ],
               ),

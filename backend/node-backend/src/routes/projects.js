@@ -115,7 +115,47 @@ router.get('/:id', async (req, res) => {
     const projectJSON = project.toJSON();
     
     console.log(`👥 Members found: ${projectJSON.members?.length || 0}`);
-    if (projectJSON.members) {
+    
+    // Fallback: If no members from associations, manually query them
+    if (!projectJSON.members || projectJSON.members.length === 0) {
+      console.log(`🔄 No members from associations, manually querying...`);
+      try {
+        const manualMembers = await sequelize.query(`
+          SELECT 
+            pm.id,
+            pm.project_id,
+            pm.user_id,
+            pm.role,
+            pm.added_at,
+            u.first_name,
+            u.last_name,
+            u.email
+          FROM project_members pm
+          LEFT JOIN users u ON pm.user_id = u.id
+          WHERE pm.project_id = :projectId
+          ORDER BY pm.role, u.first_name
+        `, {
+          replacements: { projectId: id },
+          type: QueryTypes.SELECT
+        });
+        
+        console.log(`🔍 Manual query found ${manualMembers.length} members`);
+        
+        projectJSON.members = manualMembers.map(m => ({
+          userId: m.user_id,
+          userName: `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown',
+          userEmail: m.email || '',
+          role: m.role,
+          assignedAt: m.added_at
+        }));
+        
+        console.log(`✅ Added ${projectJSON.members.length} members manually`);
+      } catch (error) {
+        console.error('❌ Error manually querying members:', error);
+        projectJSON.members = [];
+      }
+    } else {
+      // Use association data if available
       projectJSON.members = projectJSON.members.map(m => ({
         userId: m.user_id,
         userName: m.user ? `${m.user.first_name} ${m.user.last_name}`.trim() : 'Unknown',
@@ -127,6 +167,7 @@ router.get('/:id', async (req, res) => {
 
     // Map snake_case to camelCase for critical fields
     projectJSON.ownerId = projectJSON.owner_id;
+    projectJSON.clientOwnerName = projectJSON.client_owner_name;
     
     console.log(`📤 Final API response:`, JSON.stringify({
       success: true,
@@ -168,6 +209,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const projectData = {
       ...req.body,
       client_name: req.body.clientName || req.body.client_name,
+      client_owner_name: req.body.clientOwnerName || req.body.client_owner_name,
       start_date: req.body.startDate || req.body.start_date,
       end_date: req.body.endDate || req.body.end_date,
       project_type: req.body.projectType || req.body.project_type,
@@ -369,6 +411,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       name: req.body.name,
       description: req.body.description,
       client_name: req.body.clientName || req.body.client_name,
+      client_owner_name: req.body.clientOwnerName || req.body.client_owner_name,
       start_date: req.body.startDate || req.body.start_date,
       end_date: req.body.endDate || req.body.end_date,
       project_type: req.body.projectType || req.body.project_type,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/sprint_database_service.dart';
+import '../services/backend_api_service.dart';
 import '../widgets/glass_card.dart';
 import '../theme/flownet_theme.dart';
 
@@ -31,33 +32,47 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
     try {
       setState(() => _isLoading = true);
 
-      // Load project details - use getProjects and find by ID
-      final projectsData = await SprintDatabaseService().getProjects();
-      final projectData = projectsData.firstWhere(
-        (project) => project['id'] == widget.projectId,
-        orElse: () => {},
-      );
-      
-      if (projectData.isNotEmpty) {
-        setState(() {
-          _project = projectData;
-          // Calculate project duration
-          if (projectData['start_date'] != null && projectData['end_date'] != null) {
-            final startDate = DateTime.parse(projectData['start_date']);
-            final endDate = DateTime.parse(projectData['end_date']);
-            _projectDuration = endDate.difference(startDate).inDays;
-          }
-        });
+      debugPrint('🔍 Loading project details for: ${widget.projectId}');
 
-        // Load sprints for this project
-        await _loadSprints();
+      // Load project details using getProject to get members
+      final backendService = BackendApiService();
+      final response = await backendService.getProject(widget.projectId);
+      
+      debugPrint('📡 Backend response success: ${response.isSuccess}');
+      debugPrint('📋 Backend response data: ${response.data}');
+      
+      if (response.isSuccess && response.data != null) {
+        final projectData = response.data is Map<String, dynamic> 
+          ? response.data as Map<String, dynamic>
+          : Map<String, dynamic>.from(response.data);
         
-        // Load project members
-        await _loadProjectMembers();
+        debugPrint('📊 Processed project data keys: ${projectData.keys.toList()}');
+        
+        if (projectData.isNotEmpty) {
+          setState(() {
+            _project = projectData;
+            // Calculate project duration
+            if (projectData['start_date'] != null && projectData['end_date'] != null) {
+              final startDate = DateTime.parse(projectData['start_date']);
+              final endDate = DateTime.parse(projectData['end_date']);
+              _projectDuration = endDate.difference(startDate).inDays;
+            }
+          });
+
+          // Load sprints for this project
+          await _loadSprints();
+          
+          // Load project members
+          await _loadProjectMembers();
+        } else {
+          setState(() => _error = 'Project not found');
+        }
       } else {
+        debugPrint('❌ Backend response failed: ${response.error}');
         setState(() => _error = 'Project not found');
       }
     } catch (e) {
+      debugPrint('❌ Error loading project details: $e');
       setState(() => _error = 'Failed to load project details: $e');
     } finally {
       setState(() => _isLoading = false);
@@ -77,20 +92,33 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
 
   Future<void> _loadProjectMembers() async {
     try {
+      debugPrint('🔍 Loading project members for project: ${widget.projectId}');
+      
       // Load real project members from the project data
       if (_project != null && _project!['members'] != null) {
+        debugPrint('📊 Found ${(_project!['members'] as List).length} members in project data');
+        debugPrint('📋 Raw members data: ${_project!['members']}');
+        
         setState(() {
-          _projectMembers = (_project!['members'] as List).map((member) => {
-            'id': member['userId'] ?? member['user_id'],
-            'name': member['userName'] ?? member['user_name'] ?? 'Unknown',
-            'role': member['role'] ?? 'member',
-            'email': member['userEmail'] ?? member['user_email'] ?? '',
-            'avatar': null,
+          _projectMembers = (_project!['members'] as List).map((member) {
+            debugPrint('👤 Processing member: $member');
+            return {
+              'id': member['userId'] ?? member['user_id'],
+              'name': member['userName'] ?? member['user_name'] ?? 'Unknown',
+              'role': member['role'] ?? 'member',
+              'email': member['userEmail'] ?? member['user_email'] ?? '',
+              'avatar': null,
+            };
           }).toList();
         });
+        
+        debugPrint('✅ Processed ${_projectMembers.length} members for display');
+      } else {
+        debugPrint('⚠️ No members found in project data');
+        debugPrint('📋 Available project keys: ${_project?.keys.toList()}');
       }
     } catch (e) {
-      debugPrint('Error loading project members: $e');
+      debugPrint('❌ Error loading project members: $e');
     }
   }
 
