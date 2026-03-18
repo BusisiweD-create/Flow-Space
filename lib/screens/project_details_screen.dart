@@ -77,26 +77,18 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
 
   Future<void> _loadProjectMembers() async {
     try {
-      // Since we don't have a dedicated project members service, 
-      // we'll use mock data for now
-      setState(() {
-        _projectMembers = [
-          {
-            'id': '1',
-            'name': 'John Doe',
-            'role': 'Project Manager',
-            'email': 'john@example.com',
+      // Load real project members from the project data
+      if (_project != null && _project!['members'] != null) {
+        setState(() {
+          _projectMembers = (_project!['members'] as List).map((member) => {
+            'id': member['userId'] ?? member['user_id'],
+            'name': member['userName'] ?? member['user_name'] ?? 'Unknown',
+            'role': member['role'] ?? 'member',
+            'email': member['userEmail'] ?? member['user_email'] ?? '',
             'avatar': null,
-          },
-          {
-            'id': '2',
-            'name': 'Jane Smith',
-            'role': 'Lead Developer',
-            'email': 'jane@example.com',
-            'avatar': null,
-          },
-        ];
-      });
+          }).toList();
+        });
+      }
     } catch (e) {
       debugPrint('Error loading project members: $e');
     }
