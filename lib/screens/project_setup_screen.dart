@@ -21,6 +21,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _clientNameController = TextEditingController();
+  final _clientProjectOwnerController = TextEditingController();
   final _keyController = TextEditingController();
 
   DateTime? _startDate;
@@ -74,6 +75,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _clientNameController.dispose();
+    _clientProjectOwnerController.dispose();
     _keyController.dispose();
     super.dispose();
   }
@@ -89,6 +91,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           _nameController.text = project.name;
           _descriptionController.text = project.description;
           _clientNameController.text = project.clientName ?? '';
+          _clientProjectOwnerController.text = project.clientOwnerName ?? '';
           _keyController.text = project.key;
           _selectedProjectType = project.projectType;
           _selectedStatus = project.status;
@@ -300,6 +303,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         'name': _nameController.text.trim(),
         'description': _descriptionController.text.trim(),
         'clientName': _clientNameController.text.trim(),
+        'client_owner_name': _clientProjectOwnerController.text.trim(),
         'projectKey': _keyController.text.trim(),
         'projectType': _selectedProjectType,
         'status': _selectedStatus.name,
@@ -356,6 +360,8 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         _descriptionController.text.trim() != _originalProject!.description ||
         _clientNameController.text.trim() !=
             (_originalProject!.clientName ?? '') ||
+        _clientProjectOwnerController.text.trim() !=
+            (_originalProject!.clientOwnerName ?? '') ||
         _selectedProjectType != _originalProject!.projectType ||
         _selectedStatus != _originalProject!.status ||
         _selectedPriority != _originalProject!.priority ||
@@ -371,6 +377,8 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         _nameController.text = _originalProject!.name;
         _descriptionController.text = _originalProject!.description;
         _clientNameController.text = _originalProject!.clientName ?? '';
+        _clientProjectOwnerController.text =
+            _originalProject!.clientOwnerName ?? '';
         _keyController.text = _originalProject!.key;
 
         final loadedType = _originalProject!.projectType;
@@ -666,6 +674,8 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           ),
           const SizedBox(height: 16),
           _buildModernClientField(),
+          const SizedBox(height: 16),
+          _buildModernClientProjectOwnerField(),
           const SizedBox(height: 16),
           _buildModernProjectTypeField(),
         ],
@@ -1320,7 +1330,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Project Owner*',
+          'Project Manager*',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -1339,7 +1349,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
             child: DropdownButton<Map<String, dynamic>>(
               value: _selectedProjectOwner,
               hint: Text(
-                _isLoadingUsers ? 'Loading users...' : 'Select project owner',
+                _isLoadingUsers ? 'Loading users...' : 'Select project manager',
                 style: const TextStyle(color: Color(0xFFA0AEC0)),
               ),
               style: const TextStyle(
@@ -1439,6 +1449,54 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           ),
           onChanged: (value) => _validateFieldOnChange('clientName', value),
           validator: (value) => _validateField('clientName', value),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModernClientProjectOwnerField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Project Owner (Client Side)',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF4A5568),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _clientProjectOwnerController,
+          style: const TextStyle(
+            fontSize: 16,
+            color: Color(0xFF1A202C),
+            fontWeight: FontWeight.w400,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Enter client project owner',
+            hintStyle: const TextStyle(
+              color: Color(0xFFA0AEC0),
+              fontSize: 14,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF3182CE)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
         ),
       ],
     );

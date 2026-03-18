@@ -28,6 +28,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
   final _nameController = TextEditingController();
     final _descriptionController = TextEditingController();
   final _clientNameController = TextEditingController();
+  final _clientProjectOwnerController = TextEditingController();
   final _tagsController = TextEditingController();
   
   ProjectStatus _selectedStatus = ProjectStatus.planning;
@@ -68,6 +69,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
     _nameController.dispose();
     _descriptionController.dispose();
     _clientNameController.dispose();
+    _clientProjectOwnerController.dispose();
     _tagsController.dispose();
     super.dispose();
   }
@@ -85,6 +87,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
           _nameController.text = project.name;
           _descriptionController.text = project.description;
           _clientNameController.text = project.clientName ?? '';
+          _clientProjectOwnerController.text = project.clientOwnerName ?? '';
           _selectedStatus = project.status;
           _selectedPriority = project.priority;
           const validProjectTypes = ['software', 'hardware', 'research', 'consulting', 'other'];
@@ -234,6 +237,9 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
         key: _isEditing ? _currentProject!.key : _generateProjectKey(_nameController.text.trim()),
         description: _descriptionController.text.trim(),
         clientName: _clientNameController.text.trim().isEmpty ? null : _clientNameController.text.trim(),
+        clientOwnerName: _clientProjectOwnerController.text.trim().isEmpty
+            ? null
+            : _clientProjectOwnerController.text.trim(),
         status: _selectedStatus,
         priority: _selectedPriority,
         projectType: _selectedProjectType,
@@ -610,6 +616,33 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
             ),
           ),
           const SizedBox(height: 16),
+          TextFormField(
+            controller: _clientProjectOwnerController,
+            decoration: InputDecoration(
+              labelText: 'Project Owner (Client Side)',
+              hintText: 'Enter client-side project owner',
+              prefixIcon: Icon(Icons.badge_outlined, color: colorScheme.primary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colorScheme.outline.withAlpha(100)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colorScheme.outline.withAlpha(50)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colorScheme.primary, width: 2),
+              ),
+              filled: true,
+              fillColor: colorScheme.surface.withAlpha(100),
+            ),
+            style: TextStyle(
+              fontSize: 16,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 16),
           DropdownButtonFormField<User>(
             // ignore: deprecated_member_use
             value: _selectedOwner,
@@ -620,7 +653,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
               });
             },
             decoration: InputDecoration(
-              labelText: 'Project Owner *',
+              labelText: 'Project Manager *',
               prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -649,7 +682,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
             }).toList(),
             validator: (value) {
               if (value == null) {
-                return 'Project owner is required';
+                return 'Project manager is required';
               }
               return null;
             },
