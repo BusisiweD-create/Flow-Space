@@ -17,6 +17,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import 'report_editor_screen.dart';
 import 'client_review_workflow_screen.dart';
+import 'simple_report_creation_screen.dart';
 
 class ReportRepositoryScreen extends ConsumerStatefulWidget {
   const ReportRepositoryScreen({super.key});
@@ -830,10 +831,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       scrollable: false,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
+          // Navigate to a simple report creation form
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const ReportEditorScreen(),
+              builder: (context) => const SimpleReportCreationScreen(),
             ),
           ).then((_) => _loadReports());
         },

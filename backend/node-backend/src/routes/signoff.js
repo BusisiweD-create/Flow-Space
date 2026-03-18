@@ -101,6 +101,7 @@ router.get('/', async (req, res) => {
     if (!base.endsWith('/sign-off-reports')) {
       return res.status(404).json({ error: 'Endpoint not found' });
     }
+    
     await ensureReportsTable();
     
     const { deliverableId } = req.query;
@@ -359,6 +360,8 @@ router.post('/', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
+      
+      // Validate required fields
       const {
         deliverableId,
         reportTitle,
@@ -369,9 +372,7 @@ router.post('/', async (req, res) => {
         nextSteps,
         status
       } = req.body || {};
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
+      
       if (!deliverableId || typeof deliverableId !== 'string' || deliverableId.trim().length === 0) {
         return res.status(400).json({ error: 'deliverableId is required' });
       }
@@ -383,13 +384,15 @@ router.post('/', async (req, res) => {
       }
       const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
       const content = {
-        reportTitle,
-        reportContent,
+        reportTitle: reportTitle.trim(),
+        reportContent: reportContent.trim(),
         sprintIds: sprintIds || [],
         sprintPerformanceData,
         knownLimitations,
         nextSteps,
-        status: normalizedStatus
+        status: normalizedStatus,
+        submittedBy: req.user?.id || null,
+        submittedByName: req.user?.email || 'Unknown User'
       };
       const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
       const contentExpr = dialect === 'postgres' ? '$4::jsonb' : '$4';
@@ -1393,20 +1396,6 @@ router.post('/client-review-links', async (req, res) => {
           expiresAt: expiresAt.toISOString(),
           tokenType: 'client_review',
           actor_name: actorName
-=======
-      await AuditLog.create({
-        entity_type: 'signoff',
-        entity_id: reportId,
-        action: 'review_link_created',
-        actor_id: user.id || null,
-        actor_name: user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User'),
-        details: { 
-          clientEmail,
-          expiresAt: expiresAt.toISOString(),
-          tokenType: 'client_review'
->>>>>>> 81e0de93 (feat(signoff): add client review signoff report & actions)
         },
         created_at: new Date()
       });
