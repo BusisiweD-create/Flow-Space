@@ -152,7 +152,7 @@ router.get('/', async (req, res) => {
         (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
       ])
     );
-    const reports = rawRows.map((row) => {
+    let reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
         const submittedBy = c.submittedBy || c.submitted_by;
@@ -209,6 +209,16 @@ router.get('/', async (req, res) => {
         };
       }
     });
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const qStatus = String(req.query.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+    if (role === 'clientreviewer') {
+      const allowedStatuses = new Set(['submitted', 'approved', 'underreview', 'under_review']);
+      reports = reports.filter((r) => allowedStatuses.has(String(r.status || '').toLowerCase()));
+      if (qStatus && !allowedStatuses.has(qStatus)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
     if (reports.length === 0) {
       try {
         const signoffs = await Signoff.findAll({
