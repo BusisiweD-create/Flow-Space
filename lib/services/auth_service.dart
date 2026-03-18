@@ -194,6 +194,8 @@ class AuthService {
   bool canViewTeamDashboard() => hasPermission('view_team_dashboard');
   bool canViewClientReview() => hasPermission('view_client_review');
   bool canManageUsers() => hasPermission('manage_users');
+  bool canManageProjects() => hasPermission('manage_projects');
+  bool canCreateSprints() => hasPermission('create_sprint');
   bool canViewAuditLogs() => hasPermission('view_audit_logs');
   bool canOverrideReadinessGate() => hasPermission('override_readiness_gate');
   bool canViewAllDeliverables() => hasPermission('view_all_deliverables');
@@ -318,6 +320,8 @@ class AuthService {
         return hasPermission('view_team_dashboard');
       case '/sprint-board':
         return hasPermission('view_sprints');
+      case '/project-workspace':
+        return hasPermission('manage_projects');
       case '/system-metrics':
         return hasPermission('view_team_dashboard') ||
             (_currentUser?.isSystemAdmin ?? false);

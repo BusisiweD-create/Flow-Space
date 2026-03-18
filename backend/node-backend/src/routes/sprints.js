@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Sprint, Project } = require('../models');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 
 function normalizeSprintData(body) {
   const d = {};
@@ -146,7 +147,7 @@ router.get('/:id', async (req, res) => {
  * @desc Create a new sprint
  * @access Private
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const sprintData = normalizeSprintData(req.body);
     const sprint = await Sprint.create(sprintData);
@@ -169,7 +170,7 @@ router.post('/', async (req, res) => {
  * @desc Update an existing sprint
  * @access Private
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = normalizeSprintData(req.body);
@@ -194,7 +195,7 @@ router.put('/:id', async (req, res) => {
  * @desc Update sprint status (compatibility endpoint)
  * @access Private
  */
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     const nextStatus = req.body?.status ?? req.body?.state ?? req.body?.newStatus;
@@ -220,7 +221,7 @@ router.put('/:id/status', async (req, res) => {
  * @desc Delete a sprint
  * @access Private
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     

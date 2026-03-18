@@ -620,6 +620,8 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
       );
     }
 
+    final auth = AuthService();
+    final canCreateDeliverable = auth.canCreateDeliverable() && !auth.isSystemAdmin;
     return AppScaffold(
       useBackgroundImage: false,
       appBar: AppBar(
@@ -646,11 +648,12 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
             onPressed: _loadSprintData,
             tooltip: 'Refresh Data',
           ),
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: _showCreateDeliverableDialog,
-            tooltip: 'Create Deliverable',
-          ),
+          if (canCreateDeliverable)
+            IconButton(
+              icon: const Icon(Icons.add, color: Colors.white),
+              onPressed: _showCreateDeliverableDialog,
+              tooltip: 'Create Deliverable',
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -675,20 +678,15 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          final auth = AuthService();
-          if (auth.isSystemAdmin) {
-            _showSnackBar('System admin can view/comment only');
-            return;
-          }
-          _showCreateDeliverableDialog();
-        },
-        backgroundColor: FlownetColors.electricBlue,
-        foregroundColor: FlownetColors.pureWhite,
-        icon: const Icon(Icons.add),
-        label: const Text('Create Deliverable'),
-      ),
+      floatingActionButton: canCreateDeliverable
+          ? FloatingActionButton.extended(
+              onPressed: _showCreateDeliverableDialog,
+              backgroundColor: FlownetColors.electricBlue,
+              foregroundColor: FlownetColors.pureWhite,
+              icon: const Icon(Icons.add),
+              label: const Text('Create Deliverable'),
+            )
+          : null,
     );
   }
 }

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Project, Sprint, AuditLog, User, ProjectMember, Notification, sequelize } = require('../models');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const { Op, QueryTypes } = require('sequelize');
 
 /**
@@ -143,7 +143,7 @@ router.get('/:id', async (req, res) => {
  * @desc Create a new project
  * @access Private
  */
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     // Generate a project key from the name if not provided
     let projectKey = req.body.key;
@@ -717,7 +717,7 @@ router.get('/:projectId/available-sprints', async (req, res) => {
  * @desc Link multiple existing sprints to a project
  * @access Private
  */
-router.post('/:projectId/sprints', authenticateToken, async (req, res) => {
+router.post('/:projectId/sprints', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { projectId } = req.params;
     const { sprintIds } = req.body;
@@ -775,7 +775,7 @@ router.post('/:projectId/sprints', authenticateToken, async (req, res) => {
  * @desc Create a new sprint directly linked to a project
  * @access Private
  */
-router.post('/:projectId/sprints/new', authenticateToken, async (req, res) => {
+router.post('/:projectId/sprints/new', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { projectId } = req.params;
     const { name, description, start_date, end_date } = req.body;
@@ -836,7 +836,7 @@ router.post('/:projectId/sprints/new', authenticateToken, async (req, res) => {
  * @desc Unlink a sprint from a project (sets project_id to null)
  * @access Private
  */
-router.delete('/:projectId/sprints/:sprintId', authenticateToken, async (req, res) => {
+router.delete('/:projectId/sprints/:sprintId', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { projectId, sprintId } = req.params;
 

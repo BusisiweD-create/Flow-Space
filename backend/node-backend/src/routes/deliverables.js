@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Deliverable, DeliverableSprint, AuditLog, User, DeliverableArtifact, Project } = require('../models');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fileUploadService = require('../services/fileUploadService');
@@ -168,7 +168,11 @@ router.get('/:id/overview', async (req, res) => {
  * @desc Create a new deliverable
  * @access Private
  */
-router.post('/', authenticateToken, async (req, res) => {
+router.post(
+  '/',
+  authenticateToken,
+  requireRole(['teamMember', 'deliveryLead', 'systemAdmin', 'admin', 'developer', 'projectManager', 'scrumMaster', 'qaEngineer']),
+  async (req, res) => {
   try {
     const { sprintIds, ...deliverableData } = req.body || {};
     

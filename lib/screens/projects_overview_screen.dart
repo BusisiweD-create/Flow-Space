@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/sprint_database_service.dart';
+import '../services/auth_service.dart';
 
 class ProjectsOverviewScreen extends StatefulWidget {
   const ProjectsOverviewScreen({super.key});
@@ -64,6 +65,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
   }
 
   Widget _buildHeaderSection() {
+    final canManageProjects = AuthService().hasPermission('manage_projects');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -140,22 +142,22 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
             ),
             const SizedBox(width: 12),
             
-            // Create Project Button
-            ElevatedButton.icon(
-              onPressed: () async {
-                final created = await context.push<bool>('/projects/create');
-                if (created == true) {
-                  await _loadProjects();
-                }
-              },
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Create Project'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            if (canManageProjects)
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final created = await context.push<bool>('/projects/create');
+                  if (created == true) {
+                    await _loadProjects();
+                  }
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create Project'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
               ),
-            ),
           ],
         ),
       ],

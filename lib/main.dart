@@ -165,7 +165,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/projects/create',
       builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
+        requiredPermission: 'manage_projects',
         child: SidebarScaffold(
           child: ProjectWorkspaceScreen(),
         ),
@@ -176,7 +176,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) {
         final projectId = state.pathParameters['projectId']!;
         return RoleGuard(
-          requiredPermission: 'authenticated',
+          requiredPermission: 'manage_projects',
           child: SidebarScaffold(
             child: ProjectWorkspaceScreen(projectId: projectId),
           ),
@@ -186,7 +186,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/project-setup',
       builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
+        requiredPermission: 'manage_projects',
         child: SidebarScaffold(
           child: ProjectWorkspaceScreen(projectId: 'new'),
         ),

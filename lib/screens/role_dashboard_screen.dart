@@ -875,57 +875,78 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   Widget _buildQuickActions() {
     final canCreate = _authService.canCreateDeliverable();
-    return Row(
-      children: [
+    final tiles = <Widget>[
+      Expanded(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildActionButton(
+              icon: Icons.folder_outlined,
+              label: 'View Projects',
+              onTap: () => context.go('/projects'),
+            ),
+          ),
+        ),
+      ),
+      Expanded(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildActionButton(
+              icon: Icons.assignment_outlined,
+              label: 'View Deliverables',
+              onTap: () => context.go('/deliverables'),
+            ),
+          ),
+        ),
+      ),
+    ];
+
+    if (canCreate) {
+      tiles.insert(
+        0,
         Expanded(
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.assignment_outlined,
+                icon: Icons.assignment_add,
                 label: 'Create Deliverable',
                 onTap: () => context.go('/deliverable-setup'),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+      );
+      tiles.add(
         Expanded(
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.folder_outlined,
-                label: 'View Projects',
-                onTap: () => context.go('/projects'),
+                icon: Icons.description_outlined,
+                label: 'Build Report',
+                onTap: () {
+                  final first =
+                      _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                  final id = first != null
+                      ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
+                      : '';
+                  if (id.isNotEmpty) context.go('/report-builder/$id');
+                },
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        if (canCreate)
-          Expanded(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: _buildActionButton(
-                  icon: Icons.description_outlined,
-                  label: 'Build Report',
-                  onTap: () {
-                    final first = _dashboardDeliverables.isNotEmpty
-                        ? _dashboardDeliverables.first
-                        : null;
-                    final id = first != null
-                        ? (first['id']?.toString() ??
-                            first['uuid']?.toString() ??
-                            '')
-                        : '';
-                    if (id.isNotEmpty) context.go('/report-builder/$id');
-                  },
-                ),
-              ),
-            ),
-          ),
+      );
+    }
+
+    return Row(
+      children: [
+        for (int i = 0; i < tiles.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          tiles[i],
+        ]
       ],
     );
   }

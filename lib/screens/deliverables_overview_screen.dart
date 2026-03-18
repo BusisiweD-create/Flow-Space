@@ -354,6 +354,7 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
 
   @override
   Widget build(BuildContext context) {
+    final canCreate = _authService.canCreateDeliverable();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Deliverables Overview'),
@@ -371,11 +372,12 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
             },
             tooltip: _isKanbanView ? 'List View' : 'Kanban View',
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => context.go('/deliverable-setup'),
-            tooltip: 'Create Deliverable',
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => context.go('/deliverable-setup'),
+              tooltip: 'Create Deliverable',
+            ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

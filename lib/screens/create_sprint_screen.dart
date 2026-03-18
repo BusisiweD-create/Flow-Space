@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/sprint_database_service.dart';
+import '../services/auth_service.dart';
 
 class CreateSprintScreen extends StatefulWidget {
   final String? projectId;
@@ -65,6 +66,15 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = AuthService();
+      if (!auth.hasPermission('create_sprint')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Only Delivery Leads and System Admins can create sprints.')),
+        );
+        Navigator.of(context).pop(false);
+      }
+    });
     _fetchProjectDates();
     _checkActiveSprints();
     _loadProjects(); // Load projects for dropdown

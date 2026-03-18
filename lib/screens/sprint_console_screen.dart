@@ -576,6 +576,9 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     final theme = Theme.of(context);
     final onSurfaceColor = theme.colorScheme.onSurface;
     final primaryColor = theme.colorScheme.primary;
+    final auth = AuthService();
+    final canCreateSprint = auth.hasPermission('create_sprint');
+    final canManageProjects = auth.hasPermission('manage_projects');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -605,21 +608,23 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
             ),
             Row(
               children: [
-                GlassButton(
-                  text: 'Create Sprint',
-                  onPressed: _showCreateSprintDialog,
-                  icon: const Icon(Icons.timeline, size: 16),
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-                const SizedBox(width: 8),
-                GlassButton(
-                  text: 'Create Project',
-                  onPressed: () => _navigateToCreateProject(),
-                  icon: const Icon(Icons.add, size: 16),
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
+                if (canCreateSprint)
+                  GlassButton(
+                    text: 'Create Sprint',
+                    onPressed: _showCreateSprintDialog,
+                    icon: const Icon(Icons.timeline, size: 16),
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                if (canCreateSprint && canManageProjects) const SizedBox(width: 8),
+                if (canManageProjects)
+                  GlassButton(
+                    text: 'Create Project',
+                    onPressed: () => _navigateToCreateProject(),
+                    icon: const Icon(Icons.add, size: 16),
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
               ],
             ),
           ],

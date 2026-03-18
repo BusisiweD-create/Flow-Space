@@ -137,7 +137,7 @@ class PermissionManager {
     'create_sprint': Permission(
       name: 'Create Sprint',
       description: 'Create new sprints',
-      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin],
+      allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin],
     ),
     'edit_deliverable': Permission(
       name: 'Edit Deliverable',
@@ -182,7 +182,7 @@ class PermissionManager {
     'manage_projects': Permission(
       name: 'Manage Projects',
       description: 'Create and manage projects',
-      allowedRoles: [UserRole.systemAdmin, UserRole.projectManager, UserRole.deliveryLead],
+      allowedRoles: [UserRole.systemAdmin, UserRole.deliveryLead],
     ),
     'view_audit_logs': Permission(
       name: 'View Audit Logs',
