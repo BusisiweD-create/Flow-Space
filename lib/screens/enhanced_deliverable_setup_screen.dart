@@ -1,58 +1,143 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:file_picker/file_picker.dart';
 import '../models/release_readiness.dart';
-import '../models/dod_item.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
 import '../widgets/ai_readiness_gate_widget.dart';
 import '../services/deliverable_service.dart';
+import '../services/sprint_database_service.dart';
+import '../services/project_service.dart';
 import '../services/backend_api_service.dart';
-import '../widgets/app_modal.dart';
-import '../services/api_client.dart';
-import '../config/environment.dart';
-
-// Enhanced deliverable setup screen with AI readiness gates
+import '../models/dod_item.dart';
 
 class EnhancedDeliverableSetupScreen extends ConsumerStatefulWidget {
   const EnhancedDeliverableSetupScreen({super.key});
 
   @override
-  ConsumerState<EnhancedDeliverableSetupScreen> createState() => _EnhancedDeliverableSetupScreenState();
+  ConsumerState<EnhancedDeliverableSetupScreen> createState() =>
+      _EnhancedDeliverableSetupScreenState();
 }
 
-class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliverableSetupScreen> {
+class _EnhancedDeliverableSetupScreenState
+    extends ConsumerState<EnhancedDeliverableSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _evidenceController = TextEditingController();
-  
+
   DateTime? _dueDate;
   final List<String> _selectedSprints = [];
   final List<DoDItem> _definitionOfDone = [];
   final List<String> _evidenceLinks = [];
-  final List<PlatformFile> _attachedFiles = [];
   final List<ReadinessItem> _readinessItems = [];
   final DeliverableService _deliverableService = DeliverableService();
-  final ApiClient _apiClient = ApiClient();
+  final SprintDatabaseService _sprintService = SprintDatabaseService();
+
   ReadinessStatus _currentReadinessStatus = ReadinessStatus.red;
   bool _hasInternalApproval = false;
+
+  String? _selectedProjectId;
+  String? _ownerId;
+  bool _isSubmitting = false;
   List<Map<String, dynamic>> _availableSprints = [];
+  bool _isLoadingSprints = true;
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _projects = [];
-  String? _ownerId;
-  String? _projectId;
-  final String _priority = 'Medium';
-
-  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
+    try {
+      final ri = GoRouter.of(context).routeInformationProvider.value;
+      final Uri uri = ri.uri;
+      final sprintId = uri.queryParameters['sprintId'];
+      final projectId = uri.queryParameters['projectId'];
+      if (sprintId != null &&
+          sprintId.isNotEmpty &&
+          !_selectedSprints.contains(sprintId)) {
+        _selectedSprints.add(sprintId);
+      }
+      if (projectId != null && projectId.isNotEmpty) {
+        _selectedProjectId = projectId;
+      }
+    } catch (_) {}
     _initializeReadinessItems();
     _loadSprints();
     _loadUsers();
+    _loadProjects();
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final backend = BackendApiService();
+      final response = await backend.getUsers();
+      if (mounted && response.isSuccess && response.data != null) {
+        setState(() {
+          if (response.data is List) {
+            _users = List<Map<String, dynamic>>.from(response.data);
+          } else if (response.data is Map && response.data['users'] != null) {
+            _users = List<Map<String, dynamic>>.from(response.data['users']);
+          } else if (response.data is Map && response.data['data'] != null) {
+            _users = List<Map<String, dynamic>>.from(response.data['data']);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+    }
+  }
+
+  Future<void> _loadProjects() async {
+    try {
+      final projects = await ProjectService.getAllProjects();
+      if (mounted) {
+        setState(() {
+          _projects = projects
+              .map((p) => {
+                    'id': p.id,
+                    'name': p.name,
+                  })
+              .toList();
+
+          // If _selectedProjectId is set but not in list, check if we need to clear it or if it's valid
+          // But since we want to pre-select, we should ensure the type matches
+          if (_selectedProjectId != null &&
+              !_projects
+                  .any((p) => p['id']?.toString() == _selectedProjectId)) {
+            debugPrint(
+                '⚠️ Selected project ID $_selectedProjectId not found in loaded projects');
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading projects: $e');
+    }
+  }
+
+  Future<void> _loadSprints() async {
+    setState(() => _isLoadingSprints = true);
+    try {
+      // Add timeout to prevent infinite loading
+      final sprints = await _sprintService.getSprints().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('Sprint loading timed out, using empty list');
+          return <Map<String, dynamic>>[];
+        },
+      );
+      setState(() {
+        _availableSprints = sprints;
+        _isLoadingSprints = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading sprints: $e');
+      setState(() {
+        _availableSprints = []; // Ensure we have a fallback
+        _isLoadingSprints = false;
+      });
+    }
   }
 
   void _initializeReadinessItems() {
@@ -95,63 +180,6 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     ]);
   }
 
-  Future<void> _loadUsers() async {
-    try {
-      final backendApiService = BackendApiService();
-      final response = await backendApiService.getUsers(limit: 100);
-      
-      if (response.isSuccess && response.data != null) {
-        List<dynamic> usersList = [];
-        if (response.data is List) {
-          usersList = response.data as List;
-        } else if (response.data is Map) {
-          final data = response.data as Map<String, dynamic>;
-          usersList = data['data'] as List? ?? data['users'] as List? ?? [];
-        }
-        
-        setState(() {
-          _users = usersList
-              .where((u) => u != null)
-              .map((u) => u is Map ? Map<String, dynamic>.from(u) : <String, dynamic>{})
-              .where((m) => m.isNotEmpty)
-              .toList();
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading users: $e');
-    }
-  }
-
-  Future<void> _loadSprints() async {
-    try {
-      final response = await BackendApiService().getSprints();
-      if (response.isSuccess && response.data != null) {
-        List<dynamic> sprintsList = [];
-        if (response.data is List) {
-          sprintsList = response.data as List;
-        } else if (response.data is Map) {
-          final data = Map<String, dynamic>.from(response.data as Map);
-          sprintsList = data['data'] as List? ?? data['sprints'] as List? ?? [];
-        }
-        setState(() {
-          _availableSprints = sprintsList
-              .where((s) => s != null)
-              .map((s) => s is Map<String, dynamic> ? s : Map<String, dynamic>.from(s as Map))
-              .where((m) => m.isNotEmpty)
-              .toList();
-        });
-      } else {
-        setState(() {
-          _availableSprints = [];
-        });
-      }
-    } catch (_) {
-      setState(() {
-        _availableSprints = [];
-      });
-    }
-  }
-
   Future<void> _selectDueDate() async {
     final date = await showDatePicker(
       context: context,
@@ -167,7 +195,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
   }
 
   void _addDoDItem() {
-    showAppDialog(
+    showDialog(
       context: context,
       builder: (context) {
         final controller = TextEditingController();
@@ -203,7 +231,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
   }
 
   void _addEvidenceLink() {
-    showAppDialog(
+    showDialog(
       context: context,
       builder: (context) {
         final controller = TextEditingController();
@@ -236,117 +264,6 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
         );
       },
     );
-  }
-
-  List<Widget> get dodCards {
-    if (_definitionOfDone.isEmpty) {
-      return [
-        const Card(
-          color: FlownetColors.graphiteGray,
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('No Definition of Done items added'),
-          ),
-        ),
-      ];
-    }
-    return _definitionOfDone.map((item) {
-      return Card(
-        color: FlownetColors.graphiteGray,
-        child: CheckboxListTile(
-          value: item.isCompleted,
-          title: Text(item.text, style: const TextStyle(color: FlownetColors.pureWhite)),
-          checkColor: FlownetColors.charcoalBlack,
-          activeColor: FlownetColors.electricBlue,
-          onChanged: (bool? value) {
-            setState(() {
-              final index = _definitionOfDone.indexOf(item);
-              if (index != -1) {
-                _definitionOfDone[index] = DoDItem(text: item.text, isCompleted: value ?? false);
-              }
-            });
-          },
-          secondary: IconButton(
-            icon: const Icon(Icons.delete, color: Colors.redAccent),
-            onPressed: () {
-              setState(() {
-                _definitionOfDone.remove(item);
-              });
-            },
-          ),
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-      );
-    }).toList();
-  }
-
-  List<Widget> get evidenceCards {
-    final List<Widget> cards = [];
-    
-    if (_evidenceLinks.isEmpty && _attachedFiles.isEmpty) {
-      cards.add(const Card(
-        color: FlownetColors.graphiteGray,
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('No evidence links or files added'),
-        ),
-      ));
-    } else {
-      cards.addAll(_evidenceLinks.map((url) {
-        return Card(
-          color: FlownetColors.graphiteGray,
-          child: ListTile(
-            leading: const Icon(Icons.link, color: Colors.blue),
-            title: Text(url),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.redAccent),
-              onPressed: () {
-                setState(() {
-                  _evidenceLinks.remove(url);
-                });
-              },
-            ),
-          ),
-        );
-      }));
-      
-      cards.addAll(_attachedFiles.map((file) {
-        return Card(
-          color: FlownetColors.graphiteGray,
-          child: ListTile(
-            leading: const Icon(Icons.attach_file, color: Colors.orange),
-            title: Text(file.name),
-            subtitle: Text('${(file.size / 1024).toStringAsFixed(1)} KB'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.redAccent),
-              onPressed: () {
-                setState(() {
-                  _attachedFiles.remove(file);
-                });
-              },
-            ),
-          ),
-        );
-      }));
-    }
-    return cards;
-  }
-
-
-  Future<void> _addDocument() async {
-    try {
-      final result = await FilePicker.platform.pickFiles();
-      if (result != null && result.files.isNotEmpty) {
-        setState(() {
-          _attachedFiles.addAll(result.files);
-        });
-      }
-    } catch (e) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking file: $e')),
-      );
-    }
   }
 
   Future<void> _requestInternalApproval(String comment) async {
@@ -390,62 +307,17 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
       setState(() {
         _hasInternalApproval = true;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Internal approval requested. You can now proceed with submission.'),
+            content: Text(
+                'Internal approval requested. You can now proceed with submission.'),
             backgroundColor: Colors.orange,
           ),
         );
       }
     }
-  }
-
-  Future<List<String>> _uploadFiles() async {
-    final List<String> uploadedUrls = [];
-    if (_attachedFiles.isEmpty) return uploadedUrls;
-
-    for (var file in _attachedFiles) {
-      if (file.path == null) continue;
-      
-      try {
-        // Upload to /files/upload
-        final response = await _apiClient.uploadFile(
-          '/files/upload', 
-          file.path!, 
-          file.name, 
-          'application/octet-stream', // Or determine mime type
-          fields: {
-            'prefix': 'deliverables',
-          }
-        );
-        
-        if (response.isSuccess && response.data != null) {
-          // Parse response to get URL
-          // The backend returns uploadResult which usually has filename or url
-          final data = response.data;
-          String? url;
-          if (data is Map) {
-              url = data['url']?.toString() ?? data['location']?.toString() ?? data['filename']?.toString();
-              // Construct full URL if it's just a filename
-              if (url != null && !url.startsWith('http')) {
-                 // Assuming uploads are served from /uploads
-                 // Strip /api/v1 from base url
-                 final baseUrl = Environment.apiBaseUrl.replaceAll('/api/v1', '');
-                 url = '$baseUrl/uploads/$url';
-              }
-           }
-          
-          if (url != null) {
-            uploadedUrls.add(url);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error uploading file ${file.name}: $e');
-      }
-    }
-    return uploadedUrls;
   }
 
   Future<void> _submitDeliverable() async {
@@ -502,7 +374,8 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     }
 
     // Check if blocked by readiness gate
-    if (_currentReadinessStatus == ReadinessStatus.red && !_hasInternalApproval) {
+    if (_currentReadinessStatus == ReadinessStatus.red &&
+        !_hasInternalApproval) {
       _showReadinessDialog();
       return;
     }
@@ -515,9 +388,9 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
       // Use trimmed values
       final title = _titleController.text.trim();
       final description = _descriptionController.text.trim();
-      
+
       debugPrint('📦 Creating deliverable: $title');
-      
+
       // Final validation before API call
       if (title.isEmpty) {
         throw Exception('Title cannot be empty');
@@ -525,33 +398,30 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
       if (description.isEmpty) {
         throw Exception('Description cannot be empty');
       }
-      
+
       // Convert arrays to JSON strings for backend
       // Send definition_of_done as a JSON array (not a joined string)
       // The backend expects JSON format for the JSON column
-      
-      // Upload files first
-      final uploadedUrls = await _uploadFiles();
-      final allEvidenceLinks = [..._evidenceLinks, ...uploadedUrls];
-      
+
       // Use DeliverableService to create deliverable
       final response = await _deliverableService.createDeliverable(
         title: title,
         description: description.isEmpty ? null : description,
         definitionOfDone: _definitionOfDone.isEmpty ? null : _definitionOfDone,
-        priority: _priority,
+        priority: 'Medium',
         status: 'Draft',
         dueDate: _dueDate,
+        sprintId: _selectedSprints.isNotEmpty ? _selectedSprints.first : null,
         sprintIds: _selectedSprints,
-        evidenceLinks: allEvidenceLinks,
-        ownerId: _ownerId,
+        assignedTo: _ownerId,
+        projectId: _selectedProjectId,
       );
-      
+
       if (mounted) {
         setState(() {
           _isSubmitting = false;
         });
-        
+
         if (response.isSuccess) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -571,7 +441,8 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('❌ Failed to create deliverable: ${response.error ?? "Unknown error"}'),
+              content: Text(
+                  '❌ Failed to create deliverable: ${response.error ?? "Unknown error"}'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 5),
             ),
@@ -581,7 +452,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     } catch (e, stackTrace) {
       debugPrint('❌ Error creating deliverable: $e');
       debugPrint('📚 Stack trace: $stackTrace');
-      
+
       if (mounted) {
         setState(() {
           _isSubmitting = false;
@@ -598,7 +469,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
   }
 
   void _showReadinessDialog() {
-    showAppDialog(
+    showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: FlownetColors.graphiteGray,
@@ -606,15 +477,18 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('The deliverable is not ready for submission. Please complete the required items:'),
+            const Text(
+                'The deliverable is not ready for submission. Please complete the required items:'),
             const SizedBox(height: 16),
-            ..._readinessItems.where((item) => item.isRequired && !item.isCompleted).map(
-              (item) => ListTile(
-                leading: const Icon(Icons.warning, color: Colors.red),
-                title: Text(item.description),
-                subtitle: Text(item.category),
-              ),
-            ),
+            ..._readinessItems
+                .where((item) => item.isRequired && !item.isCompleted)
+                .map(
+                  (item) => ListTile(
+                    leading: const Icon(Icons.warning, color: Colors.red),
+                    title: Text(item.description),
+                    subtitle: Text(item.category),
+                  ),
+                ),
           ],
         ),
         actions: [
@@ -632,7 +506,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     return Scaffold(
       backgroundColor: FlownetColors.charcoalBlack,
       appBar: AppBar(
-        title: const FlownetLogo(),
+        title: const Text('Create Deliverable'),
         backgroundColor: FlownetColors.charcoalBlack,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
@@ -644,18 +518,17 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header
               Text(
                 'Create Deliverable',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: FlownetColors.pureWhite,
-                  fontWeight: FontWeight.bold,
-                ),
+                      color: FlownetColors.pureWhite,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 24),
 
-              // Contributing Sprints moved to bottom
-
-
+              // Basic Information
               _buildSectionHeader('Basic Information'),
               const SizedBox(height: 16),
 
@@ -672,7 +545,8 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
                   // Trigger AI analysis when title changes
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted && value.trim().isNotEmpty) {
-                      setState(() {}); // Force widget rebuild to trigger AI analysis
+                      setState(
+                          () {}); // Force widget rebuild to trigger AI analysis
                     }
                   });
                 },
@@ -709,69 +583,65 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
               ),
               const SizedBox(height: 16),
 
-              InkWell(
-                onTap: _selectDueDate,
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Due Date',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.calendar_today),
-                  ),
-                  child: Text(
-                    _dueDate != null
-                        ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                        : 'Select due date',
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                value: _ownerId,
+              // Owner Dropdown
+              DropdownButtonFormField<String?>(
+                value: _users.any((u) => u['id']?.toString() == _ownerId)
+                    ? _ownerId
+                    : null,
                 decoration: const InputDecoration(
                   labelText: 'Owner',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.person),
-                  helperText: 'Select the team member responsible for this deliverable',
                 ),
                 items: [
-                  DropdownMenuItem<String>(
-                    value: null,
-                    child: Text(_users.isEmpty ? 'Unassigned (Loading...)' : 'Unassigned'),
-                  ),
+                  const DropdownMenuItem(
+                      value: null, child: Text('Unassigned')),
                   ..._users.map((user) {
-                    String name = user['name'] ?? '';
-                    if (name.isEmpty) {
-                      final first = user['first_name'] ?? user['firstName'] ?? '';
-                      final last = user['last_name'] ?? user['lastName'] ?? '';
-                      if (first.isNotEmpty || last.isNotEmpty) {
-                        name = '$first $last'.trim();
-                      }
-                    }
-                    if (name.isEmpty) {
-                      name = user['email'] ?? 'Unknown';
-                    }
-                    
-                    final role = user['role']?.toString() ?? '';
-                    if (role.isNotEmpty) {
-                      name = '$name ($role)';
-                    }
-                    
-                    return DropdownMenuItem<String>(
-                      value: user['id'].toString(),
+                    final name = user['name'] ?? user['email'] ?? 'Unknown';
+                    return DropdownMenuItem(
+                      value: user['id']?.toString(),
                       child: Text(name),
                     );
                   }),
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    _ownerId = value;
-                  });
+                onChanged: (value) => setState(() => _ownerId = value),
+              ),
+              const SizedBox(height: 16),
+
+              // Project Dropdown
+              DropdownButtonFormField<String?>(
+                value: _projects
+                        .any((p) => p['id']?.toString() == _selectedProjectId)
+                    ? _selectedProjectId
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'Project',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.work),
+                ),
+                items: [
+                  const DropdownMenuItem(
+                      value: null, child: Text('Select Project')),
+                  ..._projects.map((project) {
+                    final name = project['name'] ?? 'Unknown Project';
+                    return DropdownMenuItem(
+                      value: project['id']?.toString(),
+                      child: Text(name),
+                    );
+                  }),
+                ],
+                onChanged: (value) =>
+                    setState(() => _selectedProjectId = value),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Project is required';
+                  }
+                  return null;
                 },
               ),
               const SizedBox(height: 16),
 
+              // Due Date
               InkWell(
                 onTap: _selectDueDate,
                 child: InputDecorator(
@@ -789,10 +659,97 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
               ),
               const SizedBox(height: 24),
 
+              // Sprint Selection
+              _buildSectionHeader('Contributing Sprints'),
+              const SizedBox(height: 8),
+              Text(
+                'Select the sprint(s) that contributed to this deliverable',
+                style: TextStyle(
+                    color: FlownetColors.pureWhite.withValues(alpha: 0.7)),
+              ),
+              const SizedBox(height: 16),
 
+              if (_isLoadingSprints)
+                const Center(child: CircularProgressIndicator())
+              else if (_availableSprints.isEmpty)
+                const Card(
+                  color: FlownetColors.graphiteGray,
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No sprints available. Create a sprint first.'),
+                  ),
+                )
+              else
+                Card(
+                  color: FlownetColors.graphiteGray,
+                  child: Column(
+                    children: _availableSprints.map((sprint) {
+                      final sprintId = sprint['id']?.toString() ?? '';
+                      final sprintName =
+                          sprint['name']?.toString() ?? 'Unnamed Sprint';
+                      final status = sprint['status']?.toString() ?? '';
+                      final isSelected = _selectedSprints.contains(sprintId);
+
+                      return CheckboxListTile(
+                        value: isSelected,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              _selectedSprints.add(sprintId);
+                            } else {
+                              _selectedSprints.remove(sprintId);
+                            }
+                          });
+                        },
+                        title: Text(sprintName),
+                        subtitle: Text('Status: $status'),
+                        secondary: Icon(
+                          Icons.speed,
+                          color: isSelected
+                              ? FlownetColors.electricBlue
+                              : Colors.grey,
+                        ),
+                        activeColor: FlownetColors.electricBlue,
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+              if (_selectedSprints.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${_selectedSprints.length} sprint(s) selected',
+                  style: const TextStyle(
+                    color: FlownetColors.electricBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+
+              // Definition of Done
               _buildSectionHeader('Definition of Done'),
               const SizedBox(height: 16),
-              ...dodCards,
+
+              ..._definitionOfDone.map(
+                (item) => Card(
+                  color: FlownetColors.graphiteGray,
+                  child: ListTile(
+                    leading:
+                        const Icon(Icons.check_circle, color: Colors.green),
+                    title: Text(item.text),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _definitionOfDone.remove(item);
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
               ElevatedButton.icon(
                 onPressed: _addDoDItem,
                 icon: const Icon(Icons.add),
@@ -803,9 +760,28 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
               ),
               const SizedBox(height: 24),
 
+              // Evidence Links
               _buildSectionHeader('Evidence & Artifacts'),
               const SizedBox(height: 16),
-              ...evidenceCards,
+
+              ..._evidenceLinks.map(
+                (link) => Card(
+                  color: FlownetColors.graphiteGray,
+                  child: ListTile(
+                    leading: const Icon(Icons.link, color: Colors.blue),
+                    title: Text(link),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _evidenceLinks.remove(link);
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
               ElevatedButton.icon(
                 onPressed: _addEvidenceLink,
                 icon: const Icon(Icons.add),
@@ -814,79 +790,36 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
                   backgroundColor: FlownetColors.electricBlue,
                 ),
               ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _addDocument,
-                icon: const Icon(Icons.upload_file),
-                label: const Text('Upload Document'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: FlownetColors.electricBlue,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Contributing Sprints (Moved from top)
-              _buildSectionHeader('Contributing Sprints'),
-              const SizedBox(height: 16),
-              Card(
-                color: FlownetColors.graphiteGray,
-                child: ExpansionTile(
-                  title: Text(
-                    'Select Sprints (${_selectedSprints.length} selected)',
-                    style: const TextStyle(color: FlownetColors.pureWhite),
-                  ),
-                  iconColor: FlownetColors.electricBlue,
-                  collapsedIconColor: FlownetColors.pureWhite,
-                  children: _availableSprints.map((sprint) {
-                    final idStr = (sprint['id'] ?? '').toString();
-                    final isSelected = _selectedSprints.contains(idStr);
-                    return CheckboxListTile(
-                      title: Text(sprint['name']?.toString() ?? '', style: const TextStyle(color: FlownetColors.pureWhite)),
-                      subtitle: Text('${sprint['start_date']} - ${sprint['end_date']}', style: const TextStyle(color: Colors.grey)),
-                      value: isSelected,
-                      checkColor: FlownetColors.charcoalBlack,
-                      activeColor: FlownetColors.electricBlue,
-                      onChanged: (value) {
-                        setState(() {
-                          if (value == true) {
-                            if (!_selectedSprints.contains(idStr)) {
-                              _selectedSprints.add(idStr);
-                            }
-                          } else {
-                            _selectedSprints.remove(idStr);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
               const SizedBox(height: 24),
 
               // AI-Powered Release Readiness Gate
               _buildSectionHeader('AI Release Readiness Gate'),
               const SizedBox(height: 16),
-              
+
               Builder(
                 builder: (context) {
-                  debugPrint('📋 Creating AIReadinessGateWidget with title: "${_titleController.text}"');
+                  debugPrint(
+                      '📋 Creating AIReadinessGateWidget with title: "${_titleController.text}"');
                   return AIReadinessGateWidget(
-                key: ValueKey('ai-gate-${_titleController.text}-${_definitionOfDone.length}-${_evidenceLinks.length}'),
-                deliverableId: 'temp-${DateTime.now().millisecondsSinceEpoch}',
-                deliverableTitle: _titleController.text,
-                deliverableDescription: _descriptionController.text,
-                definitionOfDone: _definitionOfDone.map((e) => e.text).toList(),
-                evidenceLinks: _evidenceLinks,
-                sprintIds: _selectedSprints,
-                knownLimitations: null,
-                onStatusChanged: (status) {
-                  setState(() {
-                    _currentReadinessStatus = status;
-                  });
-                },
-                onInternalApprovalRequested: (comment) {
-                  _requestInternalApproval(comment);
-                },
+                    key: ValueKey(
+                        'ai-gate-${_titleController.text}-${_definitionOfDone.length}-${_evidenceLinks.length}'),
+                    deliverableId:
+                        'temp-${DateTime.now().millisecondsSinceEpoch}',
+                    deliverableTitle: _titleController.text,
+                    deliverableDescription: _descriptionController.text,
+                    definitionOfDone:
+                        _definitionOfDone.map((e) => e.text).toList(),
+                    evidenceLinks: _evidenceLinks,
+                    sprintIds: _selectedSprints,
+                    knownLimitations: null,
+                    onStatusChanged: (status) {
+                      setState(() {
+                        _currentReadinessStatus = status;
+                      });
+                    },
+                    onInternalApprovalRequested: (comment) {
+                      _requestInternalApproval(comment);
+                    },
                   );
                 },
               ),
@@ -896,26 +829,29 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: (_isSubmitting || (_currentReadinessStatus == ReadinessStatus.red && !_hasInternalApproval)) 
-                      ? null 
+                  onPressed: (_isSubmitting ||
+                          (_currentReadinessStatus == ReadinessStatus.red &&
+                              !_hasInternalApproval))
+                      ? null
                       : _submitDeliverable,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _currentReadinessStatus == ReadinessStatus.green 
-                        ? Colors.green 
-                        : _currentReadinessStatus == ReadinessStatus.amber 
-                            ? Colors.orange 
-                            : _hasInternalApproval
-                                ? Colors.blue
-                                : Colors.red,
+                    backgroundColor:
+                        _currentReadinessStatus == ReadinessStatus.green
+                            ? Colors.green
+                            : _currentReadinessStatus == ReadinessStatus.amber
+                                ? Colors.orange
+                                : _hasInternalApproval
+                                    ? Colors.blue
+                                    : Colors.red,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: _isSubmitting
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                          _currentReadinessStatus == ReadinessStatus.green 
-                              ? 'Create Deliverable' 
-                              : _currentReadinessStatus == ReadinessStatus.amber 
-                                  ? 'Create with Acknowledged Issues' 
+                          _currentReadinessStatus == ReadinessStatus.green
+                              ? 'Create Deliverable'
+                              : _currentReadinessStatus == ReadinessStatus.amber
+                                  ? 'Create with Acknowledged Issues'
                                   : _hasInternalApproval
                                       ? 'Create with Internal Approval'
                                       : 'Complete Required Items First',
@@ -934,9 +870,9 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     return Text(
       title,
       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-        color: FlownetColors.pureWhite,
-        fontWeight: FontWeight.bold,
-      ),
+            color: FlownetColors.pureWhite,
+            fontWeight: FontWeight.bold,
+          ),
     );
   }
 
@@ -948,4 +884,3 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
     super.dispose();
   }
 }
-

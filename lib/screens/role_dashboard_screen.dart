@@ -15,7 +15,6 @@ import '../models/deliverable.dart';
 import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
-import '../widgets/notification_center_widget.dart';
 import '../widgets/app_modal.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
@@ -447,7 +446,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: _buildAppBar(),
       body: BackgroundImage(
         imagePath: 'assets/Icons/khono_bg.png',
         withGlassEffect: false,
@@ -455,69 +453,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         child: _buildRoleSpecificContent(),
       ),
       floatingActionButton: _buildRoleSpecificFAB(),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: Text('${_currentUser!.roleDisplayName} Dashboard'),
-      backgroundColor: _currentUser!.roleColor,
-      foregroundColor: Colors.white,
-      actions: [
-        const NotificationCenterWidget(showLabel: false, showBackground: false),
-        IconButton(
-          icon: const Icon(Icons.settings_outlined),
-          onPressed: () => _showSettingsDialog(),
-        ),
-        PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'logout') {
-              _handleLogout();
-            } else if (value == 'profile') {
-              _showProfileDialog();
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'profile',
-              child: Row(
-                children: [
-                  Icon(_currentUser!.roleIcon),
-                  const SizedBox(width: 8),
-                  const Text('Profile'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'logout',
-              child: Row(
-                children: [
-                  Icon(Icons.logout),
-                  SizedBox(width: 8),
-                  Text('Logout'),
-                ],
-              ),
-            ),
-          ],
-          child: FutureBuilder<Uint8List?>(
-            future: _loadAvatarBytes(_currentUser!.id),
-            builder: (context, snapshot) {
-              final hasImage =
-                  snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
-              return CircleAvatar(
-                backgroundColor: Colors.white,
-                backgroundImage: hasImage ? MemoryImage(snapshot.data!) : null,
-                child: hasImage
-                    ? null
-                    : Icon(
-                        _currentUser!.roleIcon,
-                        color: _currentUser!.roleColor,
-                      ),
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 
@@ -668,7 +603,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   label: 'Deliverables Overview',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const DeliverablesMetricsScreen()),
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            const DeliverablesMetricsScreen()),
                   ),
                 ),
               ],
@@ -740,10 +677,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       },
                     ),
                     ListTile(
-                      leading: const Icon(Icons.flag),
-                      title: const Text('Open Sprint Console'),
+                      leading: const Icon(Icons.folder),
+                      title: const Text('View Projects'),
                       onTap: () {
-                        context.go('/sprint-console');
+                        context.go('/projects');
                       },
                     ),
                     ListTile(
@@ -867,9 +804,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.flag_outlined,
-                label: 'Open Sprint Console',
-                onTap: () => context.go('/sprint-console'),
+                icon: Icons.folder_outlined,
+                label: 'View Projects',
+                onTap: () => context.go('/projects'),
               ),
             ),
           ),
@@ -912,7 +849,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildCardHeader(Icons.assignment_outlined, 'My Deliverables',
-                      route: '/repository'),
+                      route: '/deliverables'),
                   const SizedBox(height: 8),
                   Builder(builder: (context) {
                     final uid = _currentUser?.id.toString() ?? '';
@@ -1416,6 +1353,22 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     if (_isLoadingDashboardProjects) {
       return const Center(child: CircularProgressIndicator());
     }
+    final now = DateTime.now();
+    final overdueProjects = _dashboardProjects.where((p) {
+      try {
+        final status = (p['status'] ?? '').toString().toLowerCase();
+        if (status == 'completed' || status == 'cancelled') {
+          return false;
+        }
+        final endStr = p['end_date']?.toString() ?? p['endDate']?.toString() ?? '';
+        if (endStr.isEmpty) return false;
+        final end = DateTime.parse(endStr);
+        return now.isAfter(end);
+      } catch (_) {
+        return false;
+      }
+    }).toList();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1431,6 +1384,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               final title = p['name'] ?? 'Untitled Project';
               final status = (p['status'] ?? '').toString();
               final id = p['id']?.toString() ?? '';
+              final isOverdue = overdueProjects.any((op) => op['id'] == p['id']);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: InkWell(
@@ -1439,7 +1393,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       : null,
                   child: Row(
                     children: [
-                      const Icon(Icons.folder_open, size: 18),
+                      Icon(
+                        Icons.folder_open,
+                        size: 18,
+                        color: isOverdue ? Colors.redAccent : null,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                           child: Text(
@@ -2339,34 +2297,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
     if (route == null) return row;
     return InkWell(onTap: () => context.go(route), child: row);
-  }
-
-  void _showProfileDialog() {
-    showAppDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Profile'),
-        content: Text(_currentUser?.email ?? ''),
-        actions: [
-          TextButton(onPressed: () => context.pop(), child: const Text('Close'))
-        ],
-      ),
-    );
-  }
-
-  void _showSettingsDialog() {
-    showAppDialog(
-      context: context,
-      builder: (context) => const AlertDialog(
-        title: Text('Settings'),
-        content: Text('Settings are coming soon.'),
-      ),
-    );
-  }
-
-  Future<void> _handleLogout() async {
-    await _authService.signOut();
-    if (mounted) context.go('/');
   }
 
   void _setupRealtimeListeners() {
