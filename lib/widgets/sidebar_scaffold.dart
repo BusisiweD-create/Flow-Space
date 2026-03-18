@@ -5,10 +5,29 @@ import '../theme/flownet_theme.dart';
 import 'notification_center_widget.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
+import '../models/user.dart';
+import '../models/user_role.dart';
 import '../utils/app_icons.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'background_image.dart';
+import 'sidebar_version_display.dart';
+
+class _NavItem {
+  final String label;
+  final IconData icon;
+  final String iconName;
+  final String route;
+  final String? requiredPermission;
+
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.iconName,
+    required this.route,
+    this.requiredPermission,
+  });
+}
 
 class SidebarScaffold extends StatefulWidget {
   final Widget child;
@@ -23,6 +42,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   bool _collapsed = false;
   static const double _sidebarWidth = 280;
   static const double _collapsedWidth = 80;
+  static const double _logoMinCollapsedSize = 44;
+  static const double _logoExpandedSize = 64;
+
+  double _logoSizeFor(double screenWidth) {
+    // Responsive "breakpoints" so the logo stays readable on all widths.
+    final expanded = screenWidth >= 1024 ? _logoExpandedSize : 56.0;
+    final collapsed = screenWidth >= 1024 ? _logoMinCollapsedSize : 40.0;
+    return _collapsed ? collapsed : expanded;
+  }
 
   List<_NavItem> get _navItems {
     final authService = AuthService();
@@ -36,6 +64,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null,
       ),
       const _NavItem(
+        label: 'Projects',
+        icon: Icons.folder_outlined,
+        iconName: 'projects',
+        route: '/projects',
+        requiredPermission: null,
+      ),
+      const _NavItem(
         label: 'Sprints', 
         icon: Icons.timer_outlined, 
         iconName: 'sprints',
@@ -43,11 +78,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'view_sprints',
       ),
       const _NavItem(
-        label: 'Notifications',
-        icon: Icons.notifications_outlined,
-        iconName: 'notifications',
-        route: '/notifications',
-        requiredPermission: null,
+        label: 'Deliverables',
+        icon: Icons.assignment_outlined,
+        iconName: 'deliverables',
+        route: '/deliverables-overview',
+        requiredPermission: 'view_all_deliverables',
       ),
       const _NavItem(
         label: 'Timeline',
@@ -85,30 +120,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'manage_users',
       ),
       const _NavItem(
-        label: 'Settings',
+        label: 'Settings', // kept for potential use outside sidebar
         icon: Icons.settings_outlined,
         iconName: 'settings',
         route: '/settings',
-        requiredPermission: null,
-      ),
-      const _NavItem(
-        label: 'Profile',
-        icon: Icons.person_outline,
-        iconName: 'account',
-        route: '/profile',
-        requiredPermission: null,
-      ),
-      const _NavItem(
-        label: 'Project Workspace',
-        icon: Icons.work_outline,
-        iconName: 'teams',
-        route: '/project-workspace',
-        requiredPermission: 'manage_projects',
+        requiredPermission: 'HIDE_FROM_SIDEBAR',
       ),
     ];
 
     // Filter items based on user permissions
     return allItems.where((item) {
+      // Special flag: hide from sidebar even if user has permission
+      if (item.requiredPermission == 'HIDE_FROM_SIDEBAR') return false;
       if (item.requiredPermission == null) return true;
       return authService.hasPermission(item.requiredPermission!);
     }).toList();
@@ -142,6 +165,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   Widget build(BuildContext context) {
     final routeLocation = GoRouterState.of(context).uri.path;
     final isDesktop = MediaQuery.of(context).size.width > 768;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final logoSize = _logoSizeFor(screenWidth);
 
     if (isDesktop) {
       return Scaffold(
@@ -149,107 +174,157 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         body: BackgroundImage(
           child: Row(
             children: [
-              // Sidebar with semi-transparent background
+              // Sidebar with glassmorphism styling (Busisiwe branch look)
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: _collapsed ? _collapsedWidth : _sidebarWidth,
-                decoration: const BoxDecoration(),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withAlpha((0.1 * 255).round()),
+                    width: 1,
+                  ),
+                ),
                 child: ClipRRect(
                   borderRadius: const BorderRadius.only(
                     topRight: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
                   child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D0D0D),
-                      border: const Border(
-                        right: BorderSide(
-                          color: Color.fromARGB(51, 255, 255, 255),
-                          width: 1,
-                        ),
-                      ),
+                    decoration: const BoxDecoration(
+                      color: Colors.transparent,
                     ),
-                      child: Column(
+                    child: Column(
                         children: [
                           // Header with logo and collapse toggle
                           Padding(
                             padding: const EdgeInsets.only(
                                 left: 12, right: 12, top: 24, bottom: 16,),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Image.asset(
-                                  'assets/Icons/Red_Khono_Discs.png',
-                                  width: _collapsed ? 28 : 64,
-                                  height: _collapsed ? 28 : 64,
-                                  fit: BoxFit.contain,
-                                ),
-                                IconButton(
-                                  onPressed: _toggleSidebar,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    _collapsed
-                                        ? Icons.chevron_right
-                                        : Icons.chevron_left,
-                                    color: FlownetColors.textSecondary,
-                                    size: 20,
+                            child: SizedBox(
+                              height: logoSize,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  // Centered logo (universal home navigation)
+                                  Material(
+                                    type: MaterialType.transparency,
+                                    child: InkWell(
+                                      onTap: () => context.go('/dashboard'),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(6),
+                                        child: Image.asset(
+                                          'assets/Icons/Red_Khono_Discs.png',
+                                          width: logoSize,
+                                          height: logoSize,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  // Collapse toggle (kept intact, aligned right)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: IconButton(
+                                      onPressed: _toggleSidebar,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: Icon(
+                                        _collapsed
+                                            ? Icons.chevron_right
+                                            : Icons.chevron_left,
+                                        color: FlownetColors.textSecondary,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          // Navigation items
+                          // Navigation items (pill-style highlight like reference UI)
                           Expanded(
                             child: ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 8),
                               itemCount: _navItems.length,
-                              itemExtent: 56, // Fixed height for better performance
-                              cacheExtent: 200, // Cache more items for smoother scrolling
-                              addAutomaticKeepAlives: true, // Keep state of list items
+                              itemExtent: 56, // Match Busisiwe sidebar height
+                              cacheExtent: 200,
+                              addAutomaticKeepAlives: true,
                               itemBuilder: (context, index) {
                                 final item = _navItems[index];
-                                final active = routeLocation.startsWith(item.route);
+                                final active =
+                                    routeLocation.startsWith(item.route);
                                 return Container(
                                   margin: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2,),
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
+                                    // Active item: soft pill-shaped dark highlight, no red border
                                     color: active
-                                        ? FlownetColors.crimsonRed.withOpacity(0.35)
-                                        : const Color(0xFF1A1A1A),
-                                    borderRadius: BorderRadius.circular(12),
+                                        ? Colors.white.withAlpha(
+                                            (0.08 * 255).round(),
+                                          )
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Material(
                                     color: Colors.transparent,
-                                    child: ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      leading: SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: AppIcons.getIconWidget(
-                                          item.iconName,
-                                          fallbackIcon: item.icon,
-                                          isActive: active,
-                                          size: 20,
-                                          color: FlownetColors.crimsonRed,
-                                        ),
-                                      ),
-                                      title: Text(
-                                        item.label,
-                                        style: TextStyle(
-                                          color: FlownetColors.pureWhite,
-                                          fontWeight: active
-                                              ? FontWeight.w600
-                                              : FontWeight.normal,
-                                          fontSize: 14,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                    child: InkWell(
                                       onTap: () {
-                                        if (!routeLocation.startsWith(item.route)) {
+                                        if (!routeLocation
+                                            .startsWith(item.route)) {
                                           context.go(item.route);
                                         }
                                       },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: _collapsed ? 8 : 16,
+                                          vertical: 12,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: _collapsed
+                                              ? MainAxisAlignment.center
+                                              : MainAxisAlignment.start,
+                                          children: [
+                                            SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: AppIcons.getIconWidget(
+                                                item.iconName,
+                                                fallbackIcon: item.icon,
+                                                isActive: active,
+                                                size: 20,
+                                                color: active
+                                                    ? FlownetColors.pureWhite
+                                                    : FlownetColors
+                                                        .textSecondary,
+                                              ),
+                                            ),
+                                            if (!_collapsed) ...[
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  item.label,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                    fontWeight:
+                                                        FontWeight.w500,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 );
@@ -257,8 +332,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             ),
                           ),
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 32),
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                             child: _buildLogoutButton(),
+                          ),
+                          SidebarVersionDisplay(
+                            isSidebarCollapsed: _collapsed,
                           ),
                         ],
                       ),
@@ -281,53 +359,61 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 color: FlownetColors.slate, width: 1,),
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            // Only show back/forward buttons on non-dashboard pages
-                            if (routeLocation != '/dashboard') ...[
-                              IconButton(
-                                icon: const Icon(Icons.arrow_back),
-                                onPressed: () {
-                                  if (GoRouter.of(context).canPop()) {
-                                    GoRouter.of(context).pop();
-                                  } else {
-                                    GoRouter.of(context).go('/dashboard');
-                                  }
-                                },
-                                tooltip: 'Back',
-                                color: FlownetColors.pureWhite,
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                icon: const Icon(Icons.arrow_forward),
-                                onPressed: () {
-                                  // Forward navigation logic (can be enhanced)
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                          'Forward navigation coming soon',),
-                                      backgroundColor:
-                                          FlownetColors.amberOrange,
+                        child: Builder(
+                          builder: (context) {
+                            final user = AuthService().currentUser;
+                            return Row(
+                              children: [
+                                // Only show back/forward buttons on non-dashboard pages
+                                if (routeLocation != '/dashboard') ...[
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_back),
+                                    onPressed: () {
+                                      if (GoRouter.of(context).canPop()) {
+                                        GoRouter.of(context).pop();
+                                      } else {
+                                        GoRouter.of(context).go('/dashboard');
+                                      }
+                                    },
+                                    tooltip: 'Back',
+                                    color: FlownetColors.pureWhite,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_forward),
+                                    onPressed: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                              'Forward navigation coming soon',),
+                                          backgroundColor:
+                                              FlownetColors.amberOrange,
+                                        ),
+                                      );
+                                    },
+                                    tooltip: 'Forward',
+                                    color: FlownetColors.pureWhite,
+                                  ),
+                                ],
+                                const Spacer(),
+                                // Centered page title (role-based on dashboard)
+                                Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      _getPageTitle(routeLocation, user),
+                                      style: const TextStyle(
+                                        color: FlownetColors.textSecondary,
+                                        fontSize: 14,
+                                      ),
                                     ),
-                                  );
-                                },
-                                tooltip: 'Forward',
-                                color: FlownetColors.pureWhite,
-                              ),
-                            ],
-                            const Spacer(),
-                            // User menu icons (always visible)
-                            _buildTopNavIcons(),
-                            const SizedBox(width: 16),
-                            // Current page indicator
-                            Text(
-                              _getPageTitle(routeLocation),
-                              style: const TextStyle(
-                                color: FlownetColors.textSecondary,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
+                                  ),
+                                ),
+                                const Spacer(),
+                                // Hamburger menu (far right)
+                                _buildTopNavIcons(),
+                              ],
+                            );
+                          },
                         ),
                       ),
                       Expanded(child: widget.child),
@@ -344,11 +430,21 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: Image.asset(
-            'assets/Icons/Red_Khono_Discs.png',
-            width: 32,
-            height: 32,
-            fit: BoxFit.contain,
+          title: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: () => context.go('/dashboard'),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Image.asset(
+                  'assets/Icons/Red_Khono_Discs.png',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
           ),
           centerTitle: false,
           actions: [
@@ -387,11 +483,24 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Image.asset(
-                      'assets/Icons/Red_Khono_Discs.png',
-                      width: 72,
-                      height: 72,
-                      fit: BoxFit.contain,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.go('/dashboard');
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Image.asset(
+                            'assets/Icons/Red_Khono_Discs.png',
+                            width: 72,
+                            height: 72,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -516,7 +625,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       const Spacer(),
                       // Current page indicator
                       Text(
-                        _getPageTitle(routeLocation),
+                        _getPageTitle(routeLocation, AuthService().currentUser),
                         style: const TextStyle(
                           color: FlownetColors.textSecondary,
                           fontSize: 14,
@@ -579,9 +688,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Burger Menu with Dropdown
+        // Hamburger menu with dropdown (Profile, Settings, Notifications)
         PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, color: FlownetColors.pureWhite),
+          icon: const Icon(Icons.menu, color: FlownetColors.pureWhite),
           tooltip: 'Menu',
           onSelected: (String value) {
             switch (value) {
@@ -633,8 +742,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     );
   }
 
-  String _getPageTitle(String route) {
+  String _getPageTitle(String route, [User? user]) {
+    if (route == '/dashboard') {
+      if (user != null) {
+        return '${user.role.displayName} Dashboard';
+      }
+      return 'Dashboard';
+    }
     switch (route) {
+      case '/report-repository':
+        return 'Reports';
+      case '/deliverables-overview':
+        return 'Deliverables';
       case '/approval-requests':
         return 'Approval Requests';
       case '/notifications':
@@ -703,7 +822,7 @@ class _UserAvatarButton extends StatelessWidget {
             return bodyBytes;
           } else {
             // Response is likely JSON, not an image
-            debugPrint('⚠️ Avatar endpoint returned non-image data for user $userId');
+            debugPrint('?????? Avatar endpoint returned non-image data for user $userId');
             return null;
           }
         }
@@ -713,20 +832,4 @@ class _UserAvatarButton extends StatelessWidget {
       return null;
     }
   }
-}
-
-class _NavItem {
-  final String label;
-  final IconData icon;
-  final String iconName;
-  final String route;
-  final String? requiredPermission;
-
-  const _NavItem({
-    required this.label, 
-    required this.icon, 
-    required this.iconName,
-    required this.route,
-    this.requiredPermission,
-  });
 }
