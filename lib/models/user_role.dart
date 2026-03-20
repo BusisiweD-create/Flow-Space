@@ -167,7 +167,7 @@ class PermissionManager {
     'manage_sprints': Permission(
       name: 'Manage Sprints',
       description: 'Create and manage sprints, projects, and tickets',
-      allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin, UserRole.clientReviewer, UserRole.developer, UserRole.projectManager, UserRole.scrumMaster, UserRole.qaEngineer, UserRole.stakeholder],
+      allowedRoles: [UserRole.deliveryLead, UserRole.systemAdmin],
     ),
     'view_client_review': Permission(
       name: 'View Client Review',
@@ -202,7 +202,7 @@ class PermissionManager {
     'view_sprints': Permission(
       name: 'View Sprints',
       description: 'View sprint lists and boards',
-      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin],
+      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.client, UserRole.clientReviewer, UserRole.systemAdmin],
     ),
     'update_tickets': Permission(
       name: 'Update Tickets',

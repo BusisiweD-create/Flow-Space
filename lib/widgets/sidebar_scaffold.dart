@@ -67,13 +67,20 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         icon: Icons.assignment_outlined,
         iconName: 'deliverables',
         route: '/deliverables-overview',
-        requiredPermission: 'view_all_deliverables',
+        requiredPermission: null,
       ),
       const _NavItem(
         label: 'Timeline',
         icon: Icons.calendar_today_outlined,
         iconName: 'timeline',
         route: '/timeline',
+        requiredPermission: null,
+      ),
+      const _NavItem(
+        label: 'AI Assistant',
+        icon: Icons.smart_toy_outlined,
+        iconName: 'ai_assistant',
+        route: '/ai-assistant',
         requiredPermission: null,
       ),
       const _NavItem(

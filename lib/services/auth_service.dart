@@ -297,10 +297,14 @@ class AuthService {
     switch (r) {
       case '/dashboard':
         return _isAuthenticated; // All authenticated users can access dashboard
+      case '/smtp-config':
+      case '/environment-management':
+        return _currentUser?.isSystemAdmin ?? false;
       case '/deliverable-setup':
       case '/enhanced-deliverable-setup':
         return canCreateDeliverable();
       case '/role-management':
+        return hasPermission('manage_users');
       case '/approvals':
       case '/approval-requests':
         return hasPermission('view_approvals');

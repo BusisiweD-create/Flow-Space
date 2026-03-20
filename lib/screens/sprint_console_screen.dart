@@ -78,6 +78,11 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     });
 
     try {
+      bool isUuidLike(String v) {
+        final s = v.trim();
+        return RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(s) && s.contains('-');
+      }
+
       if (_selectedProjectKey == null || _selectedProjectKey!.isEmpty) {
         try {
           await _sprintService.backfillSprintProjects();
@@ -88,19 +93,22 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       final projects = projectList.map((p) => p.toJson()).toList();
       List<Map<String, dynamic>> sprints;
       if (_selectedProjectKey != null && _selectedProjectKey!.isNotEmpty) {
+        final selectedKey = _selectedProjectKey!.trim();
         final selected = projects.firstWhere(
           (p) {
             final key = p['key']?.toString();
             final id = p['id']?.toString();
-            return key == _selectedProjectKey || id == _selectedProjectKey;
+            return key == selectedKey || id == selectedKey;
           },
           orElse: () => <String, dynamic>{},
         );
-        final pid = selected['id']?.toString();
-        final pkey = selected['key']?.toString();
+        final pid = (selected['id']?.toString() ?? '').trim();
+        final pkey = (selected['key']?.toString() ?? '').trim();
+        final fallbackPid = isUuidLike(selectedKey) ? selectedKey : '';
+        final fallbackPkey = (!isUuidLike(selectedKey)) ? selectedKey : '';
         sprints = await _sprintService.getSprints(
-          projectId: (pid != null && pid.isNotEmpty) ? pid : null,
-          projectKey: (pkey != null && pkey.isNotEmpty) ? pkey : null,
+          projectId: pid.isNotEmpty ? pid : (fallbackPid.isNotEmpty ? fallbackPid : null),
+          projectKey: pkey.isNotEmpty ? pkey : (fallbackPkey.isNotEmpty ? fallbackPkey : null),
         );
       } else {
         sprints = await _sprintService.getSprints();
@@ -302,6 +310,7 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     _loadTickets();
 
     // Navigate to sprint board (UI navigation only; does not change data logic)
+    if (!navigateToBoard) return;
     final sprintId = sprint['id']?.toString();
     if (sprintId != null) {
       final sprintName = sprint['name']?.toString() ?? 'Sprint Board';
@@ -694,6 +703,16 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
         orElse: () => <String, dynamic>{},
       );
     } catch (_) {}
+    if (selected.isEmpty) {
+      final key = (_selectedProjectKey ?? '').toString().trim();
+      if (key.isNotEmpty) {
+        selected = <String, dynamic>{
+          'id': key,
+          'key': key,
+          'name': key,
+        };
+      }
+    }
     return _buildProjectNestedSprints(selected);
   }
 
@@ -777,22 +796,18 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () {
-                    if (widget.initialProjectKey != null && widget.initialProjectKey!.isNotEmpty) {
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go('/projects/${project['id']}/details');
-                      }
-                    } else {
-                      setState(() {
-                        _selectedProjectKey = null;
-                        _selectedSprintId = null;
-                        _sprints.clear();
-                        _tickets.clear();
-                      });
-                      context.go('/sprint-console');
-                      _loadData();
+                    if (context.canPop()) {
+                      context.pop();
+                      return;
                     }
+                    setState(() {
+                      _selectedProjectKey = null;
+                      _selectedSprintId = null;
+                      _sprints.clear();
+                      _tickets.clear();
+                    });
+                    context.go('/sprint-console');
+                    _loadData();
                   },
                   tooltip: 'Back',
                 ),
@@ -871,12 +886,16 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
   // Get color based on status
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
+      case 'draft':
+        return Colors.grey;
       case 'in_progress':
       case 'in progress':
+      case 'active':
         return Colors.blue;
       case 'completed':
       case 'done':
         return Colors.green;
+      case 'planning':
       case 'planned':
       case 'to do':
         return Colors.orange;
@@ -885,6 +904,16 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       default:
         return Colors.grey;
     }
+  }
+
+  String getStatusLabel(String? status) {
+    final s = (status ?? '').toString().trim();
+    if (s.isEmpty) return 'DRAFT';
+    final lower = s.toLowerCase();
+    if (lower == 'in_progress') return 'IN PROGRESS';
+    if (lower == 'in progress') return 'IN PROGRESS';
+    if (lower == 'to do') return 'PLANNING';
+    return s.toUpperCase();
   }
 
   Widget _buildSprintsList(List<Map<String, dynamic>> sprints) {
@@ -1039,31 +1068,30 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                               crossAxisAlignment: WrapCrossAlignment.center,
                               alignment: WrapAlignment.end,
                               children: [
-                                if (sprint['status'] != null)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: getStatusColor(sprint['status'])
-                                          .withAlpha(26),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: getStatusColor(sprint['status'])
-                                            .withAlpha(77),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      sprint['status'].toString().toUpperCase(),
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: getStatusColor(sprint['status']),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: getStatusColor((sprint['status'] ?? '').toString())
+                                        .withAlpha(26),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: getStatusColor((sprint['status'] ?? '').toString())
+                                          .withAlpha(77),
                                     ),
                                   ),
+                                  child: Text(
+                                    getStatusLabel(sprint['status']?.toString()),
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: getStatusColor((sprint['status'] ?? '').toString()),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                                 Icon(
                                   Icons.arrow_forward_ios,
                                   size: 16,

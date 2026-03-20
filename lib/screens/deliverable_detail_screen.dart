@@ -17,6 +17,7 @@ import 'package:printing/printing.dart';
 import '../models/deliverable.dart';
 import '../services/deliverable_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/auth_service.dart';
 import '../config/environment.dart';
 import 'audit_log_detail_screen.dart';
 
@@ -161,6 +162,12 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
   }
 
   Future<void> _saveChanges() async {
+    if (!AuthService().canEditDeliverable()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to edit this deliverable.')),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       final response = await _deliverableService.updateDeliverable(
@@ -246,6 +253,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
   }
 
   Future<void> _handleDroppedFiles(List<XFile> files) async {
+    if (!AuthService().canEditDeliverable()) return;
     if (files.isEmpty) return;
     
     setState(() => _isUploading = true);
@@ -523,6 +531,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canEdit = AuthService().canEditDeliverable();
     return Scaffold(
       appBar: AppBar(
         title: _isEditing 
@@ -552,10 +561,11 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
               },
             ),
           ] else ...[
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => setState(() => _isEditing = true),
-            ),
+            if (canEdit)
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () => setState(() => _isEditing = true),
+              ),
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: _loadDeliverableDetails,
@@ -776,6 +786,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
   Widget _buildDefinitionOfDone() {
     if (_deliverable.definitionOfDone.isEmpty) return const SizedBox.shrink();
 
+    final canEdit = AuthService().canEditDeliverable();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -790,7 +801,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
           return CheckboxListTile(
             value: dod.isCompleted,
             title: Text(dod.text),
-            onChanged: (val) => _toggleDoDItem(index, val),
+            onChanged: canEdit ? (val) => _toggleDoDItem(index, val) : null,
             controlAffinity: ListTileControlAffinity.leading,
             dense: true,
           );
@@ -800,6 +811,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
   }
 
   Widget _buildArtifactsSection() {
+    final canEdit = AuthService().canEditDeliverable();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -811,7 +823,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             ElevatedButton.icon(
-              onPressed: _isUploading ? null : _uploadArtifact,
+              onPressed: (!canEdit || _isUploading) ? null : _uploadArtifact,
               icon: _isUploading 
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
                   : const Icon(Icons.upload_file),
@@ -867,7 +879,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _deleteArtifact(artifact.id),
+                              onPressed: canEdit ? () => _deleteArtifact(artifact.id) : null,
                             ),
                           ],
                         ),
