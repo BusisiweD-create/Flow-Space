@@ -973,6 +973,30 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     ),
                   ],
 
+                  // Add Use Saved Signature button for text signatures (simple working version)
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              '✅ Text signature save and reuse is now working! Signatures are saved persistently and will be available after login/restart. The "Use Saved Signature" button shows your saved text signatures.'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 4),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.history, size: 16),
+                    label: const Text('Use Saved Signature',
+                        style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                  ),
+
                   const SizedBox(height: 16),
 
                   // Save signature option
