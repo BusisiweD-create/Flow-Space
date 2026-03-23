@@ -480,6 +480,19 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                 'Cannot submit: Report ID is missing from response');
           }
 
+          // Check if report is already submitted
+          if (_existingReport?.status == ReportStatus.submitted) {
+            if (!mounted) return;
+            setState(() => _isSaving = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('This report has already been submitted.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+
           // Show signing dialog before submission
           final signature = await _showSigningDialog();
           if (signature == null) {
@@ -1057,13 +1070,18 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                 signatureName != null &&
                                 signatureName!.isNotEmpty) {
                               try {
+                                debugPrint(
+                                    '💾 Saving signature: type=$signatureType, name=$signatureName');
                                 final signatureService =
                                     SignatureService(ApiClient());
-                                await signatureService.saveSignature(
+                                final savedSignature =
+                                    await signatureService.saveSignature(
                                   finalSignature,
                                   signatureType,
                                   false, // Not default for now
                                 );
+                                debugPrint(
+                                    '✅ Signature saved successfully: ${savedSignature.id}');
 
                                 if (mounted) {
                                   scaffoldMessenger.showSnackBar(
@@ -1075,14 +1093,35 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                   );
                                 }
                               } catch (e) {
-                                if (mounted) {
-                                  scaffoldMessenger.showSnackBar(
-                                    SnackBar(
-                                      content:
-                                          Text('Error saving signature: $e'),
-                                      backgroundColor: Colors.orange,
-                                    ),
-                                  );
+                                debugPrint('❌ API Error saving signature: $e');
+                                debugPrint(
+                                    '🔄 Trying local storage fallback...');
+
+                                // Fallback to local storage
+                                try {
+                                  await _saveSignatureLocally(finalSignature,
+                                      signatureType, signatureName!);
+                                  if (mounted) {
+                                    scaffoldMessenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Signature saved locally! (Backend API unavailable)'),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                                  }
+                                } catch (localError) {
+                                  debugPrint(
+                                      '❌ Local storage also failed: $localError');
+                                  if (mounted) {
+                                    scaffoldMessenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Signature save failed: API unavailable'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 }
                               }
                             }
@@ -1125,6 +1164,21 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     // In a production app, you might want to render this as an actual image
     final bytes = utf8.encode(typedText);
     return 'data:text/plain;base64,${base64Encode(bytes)}';
+  }
+
+  /// Save signature locally when API is unavailable
+  Future<void> _saveSignatureLocally(
+      String signatureData, String signatureType, String signatureName) async {
+    // Access signature widget's local storage
+    final signatureWidget = _signatureKey.currentState;
+    if (signatureWidget != null) {
+      await signatureWidget.saveSignatureLocally(
+          signatureData, signatureType, signatureName);
+      debugPrint('💾 Signature saved locally via widget');
+    } else {
+      debugPrint('❌ Signature widget not available for local save');
+      throw Exception('Signature widget not available');
+    }
   }
 
   @override
