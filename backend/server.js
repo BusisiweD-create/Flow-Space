@@ -3501,6 +3501,13 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
 
     console.log('✅ Deliverable created:', result.rows[0].title);
 
+    // Emit real-time event for deliverable creation
+    io.emit('deliverable:created', {
+      deliverable: result.rows[0],
+      createdBy: userId,
+      timestamp: new Date().toISOString()
+    });
+
     res.status(201).json({
       success: true,
       data: result.rows[0]
@@ -3591,6 +3598,14 @@ app.put('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Deliverable not found' });
     }
+
+    // Emit real-time event for deliverable update
+    io.emit('deliverable:updated', {
+      deliverable: result.rows[0],
+      updatedBy: userId,
+      timestamp: new Date().toISOString()
+    });
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     if (error && error.code === '42703') {
@@ -5952,17 +5967,41 @@ app.post('/api/v1/sign-off-reports/:id/signature', authenticateToken, async (req
     const userId = req.user.id;
     const userRole = req.user.role;
 
+    console.log('🔍 Debug - Signature request:');
+    console.log('   Report ID:', id);
+    console.log('   User ID:', userId);
+    console.log('   User Role:', userRole);
+    console.log('   Signature Data length:', signatureData?.length || 0);
+    console.log('   Signature Type:', signatureType);
+    console.log('   IP Address:', ipAddress);
+    console.log('   User Agent:', userAgent);
+
+    // Validate required fields
+    if (!signatureData) {
+      console.log('❌ Missing signatureData');
+      return res.status(400).json({ success: false, error: 'signatureData is required' });
+    }
+
+    if (!id) {
+      console.log('❌ Missing report ID');
+      return res.status(400).json({ success: false, error: 'Report ID is required' });
+    }
+
     // Verify report exists
     const reportCheck = await pool.query(`
       SELECT * FROM sign_off_reports WHERE id = $1::uuid
     `, [id]);
 
     if (reportCheck.rows.length === 0) {
+      console.log('❌ Report not found:', id);
       return res.status(404).json({ success: false, error: 'Report not found' });
     }
 
+    console.log('✅ Report found, proceeding with signature storage');
+
     // Generate signature hash
     const signatureHash = crypto.createHash('sha256').update(signatureData).digest('hex');
+    console.log('🔐 Generated signature hash:', signatureHash.substring(0, 20) + '...');
 
     // Store signature in database
     const result = await pool.query(`
@@ -5971,21 +6010,15 @@ app.post('/api/v1/sign-off-reports/:id/signature', authenticateToken, async (req
         signature_data, signature_hash, ip_address, user_agent, 
         signed_at, created_at
       )
-      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-      ON CONFLICT (report_id, signer_id, signer_role) 
-      DO UPDATE SET 
-        signature_data = EXCLUDED.signature_data,
-        signature_hash = EXCLUDED.signature_hash,
-        signature_type = EXCLUDED.signature_type,
-        ip_address = EXCLUDED.ip_address,
-        user_agent = EXCLUDED.user_agent,
-        signed_at = NOW()
+      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::inet, $8, NOW(), NOW())
       RETURNING *
-    `, [id, userId, userRole, signatureType || 'manual', signatureData, signatureHash, ipAddress, userAgent]);
+    `, [id, userId, userRole, signatureType || 'manual', signatureData, signatureHash, ipAddress || '127.0.0.1', userAgent || 'Unknown']);
 
+    console.log('✅ Signature stored successfully, ID:', result.rows[0].id);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error storing digital signature:', error);
+    console.error('❌ Error storing digital signature:', error);
+    console.error('❌ Stack trace:', error.stack);
     res.status(500).json({ success: false, error: 'Failed to store signature' });
   }
 });
@@ -7974,12 +8007,21 @@ app.delete('/api/v1/projects/:projectId/deliverables/:deliverableId', authentica
       });
     }
     
-    // Unlink the deliverable (set project_id to null)
+    // Unlink deliverable (set project_id to null)
     await pool.query(`
       UPDATE deliverables 
       SET project_id = NULL, updated_at = NOW()
       WHERE id = $1
     `, [deliverableId]);
+    
+    // Emit real-time event for deliverable update
+    io.emit('deliverable:updated', {
+      deliverableId: deliverableId,
+      projectId: projectId,
+      action: 'unlinked_from_project',
+      updatedBy: userId,
+      timestamp: new Date().toISOString()
+    });
     
     // Log the action
     await pool.query(`
