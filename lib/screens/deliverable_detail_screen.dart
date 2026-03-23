@@ -266,7 +266,7 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
         final bytes = await file.readAsBytes();
         final response = await _deliverableService.uploadArtifact(
             deliverableId: _deliverable.id,
-            filePath: file.path,
+            filePath: kIsWeb ? '' : file.path,
             fileName: file.name,
             fileBytes: bytes,
         );
@@ -301,17 +301,25 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
 
   Future<void> _uploadArtifact() async {
     try {
-      final FilePickerResult? result = await FilePicker.platform.pickFiles();
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true, withReadStream: true);
 
       if (result != null && (result.files.single.path != null || result.files.single.bytes != null)) {
         setState(() => _isUploading = true);
         
         final file = result.files.single;
+        List<int>? bytes = file.bytes;
+        if ((bytes == null || bytes.isEmpty) && file.readStream != null) {
+          final out = <int>[];
+          await for (final chunk in file.readStream!) {
+            out.addAll(chunk);
+          }
+          bytes = out;
+        }
         final response = await _deliverableService.uploadArtifact(
           deliverableId: _deliverable.id,
-          filePath: file.path ?? '',
+          filePath: kIsWeb ? '' : (file.path ?? ''),
           fileName: file.name,
-          fileBytes: file.bytes,
+          fileBytes: bytes,
         );
 
         if (mounted) {

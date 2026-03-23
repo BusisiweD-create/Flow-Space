@@ -13,6 +13,7 @@ import '../services/sprint_database_service.dart';
 import '../services/project_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/auth_service.dart';
+import '../services/realtime_service.dart';
 import '../models/dod_item.dart';
 class EnhancedDeliverableSetupScreen extends ConsumerStatefulWidget {
   const EnhancedDeliverableSetupScreen({super.key});
@@ -468,6 +469,15 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
         _isSubmitting = false;
       });
 
+      try {
+        RealtimeService().emitLocal('deliverable_created', {
+          'id': deliverableId,
+          'title': title,
+          'owner_id': _ownerId,
+          'created_by': AuthService().currentUser?.id,
+        });
+      } catch (_) {}
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Deliverable "$title" created successfully!'),
@@ -506,6 +516,7 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
         type: FileType.any,
         allowMultiple: true,
         withData: true,
+        withReadStream: true,
       );
       if (result == null || result.files.isEmpty) return;
 
@@ -549,7 +560,14 @@ class _EnhancedDeliverableSetupScreenState extends ConsumerState<EnhancedDeliver
       int ok = 0;
       int failed = 0;
       for (final f in List<PlatformFile>.from(_artifactFiles)) {
-        final bytes = f.bytes;
+        List<int>? bytes = f.bytes;
+        if ((bytes == null || bytes.isEmpty) && f.readStream != null) {
+          final out = <int>[];
+          await for (final chunk in f.readStream!) {
+            out.addAll(chunk);
+          }
+          bytes = out;
+        }
         if (bytes == null || bytes.isEmpty) {
           failed += 1;
           continue;

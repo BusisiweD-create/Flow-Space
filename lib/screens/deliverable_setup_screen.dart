@@ -7,6 +7,8 @@ import '../services/deliverable_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/user_data_service.dart';
 import '../models/user.dart';
+import '../services/auth_service.dart';
+import '../services/realtime_service.dart';
 
 class DeliverableSetupScreen extends ConsumerStatefulWidget {
   const DeliverableSetupScreen({super.key});
@@ -43,6 +45,12 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
   @override
   void initState() {
     super.initState();
+    try {
+      final uid = AuthService().currentUser?.id;
+      if (uid != null && ( _ownerId == null || _ownerId!.isEmpty)) {
+        _ownerId = uid;
+      }
+    } catch (_) {}
     _loadSprints();
     _loadUsers();
     _loadProjects();
@@ -374,6 +382,14 @@ sprintIds: _selectedSprints,
       setState(() => _isSaving = false);
 
       if (created != null) {
+        try {
+          RealtimeService().emitLocal('deliverable_created', {
+            'id': created.id,
+            'title': created.title,
+            'owner_id': created.ownerId,
+            'created_by': created.createdBy,
+          });
+        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ Deliverable "${created.title}" created'),
@@ -421,6 +437,7 @@ sprintIds: _selectedSprints,
         type: FileType.any,
         allowMultiple: true,
         withData: true,
+        withReadStream: true,
       );
       if (result == null || result.files.isEmpty) return;
 
@@ -461,7 +478,14 @@ sprintIds: _selectedSprints,
       int ok = 0;
       int failed = 0;
       for (final f in List<PlatformFile>.from(_artifactFiles)) {
-        final bytes = f.bytes;
+        List<int>? bytes = f.bytes;
+        if ((bytes == null || bytes.isEmpty) && f.readStream != null) {
+          final out = <int>[];
+          await for (final chunk in f.readStream!) {
+            out.addAll(chunk);
+          }
+          bytes = out;
+        }
         if (bytes == null || bytes.isEmpty) {
           failed += 1;
           continue;

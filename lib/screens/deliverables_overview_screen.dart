@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -12,6 +13,7 @@ import 'package:khono/screens/audit_log_detail_screen.dart';
 import 'package:khono/services/backend_api_service.dart';
 import 'package:khono/services/auth_service.dart';
 import 'package:khono/services/deliverable_service.dart';
+import 'package:khono/services/realtime_service.dart';
 import 'package:khono/config/environment.dart';
 import 'package:khono/widgets/deliverable_card.dart';
 
@@ -26,6 +28,7 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
   final _backendService = BackendApiService();
   final _authService = AuthService();
   final DeliverableService _deliverableService = DeliverableService();
+  RealtimeService? _realtime;
   List<Deliverable> _deliverables = [];
   bool _isLoading = true;
   String? _error;
@@ -37,6 +40,18 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
   final Set<String> _expandedIds = {};
   final Set<String> _expandedAuditLogIds = {};
   final Set<String> _uploadingIds = {};
+
+  Future<List<int>?> _platformFileBytes(PlatformFile f) async {
+    final bytes = f.bytes;
+    if (bytes != null && bytes.isNotEmpty) return bytes;
+    final stream = f.readStream;
+    if (stream == null) return null;
+    final out = <int>[];
+    await for (final chunk in stream) {
+      out.addAll(chunk);
+    }
+    return out;
+  }
 
   void _onNavTapped(int index) {
     setState(() {
@@ -55,6 +70,18 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
   void initState() {
     super.initState();
     _loadDeliverables();
+    _initRealtime();
+  }
+
+  Future<void> _initRealtime() async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null || token.isEmpty) return;
+      _realtime = RealtimeService();
+      await _realtime!.initialize(authToken: token);
+      _realtime!.on('deliverable_created', (_) => _loadDeliverables());
+      _realtime!.on('deliverable_updated', (_) => _loadDeliverables());
+    } catch (_) {}
   }
 
   Future<void> _loadDeliverables() async {
@@ -94,7 +121,7 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
         if (_authService.isTeamMember && !_authService.isDeliveryLead && !_authService.isSystemAdmin) {
           final userId = _authService.currentUser?.id;
           if (userId != null) {
-            filteredList = parsedDeliverables.where((d) => d.ownerId == userId).toList();
+            filteredList = parsedDeliverables.where((d) => d.ownerId == userId || d.createdBy == userId).toList();
           }
         }
         
@@ -595,14 +622,16 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
 
   Future<void> _uploadArtifactFor(Deliverable deliverable) async {
     try {
-      final res = await FilePicker.platform.pickFiles();
-      if (res != null && res.files.single.path != null) {
+      final res = await FilePicker.platform.pickFiles(withData: true, withReadStream: true);
+      if (res != null && res.files.isNotEmpty) {
         setState(() => _uploadingIds.add(deliverable.id));
         final file = res.files.single;
+        final bytes = await _platformFileBytes(file);
         final response = await _deliverableService.uploadArtifact(
           deliverableId: deliverable.id,
-          filePath: file.path!,
+          filePath: kIsWeb ? '' : (file.path ?? ''),
           fileName: file.name,
+          fileBytes: bytes,
         );
         setState(() => _uploadingIds.remove(deliverable.id));
         if (response.isSuccess) {
@@ -631,10 +660,12 @@ class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen>
     final List<String> errors = [];
     for (final file in files) {
       try {
+        final bytes = await file.readAsBytes();
         final response = await _deliverableService.uploadArtifact(
           deliverableId: deliverable.id,
-          filePath: file.path,
+          filePath: kIsWeb ? '' : file.path,
           fileName: file.name,
+          fileBytes: bytes,
         );
         if (response.isSuccess) {
           successCount++;

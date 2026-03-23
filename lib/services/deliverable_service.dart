@@ -260,17 +260,31 @@ class DeliverableService {
         return ApiResponse.error('No access token available');
       }
 
-      // final fileType = fileName.split('.').last;
+      final fileType = fileName.contains('.') ? fileName.split('.').last : 'file';
       
       final fields = <String, String>{};
       if (title != null) fields['title'] = title;
       if (description != null) fields['description'] = description;
 
-      final response = await _apiClient.uploadFileBytes(
-        '/deliverables/$deliverableId/artifacts',
-        fileBytes: fileBytes ?? [],
-        filename: fileName,
-      );
+      ApiResponse response;
+      if (fileBytes != null && fileBytes.isNotEmpty) {
+        response = await _apiClient.uploadFileBytes(
+          '/deliverables/$deliverableId/artifacts',
+          fileBytes: fileBytes,
+          filename: fileName,
+          fields: fields,
+        );
+      } else if (!kIsWeb && filePath.trim().isNotEmpty) {
+        response = await _apiClient.uploadFile(
+          '/deliverables/$deliverableId/artifacts',
+          filePath,
+          fileName,
+          fileType,
+          fields: fields,
+        );
+      } else {
+        return ApiResponse.error('No file data provided. Please reselect the file.');
+      }
 
       if (response.isSuccess) {
          return response;
