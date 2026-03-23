@@ -1,11 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user_signature.dart';
 import '../services/signature_service.dart';
 import '../services/api_client.dart';
-import '../models/user_signature.dart';
 
 class SignatureCaptureWidget extends StatefulWidget {
   final Function(String? signatureData)? onSignatureCaptured;
@@ -55,21 +56,41 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     super.initState();
     _signatureService = SignatureService(ApiClient());
     _hasSignature = widget.existingSignature != null;
+    debugPrint('🚀 SignatureCaptureWidget initialized');
+    debugPrint('📊 Initial local signatures count: ${_localSignatures.length}');
     if (widget.allowSignatureReuse) {
       _loadSavedSignatures();
     }
   }
 
   Future<void> _loadSavedSignatures() async {
+    debugPrint('🚀 _loadSavedSignatures() called');
     try {
       debugPrint('🔍 Loading saved signatures...');
       final signatures = await _signatureService.getUserSignatures();
       debugPrint('📋 Loaded ${signatures.length} saved signatures');
-      if (mounted) {
-        setState(() {
-          _savedSignatures = signatures;
-        });
-        debugPrint('✅ Updated UI with ${signatures.length} signatures');
+
+      // If API returns no signatures, try local storage as fallback
+      if (signatures.isEmpty) {
+        debugPrint(
+            '🔄 API returned no signatures, trying local storage fallback...');
+        final localSignatures = await _loadLocalSignatures();
+        if (mounted) {
+          setState(() {
+            _savedSignatures = localSignatures;
+          });
+          debugPrint(
+              '✅ Loaded ${localSignatures.length} signatures from local storage');
+        }
+      } else {
+        debugPrint(
+            '📊 API returned ${signatures.length} signatures, using API results');
+        if (mounted) {
+          setState(() {
+            _savedSignatures = signatures;
+          });
+          debugPrint('✅ Updated UI with ${signatures.length} signatures');
+        }
       }
     } catch (e) {
       debugPrint('❌ API Error loading saved signatures: $e');
@@ -91,14 +112,20 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     }
   }
 
-  Future<List<UserSignature>> _loadLocalSignatures() async {
-    // Return signatures from in-memory storage
-    debugPrint('📦 Loading signatures from local storage...');
-    return _localSignatures;
-  }
-
   Future<void> saveSignatureLocally(
       String signatureData, String signatureType, String signatureName) async {
+    // Check if signature with same name exists and remove it (override logic)
+    final existingSignatureIndex = _localSignatures.indexWhere(
+      (sig) => sig.userName?.toLowerCase() == signatureName.toLowerCase(),
+    );
+
+    if (existingSignatureIndex != -1) {
+      final oldSignature = _localSignatures[existingSignatureIndex];
+      _localSignatures.removeAt(existingSignatureIndex);
+      debugPrint(
+          '🔄 Removed existing signature: ${oldSignature.userName} (${oldSignature.id})');
+    }
+
     // Create a new signature with required parameters
     final now = DateTime.now();
     final newSignature = UserSignature(
@@ -115,12 +142,104 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
 
     // Add to local storage
     _localSignatures.add(newSignature);
+    await _saveToPersistentStorage(); // Save to persistent storage
     debugPrint(
         '💾 Saved signature locally: ${newSignature.userName} (${newSignature.id})');
+    debugPrint('📊 Total local signatures now: ${_localSignatures.length}');
   }
 
-  // Static in-memory storage for signatures
-  static final List<UserSignature> _localSignatures = [];
+  Future<void> _deleteSignature(UserSignature signature) async {
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Signature'),
+          content:
+              Text('Are you sure you want to delete "${signature.userName}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        _localSignatures.removeWhere((sig) => sig.id == signature.id);
+        await _saveToPersistentStorage(); // Save to persistent storage
+        if (mounted) {
+          setState(() {
+            _savedSignatures = List.from(_localSignatures);
+          });
+        }
+        debugPrint(
+            '🗑️ Deleted signature: ${signature.userName} (${signature.id})');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signature deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting signature: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error deleting signature'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Persistent storage for signatures
+  static const String _signaturesKey = 'saved_signatures';
+  List<UserSignature> _localSignatures = [];
+
+  Future<List<UserSignature>> _loadLocalSignatures() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final signaturesJson = prefs.getString(_signaturesKey);
+
+      if (signaturesJson != null) {
+        final List<dynamic> signaturesList = json.decode(signaturesJson);
+        _localSignatures =
+            signaturesList.map((json) => UserSignature.fromJson(json)).toList();
+        debugPrint(
+            '📦 Loaded ${_localSignatures.length} signatures from persistent storage');
+        for (var sig in _localSignatures) {
+          debugPrint('📝 Found signature: ${sig.userName} (${sig.id})');
+        }
+      } else {
+        debugPrint('📦 No saved signatures found in persistent storage');
+        _localSignatures = [];
+      }
+      return _localSignatures;
+    } catch (e) {
+      debugPrint('❌ Error loading from persistent storage: $e');
+      return [];
+    }
+  }
+
+  Future<void> _saveToPersistentStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final signaturesJson = json.encode(
+        _localSignatures.map((sig) => sig.toJson()).toList(),
+      );
+      await prefs.setString(_signaturesKey, signaturesJson);
+      debugPrint(
+          '💾 Saved ${_localSignatures.length} signatures to persistent storage');
+    } catch (e) {
+      debugPrint('❌ Error saving to persistent storage: $e');
+    }
+  }
 
   @override
   Future<String?> getSignature() async {
@@ -273,11 +392,10 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     debugPrint(
         '🔍 Building SignatureCaptureWidget - allowReuse=${widget.allowSignatureReuse}, savedCount=${_savedSignatures.length}');
 
-    final shouldShowSavedSignatures =
-        widget.allowSignatureReuse && _savedSignatures.isNotEmpty;
+    final shouldShowSavedSignatures = widget.allowSignatureReuse;
     if (shouldShowSavedSignatures) {
       debugPrint(
-          '✅ Showing saved signatures UI: ${_savedSignatures.length} signatures');
+          '✅ Showing saved signatures UI (always visible when allowReuse=true)');
     }
 
     return Column(
@@ -327,9 +445,21 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    setState(() {
-                      _showSavedSignatures = !_showSavedSignatures;
-                    });
+                    if (_savedSignatures.isEmpty) {
+                      // Show validation message when no signatures exist
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'No saved signatures found. Please draw a signature and check "Save this signature for future use" first.'),
+                          backgroundColor: Colors.orange,
+                          duration: Duration(seconds: 4),
+                        ),
+                      );
+                    } else {
+                      setState(() {
+                        _showSavedSignatures = !_showSavedSignatures;
+                      });
+                    }
                   },
                   icon: Icon(
                     _showSavedSignatures
@@ -338,9 +468,11 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                     size: 16,
                   ),
                   label: Text(
-                    _showSavedSignatures
-                        ? 'Hide Saved Signatures'
-                        : 'Use Saved Signature',
+                    _savedSignatures.isEmpty
+                        ? 'Use Saved Signature (0 saved)'
+                        : _showSavedSignatures
+                            ? 'Hide Saved Signatures'
+                            : 'Use Saved Signature (${_savedSignatures.length} saved)',
                     style: const TextStyle(fontSize: 12),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -422,6 +554,26 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                               size: 16,
                             ),
                           ),
+                        // Delete button
+                        Positioned(
+                          top: 2,
+                          left: 2,
+                          child: GestureDetector(
+                            onTap: () => _deleteSignature(signature),
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
