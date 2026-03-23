@@ -289,6 +289,47 @@ router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 
        }
     }
 
+    // Notify system admins about project creation (even if they are not assigned)
+    try {
+      const assigned = await ProjectMember.findAll({
+        where: { project_id: project.id },
+        attributes: ['user_id']
+      });
+      const assignedIds = new Set((assigned || []).map((m) => String(m.user_id)));
+
+      const systemAdmins = await User.findAll({
+        where: { role: { [Op.in]: ['systemAdmin', 'SystemAdmin', 'systemadmin'] } },
+        attributes: ['id']
+      });
+
+      const adminNotifications = (systemAdmins || [])
+        .filter((u) => u && u.id && !assignedIds.has(String(u.id)))
+        .map((u) => ({
+          recipient_id: u.id,
+          sender_id: req.user.id,
+          type: 'project_created',
+          message: `New project created: "${project.name}".`,
+          payload: {
+            project_id: project.id,
+            project_name: project.name,
+            project_key: project.key,
+            client_name: project.client_name,
+            status: project.status,
+            priority: project.priority,
+            created_at: new Date(),
+            reason: 'project_created'
+          },
+          is_read: false,
+          created_at: new Date()
+        }));
+
+      if (adminNotifications.length > 0) {
+        await Notification.bulkCreate(adminNotifications);
+      }
+    } catch (notifyErr) {
+      console.error('Error sending system admin project creation notifications:', notifyErr);
+    }
+
     // Log the project creation
     await AuditLog.create({
       user_id: req.user.id,

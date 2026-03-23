@@ -789,46 +789,59 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                      return;
-                    }
-                    setState(() {
-                      _selectedProjectKey = null;
-                      _selectedSprintId = null;
-                      _sprints.clear();
-                      _tickets.clear();
-                    });
-                    context.go('/sprint-console');
-                    _loadData();
-                  },
-                  tooltip: 'Back',
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Sprints in $projectName',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: onSurfaceColor,
-                    fontWeight: FontWeight.bold,
+            Expanded(
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () {
+                      if (context.canPop()) {
+                        context.pop();
+                        return;
+                      }
+                      setState(() {
+                        _selectedProjectKey = null;
+                        _selectedSprintId = null;
+                        _sprints.clear();
+                        _tickets.clear();
+                      });
+                      context.go('/sprint-console');
+                      _loadData();
+                    },
+                    tooltip: 'Back',
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Sprints in $projectName',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: onSurfaceColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             if (auth.hasPermission('create_sprint'))
-              ElevatedButton.icon(
-                onPressed: hasActiveSprint ? null : _showCreateSprintDialog,
-                icon: const Icon(Icons.add),
-                label: Text(hasActiveSprint ? 'Complete Active Sprint to Add' : 'Create Sprint'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: hasActiveSprint ? Colors.grey : primaryColor,
-                  foregroundColor: theme.colorScheme.onPrimary,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: ElevatedButton.icon(
+                  onPressed: hasActiveSprint ? null : _showCreateSprintDialog,
+                  icon: const Icon(Icons.add),
+                  label: Text(
+                    hasActiveSprint ? 'Complete active sprint' : 'Create sprint',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: hasActiveSprint ? Colors.grey : primaryColor,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                  ),
                 ),
               ),
           ],
@@ -914,6 +927,75 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
     if (lower == 'in progress') return 'IN PROGRESS';
     if (lower == 'to do') return 'PLANNING';
     return s.toUpperCase();
+  }
+
+  String _mapSprintStatusSelection(String value) {
+    final v = value.toLowerCase().replaceAll('_', '').replaceAll(' ', '').trim();
+    if (v == 'todo' || v == 'planning' || v == 'planned') return 'planning';
+    if (v == 'inprogress' || v == 'active') return 'in_progress';
+    if (v == 'done' || v == 'completed') return 'completed';
+    if (v == 'cancelled' || v == 'canceled') return 'cancelled';
+    return value;
+  }
+
+  bool _canEditSprint(Map<String, dynamic> sprint) {
+    final auth = AuthService();
+    if (auth.isSystemAdmin || auth.isDeliveryLead || auth.hasPermission('create_sprint')) {
+      return true;
+    }
+    final uid = auth.currentUser?.id;
+    if (uid == null || uid.isEmpty) return false;
+
+    final sprintProjectId = (sprint['project_id'] ?? sprint['projectId'])?.toString();
+    if (sprintProjectId == null || sprintProjectId.isEmpty) return false;
+
+    try {
+      final project = _projects.firstWhere(
+        (p) => (p['id']?.toString() ?? '') == sprintProjectId,
+        orElse: () => <String, dynamic>{},
+      );
+      final ownerId = (project['ownerId'] ?? project['owner_id'])?.toString() ??
+          (project['owner'] is Map ? (project['owner']['id']?.toString()) : null);
+      return ownerId != null && ownerId.isNotEmpty && ownerId == uid;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _editSprint(Map<String, dynamic> sprint) async {
+    if (!_canEditSprint(sprint)) {
+      _showSnackBar('You do not have permission to edit this sprint', isError: true);
+      return;
+    }
+
+    final sprintProjectId = (sprint['project_id'] ?? sprint['projectId'])?.toString();
+    String? projectName;
+    String? projectId;
+    if (sprintProjectId != null && sprintProjectId.isNotEmpty) {
+      projectId = sprintProjectId;
+      try {
+        final project = _projects.firstWhere(
+          (p) => (p['id']?.toString() ?? '') == sprintProjectId,
+          orElse: () => <String, dynamic>{},
+        );
+        projectName = project['name']?.toString();
+      } catch (_) {}
+    }
+
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateSprintScreen(
+          projectId: projectId,
+          projectName: projectName,
+          sprint: sprint,
+        ),
+      ),
+    );
+
+    if (ok == true) {
+      await _loadData();
+    }
   }
 
   Widget _buildSprintsList(List<Map<String, dynamic>> sprints) {
@@ -1101,39 +1183,47 @@ class _SprintConsoleScreenState extends State<SprintConsoleScreen> {
                                 PopupMenuButton<String>(
                                   onSelected: (value) {
                                     final sid = sprint['id'].toString();
+                                    if (value == 'edit') {
+                                      _editSprint(sprint);
+                                      return;
+                                    }
                                     if (value == 'delete') {
                                       _confirmAndDeleteSprint(
                                           sid,
                                           sprint['name']?.toString() ??
                                               'Sprint');
                                     } else {
-                                      _updateSprintStatus(sid, value);
+                                      _updateSprintStatus(sid, _mapSprintStatusSelection(value));
                                     }
                                   },
                                   itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.edit, size: 20),
-                                          SizedBox(width: 8),
-                                          Text('Edit Sprint'),
-                                        ],
+                                    if (_canEditSprint(sprint)) ...[
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.edit, size: 20),
+                                            SizedBox(width: 8),
+                                            Text('Edit Sprint'),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    const PopupMenuDivider(),
-                                    const PopupMenuItem(
-                                      value: 'To Do',
-                                      child: Text('Mark as To Do'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'In Progress',
-                                      child: Text('Mark as In Progress'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'Done',
-                                      child: Text('Mark as Done'),
-                                    ),
+                                      const PopupMenuDivider(),
+                                    ],
+                                    if (AuthService().hasPermission('update_sprint_status')) ...[
+                                      const PopupMenuItem(
+                                        value: 'To Do',
+                                        child: Text('Mark as To Do'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'In Progress',
+                                        child: Text('Mark as In Progress'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'Done',
+                                        child: Text('Mark as Done'),
+                                      ),
+                                    ],
                                     const PopupMenuDivider(),
                                     const PopupMenuItem(
                                       value: 'delete',

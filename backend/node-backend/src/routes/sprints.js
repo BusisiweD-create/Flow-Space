@@ -170,7 +170,7 @@ router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 
  * @desc Update an existing sprint
  * @access Private
  */
-router.put('/:id', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = normalizeSprintData(req.body);
@@ -179,6 +179,23 @@ router.put('/:id', authenticateToken, requireRole(['deliveryLead', 'systemAdmin'
     
     if (!sprint) {
       return res.status(404).json({ error: 'Sprint not found' });
+    }
+
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const isPrivileged = ['admin', 'systemadmin', 'deliverylead'].includes(role);
+    let isProjectOwner = false;
+    try {
+      const pid = sprint.project_id;
+      if (pid) {
+        const project = await Project.findByPk(pid);
+        if (project && project.owner_id && req.user && req.user.id) {
+          isProjectOwner = String(project.owner_id) === String(req.user.id);
+        }
+      }
+    } catch (_) {}
+    if (!isPrivileged && !isProjectOwner) {
+      return res.status(403).json({ error: 'Not authorized to update this sprint' });
     }
     
     await sprint.update(updateData);
@@ -195,7 +212,7 @@ router.put('/:id', authenticateToken, requireRole(['deliveryLead', 'systemAdmin'
  * @desc Update sprint status (compatibility endpoint)
  * @access Private
  */
-router.put('/:id/status', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
+router.put('/:id/status', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const nextStatus = req.body?.status ?? req.body?.state ?? req.body?.newStatus;
@@ -206,6 +223,23 @@ router.put('/:id/status', authenticateToken, requireRole(['deliveryLead', 'syste
     const sprint = await Sprint.findByPk(id);
     if (!sprint) {
       return res.status(404).json({ error: 'Sprint not found' });
+    }
+
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const isPrivileged = ['admin', 'systemadmin', 'deliverylead'].includes(role);
+    let isProjectOwner = false;
+    try {
+      const pid = sprint.project_id;
+      if (pid) {
+        const project = await Project.findByPk(pid);
+        if (project && project.owner_id && req.user && req.user.id) {
+          isProjectOwner = String(project.owner_id) === String(req.user.id);
+        }
+      }
+    } catch (_) {}
+    if (!isPrivileged && !isProjectOwner) {
+      return res.status(403).json({ error: 'Not authorized to update sprint status' });
     }
 
     await sprint.update({ status: nextStatus });
