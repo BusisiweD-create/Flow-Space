@@ -332,4 +332,6 @@ class AuthService {
         return true;
     }
   }
+
+  Future<dynamic> authenticateWithJwtToken(String token, tokenData) async {}
 }
