@@ -13,7 +13,7 @@ class SignatureCaptureWidget extends StatefulWidget {
   final bool allowSignatureReuse;
   final bool showAuditInfo;
   final String? reportId; // For audit tracking
-  
+
   const SignatureCaptureWidget({
     super.key,
     this.onSignatureCaptured,
@@ -28,8 +28,11 @@ class SignatureCaptureWidget extends StatefulWidget {
 }
 
 // Export the state class for external access
-abstract class SignatureCaptureWidgetState extends State<SignatureCaptureWidget> {
+abstract class SignatureCaptureWidgetState
+    extends State<SignatureCaptureWidget> {
   Future<String?> getSignature();
+  Future<void> saveSignatureLocally(
+      String signatureData, String signatureType, String signatureName);
 }
 
 // Make the private state class extend the abstract one
@@ -59,17 +62,66 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
 
   Future<void> _loadSavedSignatures() async {
     try {
+      debugPrint('🔍 Loading saved signatures...');
       final signatures = await _signatureService.getUserSignatures();
+      debugPrint('📋 Loaded ${signatures.length} saved signatures');
       if (mounted) {
         setState(() {
           _savedSignatures = signatures;
         });
+        debugPrint('✅ Updated UI with ${signatures.length} signatures');
       }
     } catch (e) {
-      debugPrint('Error loading saved signatures: $e');
+      debugPrint('❌ API Error loading saved signatures: $e');
+      debugPrint('🔄 Trying local storage fallback...');
+
+      // Fallback to local storage
+      try {
+        final localSignatures = await _loadLocalSignatures();
+        if (mounted) {
+          setState(() {
+            _savedSignatures = localSignatures;
+          });
+          debugPrint(
+              '✅ Loaded ${localSignatures.length} signatures from local storage');
+        }
+      } catch (localError) {
+        debugPrint('❌ Local storage also failed: $localError');
+      }
     }
   }
-  
+
+  Future<List<UserSignature>> _loadLocalSignatures() async {
+    // Return signatures from in-memory storage
+    debugPrint('📦 Loading signatures from local storage...');
+    return _localSignatures;
+  }
+
+  Future<void> saveSignatureLocally(
+      String signatureData, String signatureType, String signatureName) async {
+    // Create a new signature with required parameters
+    final now = DateTime.now();
+    final newSignature = UserSignature(
+      id: now.millisecondsSinceEpoch.toString(),
+      userId: 'local_user', // Placeholder for local storage
+      signatureData: signatureData,
+      signatureType: signatureType,
+      isDefault: false,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+      userName: signatureName, // Use signatureName as userName
+    );
+
+    // Add to local storage
+    _localSignatures.add(newSignature);
+    debugPrint(
+        '💾 Saved signature locally: ${newSignature.userName} (${newSignature.id})');
+  }
+
+  // Static in-memory storage for signatures
+  static final List<UserSignature> _localSignatures = [];
+
   @override
   Future<String?> getSignature() async {
     if (_hasSignature) {
@@ -90,7 +142,7 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
       });
       return;
     }
-    
+
     // Constrain points to canvas bounds
     final constrainedPoint = _constrainPointToCanvas(point);
     if (constrainedPoint != null) {
@@ -98,7 +150,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
         _points = List.from(_points)..add(constrainedPoint);
         _hasSignature = true;
         _signatureTime = DateTime.now();
-        _currentSignatureData = null; // Clear saved signature when drawing new one
+        _currentSignatureData =
+            null; // Clear saved signature when drawing new one
         _isDrawing = true;
         _lastPoint = constrainedPoint;
         widget.onSignatureCaptured?.call(null); // Notify signature started
@@ -111,20 +164,21 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     const canvasWidth = 400.0; // Approximate canvas width
     const canvasHeight = 150.0; // Canvas height from Container
     const padding = 2.0; // Small padding from edges
-    
+
     final constrainedX = point.dx.clamp(padding, canvasWidth - padding);
     final constrainedY = point.dy.clamp(padding, canvasHeight - padding);
-    
+
     return Offset(constrainedX, constrainedY);
   }
 
   /// Interpolate points for smoother drawing
   List<Offset> _interpolatePoints(Offset start, Offset end) {
     final distance = (end - start).distance;
-    final steps = (distance / 2).ceil().clamp(1, 8); // Limit interpolation steps
-    
+    final steps =
+        (distance / 2).ceil().clamp(1, 8); // Limit interpolation steps
+
     if (steps <= 1) return [end];
-    
+
     final List<Offset> interpolatedPoints = [];
     for (int i = 1; i <= steps; i++) {
       final t = i / steps;
@@ -150,14 +204,14 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
 
   Future<void> _saveSignatureForReuse() async {
     if (!_hasSignature || _currentSignatureData == null) return;
-    
+
     try {
       await _signatureService.saveSignature(
         _currentSignatureData!,
         'drawn',
         false,
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -166,7 +220,7 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
           ),
         );
       }
-      
+
       // Reload saved signatures
       await _loadSavedSignatures();
     } catch (e) {
@@ -201,11 +255,11 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
           await image.toByteData(format: ui.ImageByteFormat.png);
       final Uint8List pngBytes = byteData!.buffer.asUint8List();
       final String base64Image = base64Encode(pngBytes);
-      
+
       setState(() {
         _currentSignatureData = base64Image;
       });
-      
+
       widget.onSignatureCaptured?.call(base64Image);
       return base64Image;
     } catch (e) {
@@ -216,6 +270,16 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint(
+        '🔍 Building SignatureCaptureWidget - allowReuse=${widget.allowSignatureReuse}, savedCount=${_savedSignatures.length}');
+
+    final shouldShowSavedSignatures =
+        widget.allowSignatureReuse && _savedSignatures.isNotEmpty;
+    if (shouldShowSavedSignatures) {
+      debugPrint(
+          '✅ Showing saved signatures UI: ${_savedSignatures.length} signatures');
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -256,7 +320,7 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
             color: Colors.grey,
           ),
         ),
-        if (widget.allowSignatureReuse && _savedSignatures.isNotEmpty) ...[
+        if (shouldShowSavedSignatures) ...[
           const SizedBox(height: 12),
           Row(
             children: [
@@ -268,17 +332,22 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                     });
                   },
                   icon: Icon(
-                    _showSavedSignatures ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    _showSavedSignatures
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
                     size: 16,
                   ),
                   label: Text(
-                    _showSavedSignatures ? 'Hide Saved Signatures' : 'Use Saved Signature',
+                    _showSavedSignatures
+                        ? 'Hide Saved Signatures'
+                        : 'Use Saved Signature',
                     style: const TextStyle(fontSize: 12),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[700],
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
               ),
@@ -322,7 +391,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                       color: isSelected ? Colors.blue[700] : Colors.white,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: isSelected ? Colors.blue[400]! : Colors.grey[400]!,
+                        color:
+                            isSelected ? Colors.blue[400]! : Colors.grey[400]!,
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -332,7 +402,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(4),
                             child: Image.memory(
-                              base64Decode(signature.signatureData.split(',').last),
+                              base64Decode(
+                                  signature.signatureData.split(',').last),
                               height: 60,
                               fit: BoxFit.contain,
                               errorBuilder: (context, error, stackTrace) {
@@ -366,17 +437,21 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(
-              color: _isDrawing 
-                  ? Colors.blue[600]! 
-                  : _hasSignature 
-                      ? Colors.green[600]! 
+              color: _isDrawing
+                  ? Colors.blue[600]!
+                  : _hasSignature
+                      ? Colors.green[600]!
                       : Colors.grey,
-              width: _isDrawing ? 4 : _hasSignature ? 3 : 2,
+              width: _isDrawing
+                  ? 4
+                  : _hasSignature
+                      ? 3
+                      : 2,
             ),
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: _isDrawing 
+                color: _isDrawing
                     ? Colors.blue.withValues(alpha: 0.2)
                     : Colors.black.withValues(alpha: 0.1),
                 blurRadius: _isDrawing ? 8 : 4,
@@ -401,10 +476,11 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                 if (renderBox != null) {
                   final Offset localPosition =
                       renderBox.globalToLocal(details.globalPosition);
-                  
+
                   // Calculate smooth drawing with interpolation
                   if (_lastPoint != null && _isDrawing) {
-                    final interpolatedPoints = _interpolatePoints(_lastPoint!, localPosition);
+                    final interpolatedPoints =
+                        _interpolatePoints(_lastPoint!, localPosition);
                     for (final point in interpolatedPoints) {
                       _addPoint(point);
                     }
@@ -431,7 +507,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                       Positioned.fill(
                         child: _buildSignatureImage(_currentSignatureData!),
                       ),
-                    if (widget.existingSignature != null && _currentSignatureData == null)
+                    if (widget.existingSignature != null &&
+                        _currentSignatureData == null)
                       Positioned.fill(
                         child: _buildExistingSignature(),
                       ),
@@ -446,7 +523,9 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                         child: const SizedBox.shrink(),
                       ),
                     // Enhanced placeholder with drawing instructions
-                    if (!_hasSignature && widget.existingSignature == null && _selectedSignature == null)
+                    if (!_hasSignature &&
+                        widget.existingSignature == null &&
+                        _selectedSignature == null)
                       const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -516,7 +595,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const Icon(Icons.check_circle,
+                          color: Colors.green, size: 16),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -563,11 +643,8 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
   Widget _buildSignatureImage(String base64Data) {
     try {
       final Uint8List imageBytes = base64Decode(
-        base64Data.contains(',') 
-          ? base64Data.split(',').last 
-          : base64Data
-      );
-      
+          base64Data.contains(',') ? base64Data.split(',').last : base64Data);
+
       return Image.memory(
         imageBytes,
         fit: BoxFit.contain,
@@ -595,8 +672,10 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     try {
       // Check if existingSignature looks like JSON
       final trimmedData = widget.existingSignature!.trim();
-      if (trimmedData.startsWith('{') || trimmedData.startsWith('[') || 
-          trimmedData.startsWith('"success"') || trimmedData.startsWith('"error"')) {
+      if (trimmedData.startsWith('{') ||
+          trimmedData.startsWith('[') ||
+          trimmedData.startsWith('"success"') ||
+          trimmedData.startsWith('"error"')) {
         return Container(
           color: Colors.grey[200],
           child: const Center(
@@ -606,11 +685,10 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
       }
 
       final Uint8List imageBytes = base64Decode(
-        widget.existingSignature!.contains(',') 
-          ? widget.existingSignature!.split(',').last 
-          : widget.existingSignature!
-      );
-      
+          widget.existingSignature!.contains(',')
+              ? widget.existingSignature!.split(',').last
+              : widget.existingSignature!);
+
       return Image.memory(
         imageBytes,
         fit: BoxFit.contain,
@@ -639,7 +717,8 @@ class SignaturePainter extends CustomPainter {
   final bool isDrawing;
   final double currentPenPressure;
 
-  SignaturePainter(this.points, {this.isDrawing = false, this.currentPenPressure = 1.0});
+  SignaturePainter(this.points,
+      {this.isDrawing = false, this.currentPenPressure = 1.0});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -657,10 +736,10 @@ class SignaturePainter extends CustomPainter {
         // Add smooth line drawing with slight thickness variation
         final start = points[i]!;
         final end = points[i + 1]!;
-        
+
         // Main stroke
         canvas.drawLine(start, end, paint);
-        
+
         // Add subtle shadow for depth when drawing
         if (isDrawing) {
           final shadowPaint = Paint()
@@ -670,7 +749,7 @@ class SignaturePainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..isAntiAlias = true
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
-          
+
           canvas.drawLine(
             start + const Offset(1, 1),
             end + const Offset(1, 1),
@@ -679,7 +758,7 @@ class SignaturePainter extends CustomPainter {
         }
       }
     }
-    
+
     // Draw current position indicator when actively drawing
     if (isDrawing && points.isNotEmpty && points.last != null) {
       final currentPoint = points.last!;
@@ -687,7 +766,7 @@ class SignaturePainter extends CustomPainter {
         ..color = Colors.blue.withValues(alpha: 0.3)
         ..strokeWidth = 1.0
         ..style = PaintingStyle.stroke;
-      
+
       // Draw small circle at current position
       canvas.drawCircle(currentPoint, 2.0, indicatorPaint);
     }
@@ -695,8 +774,8 @@ class SignaturePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(SignaturePainter oldDelegate) =>
-      oldDelegate.points != points || 
-      oldDelegate.isDrawing != isDrawing || 
+      oldDelegate.points != points ||
+      oldDelegate.isDrawing != isDrawing ||
       oldDelegate.currentPenPressure != currentPenPressure;
 }
 
@@ -709,7 +788,7 @@ class GridPainter extends CustomPainter {
       ..strokeWidth = 0.5;
 
     const gridSize = 20.0;
-    
+
     // Draw vertical lines
     for (double x = 0; x <= size.width; x += gridSize) {
       canvas.drawLine(
@@ -718,7 +797,7 @@ class GridPainter extends CustomPainter {
         paint,
       );
     }
-    
+
     // Draw horizontal lines
     for (double y = 0; y <= size.height; y += gridSize) {
       canvas.drawLine(
