@@ -71,7 +71,7 @@ class ApiConfig {
 
   // Helper methods
   static String getFullUrl(String endpoint) {
-    return '$baseUrl$apiVersion$endpoint';
+    return '$environmentBaseUrl$apiVersion$endpoint';
   }
 
   static String replacePathParameter(

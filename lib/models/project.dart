@@ -66,6 +66,7 @@ class Project {
   final String key;
   final String description;
   final String? clientName;
+  final String? clientOwnerName;
   final ProjectStatus status;
   final ProjectPriority priority;
   final String projectType;
@@ -88,6 +89,7 @@ class Project {
     required this.key,
     required this.description,
     this.clientName,
+    this.clientOwnerName,
     required this.status,
     required this.priority,
     required this.projectType,
@@ -111,6 +113,7 @@ class Project {
     String? key,
     String? description,
     String? clientName,
+    String? clientOwnerName,
     ProjectStatus? status,
     ProjectPriority? priority,
     String? projectType,
@@ -133,6 +136,7 @@ class Project {
       key: key ?? this.key,
       description: description ?? this.description,
       clientName: clientName ?? this.clientName,
+      clientOwnerName: clientOwnerName ?? this.clientOwnerName,
       status: status ?? this.status,
       priority: priority ?? this.priority,
       projectType: projectType ?? this.projectType,
@@ -159,6 +163,8 @@ class Project {
       'description': description,
       'clientName': clientName,
       'client_name': clientName,
+      'clientOwnerName': clientOwnerName,
+      'client_owner_name': clientOwnerName,
       'status': status.name,
       'priority': priority.name,
       'projectType': projectType,
@@ -210,6 +216,7 @@ class Project {
       key: asString(json['key'] ?? json['projectKey'] ?? json['project_key']) ?? '',
       description: asString(json['description']) ?? '',
       clientName: asString(json['clientName'] ?? json['client_name']),
+      clientOwnerName: asString(json['clientOwnerName'] ?? json['client_owner_name']),
       status: ProjectStatus.values.firstWhere(
         (e) => e.name == asString(json['status']),
         orElse: () => ProjectStatus.planning,

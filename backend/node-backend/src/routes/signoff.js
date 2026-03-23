@@ -42,6 +42,21 @@ function extractReviewToken(req) {
 }
 
 let reportsTableReady = false;
+function getSequelizeDialect() {
+  try {
+    return sequelize && typeof sequelize.getDialect === 'function' ? sequelize.getDialect() : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function reportsIdWhere(paramIndex = 1) {
+  const dialect = getSequelizeDialect();
+  const p = `$${paramIndex}`;
+  if (dialect === 'postgres') return `id::text = ${p}`;
+  return `id = ${p}`;
+}
+
 async function ensureReportsTable() {
   if (reportsTableReady) return;
   try {
@@ -88,16 +103,31 @@ router.get('/', async (req, res) => {
     }
     await ensureReportsTable();
     
-    const { deliverableId } = req.query;
+    const { deliverableId, status } = req.query;
     let results;
     try {
-      if (deliverableId) {
+      const normalizeStatus = (s) => {
+        const x = String(s || '').toLowerCase().replace(/[\s_-]+/g, '');
+        if (!x) return '';
+        if (x === 'underreview') return 'under_review';
+        if (x === 'changerequested') return 'change_requested';
+        return x;
+      };
+      const s = normalizeStatus(status);
+      if (deliverableId && s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 AND LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($2, '-', '')) ORDER BY created_at DESC",
+          { bind: [deliverableId, s], type: QueryTypes.SELECT }
+        );
+      } else if (deliverableId) {
         results = await sequelize.query(
           "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 ORDER BY created_at DESC",
-          { 
-            bind: [deliverableId],
-            type: QueryTypes.SELECT 
-          }
+          { bind: [deliverableId], type: QueryTypes.SELECT }
+        );
+      } else if (s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($1, '-', '')) ORDER BY created_at DESC",
+          { bind: [s], type: QueryTypes.SELECT }
         );
       } else {
         results = await sequelize.query(
@@ -137,7 +167,7 @@ router.get('/', async (req, res) => {
         (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
       ])
     );
-    const reports = rawRows.map((row) => {
+    let reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
         const submittedBy = c.submittedBy || c.submitted_by;
@@ -194,6 +224,16 @@ router.get('/', async (req, res) => {
         };
       }
     });
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const qStatus = String(req.query.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+    if (role === 'clientreviewer') {
+      const allowedStatuses = new Set(['submitted', 'approved', 'underreview', 'under_review']);
+      reports = reports.filter((r) => allowedStatuses.has(String(r.status || '').toLowerCase()));
+      if (qStatus && !allowedStatuses.has(qStatus)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
     if (reports.length === 0) {
       try {
         const signoffs = await Signoff.findAll({
@@ -239,7 +279,7 @@ router.get('/:id', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const [results] = await sequelize.query(
-        'SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+        `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!results || results.length === 0) {
@@ -354,6 +394,19 @@ router.post('/', async (req, res) => {
         nextSteps,
         status
       } = req.body || {};
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      if (!deliverableId || typeof deliverableId !== 'string' || deliverableId.trim().length === 0) {
+        return res.status(400).json({ error: 'deliverableId is required' });
+      }
+      if (!reportTitle || typeof reportTitle !== 'string' || reportTitle.trim().length === 0) {
+        return res.status(400).json({ error: 'reportTitle is required' });
+      }
+      if (!reportContent || typeof reportContent !== 'string' || reportContent.trim().length === 0) {
+        return res.status(400).json({ error: 'reportContent is required' });
+      }
+      const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
       const content = {
         reportTitle,
         reportContent,
@@ -361,11 +414,13 @@ router.post('/', async (req, res) => {
         sprintPerformanceData,
         knownLimitations,
         nextSteps,
-        status: status || 'draft'
+        status: normalizedStatus
       };
+      const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
+      const contentExpr = dialect === 'postgres' ? '$4::jsonb' : '$4';
       const [results] = await sequelize.query(
-        'INSERT INTO sign_off_reports (deliverable_id, created_by, status, content) VALUES ($1, $2, $3, $4) RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at',
-        { bind: [deliverableId, (req.user && req.user.id) || null, status || 'draft', JSON.stringify(content)] }
+        `INSERT INTO sign_off_reports (deliverable_id, created_by, status, content) VALUES ($1, $2, $3, ${contentExpr}) RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [deliverableId.trim(), String(req.user.id), normalizedStatus, JSON.stringify(content)] }
       );
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
@@ -378,7 +433,7 @@ router.post('/', async (req, res) => {
         sprintPerformanceData: c.sprintPerformanceData || c.sprint_performance_data,
         knownLimitations: c.knownLimitations || c.known_limitations,
         nextSteps: c.nextSteps || c.next_steps,
-        status: row.status || 'draft',
+        status: row.status || normalizedStatus,
         preparedBy: c.preparedBy || c.prepared_by,
         preparedByName: c.preparedByName || c.prepared_by_name,
         createdAt: row.created_at,
@@ -416,7 +471,7 @@ router.put('/:id', async (req, res) => {
       await ensureReportsTable();
       const updates = req.body || {};
       const [existing] = await sequelize.query(
-        'SELECT id, created_by FROM sign_off_reports WHERE id = $1',
+        `SELECT id, created_by, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -434,7 +489,7 @@ router.put('/:id', async (req, res) => {
       }
 
       const [results] = await sequelize.query(
-        `UPDATE sign_off_reports SET status = COALESCE($2, status), content = COALESCE(content, '{}'::jsonb) || $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        `UPDATE sign_off_reports SET status = COALESCE($2, status), content = COALESCE(content, '{}'::jsonb) || $3::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
         { bind: [id, updates.status ?? null, JSON.stringify(updates)] }
       );
       if (!results || results.length === 0) {
@@ -492,7 +547,7 @@ router.delete('/:id', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
-      const [rows] = await sequelize.query('DELETE FROM sign_off_reports WHERE id = $1 RETURNING id', { bind: [id] });
+      const [rows] = await sequelize.query(`DELETE FROM sign_off_reports WHERE ${reportsIdWhere(1)} RETURNING id`, { bind: [id] });
       if (!rows || rows.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
       }
@@ -558,7 +613,7 @@ router.post('/:id/approve', async (req, res) => {
       
       // Seal check: Prevent re-approval
       const [existing] = await sequelize.query(
-        'SELECT status FROM sign_off_reports WHERE id = $1',
+        `SELECT status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (existing && existing.length > 0 && existing[0].status === 'approved') {
@@ -566,7 +621,7 @@ router.post('/:id/approve', async (req, res) => {
       }
 
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'clientComment', $5::text, 'digitalSignature', $6::text, 'clientEmail', $7::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'clientComment', $5::text, 'digitalSignature', $6::text, 'clientEmail', $7::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
         { bind: [id, 'approved', (actorId ?? approvedBy), actorName, comment ?? null, digitalSignature ?? null, clientEmail] }
       );
       if (!results || results.length === 0) {
@@ -673,7 +728,7 @@ router.post('/:id/submit', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const [existing] = await sequelize.query(
-        'SELECT id, created_by, status FROM sign_off_reports WHERE id = $1',
+        `SELECT id, created_by, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -698,7 +753,7 @@ router.post('/:id/submit', async (req, res) => {
         submitterEmail ||
         'Unknown User';
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
         { bind: [id, 'submitted', submitterId, submitterName] }
       );
       if (!results || results.length === 0) {
@@ -763,7 +818,7 @@ router.get('/:id/signatures', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const [results] = await sequelize.query(
-        'SELECT id, content, updated_at FROM sign_off_reports WHERE id = $1',
+        `SELECT id, content, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!results || results.length === 0) {
@@ -811,7 +866,7 @@ router.get('/:id/download', async (req, res) => {
     }
     await ensureReportsTable();
     const [results] = await sequelize.query(
-      'SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+      `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
       { bind: [id] }
     );
     if (!results || results.length === 0) {
@@ -877,7 +932,7 @@ router.post('/:id/signature', async (req, res) => {
       await ensureReportsTable();
       const { signatureData, signatureType } = req.body || {};
       const [existing] = await sequelize.query(
-        'SELECT id, content, updated_at FROM sign_off_reports WHERE id = $1',
+        `SELECT id, content, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -898,7 +953,7 @@ router.post('/:id/signature', async (req, res) => {
       };
       const newContent = { ...c, signatures: [...signatures, newSig] };
       const [updated] = await sequelize.query(
-        'UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id',
+        `UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id`,
         { bind: [id, JSON.stringify(newContent)] }
       );
       if (!updated || updated.length === 0) {
@@ -921,7 +976,7 @@ router.post('/:id/export', async (req, res) => {
       await ensureReportsTable();
       const { exportFormat, exportType, fileSize, fileHash, metadata } = req.body || {};
       const [existing] = await sequelize.query(
-        'SELECT id, content FROM sign_off_reports WHERE id = $1',
+        `SELECT id, content FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -941,7 +996,7 @@ router.post('/:id/export', async (req, res) => {
       };
       const newContent = { ...c, exports: [...exportsArr, exportEntry], lastExport: exportEntry };
       await sequelize.query(
-        'UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE id = $1',
+        `UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)}`,
         { bind: [id, JSON.stringify(newContent)] }
       );
       return res.json({ success: true });
@@ -985,7 +1040,7 @@ router.post('/:id/request-changes', async (req, res) => {
         reviewedBy = req.user.id;
       } else {
         // Try to use clientId from body if provided
-        reviewedBy = clientId;
+        reviewedBy = clientId ? String(clientId) : null;
       }
 
       const user = req.user || {};
@@ -1000,7 +1055,7 @@ router.post('/:id/request-changes', async (req, res) => {
       
       await ensureReportsTable();
       const [existing] = await sequelize.query(
-        "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1",
+        `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -1035,7 +1090,7 @@ router.post('/:id/request-changes', async (req, res) => {
         clientEmail: clientEmail || curC.clientEmail || null
       };
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        `UPDATE sign_off_reports SET status = $2, content = $3::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
         { bind: [id, 'change_requested', JSON.stringify(merged)] }
       );
       const row = results[0];
@@ -1323,7 +1378,7 @@ router.post('/client-review-links', async (req, res) => {
     
     // Verify report exists
     const [reportCheck] = await sequelize.query(
-      'SELECT id, status FROM sign_off_reports WHERE id = $1',
+      `SELECT id, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
       { bind: [reportId] }
     );
     
@@ -1410,7 +1465,7 @@ router.get('/client-review/:token', async (req, res) => {
     
     // Fetch report
     const [results] = await sequelize.query(
-      'SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+      `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
       { bind: [reportId] }
     );
     

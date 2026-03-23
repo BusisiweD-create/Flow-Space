@@ -157,7 +157,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final routeLocation = GoRouterState.of(context).uri.path;
+    String routeLocation = '/';
+    try {
+      final router = GoRouter.maybeOf(context);
+      final uri = router?.routeInformationProvider.value.uri;
+      if (uri != null) {
+        routeLocation = uri.path;
+      } else {
+        routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
+      }
+    } catch (_) {
+      routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
+    }
     final isDesktop = MediaQuery.of(context).size.width > 768;
     final screenWidth = MediaQuery.of(context).size.width;
     final logoSize = _logoSizeFor(screenWidth);
@@ -521,6 +532,51 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         ),
       );
     }
+  }
+
+  Widget _buildNavigationItems({required bool isMobile}) {
+    final routeLocation = GoRouterState.of(context).uri.path;
+
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: _navItems.length,
+      itemBuilder: (context, index) {
+        final item = _navItems[index];
+        final active = routeLocation.startsWith(item.route);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: active
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ListTile(
+            leading: AppIcons.getIconWidget(
+              item.iconName,
+              fallbackIcon: item.icon,
+              isActive: active,
+              size: 20,
+              color: active ? Colors.white : FlownetColors.textSecondary,
+            ),
+            title: Text(
+              item.label,
+              style: TextStyle(
+                color: active ? Colors.white : FlownetColors.textSecondary,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            onTap: () {
+              if (!routeLocation.startsWith(item.route)) {
+                context.go(item.route);
+                Navigator.pop(context); // Close drawer on mobile
+              }
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleLogout(BuildContext ctx) async {
