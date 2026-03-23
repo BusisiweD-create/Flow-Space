@@ -51,6 +51,7 @@ import 'screens/deliverable_detail_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
 import 'screens/project_details_screen.dart';
+import 'screens/ai_assistant_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -165,7 +166,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/projects/create',
       builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
+        requiredPermission: 'manage_projects',
         child: SidebarScaffold(
           child: ProjectWorkspaceScreen(),
         ),
@@ -176,7 +177,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) {
         final projectId = state.pathParameters['projectId']!;
         return RoleGuard(
-          requiredPermission: 'authenticated',
+          requiredPermission: 'manage_projects',
           child: SidebarScaffold(
             child: ProjectWorkspaceScreen(projectId: projectId),
           ),
@@ -186,7 +187,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/project-setup',
       builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
+        requiredPermission: 'manage_projects',
         child: SidebarScaffold(
           child: ProjectWorkspaceScreen(projectId: 'new'),
         ),
@@ -240,6 +241,15 @@ final GoRouter _router = GoRouter(
         route: '/timeline',
         child: SidebarScaffold(
           child: TimelineScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/ai-assistant',
+      builder: (context, state) => const RouteGuard(
+        route: '/ai-assistant',
+        child: SidebarScaffold(
+          child: AIAssistantScreen(),
         ),
       ),
     ),
@@ -476,8 +486,11 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/smtp-config',
-      builder: (context, state) => const SidebarScaffold(
-        child: SmtpConfigScreen(),
+      builder: (context, state) => const RouteGuard(
+        route: '/smtp-config',
+        child: SidebarScaffold(
+          child: SmtpConfigScreen(),
+        ),
       ),
     ),
     GoRoute(

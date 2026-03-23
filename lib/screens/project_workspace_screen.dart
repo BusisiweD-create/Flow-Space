@@ -1612,6 +1612,7 @@ class _SelectSprintsDialog extends StatefulWidget {
 
 class _SelectSprintsDialogState extends State<_SelectSprintsDialog> {
   late Set<String> _selectedIds;
+  String? _pendingSprintId;
 
   @override
   void initState() {
@@ -1621,32 +1622,89 @@ class _SelectSprintsDialogState extends State<_SelectSprintsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final remaining = widget.availableSprints
+        .where((s) => !_selectedIds.contains(s.id))
+        .toList();
+    final selected = widget.availableSprints
+        .where((s) => _selectedIds.contains(s.id))
+        .toList();
+
     return AlertDialog(
       title: const Text('Select Sprints'),
       content: SizedBox(
         width: double.maxFinite,
-        height: 300,
-        child: ListView.builder(
-          itemCount: widget.availableSprints.length,
-          itemBuilder: (context, index) {
-            final sprint = widget.availableSprints[index];
-            final isSelected = _selectedIds.contains(sprint.id);
-            
-            return CheckboxListTile(
-              title: Text(sprint.name),
-              subtitle: Text(sprint.statusText),
-              value: isSelected,
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    _selectedIds.add(sprint.id);
-                  } else {
-                    _selectedIds.remove(sprint.id);
-                  }
-                });
-              },
-            );
-          },
+        height: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String?>(
+                    initialValue: remaining.any((s) => s.id == _pendingSprintId)
+                        ? _pendingSprintId
+                        : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Add sprint',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Select sprint'),
+                      ),
+                      ...remaining.map(
+                        (s) => DropdownMenuItem<String?>(
+                          value: s.id,
+                          child: Text(s.name),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _pendingSprintId = v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: (_pendingSprintId == null)
+                      ? null
+                      : () {
+                          final id = _pendingSprintId;
+                          if (id == null || id.isEmpty) return;
+                          setState(() {
+                            _selectedIds.add(id);
+                            _pendingSprintId = null;
+                          });
+                        },
+                  child: const Text('Add'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: selected.isEmpty
+                  ? const Center(child: Text('No sprints selected'))
+                  : ListView.builder(
+                      itemCount: selected.length,
+                      itemBuilder: (context, index) {
+                        final sprint = selected[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(sprint.name),
+                          subtitle: Text(sprint.statusText),
+                          trailing: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedIds.remove(sprint.id);
+                              });
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
       actions: [

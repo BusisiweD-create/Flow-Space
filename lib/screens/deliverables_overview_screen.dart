@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -12,6 +13,7 @@ import 'package:khono/screens/audit_log_detail_screen.dart';
 import 'package:khono/services/backend_api_service.dart';
 import 'package:khono/services/auth_service.dart';
 import 'package:khono/services/deliverable_service.dart';
+import 'package:khono/services/realtime_service.dart';
 import 'package:khono/config/environment.dart';
 import 'package:khono/widgets/deliverable_card.dart';
 import 'package:khono/theme/flownet_theme.dart';
@@ -30,7 +32,7 @@ class _DeliverablesOverviewScreenState
   final _backendService = BackendApiService();
   final _authService = AuthService();
   final DeliverableService _deliverableService = DeliverableService();
-  final _webSocketService = DeliverableWebSocketService();
+  RealtimeService? _realtime;
   List<Deliverable> _deliverables = [];
   bool _isLoading = true;
   String? _error;
@@ -43,6 +45,18 @@ class _DeliverablesOverviewScreenState
   final Set<String> _expandedIds = {};
   final Set<String> _expandedAuditLogIds = {};
   final Set<String> _uploadingIds = {};
+
+  Future<List<int>?> _platformFileBytes(PlatformFile f) async {
+    final bytes = f.bytes;
+    if (bytes != null && bytes.isNotEmpty) return bytes;
+    final stream = f.readStream;
+    if (stream == null) return null;
+    final out = <int>[];
+    await for (final chunk in stream) {
+      out.addAll(chunk);
+    }
+    return out;
+  }
 
   void _onNavTapped(int index) {
     setState(() {
@@ -71,56 +85,18 @@ class _DeliverablesOverviewScreenState
   void initState() {
     super.initState();
     _loadDeliverables();
-    _initializeWebSocket();
+    _initRealtime();
   }
 
-  void _initializeWebSocket() {
-    // Set up WebSocket listeners for real-time updates
-    _webSocketService.deliverableCreatedStream.listen((deliverable) {
-      if (mounted) {
-        setState(() {
-          // Add new deliverable to the list if not already present
-          if (!_deliverables.any((d) => d.id == deliverable.id)) {
-            _deliverables.insert(0, deliverable);
-            debugPrint(' Real-time: Added new deliverable: ${deliverable.title}');
-          }
-          _hasRealTimeConnection = true;
-        });
-      }
-    });
-
-    _webSocketService.deliverableUpdatedStream.listen((deliverable) {
-      if (mounted) {
-        setState(() {
-          // Update existing deliverable in the list
-          final index = _deliverables.indexWhere((d) => d.id == deliverable.id);
-          if (index != -1) {
-            _deliverables[index] = deliverable;
-            debugPrint(' Real-time: Updated deliverable: ${deliverable.title}');
-          }
-          _hasRealTimeConnection = true;
-        });
-      }
-    });
-
-    _webSocketService.deliverableDeletedStream.listen((data) {
-      if (mounted) {
-        setState(() {
-          // Remove deliverable from the list
-          _deliverables.removeWhere((d) => d.id == data['deliverableId']);
-          debugPrint(' Real-time: Removed deliverable: ${data['deliverableId']}');
-        });
-      }
-    });
-
-    // Connect to WebSocket
-    _webSocketService.connect();
-  }
-
-  @override
-  void dispose() {
-    _webSocketService.dispose();
-    super.dispose();
+  Future<void> _initRealtime() async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null || token.isEmpty) return;
+      _realtime = RealtimeService();
+      await _realtime!.initialize(authToken: token);
+      _realtime!.on('deliverable_created', (_) => _loadDeliverables());
+      _realtime!.on('deliverable_updated', (_) => _loadDeliverables());
+    } catch (_) {}
   }
 
   Future<void> _loadDeliverables() async {
@@ -176,8 +152,7 @@ class _DeliverablesOverviewScreenState
             !_authService.isStakeholder) {
           final userId = _authService.currentUser?.id;
           if (userId != null) {
-            filteredList =
-                parsedDeliverables.where((d) => d.ownerId == userId).toList();
+            filteredList = parsedDeliverables.where((d) => d.ownerId == userId || d.createdBy == userId).toList();
           }
         }
 
@@ -472,6 +447,7 @@ class _DeliverablesOverviewScreenState
 
   @override
   Widget build(BuildContext context) {
+    final canCreate = _authService.canCreateDeliverable();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Deliverables'),
@@ -512,11 +488,12 @@ class _DeliverablesOverviewScreenState
             },
             tooltip: _isKanbanView ? 'List View' : 'Kanban View',
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => context.go('/deliverable-setup'),
-            tooltip: 'Create Deliverable',
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => context.go('/deliverable-setup'),
+              tooltip: 'Create Deliverable',
+            ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -758,14 +735,16 @@ class _DeliverablesOverviewScreenState
 
   Future<void> _uploadArtifactFor(Deliverable deliverable) async {
     try {
-      final res = await FilePicker.platform.pickFiles();
-      if (res != null && res.files.single.path != null) {
+      final res = await FilePicker.platform.pickFiles(withData: true, withReadStream: true);
+      if (res != null && res.files.isNotEmpty) {
         setState(() => _uploadingIds.add(deliverable.id));
         final file = res.files.single;
+        final bytes = await _platformFileBytes(file);
         final response = await _deliverableService.uploadArtifact(
           deliverableId: deliverable.id,
-          filePath: file.path!,
+          filePath: kIsWeb ? '' : (file.path ?? ''),
           fileName: file.name,
+          fileBytes: bytes,
         );
         setState(() => _uploadingIds.remove(deliverable.id));
         if (response.isSuccess) {
@@ -799,10 +778,12 @@ class _DeliverablesOverviewScreenState
     final List<String> errors = [];
     for (final file in files) {
       try {
+        final bytes = await file.readAsBytes();
         final response = await _deliverableService.uploadArtifact(
           deliverableId: deliverable.id,
-          filePath: file.path,
+          filePath: kIsWeb ? '' : file.path,
           fileName: file.name,
+          fileBytes: bytes,
         );
         if (response.isSuccess) {
           successCount++;

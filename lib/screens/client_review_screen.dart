@@ -334,7 +334,13 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
                     child: buildStatusItem('Due Date', formatDate(_deliverable!.dueDate)),
                   ),
                   Expanded(
-                    child: buildStatusItem('Submitted By', _deliverable!.submittedBy ?? 'Unknown'),
+                    child: buildStatusItem('Submitted By', () {
+                      final name = (_report?.submittedByName ?? _report?.submittedBy ?? '').toString().trim();
+                      final role = (_report?.submittedByRole ?? '').toString().trim();
+                      if (name.isEmpty) return '—';
+                      if (role.isEmpty) return name;
+                      return '$name ($role)';
+                    }()),
                   ),
                 ],
               ),

@@ -67,6 +67,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final dashboardState = ref.watch(dashboardNotifierProvider);
+    final canCreate = AuthService().canCreateDeliverable();
     debugPrint('🏗️ Building dashboard - _currentUser: ${_currentUser?.name}, title: ${_currentUser != null ? '${_currentUser!.role.displayName} Dashboard' : 'Flow-Space Dashboard'}');
     
     return Scaffold(
@@ -75,11 +76,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_task),
-            onPressed: () => context.go('/deliverable-setup'),
-            tooltip: 'Create Deliverable',
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add_task),
+              onPressed: () => context.go('/deliverable-setup'),
+              tooltip: 'Create Deliverable',
+            ),
           IconButton(
             icon: const Icon(Icons.folder),
             onPressed: () => context.go('/projects'),
@@ -153,13 +155,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ],
                   ),
                 ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          _showCreateDeliverableDialog();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Deliverable'),
-      ),
+      floatingActionButton: canCreate
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                _showCreateDeliverableDialog();
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('New Deliverable'),
+            )
+          : null,
     );
   }
 
