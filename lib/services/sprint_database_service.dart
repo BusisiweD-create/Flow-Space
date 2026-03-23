@@ -164,9 +164,29 @@ String? description,
 debugPrint('📡 Sprint creation response: ${response.statusCode}');
 
       if (response.isSuccess) {
-        final data = response.data;
-        if (data['success'] == true) {
-          debugPrint('✅ Sprint "$name" created successfully');
+        final dynamic raw = response.data;
+        if (raw == null) {
+          throw Exception('Failed to create sprint');
+        }
+
+        Map<String, dynamic> created;
+        if (raw is Map<String, dynamic>) {
+          created = raw;
+        } else if (raw is Map) {
+          created = Map<String, dynamic>.from(raw);
+        } else {
+          throw Exception('Failed to create sprint');
+        }
+
+        if (created['success'] == true && created['data'] is Map) {
+          created = Map<String, dynamic>.from(created['data'] as Map);
+        }
+
+        if (created.isEmpty) {
+          throw Exception('Failed to create sprint');
+        }
+
+        debugPrint('✅ Sprint "$name" created successfully');
           
           // Send notification for sprint creation
           try {
@@ -186,22 +206,11 @@ debugPrint('📡 Sprint creation response: ${response.statusCode}');
             debugPrint('❌ Error sending sprint creation notification: $e');
           }
           
-          final Map<String, dynamic> created;
-          if (data['data'] is Map) {
-            created = Map<String, dynamic>.from(data['data']);
-          } else {
-            created = Map<String, dynamic>.from(data);
-            // Remove success field if it's there
-            created.remove('success');
-          }
           // Cache: prepend to global and project-specific cache
           try {
             await _prependCachedSprint(created, projectId: projectId);
           } catch (_) {}
           return created;
-        } else {
-          throw Exception(data['error'] ?? 'Failed to create sprint');
-        }
       } else {
         debugPrint('❌ Failed to create sprint: ${response.error ?? 'Unknown error'}');
         throw Exception(response.error ?? 'Failed to create sprint');
@@ -993,10 +1002,10 @@ if (response.isSuccess) {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? jsonStr = prefs.getString(_sprintsKey(projectId: projectId, projectKey: projectKey));
-      if (jsonStr == null || jsonStr.isEmpty) {
+      if (jsonStr!.isEmpty) {
         jsonStr = prefs.getString('cached_sprints_all');
       }
-      if (jsonStr != null && jsonStr.isNotEmpty) {
+      if (jsonStr!.isNotEmpty) {
         final list = jsonDecode(jsonStr);
         if (list is List) {
           return List<Map<String, dynamic>>.from(list);

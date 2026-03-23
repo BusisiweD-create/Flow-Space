@@ -86,7 +86,12 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
       final users = await _userService.getUsers(limit: 1000);
       setState(() {
         _users = users;
-        _preparedById ??= _authService.currentUser?.id;
+        final currentUserId = _authService.currentUser?.id;
+        if (currentUserId != null && _users.any((u) => u.id == currentUserId)) {
+          _preparedById ??= currentUserId;
+        } else if (_preparedById == null || !_users.any((u) => u.id == _preparedById)) {
+          _preparedById = _users.isNotEmpty ? _users.first.id : null;
+        }
       });
     } catch (e) {
       debugPrint('Error loading users: $e');
@@ -786,82 +791,20 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('🔍 Building ReportEditorScreen - isLoading: $_isLoading, deliverables: ${_deliverables.length}');
-    
-    // TEMPORARY: Force show form even during loading for debugging
     return SidebarScaffold(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: _isLoading && _deliverables.isEmpty
+        body: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
+            : _deliverables.isEmpty && !_isLoadingDeliverables
+                ? _buildEmptyDeliverablesState()
+                : SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Debug info
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.black26,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Debug: isLoading=$_isLoading, deliverables=${_deliverables.length}, users=${_users.length}',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // TEST: Simple title field to verify form is working
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round())),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Report Title',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _titleController,
-                              decoration: const InputDecoration(
-                                hintText: 'Enter report title...',
-                                hintStyle: TextStyle(color: Colors.white54),
-                                border: OutlineInputBorder(),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.white54),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: FlownetColors.electricBlue),
-                                ),
-                              ),
-                              style: const TextStyle(color: Colors.white),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter a report title';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      
                       // Status indicator for submitted reports
                       if (_existingReport?.status == ReportStatus.submitted) ...[
                         Container(
@@ -1006,8 +949,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     ],
                     
                     // Deliverable Selection
-                    // TEMPORARY: Bypass loading check for debugging
-                    _isLoadingDeliverables && _deliverables.isEmpty
+                    _isLoadingDeliverables
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.all(16.0),
@@ -1060,7 +1002,17 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                           )
                                         : DropdownButtonFormField<String>(
                                             isExpanded: true,
-                                            initialValue: _selectedDeliverableId,
+                                            // ignore: deprecated_member_use
+                                            value: _deliverables.any((d) {
+                                              try {
+                                                final id = d is Map ? d['id']?.toString() : d.id?.toString();
+                                                return id == _selectedDeliverableId;
+                                              } catch (_) {
+                                                return false;
+                                              }
+                                            })
+                                                ? _selectedDeliverableId
+                                                : null,
                                             decoration: const InputDecoration(
                                               labelText: 'Deliverable *',
                                               border: OutlineInputBorder(),
@@ -1156,7 +1108,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         // ignore: deprecated_member_use
-                        value: _preparedById,
+                        value: _users.any((u) => u.id == _preparedById) ? _preparedById : null,
                         decoration: const InputDecoration(
                           labelText: 'Prepared By *',
                           border: OutlineInputBorder(),
@@ -1391,6 +1343,188 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
               ),
             ),
         ),
+    );
+  }
+
+  Widget _buildEmptyDeliverablesState() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Warning message
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'No deliverables available. You can still create a report manually.',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Basic form fields
+            _buildBasicReportForm(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBasicReportForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title field
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round())),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Report Title',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  hintText: 'Enter report title...',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white54),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue),
+                  ),
+                ),
+                style: const TextStyle(color: Colors.white),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a report title';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Content field
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round())),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Report Content',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _contentController,
+                maxLines: 10,
+                decoration: const InputDecoration(
+                  hintText: 'Enter report content...',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white54),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: FlownetColors.electricBlue),
+                  ),
+                ),
+                style: const TextStyle(color: Colors.white),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter report content';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 24),
+        
+        // Action buttons
+        Row(
+          children: [
+            ElevatedButton(
+              onPressed: _isSaving ? null : () => _saveReport(false),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: FlownetColors.electricBlue,
+                foregroundColor: Colors.white,
+              ),
+              child: _isSaving 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Save Draft'),
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton(
+              onPressed: _isSaving ? null : () => _saveReport(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: _isSaving 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Submit Report'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

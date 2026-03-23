@@ -15,6 +15,7 @@ import 'package:khono/services/deliverable_service.dart';
 import 'package:khono/config/environment.dart';
 import 'package:khono/widgets/deliverable_card.dart';
 import 'package:khono/theme/flownet_theme.dart';
+import 'package:khono/services/deliverable_websocket_service.dart';
 
 class DeliverablesOverviewScreen extends StatefulWidget {
   const DeliverablesOverviewScreen({super.key});
@@ -29,6 +30,7 @@ class _DeliverablesOverviewScreenState
   final _backendService = BackendApiService();
   final _authService = AuthService();
   final DeliverableService _deliverableService = DeliverableService();
+  final _webSocketService = DeliverableWebSocketService();
   List<Deliverable> _deliverables = [];
   bool _isLoading = true;
   String? _error;
@@ -37,6 +39,7 @@ class _DeliverablesOverviewScreenState
   bool _isKanbanView = false;
   int _currentNavIndex = 0;
   bool _isDragging = false;
+  bool _hasRealTimeConnection = false;
   final Set<String> _expandedIds = {};
   final Set<String> _expandedAuditLogIds = {};
   final Set<String> _uploadingIds = {};
@@ -68,6 +71,56 @@ class _DeliverablesOverviewScreenState
   void initState() {
     super.initState();
     _loadDeliverables();
+    _initializeWebSocket();
+  }
+
+  void _initializeWebSocket() {
+    // Set up WebSocket listeners for real-time updates
+    _webSocketService.deliverableCreatedStream.listen((deliverable) {
+      if (mounted) {
+        setState(() {
+          // Add new deliverable to the list if not already present
+          if (!_deliverables.any((d) => d.id == deliverable.id)) {
+            _deliverables.insert(0, deliverable);
+            debugPrint(' Real-time: Added new deliverable: ${deliverable.title}');
+          }
+          _hasRealTimeConnection = true;
+        });
+      }
+    });
+
+    _webSocketService.deliverableUpdatedStream.listen((deliverable) {
+      if (mounted) {
+        setState(() {
+          // Update existing deliverable in the list
+          final index = _deliverables.indexWhere((d) => d.id == deliverable.id);
+          if (index != -1) {
+            _deliverables[index] = deliverable;
+            debugPrint(' Real-time: Updated deliverable: ${deliverable.title}');
+          }
+          _hasRealTimeConnection = true;
+        });
+      }
+    });
+
+    _webSocketService.deliverableDeletedStream.listen((data) {
+      if (mounted) {
+        setState(() {
+          // Remove deliverable from the list
+          _deliverables.removeWhere((d) => d.id == data['deliverableId']);
+          debugPrint(' Real-time: Removed deliverable: ${data['deliverableId']}');
+        });
+      }
+    });
+
+    // Connect to WebSocket
+    _webSocketService.connect();
+  }
+
+  @override
+  void dispose() {
+    _webSocketService.dispose();
+    super.dispose();
   }
 
   Future<void> _loadDeliverables() async {
@@ -411,6 +464,29 @@ class _DeliverablesOverviewScreenState
       appBar: AppBar(
         title: const Text('Deliverables'),
         actions: [
+          if (_hasRealTimeConnection)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.wifi, size: 16, color: Colors.green[800]),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Live Sync',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadDeliverables,

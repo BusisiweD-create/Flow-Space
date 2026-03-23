@@ -113,10 +113,10 @@ class _DeliverableSetupScreenState extends ConsumerState<DeliverableSetupScreen>
       // Show error message to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Failed to load users. Please check your connection and try again.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -499,20 +499,20 @@ sprintIds: _selectedSprints,
                 initialValue: _ownerId,
                 decoration: InputDecoration(
                   labelText: 'Owner',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                   prefixIcon: _isLoadingUsers 
-                    ? SizedBox(
+                    ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Icon(Icons.person),
+                    : const Icon(Icons.person),
                   helperText: _isLoadingUsers 
                     ? 'Loading users...' 
                     : 'Select the team member responsible for this deliverable',
                   suffixIcon: _users.isEmpty && !_isLoadingUsers
                     ? IconButton(
-                        icon: Icon(Icons.refresh),
+                        icon: const Icon(Icons.refresh),
                         onPressed: _loadUsers,
                         tooltip: 'Retry loading users',
                       )

@@ -180,11 +180,15 @@ app.use(cors({
       'http://localhost:3000',
       'http://localhost:8080',
       'http://localhost:8081',
+      'http://localhost:8000',
+      'http://localhost:8001',
+      'http://localhost:3001',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:8080',
       'http://127.0.0.1:8081',
       'http://127.0.0.1:8000',
-      'http://127.0.0.1:8001'
+      'http://127.0.0.1:8001',
+      'http://127.0.0.1:3001'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -3256,6 +3260,13 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
 
     console.log('✅ Deliverable created:', result.rows[0].title);
 
+    // Emit real-time event for deliverable creation
+    io.emit('deliverable:created', {
+      deliverable: result.rows[0],
+      createdBy: userId,
+      timestamp: new Date().toISOString()
+    });
+
     res.status(201).json({
       success: true,
       data: result.rows[0]
@@ -3346,6 +3357,14 @@ app.put('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Deliverable not found' });
     }
+
+    // Emit real-time event for deliverable update
+    io.emit('deliverable:updated', {
+      deliverable: result.rows[0],
+      updatedBy: userId,
+      timestamp: new Date().toISOString()
+    });
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     if (error && error.code === '42703') {
@@ -3598,6 +3617,48 @@ app.post('/api/v1/files/upload', authenticateToken, uploadAny.single('file'), as
     }
     const filename = req.file.filename;
     const url = `/uploads/${filename}`;
+    try {
+      const { description, tags, projectId, project_id, sprintId, sprint_id, deliverableId, deliverable_id } = req.body || {};
+      const wantsRepository =
+        (description && String(description).trim()) ||
+        (tags && String(tags).trim()) ||
+        (projectId || project_id) ||
+        (sprintId || sprint_id) ||
+        (deliverableId || deliverable_id);
+      if (wantsRepository) {
+        const file = req.file;
+        const fileExtension = path.extname(file.originalname).toLowerCase();
+        const fileType = fileExtension.substring(1);
+        const fileBuffer = fs.readFileSync(file.path);
+        const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+        const stats = fs.statSync(file.path);
+        const fileSize = stats.size;
+        await pool.query(
+          `
+          INSERT INTO repository_files (
+            project_id, filename, original_filename, file_name, file_path, file_type, file_size,
+            content_hash, uploaded_by, description, tags,
+            uploaded_at, last_modified, is_active
+          )
+          VALUES ($1, $2::text, $2::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `,
+          [
+            projectId || project_id || null,
+            file.originalname,
+            file.path,
+            fileType,
+            fileSize,
+            hash,
+            req.user.id,
+            description || '',
+            tags || '',
+            new Date().toISOString(),
+            new Date().toISOString(),
+            true,
+          ],
+        );
+      }
+    } catch (_) {}
     res.status(201).json({
       success: true,
       url,
@@ -4450,6 +4511,198 @@ app.get('/api/v1/approval-requests/:id', authenticateToken, async (req, res) => 
   } catch (error) {
     console.error('Get approval request error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/v1/approvals', authenticateToken, async (req, res) => {
+  try {
+    const { status, search, priority, category } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const page = parseInt(req.query.page || '1');
+    const limit = parseInt(req.query.limit || '100');
+    const offset = (page - 1) * limit;
+
+    let query = `
+      SELECT ar.*, u1.name as requested_by_name, u2.name as reviewed_by_name
+      FROM approval_requests ar
+      LEFT JOIN users u1 ON ar.requested_by = u1.id
+      LEFT JOIN users u2 ON ar.reviewed_by = u2.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+
+    if (userRole === 'teamMember') {
+      query += ` AND ar.requested_by = $${++paramCount}`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (ar.requested_by = $${++paramCount} OR ar.reviewed_by = $${paramCount})`;
+      params.push(userId);
+    }
+
+    if (status) {
+      query += ` AND ar.status = $${++paramCount}`;
+      params.push(status);
+    }
+    if (priority) {
+      query += ` AND ar.priority = $${++paramCount}`;
+      params.push(priority);
+    }
+    if (category) {
+      query += ` AND ar.category = $${++paramCount}`;
+      params.push(category);
+    }
+    if (search && String(search).trim()) {
+      query += ` AND (ar.title ILIKE $${++paramCount} OR ar.description ILIKE $${paramCount})`;
+      params.push(`%${String(search).trim()}%`);
+    }
+
+    query += ` ORDER BY ar.requested_at DESC NULLS LAST, ar.created_at DESC`;
+    query += ` LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get approvals error:', error);
+    if (error && error.code === '42P01') {
+      return res.json({ success: true, data: [] });
+    }
+    res.status(500).json({ success: false, error: 'Failed to fetch approvals' });
+  }
+});
+
+app.get('/api/v1/approvals/stats/metrics', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COUNT(*)::int as total,
+        COUNT(*) FILTER (WHERE status = 'pending')::int as pending,
+        COUNT(*) FILTER (WHERE status = 'approved')::int as approved,
+        COUNT(*) FILTER (WHERE status = 'rejected')::int as rejected
+      FROM approval_requests
+    `);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Get approval metrics error:', error);
+    if (error && error.code === '42P01') {
+      return res.json({ success: true, data: { total: 0, pending: 0, approved: 0, rejected: 0 } });
+    }
+    res.status(500).json({ success: false, error: 'Failed to fetch approval metrics' });
+  }
+});
+
+app.post('/api/v1/approvals', authenticateToken, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const title = body.title || body.deliverable_title || body.deliverableTitle || 'Approval Request';
+    const description = body.description || body.comments || '';
+    const priority = body.priority || 'medium';
+    const category = body.category || 'general';
+    const deliverableId = body.deliverable_id || body.deliverableId || null;
+    const deliverableTitle = body.deliverable_title || body.deliverableTitle || null;
+    const userId = req.user.id;
+
+    let createdRequest;
+    try {
+      const result = await pool.query(
+        `INSERT INTO approval_requests (title, description, status, priority, category, deliverable_id, deliverable_title, requested_by, requested_at, created_at, updated_at)
+         VALUES ($1, $2, 'pending', $3, $4, $5::uuid, $6, $7, NOW(), NOW(), NOW())
+         RETURNING *`,
+        [title, description, priority, category, deliverableId, deliverableTitle, userId],
+      );
+      createdRequest = result.rows[0];
+    } catch (e) {
+      const result = await pool.query(
+        `INSERT INTO approval_requests (title, description, status, priority, category, requested_by, requested_at, created_at, updated_at)
+         VALUES ($1, $2, 'pending', $3, $4, $5, NOW(), NOW(), NOW())
+         RETURNING *`,
+        [title, description, priority, category, userId],
+      );
+      createdRequest = result.rows[0];
+    }
+
+    io.emit('approval-request:changed', { type: 'created', id: createdRequest.id, status: createdRequest.status });
+    res.json({ success: true, data: createdRequest });
+  } catch (error) {
+    console.error('Create approval error:', error);
+    if (error && error.code === '42P01') {
+      return res.status(503).json({ success: false, error: 'Approval requests feature is not available (database table missing)' });
+    }
+    res.status(500).json({ success: false, error: 'Failed to create approval' });
+  }
+});
+
+app.get('/api/v1/approvals/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `
+        SELECT ar.*, u1.name as requested_by_name, u2.name as reviewed_by_name
+        FROM approval_requests ar
+        LEFT JOIN users u1 ON ar.requested_by = u1.id
+        LEFT JOIN users u2 ON ar.reviewed_by = u2.id
+        WHERE ar.id = $1
+      `,
+      [id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Approval request not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Get approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch approval' });
+  }
+});
+
+app.put('/api/v1/approvals/:id/approve', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const review_reason = req.body?.review_reason || req.body?.comments || null;
+    const result = await pool.query(
+      `UPDATE approval_requests SET status = 'approved', review_reason = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [review_reason, userId, id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Approval request not found' });
+    const updatedRequest = result.rows[0];
+    io.emit('approval-request:changed', { type: 'updated', id: updatedRequest.id, status: updatedRequest.status });
+    res.json({ success: true, data: updatedRequest });
+  } catch (error) {
+    console.error('Approve approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to approve approval' });
+  }
+});
+
+app.put('/api/v1/approvals/:id/reject', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const review_reason = req.body?.review_reason || req.body?.comments || null;
+    const result = await pool.query(
+      `UPDATE approval_requests SET status = 'rejected', review_reason = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [review_reason, userId, id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Approval request not found' });
+    const updatedRequest = result.rows[0];
+    io.emit('approval-request:changed', { type: 'updated', id: updatedRequest.id, status: updatedRequest.status });
+    res.json({ success: true, data: updatedRequest });
+  } catch (error) {
+    console.error('Reject approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reject approval' });
+  }
+});
+
+app.put('/api/v1/approvals/:id/remind', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(`UPDATE approval_requests SET updated_at = NOW() WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remind approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to send reminder' });
   }
 });
 
@@ -5407,17 +5660,41 @@ app.post('/api/v1/sign-off-reports/:id/signature', authenticateToken, async (req
     const userId = req.user.id;
     const userRole = req.user.role;
 
+    console.log('🔍 Debug - Signature request:');
+    console.log('   Report ID:', id);
+    console.log('   User ID:', userId);
+    console.log('   User Role:', userRole);
+    console.log('   Signature Data length:', signatureData?.length || 0);
+    console.log('   Signature Type:', signatureType);
+    console.log('   IP Address:', ipAddress);
+    console.log('   User Agent:', userAgent);
+
+    // Validate required fields
+    if (!signatureData) {
+      console.log('❌ Missing signatureData');
+      return res.status(400).json({ success: false, error: 'signatureData is required' });
+    }
+
+    if (!id) {
+      console.log('❌ Missing report ID');
+      return res.status(400).json({ success: false, error: 'Report ID is required' });
+    }
+
     // Verify report exists
     const reportCheck = await pool.query(`
       SELECT * FROM sign_off_reports WHERE id = $1::uuid
     `, [id]);
 
     if (reportCheck.rows.length === 0) {
+      console.log('❌ Report not found:', id);
       return res.status(404).json({ success: false, error: 'Report not found' });
     }
 
+    console.log('✅ Report found, proceeding with signature storage');
+
     // Generate signature hash
     const signatureHash = crypto.createHash('sha256').update(signatureData).digest('hex');
+    console.log('🔐 Generated signature hash:', signatureHash.substring(0, 20) + '...');
 
     // Store signature in database
     const result = await pool.query(`
@@ -5426,21 +5703,15 @@ app.post('/api/v1/sign-off-reports/:id/signature', authenticateToken, async (req
         signature_data, signature_hash, ip_address, user_agent, 
         signed_at, created_at
       )
-      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-      ON CONFLICT (report_id, signer_id, signer_role) 
-      DO UPDATE SET 
-        signature_data = EXCLUDED.signature_data,
-        signature_hash = EXCLUDED.signature_hash,
-        signature_type = EXCLUDED.signature_type,
-        ip_address = EXCLUDED.ip_address,
-        user_agent = EXCLUDED.user_agent,
-        signed_at = NOW()
+      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::inet, $8, NOW(), NOW())
       RETURNING *
-    `, [id, userId, userRole, signatureType || 'manual', signatureData, signatureHash, ipAddress, userAgent]);
+    `, [id, userId, userRole, signatureType || 'manual', signatureData, signatureHash, ipAddress || '127.0.0.1', userAgent || 'Unknown']);
 
+    console.log('✅ Signature stored successfully, ID:', result.rows[0].id);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error storing digital signature:', error);
+    console.error('❌ Error storing digital signature:', error);
+    console.error('❌ Stack trace:', error.stack);
     res.status(500).json({ success: false, error: 'Failed to store signature' });
   }
 });
@@ -7429,12 +7700,21 @@ app.delete('/api/v1/projects/:projectId/deliverables/:deliverableId', authentica
       });
     }
     
-    // Unlink the deliverable (set project_id to null)
+    // Unlink deliverable (set project_id to null)
     await pool.query(`
       UPDATE deliverables 
       SET project_id = NULL, updated_at = NOW()
       WHERE id = $1
     `, [deliverableId]);
+    
+    // Emit real-time event for deliverable update
+    io.emit('deliverable:updated', {
+      deliverableId: deliverableId,
+      projectId: projectId,
+      action: 'unlinked_from_project',
+      updatedBy: userId,
+      timestamp: new Date().toISOString()
+    });
     
     // Log the action
     await pool.query(`

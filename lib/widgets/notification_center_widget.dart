@@ -30,7 +30,7 @@ class _NotificationCenterWidgetState extends State<NotificationCenterWidget> {
 
   int _unreadCount = 0;
   bool _isLoading = true;
-  bool _disposed = false;
+  final bool _disposed = false;
   final Set<String> _processedNotificationIds = {}; // Prevent duplicates
 
   @override

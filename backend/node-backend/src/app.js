@@ -297,7 +297,7 @@ app.use('*', (req, res) => {
 });
 
 // Database connection and server startup
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 3001;
 
 async function startServer() {
   try {
@@ -307,6 +307,16 @@ async function startServer() {
     console.log('✅ Database connection established successfully');
     if (!syncOk) {
       console.warn('⚠️ Database sync failed; continuing without alter sync');
+    }
+
+    try {
+      if (sequelize.getDialect() === 'postgres') {
+        await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
+        await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id UUID");
+        await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by UUID");
+      }
+    } catch (e) {
+      console.warn('⚠️ Unable to ensure sprints.created_by column; continuing', e?.message || e);
     }
     
     // Sync database (use with caution in production)
