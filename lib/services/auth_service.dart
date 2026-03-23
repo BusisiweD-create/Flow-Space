@@ -203,6 +203,7 @@ class AuthService {
   bool get isDeliveryLead => _currentUser?.isDeliveryLead ?? false;
   bool get isClientReviewer => _currentUser?.isClientReviewer ?? false;
   bool get isSystemAdmin => _currentUser?.isSystemAdmin ?? false;
+  bool get isStakeholder => _currentUser?.isStakeholder ?? false;
   bool get isClient => _currentUser?.role == UserRole.client;
 
   bool _isClientRole(UserRole role) {

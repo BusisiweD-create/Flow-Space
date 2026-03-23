@@ -94,28 +94,54 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
     try {
       debugPrint('🔍 Loading project members for project: ${widget.projectId}');
       
-      // Load real project members from the project data
-      if (_project != null && _project!['members'] != null) {
-        debugPrint('📊 Found ${(_project!['members'] as List).length} members in project data');
-        debugPrint('📋 Raw members data: ${_project!['members']}');
+      // Use the dedicated getProjectMembers endpoint
+      final backendService = BackendApiService();
+      final response = await backendService.getProjectMembers(widget.projectId);
+      
+      debugPrint('📡 Members API response success: ${response.isSuccess}');
+      
+      if (response.isSuccess && response.data != null) {
+        final membersData = response.data is List 
+          ? response.data as List
+          : [response.data];
+        
+        debugPrint('📊 Found ${membersData.length} members from API');
+        debugPrint('📋 Raw members data: $membersData');
         
         setState(() {
-          _projectMembers = (_project!['members'] as List).map((member) {
+          _projectMembers = membersData.map((member) {
             debugPrint('👤 Processing member: $member');
             return {
-              'id': member['userId'] ?? member['user_id'],
-              'name': member['userName'] ?? member['user_name'] ?? 'Unknown',
+              'id': member['user_id'] ?? member['id'],
+              'name': member['user_name'] ?? member['name'] ?? 'Unknown',
               'role': member['role'] ?? 'member',
-              'email': member['userEmail'] ?? member['user_email'] ?? '',
-              'avatar': null,
+              'email': member['user_email'] ?? member['email'] ?? '',
+              'avatar': member['user_avatar'] ?? member['avatar_url'],
             };
           }).toList();
         });
         
         debugPrint('✅ Processed ${_projectMembers.length} members for display');
       } else {
-        debugPrint('⚠️ No members found in project data');
-        debugPrint('📋 Available project keys: ${_project?.keys.toList()}');
+        debugPrint('⚠️ Failed to load members: ${response.error}');
+        // Fallback to project data if available
+        if (_project != null && _project!['members'] != null) {
+          debugPrint('🔄 Falling back to project data members');
+          setState(() {
+            _projectMembers = (_project!['members'] as List).map((member) {
+              return {
+                'id': member['userId'] ?? member['user_id'],
+                'name': member['userName'] ?? member['user_name'] ?? 'Unknown',
+                'role': member['role'] ?? 'member',
+                'email': member['userEmail'] ?? member['user_email'] ?? '',
+                'avatar': null,
+              };
+            }).toList();
+          });
+        } else {
+          debugPrint('⚠️ No members found in project data either');
+          debugPrint('📋 Available project keys: ${_project?.keys.toList()}');
+        }
       }
     } catch (e) {
       debugPrint('❌ Error loading project members: $e');

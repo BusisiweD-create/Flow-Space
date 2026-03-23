@@ -428,9 +428,12 @@ async function initializeDatabase() {
         ALTER TABLE deliverables ADD CONSTRAINT deliverables_status_check
         CHECK (status IN (
           'draft', 'Draft', 'DRAFT',
+          'todo', 'To Do', 'TODO',
           'pending', 'submitted', 'pending_review',
+          'in_review', 'In Review', 'IN_REVIEW',
           'approved', 'change_requested', 'rejected', 'cancelled',
-          'active', 'completed', 'in_progress'
+          'active', 'completed', 'in_progress', 'In Progress', 'IN_PROGRESS',
+          'signed_off', 'Signed Off', 'SIGNED_OFF'
         ));
       `);
       console.log('✅ Ensured deliverables_status_check allows draft, Draft, pending, approved, change_requested, etc.');
@@ -3364,7 +3367,7 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
       query += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
       params.push(userId);
     }
-    // deliveryLead, clientReviewer and other roles can see all deliverables
+    // deliveryLead, clientReviewer, systemAdmin, stakeholder and other roles can see all deliverables
 
     query += ' ORDER BY d.created_at DESC';
 
@@ -3474,7 +3477,7 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
       description != null && String(description).trim() !== '' ? String(description).trim() : null,
       dodVal,
       priority || 'Medium',
-      status || 'Draft',
+      status || 'todo',
       due_date ? new Date(due_date) : null,
       assignTo,
       sprint_id || null,
@@ -3500,6 +3503,27 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
     }
 
     console.log('✅ Deliverable created:', result.rows[0].title);
+
+    // Create notification for deliverable creation
+    try {
+      const notificationId = uuidv4();
+      await pool.query(`
+        INSERT INTO notifications (
+          id, title, message, type, user_id, is_read, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, false, NOW())
+      `, [
+        notificationId,
+        'New Deliverable Created',
+        `A new deliverable "${result.rows[0].title}" has been created`,
+        'deliverable_created',
+        userId,
+        false
+      ]);
+      console.log('✅ Notification created for deliverable creation');
+    } catch (notifError) {
+      console.warn('⚠️ Failed to create notification for deliverable creation:', notifError?.message);
+    }
 
     // Emit real-time event for deliverable creation
     io.emit('deliverable:created', {
@@ -3640,7 +3664,7 @@ app.put('/api/v1/deliverables/:id/updateStatus', authenticateToken, async (req, 
       RETURNING *
     `;
     
-    const result = await pool.query(query, [normalizedStatus, id]);
+    const result = await pool.query(query, [status, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Deliverable not found' });
@@ -3667,7 +3691,28 @@ app.put('/api/v1/deliverables/:id/updateStatus', authenticateToken, async (req, 
       console.warn('⚠️ Failed to emit real-time update:', socketError.message);
     }
 
-    console.log(`✅ Deliverable ${id} status updated to: ${normalizedStatus} by user ${userId}`);
+    console.log(`✅ Deliverable ${id} status updated to: ${status} by user ${userId}`);
+
+    // Create notification for deliverable status update
+    try {
+      const notificationId = uuidv4();
+      await pool.query(`
+        INSERT INTO notifications (
+          id, title, message, type, user_id, is_read, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, false, NOW())
+      `, [
+        notificationId,
+        'Deliverable Status Updated',
+        `Deliverable "${updatedDeliverable.title}" status changed to ${status}`,
+        'deliverable_updated',
+        userId,
+        false
+      ]);
+      console.log('✅ Notification created for deliverable status update');
+    } catch (notifError) {
+      console.warn('⚠️ Failed to create notification for deliverable status update:', notifError?.message);
+    }
 
     res.json({
       success: true,

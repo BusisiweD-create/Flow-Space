@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/realtime_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/api_service.dart';
+import '../services/user_data_service.dart';
 import '../services/sign_off_report_service.dart';
 import '../services/notification_service.dart';
 import '../models/notification_item.dart';
@@ -42,11 +43,38 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   List<Map<String, dynamic>> _auditLogs = [];
   List<Map<String, dynamic>> _filteredAuditLogs = [];
   final BackendApiService _backendService = BackendApiService();
+  final UserDataService _userDataService = UserDataService();
   List<Map<String, dynamic>> _pendingReports = [];
   bool _isLoadingPendingReports = false;
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
+  
+  // Cache for user names to avoid repeated API calls
+  final Map<String, String> _userNamesCache = {};
+
+  // Method to get user name by ID with caching
+  Future<String> _getUserNameById(String userId) async {
+    // Check cache first
+    if (_userNamesCache.containsKey(userId)) {
+      return _userNamesCache[userId]!;
+    }
+
+    try {
+      final user = await _userDataService.getUserById(userId);
+      if (user != null) {
+        final userName = user.name.isNotEmpty ? user.name : user.email;
+        _userNamesCache[userId] = userName;
+        return userName;
+      }
+    } catch (e) {
+      debugPrint('Error fetching user name for $userId: $e');
+    }
+
+    // Fallback to showing the ID
+    _userNamesCache[userId] = 'User $userId';
+    return 'User $userId';
+  }
 
   // Missing variables
   String _selectedChartType = 'velocity';
@@ -121,10 +149,34 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       final items = await ApiService.getDeliverables();
       _dashboardDeliverables = items;
 
+      // Pre-populate user cache for better performance
+      await _preloadUserNames(items);
+
       _computeTeamMetrics();
     } finally {
       if (mounted) setState(() => _isLoadingDashboardDeliverables = false);
     }
+  }
+
+  // Preload user names for all deliverables to avoid multiple API calls
+  Future<void> _preloadUserNames(List<Map<String, dynamic>> deliverables) async {
+    final Set<String> userIds = {};
+    
+    for (final deliverable in deliverables) {
+      final ownerId = _getOwnerId(deliverable);
+      final assignedToId = deliverable['assigned_to']?.toString() ?? deliverable['assignedTo']?.toString();
+      
+      if (ownerId != null && ownerId.isNotEmpty) {
+        userIds.add(ownerId);
+      }
+      if (assignedToId != null && assignedToId.isNotEmpty) {
+        userIds.add(assignedToId);
+      }
+    }
+
+    // Batch load user names
+    final futures = userIds.map((userId) => _getUserNameById(userId));
+    await Future.wait(futures);
   }
 
   Future<void> _loadDashboardProjects() async {
@@ -415,6 +467,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _getOwnerName(Map<String, dynamic> data) {
     if (data['ownerName'] != null) return data['ownerName'].toString();
     if (data['owner_name'] != null) return data['owner_name'].toString();
+    
+    // Map backend field names to frontend expectations
+    if (data['created_by_name'] != null) return data['created_by_name'].toString();
 
     if (data['owner'] != null && data['owner'] is Map) {
       final owner = data['owner'];
@@ -431,6 +486,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _getOwnerId(Map<String, dynamic> data) {
     return data['ownerId']?.toString() ??
         data['owner_id']?.toString() ??
+        // Map backend field names to frontend expectations
+        data['created_by']?.toString() ??
         (data['owner'] != null && data['owner'] is Map
             ? data['owner']['id']?.toString()
             : null);
@@ -1772,11 +1829,56 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _ownerChip(String? ownerName, String? ownerId) {
-    final label = (ownerName != null && ownerName.isNotEmpty)
-        ? ownerName
-        : (ownerId != null && ownerId.isNotEmpty
-            ? 'Owner $ownerId'
-            : 'Unassigned');
+    // If we have a name, use it
+    if (ownerName != null && ownerName.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.purple.withValues(alpha: 0.12),
+          border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person_outline, size: 14),
+            const SizedBox(width: 4),
+            Text(ownerName),
+          ],
+        ),
+      );
+    }
+
+    // If we only have an ID, try to resolve it asynchronously
+    if (ownerId != null && ownerId.isNotEmpty) {
+      return FutureBuilder<String>(
+        future: _getUserNameById(ownerId),
+        builder: (context, snapshot) {
+          final label = snapshot.hasData 
+              ? snapshot.data! 
+              : 'Loading...';
+          
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.purple.withValues(alpha: 0.12),
+              border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person_outline, size: 14),
+                const SizedBox(width: 4),
+                Text(label),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    // Fallback to Unassigned
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -1784,12 +1886,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.person_outline, size: 14),
-          const SizedBox(width: 4),
-          Text(label),
+          Icon(Icons.person_outline, size: 14),
+          SizedBox(width: 4),
+          Text('Unassigned'),
         ],
       ),
     );

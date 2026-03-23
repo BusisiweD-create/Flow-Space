@@ -149,6 +149,17 @@ class _DeliverablesOverviewScreenState
                     safeMap['deliverableName'] ??
                     'Untitled Deliverable';
               }
+              
+              // Map backend field names to frontend expectations
+              if (safeMap.containsKey('created_by_name')) {
+                safeMap['ownerName'] = safeMap['created_by_name'];
+                safeMap['ownerId'] = safeMap['created_by']; // Map ownerName to ownerId
+              }
+              if (safeMap.containsKey('assigned_to_name')) {
+                safeMap['assignedToName'] = safeMap['assigned_to_name'];
+                safeMap['assignedTo'] = safeMap['assigned_to']; // Map assignedToName to assignedTo
+              }
+              
               parsedDeliverables.add(Deliverable.fromJson(safeMap));
             }
           } catch (e) {
@@ -158,10 +169,11 @@ class _DeliverablesOverviewScreenState
 
         // Apply RBAC filtering
         var filteredList = parsedDeliverables;
-        // If user is ONLY a team member (not lead/admin), show only their deliverables
+        // Only filter for basic team members - admins, leads, and stakeholders can see all
         if (_authService.isTeamMember &&
             !_authService.isDeliveryLead &&
-            !_authService.isSystemAdmin) {
+            !_authService.isSystemAdmin &&
+            !_authService.isStakeholder) {
           final userId = _authService.currentUser?.id;
           if (userId != null) {
             filteredList =
