@@ -202,17 +202,17 @@ class PermissionManager {
     'view_sprints': Permission(
       name: 'View Sprints',
       description: 'View sprint lists and boards',
-      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin],
+      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin, UserRole.projectManager, UserRole.scrumMaster],
     ),
     'update_tickets': Permission(
       name: 'Update Tickets',
       description: 'Move ticket progress status',
-      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin],
+      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin, UserRole.scrumMaster],
     ),
     'update_sprint_status': Permission(
       name: 'Update Sprint Status',
       description: 'Change sprint progress status',
-      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin],
+      allowedRoles: [UserRole.teamMember, UserRole.deliveryLead, UserRole.systemAdmin, UserRole.scrumMaster],
     ),
   };
 
