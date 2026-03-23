@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/settings_service.dart';
 import '../theme/flownet_theme.dart';
+<<<<<<< HEAD
 import '../widgets/glass_card.dart';
+=======
+import '../widgets/app_scaffold.dart';
+>>>>>>> origin/S13
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -54,6 +58,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
     }
 
+<<<<<<< HEAD
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -90,6 +95,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       await SettingsService.saveDarkMode(value);
                       setState(() => _darkMode = value);
                     },
+=======
+    return AppScaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Settings',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: FlownetColors.pureWhite,
+                    fontWeight: FontWeight.bold,
+>>>>>>> origin/S13
                   ),
                   ListTile(
                     title: const Text('Language'),
@@ -159,22 +188,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _showSyncFrequencyDialog() async {
-    final frequencies = ['Hourly', 'Every 6 Hours', 'Daily', 'Weekly', 'Manual'];
+    final frequencies = [
+      'Hourly',
+      'Every 6 Hours',
+      'Daily',
+      'Weekly',
+      'Manual'
+    ];
     String? selected = _syncFrequency;
     final result = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           backgroundColor: FlownetColors.graphiteGray,
-          title: const Text('Select Sync Frequency', style: TextStyle(color: FlownetColors.pureWhite)),
+          title: const Text('Select Sync Frequency',
+              style: TextStyle(color: FlownetColors.pureWhite)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: frequencies.map((freq) {
               return ListTile(
-                title: Text(freq, style: const TextStyle(color: FlownetColors.pureWhite)),
+                title: Text(freq,
+                    style: const TextStyle(color: FlownetColors.pureWhite)),
                 leading: Icon(
-                  selected == freq ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                  color: selected == freq ? FlownetColors.electricBlue : FlownetColors.coolGray,
+                  selected == freq
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: selected == freq
+                      ? FlownetColors.electricBlue
+                      : FlownetColors.coolGray,
                 ),
                 onTap: () {
                   setState(() => selected = freq);
@@ -200,15 +241,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           backgroundColor: FlownetColors.graphiteGray,
-          title: const Text('Select Language', style: TextStyle(color: FlownetColors.pureWhite)),
+          title: const Text('Select Language',
+              style: TextStyle(color: FlownetColors.pureWhite)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: languages.map((lang) {
               return ListTile(
-                title: Text(lang, style: const TextStyle(color: FlownetColors.pureWhite)),
+                title: Text(lang,
+                    style: const TextStyle(color: FlownetColors.pureWhite)),
                 leading: Icon(
-                  selected == lang ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                  color: selected == lang ? FlownetColors.electricBlue : FlownetColors.coolGray,
+                  selected == lang
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: selected == lang
+                      ? FlownetColors.electricBlue
+                      : FlownetColors.coolGray,
                 ),
                 onTap: () {
                   setState(() => selected = lang);
@@ -226,7 +273,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Widget _buildSection({required String title, required IconData icon, required List<Widget> children}) {
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -278,4 +329,3 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 }
-

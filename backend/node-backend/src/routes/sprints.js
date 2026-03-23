@@ -190,6 +190,32 @@ router.put('/:id', async (req, res) => {
 });
 
 /**
+ * @route PUT /api/sprints/:id/status
+ * @desc Update sprint status (compatibility endpoint)
+ * @access Private
+ */
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const nextStatus = req.body?.status ?? req.body?.state ?? req.body?.newStatus;
+    if (nextStatus == null || String(nextStatus).trim() === '') {
+      return res.status(400).json({ error: 'status is required' });
+    }
+
+    const sprint = await Sprint.findByPk(id);
+    if (!sprint) {
+      return res.status(404).json({ error: 'Sprint not found' });
+    }
+
+    await sprint.update({ status: nextStatus });
+    res.json({ success: true, data: sprint });
+  } catch (error) {
+    console.error('Error updating sprint status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * @route DELETE /api/sprints/:id
  * @desc Delete a sprint
  * @access Private

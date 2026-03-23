@@ -123,6 +123,7 @@ router.get('/:id', async (req, res) => {
 
     // Map snake_case to camelCase for critical fields
     projectJSON.ownerId = projectJSON.owner_id;
+    projectJSON.clientOwnerName = projectJSON.client_owner_name;
     
     res.json({
       success: true,
@@ -159,6 +160,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const projectData = {
       ...req.body,
       client_name: req.body.clientName || req.body.client_name,
+      client_owner_name: req.body.clientOwnerName || req.body.client_owner_name,
       start_date: req.body.startDate || req.body.start_date,
       end_date: req.body.endDate || req.body.end_date,
       project_type: req.body.projectType || req.body.project_type,
@@ -360,6 +362,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       name: req.body.name,
       description: req.body.description,
       client_name: req.body.clientName || req.body.client_name,
+      client_owner_name: req.body.clientOwnerName || req.body.client_owner_name,
       start_date: req.body.startDate || req.body.start_date,
       end_date: req.body.endDate || req.body.end_date,
       project_type: req.body.projectType || req.body.project_type,

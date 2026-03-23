@@ -29,42 +29,49 @@ if (useSqlite) {
     }
   });
 } else {
-  if (!hasPostgresEnv && !hasDatabaseUrl) {
-    throw new Error('Missing PostgreSQL env vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD');
-  }
+  const enableSsl = NODE_ENV === 'production';
+  const dialectOptions = enableSsl
+    ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      }
+    : {};
 
-  const dialectOptions = NODE_ENV === 'production' ? {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
+  if (hasDatabaseUrl) {
+    sequelize = new Sequelize(DATABASE_URL, {
+      dialect: 'postgres',
+      logging: NODE_ENV === 'development' ? console.log : false,
+      pool: {
+        max: 10,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      dialectOptions
+    });
+  } else {
+    if (!hasPostgresEnv) {
+      throw new Error(
+        'Missing PostgreSQL env vars: DATABASE_URL or DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD'
+      );
     }
-  } : {};
 
-  sequelize = hasDatabaseUrl
-    ? new Sequelize(DATABASE_URL, {
-        dialect: 'postgres',
-        logging: NODE_ENV === 'development' ? console.log : false,
-        pool: {
-          max: 10,
-          min: 0,
-          acquire: 30000,
-          idle: 10000
-        },
-        dialectOptions
-      })
-    : new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
-        host: DB_HOST,
-        port: parseInt(DB_PORT, 10),
-        dialect: 'postgres',
-        logging: NODE_ENV === 'development' ? console.log : false,
-        pool: {
-          max: 10,
-          min: 0,
-          acquire: 30000,
-          idle: 10000
-        },
-        dialectOptions
-      });
+    sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
+      host: DB_HOST,
+      port: parseInt(DB_PORT, 10),
+      dialect: 'postgres',
+      logging: NODE_ENV === 'development' ? console.log : false,
+      pool: {
+        max: 10,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      dialectOptions
+    });
+  }
 }
 
 // Test database connection

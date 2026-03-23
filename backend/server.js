@@ -22,6 +22,30 @@ import pool from './dbPool.js'; // your Postgres pool connection
 import SendGridEmailService from './sendgridEmailService.js';
 import EmailService from './emailService.js';
 
+// OpenAI initialization
+let openai = null;
+let openaiInitialized = false;
+
+async function initializeOpenAI() {
+  if (openaiInitialized) return;
+  
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const { default: OpenAI } = await import('openai');
+      openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+      console.log('✅ OpenAI initialized');
+    } catch (error) {
+      console.warn('⚠️ OpenAI not available:', error.message);
+    }
+  } else {
+    console.log('ℹ️ OpenAI API key not provided - using local analysis only');
+  }
+  
+  openaiInitialized = true;
+}
+
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
@@ -558,16 +582,110 @@ async function initializeDatabase() {
 
 initializeDatabase();
 
+// Email validation function
+function validateEmail(email) {
+  console.log(`🔍 Validating email: ${email}`);
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    console.log(`❌ Invalid email format: ${email}`);
+    return { valid: false, error: 'Invalid email format' };
+  }
+  
+  const [username, domain] = email.toLowerCase().split('@');
+  console.log(`🔍 Checking username: ${username}, domain: ${domain}`);
+  
+  // Check for common disposable email domains
+  const disposableDomains = [
+    '10minutemail.com', 'tempmail.org', 'guerrillamail.com', 'mailinator.com',
+    'yopmail.com', 'temp-mail.org', 'throwaway.email', 'maildrop.cc',
+    'fakeemail.com', 'tempemail.org', 'sharklasers.com', 'getairmail.com'
+  ];
+  
+  if (disposableDomains.some(disposable => domain.includes(disposable))) {
+    console.log(`❌ Disposable email domain blocked: ${domain}`);
+    return { valid: false, error: 'Disposable email addresses are not allowed' };
+  }
+  
+  // Check for valid domain structure (at least one dot, no consecutive dots)
+  if (domain.includes('..') || !domain.includes('.')) {
+    console.log(`❌ Invalid domain structure: ${domain}`);
+    return { valid: false, error: 'Invalid email domain' };
+  }
+  
+  // Basic MX record validation would require external library, so we'll do basic checks
+  const validDomainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!validDomainRegex.test(domain)) {
+    console.log(`❌ Invalid domain format: ${domain}`);
+    return { valid: false, error: 'Invalid email domain format' };
+  }
+  
+  // Additional checks for obviously fake domains
+  const suspiciousPatterns = [
+    /^[a-z]+\d+/,  // domains like test123, abc456
+    /\d{2,}$/,    // domains ending with numbers
+    /^(test|fake|dummy|example|invalid|nonexistent)/i  // obvious fake domains
+  ];
+  
+  if (suspiciousPatterns.some(pattern => pattern.test(domain))) {
+    console.log(`❌ Suspicious domain pattern: ${domain}`);
+    return { valid: false, error: 'This email domain appears to be invalid or non-existent' };
+  }
+  
+  // Enhanced username validation - detect fake patterns but allow legitimate ones
+  const suspiciousUsernamePatterns = [
+    /^(test|fake|dummy|sample|example|demo|user|admin|support|info|contact)/i,  // generic usernames
+    /^(test|demo|sample)\d*@/i,  // test/demo accounts with numbers
+    /^(no|not|fake|invalid|nonexistent|random|temp|temporal)/i,  // suspicious words
+    /^[a-z]{1,2}\d{4,}$/,  // very short usernames with many numbers (like ab1234)
+    /^[a-z]{25,}$/,  // unusually long usernames
+    /^\d{5,}@/,  // usernames that are mostly numbers
+  ];
+  
+  if (suspiciousUsernamePatterns.some(pattern => pattern.test(username))) {
+    console.log(`❌ Suspicious username pattern: ${username}@${domain}`);
+    return { valid: false, error: 'This email address appears to be invalid or non-existent' };
+  }
+  
+  // Check for obviously fake combinations
+  const fakeCombinations = [
+    /^(test|fake|dummy|sample|example|demo)@(gmail|yahoo|outlook|hotmail)\.com$/i,
+    /^(user|admin|support|info|contact)@(gmail|yahoo|outlook|hotmail)\.com$/i,
+    /^[a-z]{1,2}\d{4,}@(gmail|yahoo|outlook|hotmail)\.com$/i,  // Only block very short usernames with many numbers
+  ];
+  
+  if (fakeCombinations.some(pattern => pattern.test(email))) {
+    console.log(`❌ Fake combination detected: ${email}`);
+    return { valid: false, error: 'This email address appears to be invalid or non-existent' };
+  }
+  
+  console.log(`✅ Email validation passed: ${email}`);
+  return { valid: true };
+}
+
 // Auth routes
 // Register endpoint (matching frontend expectations)
 app.post('/api/v1/auth/register', async (req, res) => {
+  console.log('📝 REGISTER endpoint called');
   try {
     const { email, password, firstName, lastName, company, role } = req.body;
+    
+    console.log(`📧 Register request for email: ${email}`);
     
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ 
         success: false,
         error: 'Email, password, first name, and last name are required' 
+      });
+    }
+    
+    // Validate email format and domain
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      console.log(`❌ Email validation failed: ${emailValidation.error}`);
+      return res.status(400).json({
+        success: false,
+        error: emailValidation.error
       });
     }
     
@@ -784,13 +902,26 @@ app.post('/api/v1/auth/verify-email', async (req, res) => {
 });
 
 app.post('/api/v1/auth/signup', async (req, res) => {
+  console.log('📝 SIGNUP endpoint called');
   try {
     const { email, password, firstName, lastName, company, role } = req.body;
+    
+    console.log(`📧 Signup request for email: ${email}`);
     
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ 
         success: false,
         error: 'Email, password, first name, and last name are required' 
+      });
+    }
+    
+    // Validate email format and domain
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      console.log(`❌ Email validation failed: ${emailValidation.error}`);
+      return res.status(400).json({
+        success: false,
+        error: emailValidation.error
       });
     }
     
@@ -812,12 +943,12 @@ app.post('/api/v1/auth/signup', async (req, res) => {
     const userId = uuidv4();
     const fullName = `${firstName} ${lastName}`;
     
-    // Insert user into users table
+    // Insert user into users table with email verification fields
     const result = await pool.query(
-      `INSERT INTO users (id, email, password_hash, name, role, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, email, name, role, created_at`,
-      [userId, email, hashedPassword, fullName, role || 'user', true, new Date().toISOString(), new Date().toISOString()]
+      `INSERT INTO users (id, email, password_hash, name, role, is_active, email_verified, email_verified_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, email, name, role, created_at, is_active, email_verified`,
+      [userId, email, hashedPassword, fullName, role || 'user', true, true, new Date().toISOString(), new Date().toISOString(), new Date().toISOString()]
     );
     
     const user = result.rows[0];
@@ -837,7 +968,7 @@ app.post('/api/v1/auth/signup', async (req, res) => {
     
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: 'Registration successful - you can now login',
       data: {
         user: {
           id: user.id,
@@ -845,7 +976,8 @@ app.post('/api/v1/auth/signup', async (req, res) => {
           name: user.name,
           role: user.role,
           createdAt: user.created_at,
-          isActive: user.is_active
+          isActive: user.is_active,
+          emailVerified: user.email_verified
         },
         token: token,
         token_type: 'Bearer'
@@ -885,7 +1017,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
       console.log('Login schema error (first try):', colErr.message);
       if (colErr?.message && /column.*does not exist/i.test(colErr.message)) {
         result = await pool.query(
-          'SELECT id, email, hashed_password, name, role, created_at, is_active FROM users WHERE email = $1',
+          'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
           [email]
         );
       } else {
@@ -1348,7 +1480,7 @@ app.get('/api/v1/dashboard', authenticateToken, async (req, res) => {
       const deliverablesParams = [];
 
       if (userRole === 'teamMember') {
-        deliverablesQuery += ' WHERE assigned_to = $1 OR created_by = $1';
+        deliverablesQuery += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
         deliverablesParams.push(userId);
       }
 
@@ -1469,46 +1601,102 @@ app.get('/api/v1/audit-logs', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
-    const { limit = 50, offset = 0 } = req.query;
+    const { limit = 50, offset = 0, action, user_id: userIdFilter } = req.query;
 
-    let query = `
-      SELECT 
-        al.id,
-        al.user_id,
-        al.entity_type,
-        al.entity_id,
-        al.action,
-        al.description,
-        al.old_values,
-        al.new_values,
-        al.ip_address,
-        al.user_agent,
-        al.created_at,
-        u.name as user_name,
-        u.email as user_email
-      FROM activity_logs al
-      LEFT JOIN users u ON al.user_id = u.id
-      ORDER BY al.created_at DESC
-      LIMIT $1 OFFSET $2
-    `;
+    // Check if audit_logs table exists, fallback to activity_logs
+    let useAuditLogs = false;
+    try {
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'audit_logs'
+        )
+      `);
+      useAuditLogs = tableCheck.rows[0].exists;
+    } catch (error) {
+      console.warn('Could not check audit_logs table:', error.message);
+    }
 
-    const params = [parseInt(limit), parseInt(offset)];
+    let query, params;
+    
+    if (useAuditLogs) {
+      // Use audit_logs table if it exists
+      query = `
+        SELECT 
+          al.id,
+          al.user_id,
+          al.action,
+          al.resource_type as entity_type,
+          al.resource_id as entity_id,
+          al.details,
+          al.created_at,
+          u.name as user_name,
+          u.email as user_email
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE 1=1
+      `;
+      params = [];
+      
+      if (action) {
+        query += ` AND al.action = $${params.length + 1}`;
+        params.push(action);
+      }
+      if (userIdFilter) {
+        query += ` AND al.user_id = $${params.length + 1}`;
+        params.push(userIdFilter);
+      }
+    } else {
+      // Fallback to activity_logs table
+      query = `
+        SELECT 
+          al.id,
+          al.user_id,
+          al.action,
+          al.entity_type,
+          al.entity_id,
+          al.description as details,
+          al.created_at,
+          u.name as user_name,
+          u.email as user_email
+        FROM activity_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE 1=1
+      `;
+      params = [];
+      
+      if (action) {
+        query += ` AND al.action = $${params.length + 1}`;
+        params.push(action);
+      }
+      if (userIdFilter) {
+        query += ` AND al.user_id = $${params.length + 1}`;
+        params.push(userIdFilter);
+      }
+    }
+
+    query += ` ORDER BY al.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+
     const result = await pool.query(query, params);
 
+    // Return in the expected format
     res.json({
       success: true,
-      data: result.rows,
-      pagination: {
+      data: {
+        audit_logs: result.rows,
+        total: result.rows.length,
         limit: parseInt(limit),
-        offset: parseInt(offset),
-        total: result.rows.length
+        offset: parseInt(offset)
       }
     });
+
   } catch (error) {
     console.error('Audit logs error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch audit logs'
+      error: 'Failed to fetch audit logs',
+      message: error.message
     });
   }
 });
@@ -1528,7 +1716,7 @@ app.get('/api/v1/count', authenticateToken, async (req, res) => {
       case 'deliverables':
         query = 'SELECT COUNT(*) FROM deliverables';
         if (userRole === 'teamMember') {
-          query += ' WHERE assigned_to = $1 OR created_by = $1';
+          query += ' WHERE assigned_to = $1::uuid OR created_by = $1::uuid';
           params.push(userId);
         }
         break;
@@ -2919,16 +3107,16 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
              TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')) as assigned_to_name,
              s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-      LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
     `;
 
     let params = [];
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+      query += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
       params.push(userId);
     }
     // deliveryLead, clientReviewer and other roles can see all deliverables
@@ -2947,13 +3135,13 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
                  COALESCE(u1.name, '') as created_by_name,
                  COALESCE(u2.name, '') as assigned_to_name
           FROM deliverables d
-          LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-          LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
+          LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+          LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
         `;
 
         const fallbackParams = [];
         if (userRole === 'teamMember') {
-          fallbackQuery += ' WHERE d.assigned_to = $1 OR d.created_by = $1';
+          fallbackQuery += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
           fallbackParams.push(userId);
         }
 
@@ -3111,7 +3299,7 @@ app.get('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
     `;
     const params = [id];
     if (userRole === 'teamMember') {
-      query += ' AND (d.assigned_to = $2 OR d.created_by = $2)';
+      query += ' AND (d.assigned_to = $2::uuid OR d.created_by = $2::uuid)';
       params.push(userId);
     }
     const result = await pool.query(query, params);
@@ -3410,6 +3598,48 @@ app.post('/api/v1/files/upload', authenticateToken, uploadAny.single('file'), as
     }
     const filename = req.file.filename;
     const url = `/uploads/${filename}`;
+    try {
+      const { description, tags, projectId, project_id, sprintId, sprint_id, deliverableId, deliverable_id } = req.body || {};
+      const wantsRepository =
+        (description && String(description).trim()) ||
+        (tags && String(tags).trim()) ||
+        (projectId || project_id) ||
+        (sprintId || sprint_id) ||
+        (deliverableId || deliverable_id);
+      if (wantsRepository) {
+        const file = req.file;
+        const fileExtension = path.extname(file.originalname).toLowerCase();
+        const fileType = fileExtension.substring(1);
+        const fileBuffer = fs.readFileSync(file.path);
+        const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+        const stats = fs.statSync(file.path);
+        const fileSize = stats.size;
+        await pool.query(
+          `
+          INSERT INTO repository_files (
+            project_id, filename, original_filename, file_name, file_path, file_type, file_size,
+            content_hash, uploaded_by, description, tags,
+            uploaded_at, last_modified, is_active
+          )
+          VALUES ($1, $2::text, $2::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `,
+          [
+            projectId || project_id || null,
+            file.originalname,
+            file.path,
+            fileType,
+            fileSize,
+            hash,
+            req.user.id,
+            description || '',
+            tags || '',
+            new Date().toISOString(),
+            new Date().toISOString(),
+            true,
+          ],
+        );
+      }
+    } catch (_) {}
     res.status(201).json({
       success: true,
       url,
@@ -4265,6 +4495,198 @@ app.get('/api/v1/approval-requests/:id', authenticateToken, async (req, res) => 
   }
 });
 
+app.get('/api/v1/approvals', authenticateToken, async (req, res) => {
+  try {
+    const { status, search, priority, category } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const page = parseInt(req.query.page || '1');
+    const limit = parseInt(req.query.limit || '100');
+    const offset = (page - 1) * limit;
+
+    let query = `
+      SELECT ar.*, u1.name as requested_by_name, u2.name as reviewed_by_name
+      FROM approval_requests ar
+      LEFT JOIN users u1 ON ar.requested_by = u1.id
+      LEFT JOIN users u2 ON ar.reviewed_by = u2.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+
+    if (userRole === 'teamMember') {
+      query += ` AND ar.requested_by = $${++paramCount}`;
+      params.push(userId);
+    } else if (userRole === 'deliveryLead') {
+      query += ` AND (ar.requested_by = $${++paramCount} OR ar.reviewed_by = $${paramCount})`;
+      params.push(userId);
+    }
+
+    if (status) {
+      query += ` AND ar.status = $${++paramCount}`;
+      params.push(status);
+    }
+    if (priority) {
+      query += ` AND ar.priority = $${++paramCount}`;
+      params.push(priority);
+    }
+    if (category) {
+      query += ` AND ar.category = $${++paramCount}`;
+      params.push(category);
+    }
+    if (search && String(search).trim()) {
+      query += ` AND (ar.title ILIKE $${++paramCount} OR ar.description ILIKE $${paramCount})`;
+      params.push(`%${String(search).trim()}%`);
+    }
+
+    query += ` ORDER BY ar.requested_at DESC NULLS LAST, ar.created_at DESC`;
+    query += ` LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get approvals error:', error);
+    if (error && error.code === '42P01') {
+      return res.json({ success: true, data: [] });
+    }
+    res.status(500).json({ success: false, error: 'Failed to fetch approvals' });
+  }
+});
+
+app.get('/api/v1/approvals/stats/metrics', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COUNT(*)::int as total,
+        COUNT(*) FILTER (WHERE status = 'pending')::int as pending,
+        COUNT(*) FILTER (WHERE status = 'approved')::int as approved,
+        COUNT(*) FILTER (WHERE status = 'rejected')::int as rejected
+      FROM approval_requests
+    `);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Get approval metrics error:', error);
+    if (error && error.code === '42P01') {
+      return res.json({ success: true, data: { total: 0, pending: 0, approved: 0, rejected: 0 } });
+    }
+    res.status(500).json({ success: false, error: 'Failed to fetch approval metrics' });
+  }
+});
+
+app.post('/api/v1/approvals', authenticateToken, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const title = body.title || body.deliverable_title || body.deliverableTitle || 'Approval Request';
+    const description = body.description || body.comments || '';
+    const priority = body.priority || 'medium';
+    const category = body.category || 'general';
+    const deliverableId = body.deliverable_id || body.deliverableId || null;
+    const deliverableTitle = body.deliverable_title || body.deliverableTitle || null;
+    const userId = req.user.id;
+
+    let createdRequest;
+    try {
+      const result = await pool.query(
+        `INSERT INTO approval_requests (title, description, status, priority, category, deliverable_id, deliverable_title, requested_by, requested_at, created_at, updated_at)
+         VALUES ($1, $2, 'pending', $3, $4, $5::uuid, $6, $7, NOW(), NOW(), NOW())
+         RETURNING *`,
+        [title, description, priority, category, deliverableId, deliverableTitle, userId],
+      );
+      createdRequest = result.rows[0];
+    } catch (e) {
+      const result = await pool.query(
+        `INSERT INTO approval_requests (title, description, status, priority, category, requested_by, requested_at, created_at, updated_at)
+         VALUES ($1, $2, 'pending', $3, $4, $5, NOW(), NOW(), NOW())
+         RETURNING *`,
+        [title, description, priority, category, userId],
+      );
+      createdRequest = result.rows[0];
+    }
+
+    io.emit('approval-request:changed', { type: 'created', id: createdRequest.id, status: createdRequest.status });
+    res.json({ success: true, data: createdRequest });
+  } catch (error) {
+    console.error('Create approval error:', error);
+    if (error && error.code === '42P01') {
+      return res.status(503).json({ success: false, error: 'Approval requests feature is not available (database table missing)' });
+    }
+    res.status(500).json({ success: false, error: 'Failed to create approval' });
+  }
+});
+
+app.get('/api/v1/approvals/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `
+        SELECT ar.*, u1.name as requested_by_name, u2.name as reviewed_by_name
+        FROM approval_requests ar
+        LEFT JOIN users u1 ON ar.requested_by = u1.id
+        LEFT JOIN users u2 ON ar.reviewed_by = u2.id
+        WHERE ar.id = $1
+      `,
+      [id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Approval request not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Get approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch approval' });
+  }
+});
+
+app.put('/api/v1/approvals/:id/approve', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const review_reason = req.body?.review_reason || req.body?.comments || null;
+    const result = await pool.query(
+      `UPDATE approval_requests SET status = 'approved', review_reason = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [review_reason, userId, id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Approval request not found' });
+    const updatedRequest = result.rows[0];
+    io.emit('approval-request:changed', { type: 'updated', id: updatedRequest.id, status: updatedRequest.status });
+    res.json({ success: true, data: updatedRequest });
+  } catch (error) {
+    console.error('Approve approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to approve approval' });
+  }
+});
+
+app.put('/api/v1/approvals/:id/reject', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const review_reason = req.body?.review_reason || req.body?.comments || null;
+    const result = await pool.query(
+      `UPDATE approval_requests SET status = 'rejected', review_reason = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [review_reason, userId, id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Approval request not found' });
+    const updatedRequest = result.rows[0];
+    io.emit('approval-request:changed', { type: 'updated', id: updatedRequest.id, status: updatedRequest.status });
+    res.json({ success: true, data: updatedRequest });
+  } catch (error) {
+    console.error('Reject approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reject approval' });
+  }
+});
+
+app.put('/api/v1/approvals/:id/remind', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(`UPDATE approval_requests SET updated_at = NOW() WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remind approval error:', error);
+    res.status(500).json({ success: false, error: 'Failed to send reminder' });
+  }
+});
+
 // ==================== SIGN-OFF REPORTS ENDPOINTS ====================
 
 // Get all sign-off reports with filters
@@ -4306,7 +4728,7 @@ app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
 
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ` AND (r.created_by = $${++paramCount} OR d.assigned_to = $${paramCount})`;
+      query += ` AND (r.created_by = $${++paramCount}::uuid OR d.assigned_to = $${paramCount}::uuid)`;
       params.push(userId);
     } else if (userRole === 'clientReviewer') {
       // Client reviewers can see all reports
@@ -5543,9 +5965,100 @@ app.post('/api/v1/docusign/webhook', express.raw({ type: 'application/json' }), 
 
 // ==================== AI RELEASE READINESS ENDPOINTS ====================
 
-// AI-powered release readiness analysis
+// GET endpoint for release readiness analysis (compatibility)
+app.get('/api/v1/release-readiness/analyze', authenticateToken, async (req, res) => {
+  try {
+    // For GET requests, return a simple status or analysis based on query params
+    const { deliverableId } = req.query;
+    
+    console.log('🔍 GET release-readiness/analyze called for deliverable:', deliverableId);
+    
+    if (!deliverableId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Deliverable ID is required for GET requests',
+      });
+    }
+    
+    // Try to get deliverable data for analysis
+    const deliverableQuery = await pool.query(`
+      SELECT id, title, description, definition_of_done, evidence, priority, status
+      FROM deliverables 
+      WHERE id = $1
+    `, [deliverableId]);
+    
+    if (deliverableQuery.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Deliverable not found',
+      });
+    }
+    
+    const deliverable = deliverableQuery.rows[0];
+    
+    // Perform simple analysis
+    const definitionOfDone = deliverable.definition_of_done || [];
+    const evidence = deliverable.evidence || [];
+    
+    const issues = [];
+    const recommendations = [];
+    const risks = [];
+    const missingItems = [];
+    let status = 'green';
+    let confidence = 0.9;
+    
+    // Basic analysis
+    if (!definitionOfDone || definitionOfDone.length === 0) {
+      issues.push('Definition of Done is empty');
+      recommendations.push('Add Definition of Done criteria');
+      missingItems.push('Definition of Done items');
+      status = 'red';
+      confidence = 0.7;
+    }
+    
+    if (!evidence || evidence.length === 0) {
+      issues.push('No evidence links provided');
+      recommendations.push('Add evidence links');
+      missingItems.push('Evidence links');
+      if (status === 'green') status = 'amber';
+    }
+    
+    const aiInsights = status === 'green' 
+      ? '✅ Deliverable appears ready for review'
+      : status === 'amber'
+      ? '💡 Some improvements recommended'
+      : '⚠️ Multiple issues need to be addressed';
+    
+    res.json({
+      success: true,
+      data: {
+        status,
+        confidence,
+        issues,
+        recommendations,
+        risks,
+        missingItems,
+        priorityActions: recommendations.slice(0, 3),
+        aiInsights,
+      },
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in GET release readiness analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze readiness',
+      message: error.message,
+    });
+  }
+});
+
+// AI-powered release readiness analysis (POST)
 app.post('/api/v1/release-readiness/analyze', authenticateToken, async (req, res) => {
   try {
+    console.log('🔍 POST release-readiness/analyze called');
+    console.log('📋 Request body keys:', Object.keys(req.body));
+    
     const {
       deliverableId,
       deliverableTitle,
@@ -5557,6 +6070,42 @@ app.post('/api/v1/release-readiness/analyze', authenticateToken, async (req, res
       knownLimitations,
     } = req.body;
 
+    // Input validation
+    if (!deliverableTitle && !deliverableId) {
+      console.log('❌ Missing deliverableTitle or deliverableId');
+      return res.status(400).json({
+        success: false,
+        error: 'Either deliverableTitle or deliverableId is required',
+      });
+    }
+
+    // Normalize arrays
+    const normalizedDoD = Array.isArray(definitionOfDone) ? definitionOfDone : [];
+    const normalizedEvidence = Array.isArray(evidenceLinks) ? evidenceLinks : [];
+    const normalizedSprints = Array.isArray(sprintIds) ? sprintIds : [];
+    
+    console.log(`📊 Analysis parameters:
+    - DoD items: ${normalizedDoD.length}
+    - Evidence links: ${normalizedEvidence.length}
+    - Sprint IDs: ${normalizedSprints.length}
+    - Has metrics: ${Object.keys(sprintMetrics || {}).length > 0}`);
+
+    // Test database connection before proceeding
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connection verified');
+    } catch (dbError) {
+      console.error('❌ Database connection error:', dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Database connection failed',
+        details: dbError.message,
+      });
+    }
+
+    // Initialize OpenAI if available
+    await initializeOpenAI();
+
     // Try OpenAI AI analysis first (if available)
     if (openai) {
       try {
@@ -5566,15 +6115,15 @@ DELIVERABLE INFORMATION:
 Title: ${deliverableTitle || 'Untitled'}
 Description: ${deliverableDescription || 'No description provided'}
 
-DEFINITION OF DONE (${definitionOfDone.length} items):
-${definitionOfDone.length > 0 ? definitionOfDone.map((item, i) => `${i + 1}. ${item}`).join('\n') : 'None provided'}
+DEFINITION OF DONE (${normalizedDoD.length} items):
+${normalizedDoD.length > 0 ? normalizedDoD.map((item, i) => `${i + 1}. ${item}`).join('\n') : 'None provided'}
 
-EVIDENCE LINKS (${evidenceLinks.length} links):
-${evidenceLinks.length > 0 ? evidenceLinks.map((link, i) => `${i + 1}. ${link}`).join('\n') : 'None provided'}
+EVIDENCE LINKS (${normalizedEvidence.length} links):
+${normalizedEvidence.length > 0 ? normalizedEvidence.map((link, i) => `${i + 1}. ${link}`).join('\n') : 'None provided'}
 
 SPRINT INFORMATION:
-- Sprints Linked: ${sprintIds.length}
-- Sprint Metrics: ${JSON.stringify(sprintMetrics, null, 2)}
+- Sprints Linked: ${normalizedSprints.length}
+- Sprint Metrics: ${JSON.stringify(sprintMetrics || {}, null, 2)}
 ${knownLimitations ? `- Known Limitations: ${knownLimitations}` : ''}
 
 ANALYSIS REQUIREMENTS:
@@ -5638,6 +6187,13 @@ Return ONLY valid JSON in this exact format:
         }
       } catch (aiError) {
         console.error('⚠️  OpenAI API error, falling back to rule-based analysis:', aiError.message);
+        
+        // Check if it's a rate limit/quota error
+        if (aiError.message.includes('429') || aiError.message.includes('quota') || aiError.message.includes('rate limit')) {
+          console.log('💰 OpenAI quota exceeded - using rule-based analysis');
+          console.log('💡 To enable AI analysis, please check your OpenAI billing at: https://platform.openai.com/account/billing/usage');
+        }
+        
         // Fall through to rule-based analysis
       }
     }
@@ -5652,13 +6208,13 @@ Return ONLY valid JSON in this exact format:
     let confidence = 0.9;
 
     // Analyze Definition of Done
-    if (definitionOfDone.length === 0) {
+    if (normalizedDoD.length === 0) {
       issues.push('Definition of Done is empty');
       recommendations.push('Add at least 3-5 Definition of Done criteria to ensure quality standards');
       missingItems.push('Definition of Done items');
       status = 'red';
       confidence = 0.7;
-    } else if (definitionOfDone.length < 3) {
+    } else if (normalizedDoD.length < 3) {
       issues.push('Definition of Done has fewer than 3 items');
       recommendations.push('Consider adding more DoD criteria for comprehensive quality assurance');
       status = 'amber';
@@ -5666,30 +6222,30 @@ Return ONLY valid JSON in this exact format:
     }
 
     // Analyze Evidence Links
-    if (evidenceLinks.length === 0) {
+    if (normalizedEvidence.length === 0) {
       issues.push('No evidence links provided');
       recommendations.push('Add evidence links: demo, repository, test results, documentation');
       missingItems.push('Evidence links (demo, repo, tests, docs)');
       status = 'red';
       confidence = 0.6;
     } else {
-      const hasDemo = evidenceLinks.some(link => 
+      const hasDemo = normalizedEvidence.some(link => 
         link.toLowerCase().includes('demo') || 
         link.toLowerCase().includes('video') ||
         link.toLowerCase().includes('screencast')
       );
-      const hasRepo = evidenceLinks.some(link => 
+      const hasRepo = normalizedEvidence.some(link => 
         link.toLowerCase().includes('repo') || 
         link.toLowerCase().includes('github') || 
         link.toLowerCase().includes('gitlab') ||
         link.toLowerCase().includes('bitbucket')
       );
-      const hasTests = evidenceLinks.some(link => 
+      const hasTests = normalizedEvidence.some(link => 
         link.toLowerCase().includes('test') || 
         link.toLowerCase().includes('coverage') ||
         link.toLowerCase().includes('qa')
       );
-      const hasDocs = evidenceLinks.some(link => 
+      const hasDocs = normalizedEvidence.some(link => 
         link.toLowerCase().includes('doc') || 
         link.toLowerCase().includes('guide') ||
         link.toLowerCase().includes('wiki')
@@ -5722,7 +6278,7 @@ Return ONLY valid JSON in this exact format:
     }
 
     // Analyze Sprint Association
-    if (sprintIds.length === 0) {
+    if (normalizedSprints.length === 0) {
       issues.push('No sprints linked to deliverable');
       recommendations.push('Link at least one sprint to show development progress and metrics');
       missingItems.push('Linked sprints');
@@ -5794,11 +6350,20 @@ Return ONLY valid JSON in this exact format:
         aiInsights,
       },
     });
+    
+    console.log(`✅ Analysis completed successfully - Status: ${status}, Confidence: ${confidence}`);
+    
   } catch (error) {
-    console.error('Error in AI readiness analysis:', error);
+    console.error('❌ Error in AI readiness analysis:', error);
+    console.error('❌ Stack trace:', error.stack);
+    console.error('❌ Request body:', JSON.stringify(req.body, null, 2));
+    
+    // Return detailed error information
     res.status(500).json({
       success: false,
       error: 'Failed to analyze readiness',
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -6244,7 +6809,7 @@ app.get('/api/v1/epics', authenticateToken, async (req, res) => {
     
     // Role-based filtering
     if (userRole === 'teamMember') {
-      query += ' WHERE e.created_by = $1';
+      query += ' WHERE e.created_by = $1::uuid';
       params.push(userId);
     }
     
@@ -6917,9 +7482,9 @@ app.get('/api/v1/projects/:projectId/deliverables', authenticateToken, async (re
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE d.project_id = $1
     `;
     
@@ -7178,9 +7743,9 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
         u2.name as assigned_to_name,
         s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = u1.id
-      LEFT JOIN users u2 ON d.assigned_to = u2.id
-      LEFT JOIN sprints s ON d.sprint_id = s.id
+      LEFT JOIN users u1 ON CAST(d.created_by AS TEXT) = CAST(u1.id AS TEXT)
+      LEFT JOIN users u2 ON CAST(d.assigned_to AS TEXT) = CAST(u2.id AS TEXT)
+      LEFT JOIN sprints s ON CAST(d.sprint_id AS TEXT) = CAST(s.id AS TEXT)
       WHERE (d.project_id IS NULL OR d.project_id != $1)
     `;
     
@@ -7194,7 +7759,7 @@ app.get('/api/v1/projects/:projectId/available-deliverables', authenticateToken,
     
     // Filter by user role - team members can only see their own deliverables
     if (req.user.role === 'teamMember') {
-      query += ` AND (d.created_by = $${params.length + 1} OR d.assigned_to = $${params.length + 1})`;
+      query += ` AND (d.created_by = $${params.length + 1}::uuid OR d.assigned_to = $${params.length + 1}::uuid)`;
       params.push(userId);
     }
     
@@ -7633,10 +8198,8 @@ app.get('/api/v1/projects/:projectId/available-sprints', authenticateToken, asyn
 });
 
 // Start the server
-// Use 8000 in development; respect PORT in production
-const PORT = process.env.NODE_ENV === 'production'
-  ? (parseInt(process.env.PORT, 10) || 8000)
-  : 8000;
+// Use PORT from environment variable or default to 3001
+const PORT = parseInt(process.env.PORT, 10) || 3001;
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);

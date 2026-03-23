@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,7 +13,6 @@ import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import 'report_editor_screen.dart';
@@ -143,9 +144,21 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         debugPrint('📋 Parsed ${reportsData.length} reports');
         setState(() {
           _reports = reportsData.map((json) {
-            final contentRaw = json['content'] as Map<String, dynamic>?;
-            final content = (contentRaw != null && contentRaw.isNotEmpty)
-                ? contentRaw
+            final dynamic contentRaw = json['content'];
+            final Map<String, dynamic>? parsedContent = contentRaw is Map
+                ? Map<String, dynamic>.from(contentRaw)
+                : (contentRaw is String
+                    ? (() {
+                        try {
+                          final decoded = jsonDecode(contentRaw);
+                          return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+                        } catch (_) {
+                          return null;
+                        }
+                      })()
+                    : null);
+            final content = (parsedContent != null && parsedContent.isNotEmpty)
+                ? parsedContent
                 : {
                     'reportTitle': json['reportTitle'] ?? json['report_title'],
                     'reportContent': json['reportContent'] ?? json['report_content'],
@@ -156,6 +169,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   };
             final reviews = json['reviews'] as List? ?? [];
             final latestReview = reviews.isNotEmpty ? reviews[0] : null;
+            final preparedByName = (json['preparedByName'] ??
+                    json['prepared_by_name'] ??
+                    content['preparedByName'] ??
+                    content['prepared_by_name'] ??
+                    json['createdByName'] ??
+                    json['created_by_name'])
+                ?.toString();
             return SignOffReport(
               id: json['id']?.toString() ?? '',
               deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString() ?? '',
@@ -165,9 +185,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               sprintPerformanceData: content['sprintPerformanceData']?.toString(),
               knownLimitations: content['knownLimitations']?.toString(),
               nextSteps: content['nextSteps']?.toString(),
+              preparedBy: (json['preparedBy'] ?? json['prepared_by'] ?? content['preparedBy'] ?? content['prepared_by'])?.toString(),
+              preparedByName: preparedByName,
               status: _parseStatus(json['status']?.toString() ?? 'draft'),
               createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
-              createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? 'Unknown',
+              createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? json['created_by']?.toString() ?? '',
               submittedAt: null,
               submittedBy: null,
               reviewedAt: latestReview != null && latestReview['approved_at'] != null ? _parseDateTime(latestReview['approved_at']) : null,
@@ -188,9 +210,21 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               : (alt.data!['data'] as List? ?? []);
           setState(() {
             _reports = reportsData.map((json) {
-              final contentRaw = json['content'] as Map<String, dynamic>?;
-              final content = (contentRaw != null && contentRaw.isNotEmpty)
-                  ? contentRaw
+              final dynamic contentRaw = json['content'];
+              final Map<String, dynamic>? parsedContent = contentRaw is Map
+                  ? Map<String, dynamic>.from(contentRaw)
+                  : (contentRaw is String
+                      ? (() {
+                          try {
+                            final decoded = jsonDecode(contentRaw);
+                            return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+                          } catch (_) {
+                            return null;
+                          }
+                        })()
+                      : null);
+              final content = (parsedContent != null && parsedContent.isNotEmpty)
+                  ? parsedContent
                   : {
                       'reportTitle': json['reportTitle'] ?? json['report_title'],
                       'reportContent': json['reportContent'] ?? json['report_content'],
@@ -201,6 +235,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                     };
               final reviews = json['reviews'] as List? ?? [];
               final latestReview = reviews.isNotEmpty ? reviews[0] : null;
+              final preparedByName = (json['preparedByName'] ??
+                      json['prepared_by_name'] ??
+                      content['preparedByName'] ??
+                      content['prepared_by_name'] ??
+                      json['createdByName'] ??
+                      json['created_by_name'])
+                  ?.toString();
               return SignOffReport(
                 id: json['id']?.toString() ?? '',
                 deliverableId: json['deliverableId']?.toString() ?? json['deliverable_id']?.toString() ?? '',
@@ -210,9 +251,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                 sprintPerformanceData: content['sprintPerformanceData']?.toString(),
                 knownLimitations: content['knownLimitations']?.toString(),
                 nextSteps: content['nextSteps']?.toString(),
+                preparedBy: (json['preparedBy'] ?? json['prepared_by'] ?? content['preparedBy'] ?? content['prepared_by'])?.toString(),
+                preparedByName: preparedByName,
                 status: _parseStatus(json['status']?.toString() ?? 'draft'),
                 createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
-                createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? 'Unknown',
+                createdBy: json['createdByName']?.toString() ?? json['created_by_name']?.toString() ?? json['createdBy']?.toString() ?? json['created_by']?.toString() ?? '',
                 submittedAt: null,
                 submittedBy: null,
                 reviewedAt: latestReview != null && latestReview['approved_at'] != null ? _parseDateTime(latestReview['approved_at']) : null,
@@ -785,29 +828,19 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       useBackgroundImage: true,
       centered: false,
       scrollable: false,
-      appBar: AppBar(
-        title: const FlownetLogo(),
-        backgroundColor: Colors.transparent,
-        foregroundColor: FlownetColors.pureWhite,
-        centerTitle: false,
-        elevation: 0,
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ReportEditorScreen(),
-                ),
-              ).then((_) => _loadReports());
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Create Report'),
-            style: TextButton.styleFrom(
-              foregroundColor: FlownetColors.electricBlue,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ReportEditorScreen(),
             ),
-          ),
-        ],
+          ).then((_) => _loadReports());
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Create Report'),
+        backgroundColor: FlownetColors.electricBlue,
+        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
@@ -1054,6 +1087,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               onPressed: () => _downloadDocument(document),
               tooltip: 'Download',
             ),
+            // Delete button - only for system admins, delivery leads, and document uploader
+            if (_canDeleteDocument(document))
+              IconButton(
+                icon: const Icon(Icons.delete, color: FlownetColors.crimsonRed),
+                onPressed: () => _confirmDeleteDocument(document),
+                tooltip: 'Delete',
+              ),
           ],
         ),
         isThreeLine: true,
@@ -1160,6 +1200,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                             child: Icon(Icons.lock, color: FlownetColors.emeraldGreen, size: 16),
                           ),
                         ],
+                        if (report.status == ReportStatus.submitted) ...[
+                          const SizedBox(width: 8),
+                          const Tooltip(
+                            message: 'Submitted (Editable)',
+                            child: Icon(Icons.edit, color: Colors.orange, size: 16),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1203,7 +1250,9 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   Expanded(
                     child: _buildInfoItem(
                       Icons.person,
-                      report.createdBy,
+                      (report.preparedByName?.trim().isNotEmpty ?? false)
+                          ? report.preparedByName!.trim()
+                          : (report.createdBy.isNotEmpty ? report.createdBy : '—'),
                     ),
                   ),
                   Expanded(
@@ -1253,8 +1302,9 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Edit button for draft and change_requested reports
+                  // Edit button for draft, submitted, and change_requested reports
                   if (report.status == ReportStatus.draft || 
+                      report.status == ReportStatus.submitted ||
                       report.status == ReportStatus.changeRequested) ...[
                     TextButton.icon(
                       onPressed: () {
@@ -1389,6 +1439,85 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         messenger.showSnackBar(
           SnackBar(
             content: Text('Error deleting report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  bool _canDeleteDocument(RepositoryFile document) {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) return false;
+    
+    // System admins can delete any document
+    if (currentUser.role == UserRole.systemAdmin) return true;
+    
+    // Delivery leads can delete any document
+    if (currentUser.role == UserRole.deliveryLead) return true;
+    
+    // Document uploader can delete their own documents
+    // Check by uploader ID or uploader email/name match
+    if (document.uploader == currentUser.id) return true;
+    if (document.uploaderName == currentUser.email) return true;
+    
+    return false;
+  }
+
+  Future<void> _confirmDeleteDocument(RepositoryFile document) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Delete Document', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: Text(
+          'Are you sure you want to delete "${_getDisplayName(document)}"?\n\nThis action cannot be undone.',
+          style: const TextStyle(color: FlownetColors.coolGray),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Delete', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        final response = await _documentService.deleteDocument(document.id);
+        if (response.isSuccess) {
+          setState(() {
+            _reportDocuments.removeWhere((doc) => doc.id == document.id);
+          });
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Document deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadReportDocuments(); // Refresh the document list
+        } else {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete document: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Error deleting document: $e'),
             backgroundColor: Colors.red,
           ),
         );

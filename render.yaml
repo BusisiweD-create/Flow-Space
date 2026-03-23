@@ -34,12 +34,9 @@ services:
   - type: web
     name: flow-space-backend
     env: node
-    buildCommand: |
-      echo "Running database migrations..."
-      node migrations/run-all.cjs
-    startCommand: |
-      echo "Starting backend server..."
-      node server.js
+    rootDir: backend/node-backend
+    buildCommand: npm ci
+    startCommand: npm start
     envVars:
       - key: DB_CONNECTION_MODE
         value: external
@@ -49,6 +46,4 @@ services:
         value: ${JWT_SECRET}
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /health

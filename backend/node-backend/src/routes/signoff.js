@@ -42,6 +42,21 @@ function extractReviewToken(req) {
 }
 
 let reportsTableReady = false;
+function getSequelizeDialect() {
+  try {
+    return sequelize && typeof sequelize.getDialect === 'function' ? sequelize.getDialect() : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function reportsIdWhere(paramIndex = 1) {
+  const dialect = getSequelizeDialect();
+  const p = `$${paramIndex}`;
+  if (dialect === 'postgres') return `id::text = ${p}`;
+  return `id = ${p}`;
+}
+
 async function ensureReportsTable() {
   if (reportsTableReady) return;
   try {
@@ -88,16 +103,31 @@ router.get('/', async (req, res) => {
     }
     await ensureReportsTable();
     
-    const { deliverableId } = req.query;
+    const { deliverableId, status } = req.query;
     let results;
     try {
-      if (deliverableId) {
+      const normalizeStatus = (s) => {
+        const x = String(s || '').toLowerCase().replace(/[\s_-]+/g, '');
+        if (!x) return '';
+        if (x === 'underreview') return 'under_review';
+        if (x === 'changerequested') return 'change_requested';
+        return x;
+      };
+      const s = normalizeStatus(status);
+      if (deliverableId && s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 AND LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($2, '-', '')) ORDER BY created_at DESC",
+          { bind: [deliverableId, s], type: QueryTypes.SELECT }
+        );
+      } else if (deliverableId) {
         results = await sequelize.query(
           "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 ORDER BY created_at DESC",
-          { 
-            bind: [deliverableId],
-            type: QueryTypes.SELECT 
-          }
+          { bind: [deliverableId], type: QueryTypes.SELECT }
+        );
+      } else if (s) {
+        results = await sequelize.query(
+          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($1, '-', '')) ORDER BY created_at DESC",
+          { bind: [s], type: QueryTypes.SELECT }
         );
       } else {
         results = await sequelize.query(
@@ -109,12 +139,40 @@ router.get('/', async (req, res) => {
       results = [];
     }
     const rawRows = Array.isArray(results) ? results : [];
-    const userIds = [...new Set(rawRows.map(r => r.created_by).filter(Boolean))];
-    const users = userIds.length > 0 ? await User.findAll({ where: { id: userIds } }) : [];
-    const userMap = new Map(users.map(u => [u.id, `${u.first_name || ''} ${u.last_name || ''}`.trim()]));
-    const reports = rawRows.map((row) => {
+    const looksLikeUserId = (v) => {
+      if (!v) return false;
+      const s = String(v);
+      if (!s || s.trim().length < 8) return false;
+      if (s.includes('@')) return false;
+      if (/\s/.test(s)) return false;
+      return /^[a-f0-9-]{8,}$/i.test(s);
+    };
+    const userIds = new Set(rawRows.map((r) => r.created_by).filter(Boolean));
+    for (const row of rawRows) {
+      const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const submittedBy = c.submittedBy || c.submitted_by;
+      const reviewedBy = c.reviewedBy || c.reviewed_by;
+      const approvedBy = c.approvedBy || c.approved_by;
+      if (looksLikeUserId(submittedBy)) userIds.add(String(submittedBy));
+      if (looksLikeUserId(reviewedBy)) userIds.add(String(reviewedBy));
+      if (looksLikeUserId(approvedBy)) userIds.add(String(approvedBy));
+    }
+    const users =
+      userIds.size > 0
+        ? await User.findAll({ where: { id: [...userIds] } })
+        : [];
+    const userMap = new Map(
+      users.map((u) => [
+        u.id,
+        (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
+      ])
+    );
+    let reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+        const submittedBy = c.submittedBy || c.submitted_by;
+        const reviewedBy = c.reviewedBy || c.reviewed_by;
+        const approvedBy = c.approvedBy || c.approved_by;
         return {
           id: row.id,
           deliverableId: (row.deliverable_id || '').toString(),
@@ -131,13 +189,25 @@ router.get('/', async (req, res) => {
           createdBy: (row.created_by || '').toString(),
           createdByName: userMap.get(row.created_by) || null,
           submittedAt: c.submittedAt || c.submitted_at,
-          submittedBy: c.submittedBy || c.submitted_by,
+          submittedBy: submittedBy,
+          submittedByName:
+            c.submittedByName ||
+            c.submitted_by_name ||
+            (looksLikeUserId(submittedBy) ? (userMap.get(String(submittedBy)) || null) : null),
           reviewedAt: c.reviewedAt || c.reviewed_at,
-          reviewedBy: c.reviewedBy || c.reviewed_by,
+          reviewedBy: reviewedBy,
+          reviewedByName:
+            c.reviewedByName ||
+            c.reviewed_by_name ||
+            (looksLikeUserId(reviewedBy) ? (userMap.get(String(reviewedBy)) || null) : null),
           clientComment: c.clientComment || c.client_comment,
           changeRequestDetails: c.changeRequestDetails || c.change_request_details,
           approvedAt: c.approvedAt || c.approved_at,
-          approvedBy: c.approvedBy || c.approved_by,
+          approvedBy: approvedBy,
+          approvedByName:
+            c.approvedByName ||
+            c.approved_by_name ||
+            (looksLikeUserId(approvedBy) ? (userMap.get(String(approvedBy)) || null) : null),
           digitalSignature: c.digitalSignature || c.digital_signature,
         };
       } catch (e) {
@@ -154,6 +224,16 @@ router.get('/', async (req, res) => {
         };
       }
     });
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const qStatus = String(req.query.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+    if (role === 'clientreviewer') {
+      const allowedStatuses = new Set(['submitted', 'approved', 'underreview', 'under_review']);
+      reports = reports.filter((r) => allowedStatuses.has(String(r.status || '').toLowerCase()));
+      if (qStatus && !allowedStatuses.has(qStatus)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
     if (reports.length === 0) {
       try {
         const signoffs = await Signoff.findAll({
@@ -199,7 +279,7 @@ router.get('/:id', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const [results] = await sequelize.query(
-        'SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+        `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!results || results.length === 0) {
@@ -207,8 +287,37 @@ router.get('/:id', async (req, res) => {
       }
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+      const looksLikeUserId = (v) => {
+        if (!v) return false;
+        const s = String(v);
+        if (!s || s.trim().length < 8) return false;
+        if (s.includes('@')) return false;
+        if (/\s/.test(s)) return false;
+        return /^[a-f0-9-]{8,}$/i.test(s);
+      };
       const creator = row.created_by ? await User.findByPk(row.created_by) : null;
-      const createdByName = creator ? `${creator.first_name} ${creator.last_name}` : null;
+      const createdByName = creator
+        ? (creator.name ||
+            `${creator.first_name || ''} ${creator.last_name || ''}`.trim() ||
+            creator.username ||
+            creator.email ||
+            null)
+        : null;
+      const submittedBy = c.submittedBy || c.submitted_by;
+      const reviewedBy = c.reviewedBy || c.reviewed_by;
+      const approvedBy = c.approvedBy || c.approved_by;
+      const extraIds = [];
+      if (looksLikeUserId(submittedBy)) extraIds.push(String(submittedBy));
+      if (looksLikeUserId(reviewedBy)) extraIds.push(String(reviewedBy));
+      if (looksLikeUserId(approvedBy)) extraIds.push(String(approvedBy));
+      const extraUsers =
+        extraIds.length > 0 ? await User.findAll({ where: { id: [...new Set(extraIds)] } }) : [];
+      const userMap = new Map(
+        extraUsers.map((u) => [
+          u.id,
+          (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
+        ])
+      );
       const report = {
         id: row.id,
         deliverableId: (row.deliverable_id || '').toString(),
@@ -225,13 +334,25 @@ router.get('/:id', async (req, res) => {
         createdBy: (row.created_by || '').toString(),
         createdByName: createdByName,
         submittedAt: c.submittedAt || c.submitted_at,
-        submittedBy: c.submittedBy || c.submitted_by,
+        submittedBy: submittedBy,
+        submittedByName:
+          c.submittedByName ||
+          c.submitted_by_name ||
+          (looksLikeUserId(submittedBy) ? (userMap.get(String(submittedBy)) || null) : null),
         reviewedAt: c.reviewedAt || c.reviewed_at,
-        reviewedBy: c.reviewedBy || c.reviewed_by,
+        reviewedBy: reviewedBy,
+        reviewedByName:
+          c.reviewedByName ||
+          c.reviewed_by_name ||
+          (looksLikeUserId(reviewedBy) ? (userMap.get(String(reviewedBy)) || null) : null),
         clientComment: c.clientComment || c.client_comment,
         changeRequestDetails: c.changeRequestDetails || c.change_request_details,
         approvedAt: c.approvedAt || c.approved_at,
-        approvedBy: c.approvedBy || c.approved_by,
+        approvedBy: approvedBy,
+        approvedByName:
+          c.approvedByName ||
+          c.approved_by_name ||
+          (looksLikeUserId(approvedBy) ? (userMap.get(String(approvedBy)) || null) : null),
         digitalSignature: c.digitalSignature || c.digital_signature,
       };
       return res.json(report);
@@ -273,6 +394,19 @@ router.post('/', async (req, res) => {
         nextSteps,
         status
       } = req.body || {};
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      if (!deliverableId || typeof deliverableId !== 'string' || deliverableId.trim().length === 0) {
+        return res.status(400).json({ error: 'deliverableId is required' });
+      }
+      if (!reportTitle || typeof reportTitle !== 'string' || reportTitle.trim().length === 0) {
+        return res.status(400).json({ error: 'reportTitle is required' });
+      }
+      if (!reportContent || typeof reportContent !== 'string' || reportContent.trim().length === 0) {
+        return res.status(400).json({ error: 'reportContent is required' });
+      }
+      const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
       const content = {
         reportTitle,
         reportContent,
@@ -280,11 +414,13 @@ router.post('/', async (req, res) => {
         sprintPerformanceData,
         knownLimitations,
         nextSteps,
-        status: status || 'draft'
+        status: normalizedStatus
       };
+      const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
+      const contentExpr = dialect === 'postgres' ? '$4::jsonb' : '$4';
       const [results] = await sequelize.query(
-        'INSERT INTO sign_off_reports (deliverable_id, created_by, status, content) VALUES ($1, $2, $3, $4) RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at',
-        { bind: [deliverableId, (req.user && req.user.id) || null, status || 'draft', JSON.stringify(content)] }
+        `INSERT INTO sign_off_reports (deliverable_id, created_by, status, content) VALUES ($1, $2, $3, ${contentExpr}) RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [deliverableId.trim(), String(req.user.id), normalizedStatus, JSON.stringify(content)] }
       );
       const row = results[0];
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
@@ -297,7 +433,7 @@ router.post('/', async (req, res) => {
         sprintPerformanceData: c.sprintPerformanceData || c.sprint_performance_data,
         knownLimitations: c.knownLimitations || c.known_limitations,
         nextSteps: c.nextSteps || c.next_steps,
-        status: row.status || 'draft',
+        status: row.status || normalizedStatus,
         preparedBy: c.preparedBy || c.prepared_by,
         preparedByName: c.preparedByName || c.prepared_by_name,
         createdAt: row.created_at,
@@ -335,7 +471,7 @@ router.put('/:id', async (req, res) => {
       await ensureReportsTable();
       const updates = req.body || {};
       const [existing] = await sequelize.query(
-        'SELECT id, created_by FROM sign_off_reports WHERE id = $1',
+        `SELECT id, created_by, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -353,7 +489,7 @@ router.put('/:id', async (req, res) => {
       }
 
       const [results] = await sequelize.query(
-        `UPDATE sign_off_reports SET status = COALESCE($2, status), content = COALESCE(content, '{}'::jsonb) || $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        `UPDATE sign_off_reports SET status = COALESCE($2, status), content = COALESCE(content, '{}'::jsonb) || $3::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
         { bind: [id, updates.status ?? null, JSON.stringify(updates)] }
       );
       if (!results || results.length === 0) {
@@ -411,7 +547,7 @@ router.delete('/:id', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
-      const [rows] = await sequelize.query('DELETE FROM sign_off_reports WHERE id = $1 RETURNING id', { bind: [id] });
+      const [rows] = await sequelize.query(`DELETE FROM sign_off_reports WHERE ${reportsIdWhere(1)} RETURNING id`, { bind: [id] });
       if (!rows || rows.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
       }
@@ -464,10 +600,20 @@ router.post('/:id/approve', async (req, res) => {
         // Try to use clientId from body if provided
         approvedBy = clientId;
       }
+
+      const user = req.user || {};
+      const actorId = user.id || null;
+      const actorEmail = user.email || clientEmail || null;
+      const actorName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        actorEmail ||
+        'Unknown User';
       
       // Seal check: Prevent re-approval
       const [existing] = await sequelize.query(
-        'SELECT status FROM sign_off_reports WHERE id = $1',
+        `SELECT status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (existing && existing.length > 0 && existing[0].status === 'approved') {
@@ -475,8 +621,8 @@ router.post('/:id/approve', async (req, res) => {
       }
 
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('approvedAt', NOW(), 'approvedBy', $3::text, 'clientComment', $4::text, 'digitalSignature', $5::text, 'clientEmail', $6::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
-        { bind: [id, 'approved', approvedBy, comment ?? null, digitalSignature ?? null, clientEmail] }
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'clientComment', $5::text, 'digitalSignature', $6::text, 'clientEmail', $7::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [id, 'approved', (actorId ?? approvedBy), actorName, comment ?? null, digitalSignature ?? null, clientEmail] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -533,20 +679,18 @@ router.post('/:id/approve', async (req, res) => {
       // Create Audit Log
       try {
         const { AuditLog } = require('../models');
-        const user = req.user || {};
-        const actorName = user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User');
-          
         await AuditLog.create({
-          entity_type: 'signoff',
-          entity_id: report.id,
           action: 'approved',
-          actor_id: user.id || null,
-          actor_name: actorName,
+          user_id: actorId,
+          user_email: actorEmail,
+          user_role: user.role || null,
+          entity_type: 'signoff',
+          entity_id: report.id.toString(),
+          entity_name: report.reportTitle,
           details: { 
             comment: comment ?? null,
-            digital_signature: digitalSignature ? 'Signed' : null
+            digital_signature: digitalSignature ? 'Signed' : null,
+            actor_name: actorName
           },
           created_at: new Date()
         });
@@ -584,7 +728,7 @@ router.post('/:id/submit', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const [existing] = await sequelize.query(
-        'SELECT id, created_by, status FROM sign_off_reports WHERE id = $1',
+        `SELECT id, created_by, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -599,9 +743,18 @@ router.post('/:id/submit', async (req, res) => {
       if (curStatus !== 'draft' && curStatus !== 'change_requested') {
         return res.status(409).json({ error: 'Invalid report state for submission' });
       }
+      const user = req.user || {};
+      const submitterId = (user.id || ownerId || null);
+      const submitterEmail = user.email || null;
+      const submitterName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        submitterEmail ||
+        'Unknown User';
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text), updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
-        { bind: [id, 'submitted', (req.user && req.user.id) || null] }
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [id, 'submitted', submitterId, submitterName] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -626,18 +779,15 @@ router.post('/:id/submit', async (req, res) => {
       // Create Audit Log
       try {
         const { AuditLog } = require('../models');
-        const user = req.user || {};
-        const actorName = user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User');
-          
         await AuditLog.create({
-          entity_type: 'signoff',
-          entity_id: report.id,
           action: 'submitted',
-          actor_id: user.id || null,
-          actor_name: actorName,
-          details: { status: 'submitted' },
+          user_id: submitterId,
+          user_email: submitterEmail,
+          user_role: user.role || null,
+          entity_type: 'signoff',
+          entity_id: report.id.toString(),
+          entity_name: report.reportTitle,
+          details: { status: 'submitted', actor_name: submitterName },
           created_at: new Date()
         });
       } catch (auditErr) {
@@ -668,7 +818,7 @@ router.get('/:id/signatures', async (req, res) => {
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
       const [results] = await sequelize.query(
-        'SELECT id, content, updated_at FROM sign_off_reports WHERE id = $1',
+        `SELECT id, content, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!results || results.length === 0) {
@@ -716,7 +866,7 @@ router.get('/:id/download', async (req, res) => {
     }
     await ensureReportsTable();
     const [results] = await sequelize.query(
-      'SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+      `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
       { bind: [id] }
     );
     if (!results || results.length === 0) {
@@ -782,7 +932,7 @@ router.post('/:id/signature', async (req, res) => {
       await ensureReportsTable();
       const { signatureData, signatureType } = req.body || {};
       const [existing] = await sequelize.query(
-        'SELECT id, content, updated_at FROM sign_off_reports WHERE id = $1',
+        `SELECT id, content, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -803,7 +953,7 @@ router.post('/:id/signature', async (req, res) => {
       };
       const newContent = { ...c, signatures: [...signatures, newSig] };
       const [updated] = await sequelize.query(
-        'UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id',
+        `UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id`,
         { bind: [id, JSON.stringify(newContent)] }
       );
       if (!updated || updated.length === 0) {
@@ -826,7 +976,7 @@ router.post('/:id/export', async (req, res) => {
       await ensureReportsTable();
       const { exportFormat, exportType, fileSize, fileHash, metadata } = req.body || {};
       const [existing] = await sequelize.query(
-        'SELECT id, content FROM sign_off_reports WHERE id = $1',
+        `SELECT id, content FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -846,7 +996,7 @@ router.post('/:id/export', async (req, res) => {
       };
       const newContent = { ...c, exports: [...exportsArr, exportEntry], lastExport: exportEntry };
       await sequelize.query(
-        'UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE id = $1',
+        `UPDATE sign_off_reports SET content = $2::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)}`,
         { bind: [id, JSON.stringify(newContent)] }
       );
       return res.json({ success: true });
@@ -890,12 +1040,22 @@ router.post('/:id/request-changes', async (req, res) => {
         reviewedBy = req.user.id;
       } else {
         // Try to use clientId from body if provided
-        reviewedBy = clientId;
+        reviewedBy = clientId ? String(clientId) : null;
       }
+
+      const user = req.user || {};
+      const actorId = user.id || null;
+      const actorEmail = user.email || clientEmail || null;
+      const actorName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        actorEmail ||
+        'Unknown User';
       
       await ensureReportsTable();
       const [existing] = await sequelize.query(
-        "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1",
+        `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -926,10 +1086,11 @@ router.post('/:id/request-changes', async (req, res) => {
         changeRequestDetails: changeRequestDetails ?? null,
         reviewedAt: new Date().toISOString(),
         reviewedBy: reviewedBy ? String(reviewedBy) : (curC.reviewedBy || null),
+        reviewedByName: actorName,
         clientEmail: clientEmail || curC.clientEmail || null
       };
       const [results] = await sequelize.query(
-        "UPDATE sign_off_reports SET status = $2, content = $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at",
+        `UPDATE sign_off_reports SET status = $2, content = $3::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
         { bind: [id, 'change_requested', JSON.stringify(merged)] }
       );
       const row = results[0];
@@ -1039,18 +1200,15 @@ router.post('/:id/request-changes', async (req, res) => {
       // Create Audit Log
       try {
         const { AuditLog } = require('../models');
-        const user = req.user || {};
-        const actorName = user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User');
-          
         await AuditLog.create({
-          entity_type: 'signoff',
-          entity_id: report.id,
           action: 'request_changes',
-          actor_id: user.id || null,
-          actor_name: actorName,
-          details: { change_request_details: changeRequestDetails },
+          user_id: actorId,
+          user_email: actorEmail,
+          user_role: user.role || null,
+          entity_type: 'signoff',
+          entity_id: report.id.toString(),
+          entity_name: report.reportTitle,
+          details: { change_request_details: changeRequestDetails, actor_name: actorName },
           created_at: new Date()
         });
       } catch (auditErr) {
@@ -1220,7 +1378,7 @@ router.post('/client-review-links', async (req, res) => {
     
     // Verify report exists
     const [reportCheck] = await sequelize.query(
-      'SELECT id, status FROM sign_off_reports WHERE id = $1',
+      `SELECT id, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
       { bind: [reportId] }
     );
     
@@ -1241,18 +1399,25 @@ router.post('/client-review-links', async (req, res) => {
     try {
       const { AuditLog } = require('../models');
       const user = req.user || {};
+      const actorEmail = user.email || null;
+      const actorName =
+        user.name ||
+        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+        user.username ||
+        actorEmail ||
+        'Unknown User';
       await AuditLog.create({
-        entity_type: 'signoff',
-        entity_id: reportId,
         action: 'review_link_created',
-        actor_id: user.id || null,
-        actor_name: user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : (user.username || 'Unknown User'),
+        user_id: user.id || null,
+        user_email: actorEmail,
+        user_role: user.role || null,
+        entity_type: 'signoff',
+        entity_id: reportId.toString(),
         details: { 
           clientEmail,
           expiresAt: expiresAt.toISOString(),
-          tokenType: 'client_review'
+          tokenType: 'client_review',
+          actor_name: actorName
         },
         created_at: new Date()
       });
@@ -1300,7 +1465,7 @@ router.get('/client-review/:token', async (req, res) => {
     
     // Fetch report
     const [results] = await sequelize.query(
-      'SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE id = $1',
+      `SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
       { bind: [reportId] }
     );
     

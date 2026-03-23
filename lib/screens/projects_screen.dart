@@ -660,6 +660,24 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ],
           ),
         ),
+        const SizedBox(height: 24),
+        Text(
+          'Use the full Project Workspace form to create a project.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
+              ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: () {
+            context.push<bool>('/project-workspace/new').then((created) {
+              if (created == true) {
+                _loadProjects();
+              }
+            });
+          },
+          child: const Text('Open Project Workspace'),
+        ),
       ],
     );
   }

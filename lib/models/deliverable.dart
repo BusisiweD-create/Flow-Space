@@ -74,6 +74,7 @@ class Deliverable {
   final DateTime? approvedAt;
   final String? approvedBy;
   final String? submittedBy;
+  final String? submittedByName;
   final DateTime? submittedAt;
   final String? assignedTo;
   final String? assignedToName;
@@ -102,6 +103,7 @@ class Deliverable {
     this.approvedAt,
     this.approvedBy,
     this.submittedBy,
+    this.submittedByName,
     this.submittedAt,
     this.assignedTo,
     this.assignedToName,
@@ -131,6 +133,7 @@ class Deliverable {
     DateTime? approvedAt,
     String? approvedBy,
     String? submittedBy,
+    String? submittedByName,
     DateTime? submittedAt,
     String? assignedTo,
     String? assignedToName,
@@ -158,6 +161,7 @@ class Deliverable {
       approvedAt: approvedAt ?? this.approvedAt,
       approvedBy: approvedBy ?? this.approvedBy,
       submittedBy: submittedBy ?? this.submittedBy,
+      submittedByName: submittedByName ?? this.submittedByName,
       submittedAt: submittedAt ?? this.submittedAt,
       assignedTo: assignedTo ?? this.assignedTo,
       assignedToName: assignedToName ?? this.assignedToName,
@@ -188,6 +192,7 @@ class Deliverable {
       'approvedAt': approvedAt?.toIso8601String(),
       'approvedBy': approvedBy,
       'submittedBy': submittedBy,
+      'submittedByName': submittedByName,
       'submittedAt': submittedAt?.toIso8601String(),
       'assignedTo': assignedTo,
       'assignedToName': assignedToName,
@@ -358,6 +363,7 @@ class Deliverable {
           : (json['approved_at'] != null ? DateTime.parse(json['approved_at'].toString()) : null),
       approvedBy: json['approvedBy']?.toString() ?? json['approved_by']?.toString(),
       submittedBy: json['submittedBy']?.toString() ?? json['submitted_by']?.toString(),
+      submittedByName: json['submittedByName']?.toString() ?? json['submitted_by_name']?.toString(),
       submittedAt: json['submittedAt'] != null
           ? DateTime.parse(json['submittedAt'].toString())
           : (json['submitted_at'] != null ? DateTime.parse(json['submitted_at'].toString()) : null),

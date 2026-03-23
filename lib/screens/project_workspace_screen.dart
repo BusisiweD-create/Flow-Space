@@ -28,6 +28,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
   final _nameController = TextEditingController();
     final _descriptionController = TextEditingController();
   final _clientNameController = TextEditingController();
+  final _clientProjectOwnerController = TextEditingController();
   final _tagsController = TextEditingController();
   
   ProjectStatus _selectedStatus = ProjectStatus.planning;
@@ -68,6 +69,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
     _nameController.dispose();
     _descriptionController.dispose();
     _clientNameController.dispose();
+    _clientProjectOwnerController.dispose();
     _tagsController.dispose();
     super.dispose();
   }
@@ -85,6 +87,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
           _nameController.text = project.name;
           _descriptionController.text = project.description;
           _clientNameController.text = project.clientName ?? '';
+          _clientProjectOwnerController.text = project.clientOwnerName ?? '';
           _selectedStatus = project.status;
           _selectedPriority = project.priority;
           const validProjectTypes = ['software', 'hardware', 'research', 'consulting', 'other'];
@@ -234,6 +237,9 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
         key: _isEditing ? _currentProject!.key : _generateProjectKey(_nameController.text.trim()),
         description: _descriptionController.text.trim(),
         clientName: _clientNameController.text.trim().isEmpty ? null : _clientNameController.text.trim(),
+        clientOwnerName: _clientProjectOwnerController.text.trim().isEmpty
+            ? null
+            : _clientProjectOwnerController.text.trim(),
         status: _selectedStatus,
         priority: _selectedPriority,
         projectType: _selectedProjectType,
@@ -251,20 +257,29 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
       );
 
       if (_isEditing) {
-        await ApiService.updateProject(project);
+        final updateSuccess = await ApiService.updateProject(project);
+        
+        if (updateSuccess) {
+          // Update the current project data with the new values
+          setState(() {
+            _currentProject = project;
+          });
+          
+          try {
+            // Link selected deliverables to this project by updating their project_id
+            for (final deliverableId in _deliverableIds) {
+              await ApiService.linkDeliverableToProject(project.id, deliverableId);
+            }
 
-        try {
-          // Link selected deliverables to this project by updating their project_id
-          for (final deliverableId in _deliverableIds) {
-            await ApiService.linkDeliverableToProject(project.id, deliverableId);
-          }
+            if (_sprintIds.isNotEmpty) {
+              await ApiService.associateSprintWithProject(project.id, _sprintIds);
+            }
+          } catch (_) {}
 
-          if (_sprintIds.isNotEmpty) {
-            await ApiService.associateSprintWithProject(project.id, _sprintIds);
-          }
-        } catch (_) {}
-
-        _showSuccessSnackBar('Project updated successfully');
+          _showSuccessSnackBar('Project updated successfully');
+        } else {
+          _showErrorSnackBar('Failed to update project');
+        }
       } else {
         final createdProject = await ApiService.createProjectModel(project);
 
@@ -292,7 +307,9 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
             Navigator.of(context).pop(true);
           } else {
             if (_isEditing) {
-              context.go('/project-workspace/${project.id}');
+              // Force refresh by adding timestamp to URL
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              context.go('/project-workspace/${project.id}?refresh=$timestamp');
             } else {
               context.go('/projects');
             }
@@ -599,6 +616,33 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
             ),
           ),
           const SizedBox(height: 16),
+          TextFormField(
+            controller: _clientProjectOwnerController,
+            decoration: InputDecoration(
+              labelText: 'Project Owner (Client Side)',
+              hintText: 'Enter client-side project owner',
+              prefixIcon: Icon(Icons.badge_outlined, color: colorScheme.primary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colorScheme.outline.withAlpha(100)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colorScheme.outline.withAlpha(50)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colorScheme.primary, width: 2),
+              ),
+              filled: true,
+              fillColor: colorScheme.surface.withAlpha(100),
+            ),
+            style: TextStyle(
+              fontSize: 16,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 16),
           DropdownButtonFormField<User>(
             // ignore: deprecated_member_use
             value: _selectedOwner,
@@ -609,7 +653,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
               });
             },
             decoration: InputDecoration(
-              labelText: 'Project Owner *',
+              labelText: 'Project Manager *',
               prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -638,7 +682,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
             }).toList(),
             validator: (value) {
               if (value == null) {
-                return 'Project owner is required';
+                return 'Project manager is required';
               }
               return null;
             },

@@ -7,6 +7,7 @@ import 'package:khono/models/user_role.dart';
 import 'package:khono/models/deliverable.dart';
 import 'package:khono/models/sprint_metrics.dart';
 import 'package:khono/models/sign_off_report.dart';
+import 'package:khono/config/environment.dart';
 
 class BackendApiService {
   static final BackendApiService _instance = BackendApiService._internal();
@@ -30,7 +31,28 @@ class BackendApiService {
   }
 
   Future<ApiResponse> signUp(String email, String password, String name, UserRole role) async {
-    return await _apiClient.register(email, password, name, role.name);
+    // Parse the full name into firstName and lastName for the backend
+    final nameParts = name.trim().split(' ');
+    final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
+    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+    // Use different endpoints based on environment
+    final endpoint = Environment.isRenderDeployed ? '/auth/signup' : '/auth/register';
+    
+    debugPrint('🔍 Environment.isRenderDeployed: ${Environment.isRenderDeployed}');
+    debugPrint('🔍 Using endpoint: $endpoint');
+    debugPrint('🔍 Signing up with email: $email');
+    
+    final response = await _apiClient.post(endpoint, body: {
+      'email': email,
+      'password': password,
+      'firstName': firstName,
+      'lastName': lastName,
+      'role': role.name,
+    });
+
+    debugPrint('🔍 Signup response: ${response.statusCode} - ${response.error ?? "Success"}');
+    return response;
   }
 
   Future<ApiResponse> signOut() async {
@@ -212,7 +234,7 @@ class BackendApiService {
   }
 
   Future<ApiResponse> updateSprintStatus(String sprintId, Map<String, dynamic> updates) async {
-    return await _apiClient.put('/sprints/$sprintId', body: updates);
+    return await _apiClient.put('/sprints/$sprintId/status', body: updates);
   }
 
   Future<ApiResponse> runDiagnostics() async {
@@ -384,6 +406,10 @@ class BackendApiService {
   }
 
   // Project member management
+  Future<ApiResponse> getProjectMembers(String projectId) async {
+    return await _apiClient.get('/projects/$projectId/members');
+  }
+
   Future<ApiResponse> addProjectMember(String projectId, Map<String, dynamic> memberData) async {
     return await _apiClient.post('/projects/$projectId/members', body: memberData);
   }

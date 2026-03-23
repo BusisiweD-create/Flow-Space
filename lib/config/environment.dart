@@ -8,11 +8,8 @@ class Environment {
       'A social learning platform built with Flutter';
 
   // API Configuration - Use const for production URL from build
-  // Reverting to localhost
-  static const String _apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: "http://localhost:8000/api/v1",
-  );
+  // Note: _apiBaseUrl kept for potential future use with build-time variables
+  static const String _apiBaseUrl = "http://localhost:8000/api/v1";
 
   // Production fallback detection
   static String get apiBaseUrl {
@@ -21,13 +18,22 @@ class Environment {
       return _apiBaseUrl;
     }
 
-    // Fallback to production URL if deployed on Render
+    // Fallback if deployed but build-time URL wasn't provided
     if (isRenderDeployed) {
-      return "https://flow-space.onrender.com/api/v1";
+      return "https://backend-532p.onrender.com/api/v1";
     }
 
     // Default to localhost for development
     return _apiBaseUrl;
+  }
+
+  // Base URL without version for endpoints that already include version
+  static String get baseUrlWithoutVersion {
+    final baseUrl = apiBaseUrl;
+    if (baseUrl.endsWith('/api/v1')) {
+      return baseUrl.replaceAll('/api/v1', '');
+    }
+    return baseUrl;
   }
 
   static const int apiTimeout = 30000;
@@ -38,8 +44,10 @@ class Environment {
   static const bool enablePushNotifications = true;
 
   // Development Settings
-  static const bool debugMode =
-      bool.fromEnvironment('DEBUG_MODE', defaultValue: true);
+  static const bool debugMode = bool.fromEnvironment(
+    'DEBUG_MODE',
+    defaultValue: true,
+  );
   static const String logLevel = 'debug';
 
   // Environment-specific configurations
@@ -52,8 +60,7 @@ class Environment {
     try {
       final uri = Uri.base;
       return uri.host.contains('onrender.com') ||
-          uri.host.contains('flownet.works') ||
-          (!uri.host.contains('localhost') && !uri.host.contains('127.0.0.1'));
+          uri.host.contains('flownet.works');
     } catch (e) {
       return false;
     }

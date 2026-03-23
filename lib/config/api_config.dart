@@ -1,15 +1,9 @@
 class ApiConfig {
   // Base API configuration - prioritize production URL for deployed apps
-  static const String _baseUrl = String.fromEnvironment(
+  static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000/api',
+    defaultValue: 'https://backend-532p.onrender.com/api',
   );
-
-  // Get baseUrl without /v1 to avoid double versioning
-  static String get baseUrl {
-    return _baseUrl.replaceAll('/v1', '');
-  }
-
   static const String apiVersion = '/v1';
   static const Duration requestTimeout = Duration(seconds: 30);
   static const Duration tokenRefreshBuffer = Duration(minutes: 5);
@@ -77,14 +71,11 @@ class ApiConfig {
 
   // Helper methods
   static String getFullUrl(String endpoint) {
-    return '$baseUrl$apiVersion$endpoint';
+    return '$environmentBaseUrl$apiVersion$endpoint';
   }
 
   static String replacePathParameter(
-    String endpoint,
-    String parameter,
-    String value,
-  ) {
+      String endpoint, String parameter, String value) {
     return endpoint.replaceAll('{$parameter}', value);
   }
 
@@ -109,15 +100,15 @@ class ApiConfig {
 
   // API Headers
   static Map<String, String> get defaultHeaders => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Flownet-Mobile/1.0.0',
+      };
 
   static Map<String, String> getAuthHeaders(String token) => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Authorization': 'Bearer $token',
-  };
+        ...defaultHeaders,
+        'Authorization': 'Bearer $token',
+      };
 
   // Error codes
   static const int unauthorizedCode = 401;
@@ -129,9 +120,8 @@ class ApiConfig {
   // Retry configuration
   static const int maxRetryAttempts = 3;
   static const Duration retryDelay = Duration(seconds: 2);
-  static const Duration exponentialBackoffMultiplier = Duration(
-    milliseconds: 500,
-  );
+  static const Duration exponentialBackoffMultiplier =
+      Duration(milliseconds: 500);
 
   // Cache configuration
   static const Duration cacheExpiry = Duration(minutes: 5);
