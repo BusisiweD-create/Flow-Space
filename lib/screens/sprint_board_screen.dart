@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../services/sprint_database_service.dart';
-import '../services/backend_api_service.dart';
 import '../services/realtime_service.dart';
 import '../services/auth_service.dart';
 import '../services/jira_service.dart';
@@ -12,7 +10,6 @@ import '../models/deliverable.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/sprint_board_widget.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/app_modal.dart';
 
 class SprintBoardScreen extends ConsumerStatefulWidget {
   final String sprintId;
@@ -39,41 +36,17 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   List<JiraIssue> _issues = [];
   List<Deliverable> _deliverables = [];
   Map<String, dynamic>? _sprintDetails;
-  List<Map<String, dynamic>> _users = [];
   
   // UI State
   bool _isLoading = false;
-  bool _isCreatingDeliverable = false;
-  bool _useAiForDeliverable = false;
-  bool _isGeneratingAi = false;
 
   @override
   void initState() {
     super.initState();
     _loadSprintData();
-    _loadUsers();
     _setupRealtime();
   }
 
-  Future<void> _loadUsers() async {
-    try {
-      final backend = BackendApiService();
-      final response = await backend.getUsers(limit: 100);
-      if (mounted && response.isSuccess && response.data != null) {
-        final raw = response.data;
-        List<dynamic> list = [];
-        if (raw is List) {
-          list = raw;
-        } else if (raw is Map) {
-          list = (raw['users'] ?? raw['data'] ?? []) as List<dynamic>;
-        }
-        
-        setState(() {
-          _users = list.map((u) => u is Map<String, dynamic> ? u : Map<String, dynamic>.from(u as Map)).toList();
-        });
-      }
-    } catch (_) {}
-  }
 
   Future<void> _loadSprintData() async {
     setState(() {
@@ -92,13 +65,12 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
 
       if (sprintDetails != null) {
         final project = sprintDetails['project'];
-        final projectId = sprintDetails['project_id']?.toString() ?? 
-                         sprintDetails['projectId']?.toString() ??
-                         (project is Map ? project['id']?.toString() : null);
+        final projectId = sprintDetails['project_id']?.toString() ??
+            sprintDetails['projectId']?.toString() ??
+            (project is Map ? project['id']?.toString() : null);
         debugPrint('🔍 Sprint loaded. Project ID: $projectId');
-        
-        // Load deliverables related to the project
-        await _loadDeliverables(projectId);
+
+        await _loadDeliverablesForSprint(widget.sprintId, projectId: projectId);
       } else {
         debugPrint('⚠️ Sprint details not found for ID: ${widget.sprintId}');
         _showSnackBar('Sprint details not found', isError: true);
@@ -118,12 +90,12 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   void _setupRealtime() {
     _realtime = RealtimeService();
     _realtime.initialize(authToken: AuthService().accessToken);
-    _realtime.on('deliverable_created', (data) => _loadDeliverables());
-    _realtime.on('deliverable_updated', (data) => _loadDeliverables());
-    _realtime.on('deliverable_deleted', (data) => _loadDeliverables());
+    _realtime.on('deliverable_created', (data) => _loadDeliverablesForSprint(widget.sprintId));
+    _realtime.on('deliverable_updated', (data) => _loadDeliverablesForSprint(widget.sprintId));
+    _realtime.on('deliverable_deleted', (data) => _loadDeliverablesForSprint(widget.sprintId));
   }
 
-  Future<void> _loadDeliverables([String? projectId]) async {
+  Future<void> _loadDeliverablesForSprint(String sprintId, {String? projectId}) async {
     try {
       final project = _sprintDetails?['project'];
       final pid = projectId ?? 
@@ -131,15 +103,12 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
                  _sprintDetails?['projectId']?.toString() ??
                  (project is Map ? project['id']?.toString() : null);
       
-      debugPrint('🔍 Fetching deliverables for project: $pid');
-      
-      // If we still don't have a project ID, we can't fetch deliverables
-      if (pid == null || pid.isEmpty) {
-        debugPrint('⚠️ Cannot load deliverables: No project ID found in sprint details');
-        return;
-      }
+      debugPrint('🔍 Fetching deliverables for sprint: $sprintId (project: $pid)');
 
-      final response = await _deliverableService.getDeliverables(projectId: pid);
+      var response = await _deliverableService.getDeliverablesForSprint(sprintId);
+      if (!response.isSuccess && pid != null && pid.isNotEmpty) {
+        response = await _deliverableService.getDeliverables(projectId: pid);
+      }
       
       if (response.isSuccess && response.data != null) {
         final data = response.data;
@@ -158,6 +127,15 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
           if (rawList is List) {
             deliverables = rawList.map((e) => e is Deliverable ? e : Deliverable.fromJson(Map<String, dynamic>.from(e))).toList();
           }
+        }
+
+        if (deliverables.isNotEmpty) {
+          deliverables = deliverables.where((d) {
+            final inSprint = d.sprintIds.map((e) => e.toString()).contains(sprintId.toString());
+            if (!inSprint) return false;
+            if (pid == null || pid.isEmpty) return true;
+            return (d.projectId ?? '').toString() == pid.toString();
+          }).toList();
         }
         
         if (mounted) {
@@ -185,7 +163,7 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
           });
         }
         
-        debugPrint('✅ Loaded ${_deliverables.length} deliverables for project $pid');
+        debugPrint('✅ Loaded ${_deliverables.length} deliverables for sprint $sprintId');
       } else {
         debugPrint('❌ Failed to fetch deliverables: ${response.error}');
         _showSnackBar('Failed to load deliverables: ${response.error}', isError: true);
@@ -231,8 +209,8 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   Future<void> _handleIssueStatusChange(JiraIssue issue, String newStatus) async {
     try {
       final auth = AuthService();
-      if (auth.isSystemAdmin) {
-        _showSnackBar('System admin can view/comment only');
+      if (!auth.canEditDeliverable()) {
+        _showSnackBar('You do not have permission to update deliverables');
         return;
       }
       
@@ -309,266 +287,13 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
   }
 
   void _showCreateDeliverableDialog() {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final assigneeController = TextEditingController();
-    final aiPromptController = TextEditingController();
-    String selectedPriority = 'Medium';
-
-    showAppDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FlownetColors.charcoalBlack,
-        title: const Text(
-          'Create Deliverable',
-          style: TextStyle(color: FlownetColors.pureWhite),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: SwitchListTile(
-                      value: _useAiForDeliverable,
-                      onChanged: (v) {
-                        setState(() {
-                          _useAiForDeliverable = v;
-                        });
-                      },
-                      title: const Text('Use AI Assistance', style: TextStyle(color: FlownetColors.pureWhite)),
-                    ),
-                  ),
-                ],
-              ),
-              if (_useAiForDeliverable) ...[
-                TextField(
-                  controller: aiPromptController,
-                  maxLines: 3,
-                  style: const TextStyle(color: FlownetColors.pureWhite),
-                  decoration: const InputDecoration(
-                    labelText: 'AI Prompt (requirements/context)',
-                    labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(color: FlownetColors.electricBlue),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _isGeneratingAi
-                        ? null
-                        : () async {
-                            setState(() { _isGeneratingAi = true; });
-                            try {
-                              final backend = BackendApiService();
-                              final messages = [
-                                {
-                                  'role': 'system',
-                                  'content': 'You generate concise deliverables for a project. Return JSON with keys: title, description.'
-                                },
-                                {
-                                  'role': 'user',
-                                  'content': 'Sprint: ${widget.sprintName}. Context: ${_sprintDetails?['description'] ?? ''}. Requirements: ${aiPromptController.text}'.trim()
-                                },
-                              ];
-                              final resp = await backend.aiChat(messages, temperature: 0.4, maxTokens: 256);
-                              if (resp.isSuccess && resp.data != null) {
-                                final data = resp.data as Map<String, dynamic>;
-                                final content = (data['content'] ?? '').toString();
-                                String t = '';
-                                String d = '';
-                                try {
-                                  final parsed = content.startsWith('{') ? jsonDecode(content) : null;
-                                  if (parsed is Map) {
-                                    t = (parsed['title'] ?? '').toString();
-                                    d = (parsed['description'] ?? '').toString();
-                                  }
-                                } catch (_) {}
-                                if (t.isEmpty) {
-                                  final lines = content.split('\n').where((e) => e.trim().isNotEmpty).toList();
-                                  t = lines.isNotEmpty ? lines.first.trim() : 'New Deliverable';
-                                  d = lines.skip(1).join('\n').trim();
-                                  if (d.isEmpty) d = content.trim();
-                                }
-                                titleController.text = t;
-                                descriptionController.text = d;
-                              }
-                            } catch (_) {}
-                            setState(() { _isGeneratingAi = false; });
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: FlownetColors.electricBlue,
-                      foregroundColor: FlownetColors.pureWhite,
-                    ),
-                    icon: _isGeneratingAi
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.auto_awesome),
-                    label: const Text('Generate with AI'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              TextField(
-                controller: titleController,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Deliverable Title',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                maxLines: 3,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: assigneeController.text.isNotEmpty && _users.any((u) => u['email'] == assigneeController.text) ? assigneeController.text : null,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Owner',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-                dropdownColor: FlownetColors.charcoalBlack,
-                items: [
-                  const DropdownMenuItem<String>(
-                    value: null,
-                    child: Text('Unassigned', style: TextStyle(color: FlownetColors.pureWhite)),
-                  ),
-                  ..._users.map((u) {
-                    final email = u['email']?.toString() ?? '';
-                    final name = '${u['first_name'] ?? ''} ${u['last_name'] ?? ''}'.trim();
-                    final display = name.isNotEmpty ? '$name ($email)' : email;
-                    return DropdownMenuItem<String>(
-                      value: email,
-                      child: Text(display, style: const TextStyle(color: FlownetColors.pureWhite)),
-                    );
-                  }),
-                ],
-                onChanged: (val) {
-                  assigneeController.text = val ?? '';
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: selectedPriority,
-                style: const TextStyle(color: FlownetColors.pureWhite),
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  labelStyle: TextStyle(color: FlownetColors.electricBlue),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue, width: 2),
-                  ),
-                ),
-                dropdownColor: FlownetColors.charcoalBlack,
-                items: const [
-                  DropdownMenuItem(value: 'Low', child: Text('Low', style: TextStyle(color: FlownetColors.pureWhite))),
-                  DropdownMenuItem(value: 'Medium', child: Text('Medium', style: TextStyle(color: FlownetColors.pureWhite))),
-                  DropdownMenuItem(value: 'High', child: Text('High', style: TextStyle(color: FlownetColors.pureWhite))),
-                  DropdownMenuItem(value: 'Critical', child: Text('Critical', style: TextStyle(color: FlownetColors.pureWhite))),
-                ],
-                onChanged: (value) => selectedPriority = value ?? 'Medium',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: FlownetColors.pureWhite),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleController.text.isNotEmpty) {
-                final navigator = Navigator.of(context);
-                await _createDeliverable(
-                  titleController.text,
-                  descriptionController.text,
-                  assigneeController.text,
-                  selectedPriority,
-                );
-                navigator.pop();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: FlownetColors.electricBlue,
-              foregroundColor: FlownetColors.pureWhite,
-            ),
-            child: const Text('Create Deliverable'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _createDeliverable(String title, String description, String ownerEmail, String priority) async {
-    try {
-      setState(() {
-        _isCreatingDeliverable = true;
-      });
-
-      final projectId = _sprintDetails?['project_id']?.toString() ?? _sprintDetails?['projectId']?.toString();
-
-      // Create deliverable via API
-      final response = await _deliverableService.createDeliverable(
-        title: title,
-        description: description,
-        priority: priority,
-        status: 'Draft',
-        assignedTo: ownerEmail.isNotEmpty ? ownerEmail : null,
-        projectId: projectId,
-        sprintIds: [widget.sprintId],
-      );
-
-      if (response.isSuccess) {
-        _showSnackBar('✅ Deliverable "$title" created successfully!');
-        await _loadDeliverables(); // Refresh deliverables
-      } else {
-        _showSnackBar('❌ Failed to create deliverable: ${response.error}', isError: true);
-      }
-    } catch (e) {
-      _showSnackBar('Error creating deliverable: $e', isError: true);
-    } finally {
-      setState(() {
-        _isCreatingDeliverable = false;
-      });
-    }
+    final projectId = _sprintDetails?['project_id']?.toString() ?? _sprintDetails?['projectId']?.toString();
+    final params = <String, String>{
+      'sprintId': widget.sprintId,
+      if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
+    };
+    final uri = Uri(path: '/enhanced-deliverable-setup', queryParameters: params);
+    context.go(uri.toString());
   }
 
 
@@ -631,8 +356,17 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
                           children: [
                             _buildSprintInfoChip(
                               'Status',
-                              _sprintDetails!['status'] ?? 'Unknown',
-                              _getStatusColor(_sprintDetails!['status']),
+                              (() {
+                                final raw = (_sprintDetails!['status'] ??
+                                        _sprintDetails!['state'] ??
+                                        '')
+                                    .toString()
+                                    .trim();
+                                if (raw.isEmpty) return 'Draft';
+                                if (raw.toLowerCase() == 'in_progress') return 'In Progress';
+                                return raw;
+                              })(),
+                              _getStatusColor((_sprintDetails!['status'] ?? _sprintDetails!['state'])?.toString()),
                             ),
                             const SizedBox(width: 12),
                             if (_sprintDetails!['start_date'] != null)
@@ -662,8 +396,9 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
           Row(
             children: [
               DropdownButton<String>(
-                value: (_sprintDetails?['status'] ?? 'planning')?.toString(),
+                value: _normalizeSprintStatus((_sprintDetails?['status'] ?? 'planning')?.toString()),
                 items: const [
+                  DropdownMenuItem(value: 'draft', child: Text('Draft')),
                   DropdownMenuItem(value: 'planning', child: Text('Planning')),
                   DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
                   DropdownMenuItem(value: 'completed', child: Text('Completed')),
@@ -727,6 +462,17 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
         ],
       ),
     );
+  }
+
+  String _normalizeSprintStatus(String? status) {
+    final s = (status ?? '').toLowerCase().trim();
+    if (s.isEmpty) return 'draft';
+    if (s == 'draft') return 'draft';
+    if (s == 'in_progress' || s == 'in progress') return 'in_progress';
+    if (s == 'completed' || s == 'done') return 'completed';
+    if (s == 'planning' || s == 'planned' || s == 'to do') return 'planning';
+    if (s == 'cancelled') return 'cancelled';
+    return 'draft';
   }
 
   Widget _buildSprintInfoChip(String label, String value, Color color) {
@@ -855,12 +601,17 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
 
   Color _getStatusColor(String? status) {
     switch (status?.toLowerCase()) {
+      case 'draft':
       case 'active':
+      case 'in_progress':
+      case 'in progress':
         return FlownetColors.electricBlue;
       case 'completed':
         return Colors.green;
       case 'planning':
         return Colors.orange;
+      case 'cancelled':
+        return Colors.red;
       default:
         return FlownetColors.pureWhite;
     }
@@ -890,6 +641,8 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
       );
     }
 
+    final auth = AuthService();
+    final canCreateDeliverable = auth.canCreateDeliverable();
     return AppScaffold(
       useBackgroundImage: false,
       appBar: AppBar(
@@ -916,11 +669,12 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
             onPressed: _loadSprintData,
             tooltip: 'Refresh Data',
           ),
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: _showCreateDeliverableDialog,
-            tooltip: 'Create Deliverable',
-          ),
+          if (canCreateDeliverable)
+            IconButton(
+              icon: const Icon(Icons.add, color: Colors.white),
+              onPressed: _showCreateDeliverableDialog,
+              tooltip: 'Create Deliverable',
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -945,29 +699,15 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          final auth = AuthService();
-          if (auth.isSystemAdmin) {
-            _showSnackBar('System admin can view/comment only');
-            return;
-          }
-          _showCreateDeliverableDialog();
-        },
-        backgroundColor: FlownetColors.electricBlue,
-        foregroundColor: FlownetColors.pureWhite,
-        icon: _isCreatingDeliverable 
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(FlownetColors.pureWhite),
-                ),
-              )
-            : const Icon(Icons.add),
-        label: Text(_isCreatingDeliverable ? 'Creating...' : 'Create Deliverable'),
-      ),
+      floatingActionButton: canCreateDeliverable
+          ? FloatingActionButton.extended(
+              onPressed: _showCreateDeliverableDialog,
+              backgroundColor: FlownetColors.electricBlue,
+              foregroundColor: FlownetColors.pureWhite,
+              icon: const Icon(Icons.add),
+              label: const Text('Create Deliverable'),
+            )
+          : null,
     );
   }
 }

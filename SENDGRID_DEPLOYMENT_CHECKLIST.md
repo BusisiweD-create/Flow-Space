@@ -50,7 +50,7 @@ node test-sendgrid-config.cjs
 ### **Step 4: Registration Flow Test**
 ```bash
 # Test registration endpoint
-curl -X POST http://localhost:3001/api/v1/auth/register \
+curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",

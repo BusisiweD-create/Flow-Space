@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:convert';
 import '../models/sign_off_report.dart';
 import '../models/user_role.dart';
 import '../services/sign_off_report_service.dart';
@@ -79,61 +78,10 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
             ? reportResponse.data!['data'] as Map<String, dynamic>
             : reportResponse.data as Map<String, dynamic>;
         
-        final contentRaw = data['content'];
-        Map<String, dynamic> content;
-        if (contentRaw is String) {
-          try {
-            final decoded = jsonDecode(contentRaw);
-            content = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
-          } catch (_) {
-            content = {
-              'reportTitle': (data['report_title'] ?? data['deliverable_title'] ?? data['reportTitle'] ?? 'Sign-Off Report').toString(),
-              'reportContent': (data['report_content'] ?? data['reportContent'] ?? contentRaw).toString(),
-              'knownLimitations': (data['known_limitations'] ?? data['knownLimitations'])?.toString(),
-              'nextSteps': (data['next_steps'] ?? data['nextSteps'])?.toString(),
-              'sprintIds': (() {
-                final v = data['sprint_ids'] ?? data['sprintIds'];
-                if (v is List) return v.map((e) => e.toString()).toList();
-                return <String>[];
-              })(),
-            };
-          }
-        } else if (contentRaw is Map) {
-          content = Map<String, dynamic>.from(contentRaw);
-        } else {
-          content = <String, dynamic>{};
-        }
         final reviews = data['reviews'] as List? ?? [];
         
         setState(() {
-          _report = SignOffReport(
-            id: (data['id'] ?? '').toString(),
-            deliverableId: ((data['deliverableId'] ?? data['deliverable_id']) ?? '').toString(),
-            reportTitle: (content['reportTitle'] ?? content['report_title'] ?? data['report_title'] ?? data['reportTitle'] ?? 'Untitled Report').toString(),
-            reportContent: (content['reportContent'] ?? content['report_content'] ?? data['report_content'] ?? data['reportContent'] ?? '').toString(),
-            sprintIds: (() {
-              final v = content['sprintIds'] ?? content['sprint_ids'];
-              if (v is List) return v.map((e) => e.toString()).toList();
-              return <String>[];
-            })(),
-            knownLimitations: (content['knownLimitations'] ?? content['known_limitations'])?.toString(),
-            nextSteps: (content['nextSteps'] ?? content['next_steps'])?.toString(),
-            status: _parseStatus(data['status'] as String? ?? 'draft'),
-            createdAt: (() {
-              final v = data['createdAt'] ?? data['created_at'];
-              if (v is String && v.isNotEmpty) {
-                try { return DateTime.parse(v).toLocal(); } catch (_) {}
-              }
-              return DateTime.now();
-            })(),
-            createdBy: (data['createdByName'] ?? data['created_by_name'] ?? data['created_by'])?.toString() ?? 'Unknown',
-            digitalSignature: content['digitalSignature'] as String?,
-            sprintPerformanceData: (data['sprintPerformanceData'] ?? data['sprint_performance_data'])?.toString(),
-            changeRequestHistory: data['changeRequestHistory'] ?? data['change_request_history'],
-            changeRequestDetails: (data['changeRequestDetails'] ?? data['change_request_details'])?.toString(),
-            reviewedBy: (data['reviewedBy'] ?? data['reviewed_by'])?.toString(),
-            reviewedAt: data['reviewedAt'] != null ? DateTime.tryParse(data['reviewedAt'].toString()) : null,
-          );
+          _report = SignOffReport.fromJson(Map<String, dynamic>.from(data));
           
           _reviews = reviews.cast<Map<String, dynamic>>();
           
@@ -212,22 +160,6 @@ class _ClientReviewWorkflowScreenState extends ConsumerState<ClientReviewWorkflo
     final ok = await _docuSignService.loadConfiguration();
     if (mounted) {
       setState(() => _docuSignEnabled = ok);
-    }
-  }
-
-  ReportStatus _parseStatus(String status) {
-    switch (status.toLowerCase()) {
-      case 'submitted':
-        return ReportStatus.submitted;
-      case 'under_review':
-        return ReportStatus.underReview;
-      case 'approved':
-        return ReportStatus.approved;
-      case 'change_requested':
-      case 'change_request':
-        return ReportStatus.changeRequested;
-      default:
-        return ReportStatus.draft;
     }
   }
 

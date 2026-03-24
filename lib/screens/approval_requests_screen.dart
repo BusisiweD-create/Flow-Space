@@ -76,9 +76,15 @@ Future.microtask(() async {
       );
       
       if (response.isSuccess) {
-        final list = (response.data!['requests'] as List<dynamic>)
-            .map((item) => core.ApprovalRequest.fromJson(item as Map<String, dynamic>))
-            .toList();
+        final raw = response.data;
+        final items = raw is Map ? (raw['requests'] as List? ?? const []) : const [];
+        final list = items.map((item) {
+          if (item is core.ApprovalRequest) return item;
+          if (item is Map) {
+            return core.ApprovalRequest.fromJson(item.cast<String, dynamic>());
+          }
+          return core.ApprovalRequest.fromJson(<String, dynamic>{});
+        }).toList();
         final merged = await _mergeSignOffFallback(list);
         setState(() {
           _requests = merged;
@@ -96,6 +102,7 @@ Future.microtask(() async {
   Future<List<core.ApprovalRequest>> _mergeSignOffFallback(List<core.ApprovalRequest> base) async {
     try {
       final reportsRespSubmitted = await _reportService.getSignOffReports(status: 'submitted');
+      final reportsRespUnderReview = await _reportService.getSignOffReports(status: 'under_review');
       final reportsRespApproved = await _reportService.getSignOffReports(status: 'approved');
       final reportsRespChanges = await _reportService.getSignOffReports(status: 'change_requested');
 
@@ -151,6 +158,7 @@ Future.microtask(() async {
       }
 
       if (reportsRespSubmitted.isSuccess) addFrom(reportsRespSubmitted.data, 'pending');
+      if (reportsRespUnderReview.isSuccess) addFrom(reportsRespUnderReview.data, 'pending');
       if (reportsRespApproved.isSuccess) addFrom(reportsRespApproved.data, 'approved');
       if (reportsRespChanges.isSuccess) addFrom(reportsRespChanges.data, 'rejected');
 

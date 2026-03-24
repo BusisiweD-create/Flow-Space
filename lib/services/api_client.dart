@@ -16,6 +16,7 @@ class ApiClient {
 static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   static const Duration _timeout = Duration(seconds: 45); // Increased timeout for Render
 
+  bool _initialized = false;
   String? _accessToken;
   String? _refreshToken;
   DateTime? _tokenExpiry;
@@ -39,9 +40,11 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   // Initialize API client
   Future<void> initialize() async {
+    if (_initialized) return;
     await _loadStoredTokens();
     DebugHelper.logEnvironmentInfo();
     debugPrint('API Client initialized with base URL: $_baseUrlWithVersion');
+    _initialized = true;
   }
 
   // Token management
