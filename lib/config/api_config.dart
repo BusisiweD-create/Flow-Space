@@ -1,3 +1,5 @@
+import 'environment.dart';
+
 class ApiConfig {
   // Base API configuration - prioritize production URL for deployed apps
   static const String baseUrl = String.fromEnvironment(
@@ -71,7 +73,7 @@ class ApiConfig {
 
   // Helper methods
   static String getFullUrl(String endpoint) {
-    return '$baseUrl$apiVersion$endpoint';
+    return '${Environment.apiBaseUrl}$endpoint';
   }
 
   static String replacePathParameter(

@@ -25,8 +25,6 @@ import 'screens/report_repository_screen.dart';
 import 'screens/approval_requests_screen.dart';
 import 'screens/repository_screen.dart';
 import 'screens/notifications_screen.dart';
-import 'screens/projects_screen.dart';
-import 'screens/project_create_screen.dart';
 import 'screens/smtp_config_screen.dart';
 import 'screens/send_reminder_screen.dart';
 import 'screens/role_dashboard_screen.dart';
@@ -52,6 +50,8 @@ import 'screens/skill_assessment_screen.dart';
 import 'screens/deliverable_detail_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
+import 'screens/project_details_screen.dart';
+import 'screens/ai_assistant_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -164,18 +164,9 @@ final GoRouter _router = GoRouter(
       ),
     ),
     GoRoute(
-      path: '/projects',
-      builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
-        child: SidebarScaffold(
-          child: ProjectsScreen(),
-        ),
-      ),
-    ),
-    GoRoute(
       path: '/projects/create',
       builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
+        requiredPermission: 'manage_projects',
         child: SidebarScaffold(
           child: ProjectWorkspaceScreen(),
         ),
@@ -186,7 +177,7 @@ final GoRouter _router = GoRouter(
       builder: (context, state) {
         final projectId = state.pathParameters['projectId']!;
         return RoleGuard(
-          requiredPermission: 'authenticated',
+          requiredPermission: 'manage_projects',
           child: SidebarScaffold(
             child: ProjectWorkspaceScreen(projectId: projectId),
           ),
@@ -196,7 +187,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/project-setup',
       builder: (context, state) => const RoleGuard(
-        requiredPermission: 'authenticated',
+        requiredPermission: 'manage_projects',
         child: SidebarScaffold(
           child: ProjectWorkspaceScreen(projectId: 'new'),
         ),
@@ -250,6 +241,15 @@ final GoRouter _router = GoRouter(
         route: '/timeline',
         child: SidebarScaffold(
           child: TimelineScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/ai-assistant',
+      builder: (context, state) => const RouteGuard(
+        route: '/ai-assistant',
+        child: SidebarScaffold(
+          child: AIAssistantScreen(),
         ),
       ),
     ),
@@ -486,8 +486,11 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/smtp-config',
-      builder: (context, state) => const SidebarScaffold(
-        child: SmtpConfigScreen(),
+      builder: (context, state) => const RouteGuard(
+        route: '/smtp-config',
+        child: SidebarScaffold(
+          child: SmtpConfigScreen(),
+        ),
       ),
     ),
     GoRoute(
@@ -590,6 +593,18 @@ final GoRouter _router = GoRouter(
           route: '/project-workspace',
           child: SidebarScaffold(
             child: ProjectWorkspaceScreen(projectId: projectId),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/project-details/:projectId',
+      builder: (context, state) {
+        final projectId = state.pathParameters['projectId']!;
+        return RouteGuard(
+          route: '/project-details',
+          child: SidebarScaffold(
+            child: ProjectDetailsScreen(projectId: projectId),
           ),
         );
       },

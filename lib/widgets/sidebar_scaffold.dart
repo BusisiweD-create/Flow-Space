@@ -1,15 +1,8 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
-import 'notification_center_widget.dart';
 import '../services/auth_service.dart';
-import '../services/api_service.dart';
-import '../models/user.dart';
-import '../models/user_role.dart';
 import '../utils/app_icons.dart';
-import 'package:http/http.dart' as http;
-import 'dart:typed_data';
 import 'background_image.dart';
 import 'sidebar_version_display.dart';
 
@@ -42,15 +35,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   bool _collapsed = false;
   static const double _sidebarWidth = 280;
   static const double _collapsedWidth = 80;
-  static const double _logoMinCollapsedSize = 44;
-  static const double _logoExpandedSize = 64;
-
-  double _logoSizeFor(double screenWidth) {
-    // Responsive "breakpoints" so the logo stays readable on all widths.
-    final expanded = screenWidth >= 1024 ? _logoExpandedSize : 56.0;
-    final collapsed = screenWidth >= 1024 ? _logoMinCollapsedSize : 40.0;
-    return _collapsed ? collapsed : expanded;
-  }
 
   List<_NavItem> get _navItems {
     final authService = AuthService();
@@ -77,18 +61,26 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/sprint-console',
         requiredPermission: 'view_sprints',
       ),
+      // Sprints accessed via Projects
       const _NavItem(
         label: 'Deliverables',
         icon: Icons.assignment_outlined,
         iconName: 'deliverables',
         route: '/deliverables-overview',
-        requiredPermission: 'view_all_deliverables',
+        requiredPermission: null,
       ),
       const _NavItem(
         label: 'Timeline',
         icon: Icons.calendar_today_outlined,
         iconName: 'timeline',
         route: '/timeline',
+        requiredPermission: null,
+      ),
+      const _NavItem(
+        label: 'AI Assistant',
+        icon: Icons.smart_toy_outlined,
+        iconName: 'ai_assistant',
+        route: '/ai-assistant',
         requiredPermission: null,
       ),
       const _NavItem(
@@ -130,6 +122,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
     // Filter items based on user permissions
     return allItems.where((item) {
+      if (authService.isClientReviewer || authService.isClient) {
+        if (item.route == '/projects' ||
+            item.route == '/sprint-console' ||
+            item.route == '/deliverables-overview') {
+          return false;
+        }
+      }
       // Special flag: hide from sidebar even if user has permission
       if (item.requiredPermission == 'HIDE_FROM_SIDEBAR') return false;
       if (item.requiredPermission == null) return true;
@@ -163,10 +162,19 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final routeLocation = GoRouterState.of(context).uri.path;
+    String routeLocation = '/';
+    try {
+      final router = GoRouter.maybeOf(context);
+      final uri = router?.routeInformationProvider.value.uri;
+      if (uri != null) {
+        routeLocation = uri.path;
+      } else {
+        routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
+      }
+    } catch (_) {
+      routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
+    }
     final isDesktop = MediaQuery.of(context).size.width > 768;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = _logoSizeFor(screenWidth);
 
     if (isDesktop) {
       return Scaffold(
@@ -204,46 +212,28 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                           Padding(
                             padding: const EdgeInsets.only(
                                 left: 12, right: 12, top: 24, bottom: 16,),
-                            child: SizedBox(
-                              height: logoSize,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  // Centered logo (universal home navigation)
-                                  Material(
-                                    type: MaterialType.transparency,
-                                    child: InkWell(
-                                      onTap: () => context.go('/dashboard'),
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(6),
-                                        child: Image.asset(
-                                          'assets/Icons/Red_Khono_Discs.png',
-                                          width: logoSize,
-                                          height: logoSize,
-                                          fit: BoxFit.contain,
-                                        ),
-                                      ),
-                                    ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Image.asset(
+                                  'assets/Icons/Red_Khono_Discs.png',
+                                  width: _collapsed ? 28 : 64,
+                                  height: _collapsed ? 28 : 64,
+                                  fit: BoxFit.contain,
+                                ),
+                                IconButton(
+                                  onPressed: _toggleSidebar,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: Icon(
+                                    _collapsed
+                                        ? Icons.chevron_right
+                                        : Icons.chevron_left,
+                                    color: FlownetColors.textSecondary,
+                                    size: 20,
                                   ),
-                                  // Collapse toggle (kept intact, aligned right)
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: IconButton(
-                                      onPressed: _toggleSidebar,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      icon: Icon(
-                                        _collapsed
-                                            ? Icons.chevron_right
-                                            : Icons.chevron_left,
-                                        color: FlownetColors.textSecondary,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                           // Navigation items (pill-style highlight like reference UI)
@@ -348,74 +338,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                   color: Colors.transparent,
                   child: Column(
                     children: [
-                      // Top navigation bar with user menu
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8,),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha((0.08 * 255).round()),
-                          border: const Border(
-                            bottom: BorderSide(
-                                color: FlownetColors.slate, width: 1,),
-                          ),
-                        ),
-                        child: Builder(
-                          builder: (context) {
-                            final user = AuthService().currentUser;
-                            return Row(
-                              children: [
-                                // Only show back/forward buttons on non-dashboard pages
-                                if (routeLocation != '/dashboard') ...[
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_back),
-                                    onPressed: () {
-                                      if (GoRouter.of(context).canPop()) {
-                                        GoRouter.of(context).pop();
-                                      } else {
-                                        GoRouter.of(context).go('/dashboard');
-                                      }
-                                    },
-                                    tooltip: 'Back',
-                                    color: FlownetColors.pureWhite,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_forward),
-                                    onPressed: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              'Forward navigation coming soon',),
-                                          backgroundColor:
-                                              FlownetColors.amberOrange,
-                                        ),
-                                      );
-                                    },
-                                    tooltip: 'Forward',
-                                    color: FlownetColors.pureWhite,
-                                  ),
-                                ],
-                                const Spacer(),
-                                // Centered page title (role-based on dashboard)
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      _getPageTitle(routeLocation, user),
-                                      style: const TextStyle(
-                                        color: FlownetColors.textSecondary,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const Spacer(),
-                                // Hamburger menu (far right)
-                                _buildTopNavIcons(),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
                       Expanded(child: widget.child),
                     ],
                   ),
@@ -429,51 +351,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       // Mobile layout with drawer
       return Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          title: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: () => context.go('/dashboard'),
-              borderRadius: BorderRadius.circular(10),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Image.asset(
-                  'assets/Icons/Red_Khono_Discs.png',
-                  width: 32,
-                  height: 32,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-          ),
-          centerTitle: false,
-          actions: [
-            if (routeLocation != '/dashboard')
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
-                tooltip: 'Back',
-              ),
-            // Profile Icon
-            IconButton(
-              onPressed: () => context.go('/profile'),
-              icon: const Icon(Icons.person_outline),
-              tooltip: 'Profile',
-              color: FlownetColors.pureWhite,
-              iconSize: 20,
-            ),
-            // Settings Icon
-            IconButton(
-              onPressed: () => context.go('/settings'),
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings',
-              color: FlownetColors.pureWhite,
-              iconSize: 20,
-            ),
-            const NotificationCenterWidget(),
-            const SizedBox(width: 8),
-            const _UserAvatarButton(),
-          ],
+        body: BackgroundImage(
+          child: widget.child,
         ),
         drawer: Drawer(
           backgroundColor: FlownetColors.charcoalBlack,
@@ -483,24 +362,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.go('/dashboard');
-                        },
-                        borderRadius: BorderRadius.circular(14),
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: Image.asset(
-                            'assets/Icons/Red_Khono_Discs.png',
-                            width: 72,
-                            height: 72,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
+                    child: Image.asset(
+                      'assets/Icons/Red_Khono_Discs.png',
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
@@ -584,60 +450,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
             ),
           ),
         ),
-        body: BackgroundImage(
-          child: Column(
-            children: [
-              // Top navigation bar with back/forward buttons
-              if (routeLocation != '/dashboard')
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8,),
-                  decoration: const BoxDecoration(
-                    color: FlownetColors.graphiteGray,
-                    border: Border(
-                      bottom: BorderSide(
-                          color: FlownetColors.slate, width: 1,),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => Navigator.of(context).pop(),
-                        tooltip: 'Back',
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.arrow_forward),
-                        onPressed: () {
-                          // Forward navigation logic (can be enhanced)
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'Forward navigation coming soon',),
-                              backgroundColor:
-                                  FlownetColors.amberOrange,
-                            ),
-                          );
-                        },
-                        tooltip: 'Forward',
-                      ),
-                      const Spacer(),
-                      // Current page indicator
-                      Text(
-                        _getPageTitle(routeLocation, AuthService().currentUser),
-                        style: const TextStyle(
-                          color: FlownetColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(child: widget.child),
-            ],
-          ),
-        ),
       );
     }
   }
@@ -646,7 +458,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     final router = GoRouter.of(ctx);
     await AuthService().signOut();
     if (!mounted) return;
-    router.go('/');
+router.go('/');
   }
 
   Widget _buildLogoutButton() {
@@ -682,154 +494,5 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         ),
       ),
     );
-  }
-
-  Widget _buildTopNavIcons() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Hamburger menu with dropdown (Profile, Settings, Notifications)
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.menu, color: FlownetColors.pureWhite),
-          tooltip: 'Menu',
-          onSelected: (String value) {
-            switch (value) {
-              case 'profile':
-                context.go('/profile');
-                break;
-              case 'settings':
-                context.go('/settings');
-                break;
-              case 'notifications':
-                context.go('/notifications');
-                break;
-            }
-          },
-          itemBuilder: (BuildContext context) => [
-            const PopupMenuItem<String>(
-              value: 'profile',
-              child: Row(
-                children: [
-                  Icon(Icons.person_outline, size: 20),
-                  SizedBox(width: 8),
-                  Text('Profile'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'settings',
-              child: Row(
-                children: [
-                  Icon(Icons.settings_outlined, size: 20),
-                  SizedBox(width: 8),
-                  Text('Settings'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'notifications',
-              child: Row(
-                children: [
-                  Icon(Icons.notifications_outlined, size: 20),
-                  SizedBox(width: 8),
-                  Text('Notifications'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  String _getPageTitle(String route, [User? user]) {
-    if (route == '/dashboard') {
-      if (user != null) {
-        return '${user.role.displayName} Dashboard';
-      }
-      return 'Dashboard';
-    }
-    switch (route) {
-      case '/report-repository':
-        return 'Reports';
-      case '/deliverables-overview':
-        return 'Deliverables';
-      case '/approval-requests':
-        return 'Approval Requests';
-      case '/notifications':
-        return 'Notifications';
-      case '/repository':
-        return 'Repository';
-      case '/sprint-console':
-        return 'Sprint Console';
-      case '/settings':
-        return 'Settings';
-      case '/profile':
-        return 'Profile';
-      default:
-        return 'Flownet Workspaces';
-    }
-  }
-}
-
-class _UserAvatarButton extends StatelessWidget {
-  const _UserAvatarButton();
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = AuthService();
-    final user = auth.currentUser;
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: () => context.go('/profile?mode=view'),
-        borderRadius: BorderRadius.circular(20),
-        child: FutureBuilder<Uint8List?>(
-          future: _loadAvatarBytes(user?.id),
-          builder: (context, snapshot) {
-            final hasImage = snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
-            return CircleAvatar(
-              radius: 16,
-              backgroundImage: hasImage ? MemoryImage(snapshot.data!) : null,
-              child: hasImage ? null : const Icon(Icons.person, size: 18),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<Uint8List?> _loadAvatarBytes(String? userId) async {
-    try {
-      if (userId == null || userId.isEmpty) return null;
-      final base = Uri.parse(ApiService.baseUrl);
-      final url = '${base.scheme}://${base.host}:${base.port.toString()}/api/v1/profile/$userId/picture?t=${DateTime.now().millisecondsSinceEpoch}';
-      final headers = await ApiService.getAuthHeaders();
-      final resp = await http.get(Uri.parse(url), headers: headers);
-      
-      if (resp.statusCode == 200) {
-        final bodyBytes = resp.bodyBytes;
-        
-        // Check if response is actually image data (not JSON)
-        if (bodyBytes.isNotEmpty) {
-          // Check file header to detect if it's an image
-          final header = bodyBytes.take(4).toList();
-          // Common image file signatures: PNG (0x89 0x50 0x4E 0x47), JPEG (0xFF 0xD8 0xFF 0xE0)
-          final isImage = (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) ||
-                          (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF && header[3] == 0xE0);
-          
-          if (isImage) {
-            return bodyBytes;
-          } else {
-            // Response is likely JSON, not an image
-            debugPrint('?????? Avatar endpoint returned non-image data for user $userId');
-            return null;
-          }
-        }
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
   }
 }

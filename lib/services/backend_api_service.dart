@@ -367,11 +367,28 @@ class BackendApiService {
   }
 
   Future<ApiResponse> aiChat(List<Map<String, dynamic>> messages, {double? temperature, int? maxTokens}) async {
-    return await _apiClient.post('/ai/chat', body: {
+    final body = {
       'messages': messages,
       if (temperature != null) 'temperature': temperature,
       if (maxTokens != null) 'max_tokens': maxTokens,
-    });
+    };
+    final resp = await _apiClient.post('/ai/chat', body: body);
+    if (resp.statusCode == 429) {
+      int seconds = 2;
+      try {
+        final raw = resp.data;
+        if (raw is Map) {
+          final ra = raw['retry_after'];
+          if (ra != null) {
+            final parsed = int.tryParse(ra.toString());
+            if (parsed != null && parsed > 0 && parsed <= 30) seconds = parsed;
+          }
+        }
+      } catch (_) {}
+      await Future.delayed(Duration(seconds: seconds));
+      return await _apiClient.post('/ai/chat', body: body);
+    }
+    return resp;
   }
 
   // Project endpoints
@@ -411,6 +428,10 @@ class BackendApiService {
   }
 
   // Project member management
+  Future<ApiResponse> getProjectMembers(String projectId) async {
+    return await _apiClient.get('/projects/$projectId/members');
+  }
+
   Future<ApiResponse> addProjectMember(String projectId, Map<String, dynamic> memberData) async {
     return await _apiClient.post('/projects/$projectId/members', body: memberData);
   }

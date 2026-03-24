@@ -12,8 +12,8 @@ import '../services/user_data_service.dart';
 import '../services/auth_service.dart';
 import '../services/api_client.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
 import '../widgets/signature_capture_widget.dart';
+import '../widgets/sidebar_scaffold.dart';
 
 class ReportEditorScreen extends ConsumerStatefulWidget {
   final String? reportId; // null for create, non-null for edit
@@ -86,7 +86,12 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
       final users = await _userService.getUsers(limit: 1000);
       setState(() {
         _users = users;
-        _preparedById ??= _authService.currentUser?.id;
+        final currentUserId = _authService.currentUser?.id;
+        if (currentUserId != null && _users.any((u) => u.id == currentUserId)) {
+          _preparedById ??= currentUserId;
+        } else if (_preparedById == null || !_users.any((u) => u.id == _preparedById)) {
+          _preparedById = _users.isNotEmpty ? _users.first.id : null;
+        }
       });
     } catch (e) {
       debugPrint('Error loading users: $e');
@@ -94,21 +99,29 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   }
 
   Future<void> _loadData() async {
+    debugPrint('🔍 Starting to load data for report editor...');
     setState(() => _isLoading = true);
     
     try {
       // Load deliverables from backend (real-time data)
+      debugPrint('📦 Loading deliverables...');
       await _loadDeliverables();
+      debugPrint('✅ Deliverables loaded: ${_deliverables.length}');
       
       // Load users
+      debugPrint('👥 Loading users...');
       await _loadUsers();
+      debugPrint('✅ Users loaded: ${_users.length}');
       
       // Load sprints
       try {
+        debugPrint('🏃 Loading sprints...');
         final sprintsList = await _sprintService.getSprints();
         _sprints = sprintsList;
+        debugPrint('✅ Sprints loaded: ${_sprints.length}');
       } catch (e) {
-        debugPrint('Error loading sprints: $e');
+        debugPrint('⚠️ Error loading sprints: $e');
+        _sprints = []; // Ensure it's not null
       }
       
       // If editing, load existing report
@@ -169,17 +182,27 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
       }
     } catch (e) {
       debugPrint('❌ Error loading data: $e');
+      debugPrint('❌ Stack trace: ${e.runtimeType}');
+      
+      // Even if loading fails, show the form with empty data
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading data: $e'),
-            backgroundColor: Colors.red,
+            content: Text('Some data failed to load: $e'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _loadData,
+            ),
           ),
         );
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        debugPrint('🔍 Loading completed. Is loading: $_isLoading');
       }
     }
   }
@@ -514,14 +537,17 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
             }
           }
         } else {
-          // Just saving as draft
-          debugPrint('✅ Report saved as draft successfully');
+          // Just saving (could be draft or submitted report update)
+          final isSubmittedReport = _existingReport?.status == ReportStatus.submitted;
+          debugPrint('✅ Report ${isSubmittedReport ? 'updated' : 'saved as draft'} successfully');
           if (!mounted) return;
           await showDialog<void>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Draft Saved'),
-              content: const Text('Your report draft was saved successfully.'),
+              title: Text(isSubmittedReport ? 'Report Updated' : 'Draft Saved'),
+              content: Text(isSubmittedReport 
+                  ? 'Your submitted report was updated successfully.'
+                  : 'Your report draft was saved successfully.'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
@@ -765,63 +791,175 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
-      appBar: AppBar(
-        title: const FlownetLogo(),
-        backgroundColor: FlownetColors.charcoalBlack,
-        foregroundColor: FlownetColors.pureWhite,
-        actions: [
-          if (widget.reportId != null && _existingReport?.status == ReportStatus.draft)
-            TextButton.icon(
-              onPressed: _isSaving ? null : () => _saveReport(false),
-              icon: _isSaving 
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: FlownetColors.electricBlue,
+    debugPrint('🔍 Building ReportEditorScreen - isLoading: $_isLoading, deliverables: ${_deliverables.length}');
+    
+    // TEMPORARY: Force show form even during loading for debugging
+    return SidebarScaffold(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: _isLoading && _deliverables.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Debug info
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Debug: isLoading=$_isLoading, deliverables=${_deliverables.length}, users=${_users.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                        ),
                       ),
-                    )
-                  : const Icon(Icons.save),
-              label: Text(_isSaving ? 'Saving...' : 'Save Draft'),
-              style: TextButton.styleFrom(foregroundColor: FlownetColors.electricBlue),
-            ),
-          TextButton.icon(
-            onPressed: _isSaving ? null : () => _saveReport(true),
-            icon: _isSaving 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: FlownetColors.electricBlue,
-                    ),
-                  )
-                : const Icon(Icons.send),
-            label: Text(_isSaving ? 'Submitting...' : 'Submit'),
-            style: TextButton.styleFrom(foregroundColor: FlownetColors.electricBlue),
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.reportId != null ? 'Edit Sign-Off Report' : 'Create Sign-Off Report',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            color: FlownetColors.pureWhite,
-                            fontWeight: FontWeight.bold,
+                      const SizedBox(height: 16),
+                      
+                      // TEST: Simple title field to verify form is working
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round())),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Report Title',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _titleController,
+                              decoration: const InputDecoration(
+                                hintText: 'Enter report title...',
+                                hintStyle: TextStyle(color: Colors.white54),
+                                border: OutlineInputBorder(),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.white54),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: FlownetColors.electricBlue),
+                                ),
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter a report title';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Status indicator for submitted reports
+                      if (_existingReport?.status == ReportStatus.submitted) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange),
                           ),
-                    ),
-                    const SizedBox(height: 24),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'You are editing a submitted report. Updates will be saved immediately.',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      // Action buttons at the top
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withAlpha((0.1 * 255).round()),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            if (widget.reportId != null && 
+                                (_existingReport?.status == ReportStatus.draft || 
+                                 _existingReport?.status == ReportStatus.submitted))
+                              TextButton.icon(
+                                onPressed: _isSaving ? null : () => _saveReport(false),
+                                icon: _isSaving 
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: FlownetColors.electricBlue,
+                                        ),
+                                      )
+                                    : const Icon(Icons.save),
+                                label: Text(_isSaving ? 'Saving...' : _existingReport?.status == ReportStatus.submitted ? 'Update Report' : 'Save Draft'),
+                                style: TextButton.styleFrom(foregroundColor: FlownetColors.electricBlue),
+                              ),
+                            // Only show Submit button for draft reports
+                            if (_existingReport?.status != ReportStatus.submitted)
+                              TextButton.icon(
+                                onPressed: _isSaving ? null : () => _saveReport(true),
+                                icon: _isSaving 
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: FlownetColors.electricBlue,
+                                        ),
+                                      )
+                                    : const Icon(Icons.send),
+                                label: Text(_isSaving ? 'Submitting...' : 'Submit'),
+                                style: TextButton.styleFrom(foregroundColor: FlownetColors.electricBlue),
+                              ),
+                            const Spacer(),
+                            // AI Assist toggle
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _useAiAssist = !_useAiAssist;
+                                });
+                              },
+                              icon: Icon(
+                                _useAiAssist ? Icons.auto_awesome : Icons.auto_awesome_outlined,
+                                color: _useAiAssist ? FlownetColors.electricBlue : FlownetColors.coolGray,
+                              ),
+                              tooltip: 'AI Assist',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
                     if (_changeRequestDetails != null && _changeRequestDetails!.isNotEmpty) ...[
                       Container(
@@ -873,7 +1011,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     ],
                     
                     // Deliverable Selection
-                    _isLoadingDeliverables
+                    // TEMPORARY: Bypass loading check for debugging
+                    _isLoadingDeliverables && _deliverables.isEmpty
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.all(16.0),
@@ -926,7 +1065,17 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                           )
                                         : DropdownButtonFormField<String>(
                                             isExpanded: true,
-                                            initialValue: _selectedDeliverableId,
+                                            // ignore: deprecated_member_use
+                                            value: _deliverables.any((d) {
+                                              try {
+                                                final id = d is Map ? d['id']?.toString() : d.id?.toString();
+                                                return id == _selectedDeliverableId;
+                                              } catch (_) {
+                                                return false;
+                                              }
+                                            })
+                                                ? _selectedDeliverableId
+                                                : null,
                                             decoration: const InputDecoration(
                                               labelText: 'Deliverable *',
                                               border: OutlineInputBorder(),
@@ -1022,7 +1171,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         // ignore: deprecated_member_use
-                        value: _preparedById,
+                        value: _users.any((u) => u.id == _preparedById) ? _preparedById : null,
                         decoration: const InputDecoration(
                           labelText: 'Prepared By *',
                           border: OutlineInputBorder(),
@@ -1121,7 +1270,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     // Sprint Selection (Multi-select)
                     if (_sprints.isNotEmpty) ...[
                       const Text(
-                        'Link Sprints (Optional)',
+                        'Link Completed Sprints (Optional)',
                         style: TextStyle(color: FlownetColors.coolGray, fontSize: 14),
                       ),
                       const SizedBox(height: 8),
@@ -1130,10 +1279,21 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                         children: _sprints.map((sprint) {
                           final sprintId = sprint['id'].toString();
                           final isSelected = _selectedSprintIds.contains(sprintId);
+                          final status = (sprint['status'] ?? '').toString().toLowerCase();
+                          final isCompleted = status == 'completed' || status == 'done' || status == 'closed';
                           return FilterChip(
                             label: Text(sprint['name'] as String? ?? 'Unnamed Sprint'),
                             selected: isSelected,
                             onSelected: (selected) {
+                              if (selected && !isCompleted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Only completed sprints can be linked to a report.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
                               setState(() {
                                 if (selected) {
                                   _selectedSprintIds.add(sprintId);
@@ -1256,6 +1416,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                 ),
               ),
             ),
+        ),
     );
   }
 }

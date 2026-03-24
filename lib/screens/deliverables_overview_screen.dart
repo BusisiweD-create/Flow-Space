@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -12,23 +13,22 @@ import 'package:khono/screens/audit_log_detail_screen.dart';
 import 'package:khono/services/backend_api_service.dart';
 import 'package:khono/services/auth_service.dart';
 import 'package:khono/services/deliverable_service.dart';
+import 'package:khono/services/realtime_service.dart';
 import 'package:khono/config/environment.dart';
 import 'package:khono/widgets/deliverable_card.dart';
-import 'package:khono/theme/flownet_theme.dart';
 
 class DeliverablesOverviewScreen extends StatefulWidget {
   const DeliverablesOverviewScreen({super.key});
 
   @override
-  State<DeliverablesOverviewScreen> createState() =>
-      _DeliverablesOverviewScreenState();
+  State<DeliverablesOverviewScreen> createState() => _DeliverablesOverviewScreenState();
 }
 
-class _DeliverablesOverviewScreenState
-    extends State<DeliverablesOverviewScreen> {
+class _DeliverablesOverviewScreenState extends State<DeliverablesOverviewScreen> {
   final _backendService = BackendApiService();
   final _authService = AuthService();
   final DeliverableService _deliverableService = DeliverableService();
+  RealtimeService? _realtime;
   List<Deliverable> _deliverables = [];
   bool _isLoading = true;
   String? _error;
@@ -41,25 +41,27 @@ class _DeliverablesOverviewScreenState
   final Set<String> _expandedAuditLogIds = {};
   final Set<String> _uploadingIds = {};
 
+  Future<List<int>?> _platformFileBytes(PlatformFile f) async {
+    final bytes = f.bytes;
+    if (bytes != null && bytes.isNotEmpty) return bytes;
+    final stream = f.readStream;
+    if (stream == null) return null;
+    final out = <int>[];
+    await for (final chunk in stream) {
+      out.addAll(chunk);
+    }
+    return out;
+  }
+
   void _onNavTapped(int index) {
     setState(() {
       _currentNavIndex = index;
       switch (index) {
-        case 0:
-          _filterStatus = 'All';
-          break;
-        case 1:
-          _filterStatus = 'Draft';
-          break;
-        case 2:
-          _filterStatus = 'In Progress';
-          break;
-        case 3:
-          _filterStatus = 'In Review';
-          break;
-        case 4:
-          _filterStatus = 'Signed Off';
-          break;
+        case 0: _filterStatus = 'All'; break;
+        case 1: _filterStatus = 'Draft'; break;
+        case 2: _filterStatus = 'In Progress'; break;
+        case 3: _filterStatus = 'In Review'; break;
+        case 4: _filterStatus = 'Signed Off'; break;
       }
     });
   }
@@ -68,6 +70,18 @@ class _DeliverablesOverviewScreenState
   void initState() {
     super.initState();
     _loadDeliverables();
+    _initRealtime();
+  }
+
+  Future<void> _initRealtime() async {
+    try {
+      final token = _authService.accessToken;
+      if (token == null || token.isEmpty) return;
+      _realtime = RealtimeService();
+      await _realtime!.initialize(authToken: token);
+      _realtime!.on('deliverable_created', (_) => _loadDeliverables());
+      _realtime!.on('deliverable_updated', (_) => _loadDeliverables());
+    } catch (_) {}
   }
 
   Future<void> _loadDeliverables() async {
@@ -78,23 +92,21 @@ class _DeliverablesOverviewScreenState
 
     try {
       final response = await _backendService.getDeliverables(limit: 100);
-
+      
       if (response.isSuccess && response.data != null) {
         final dynamic raw = response.data;
         final List<dynamic> items = (raw is Map)
             ? (raw['data'] ?? raw['deliverables'] ?? raw['items'] ?? [])
             : (raw is List ? raw : []);
-
+            
         final List<Deliverable> parsedDeliverables = [];
-
+        
         for (final item in items) {
           try {
             if (item is Map<String, dynamic>) {
               final safeMap = Map<String, dynamic>.from(item);
               if (!safeMap.containsKey('title')) {
-                safeMap['title'] = safeMap['name'] ??
-                    safeMap['deliverableName'] ??
-                    'Untitled Deliverable';
+                safeMap['title'] = safeMap['name'] ?? safeMap['deliverableName'] ?? 'Untitled Deliverable';
               }
               parsedDeliverables.add(Deliverable.fromJson(safeMap));
             }
@@ -102,20 +114,17 @@ class _DeliverablesOverviewScreenState
             debugPrint('Error parsing deliverable: $e');
           }
         }
-
+        
         // Apply RBAC filtering
         var filteredList = parsedDeliverables;
         // If user is ONLY a team member (not lead/admin), show only their deliverables
-        if (_authService.isTeamMember &&
-            !_authService.isDeliveryLead &&
-            !_authService.isSystemAdmin) {
+        if (_authService.isTeamMember && !_authService.isDeliveryLead && !_authService.isSystemAdmin) {
           final userId = _authService.currentUser?.id;
           if (userId != null) {
-            filteredList =
-                parsedDeliverables.where((d) => d.ownerId == userId).toList();
+            filteredList = parsedDeliverables.where((d) => d.ownerId == userId || d.createdBy == userId).toList();
           }
         }
-
+        
         setState(() {
           _deliverables = filteredList;
           _isLoading = false;
@@ -134,43 +143,34 @@ class _DeliverablesOverviewScreenState
     }
   }
 
-  Future<void> _updateDeliverableStatus(
-      Deliverable deliverable, DeliverableStatus newStatus) async {
+  Future<void> _updateDeliverableStatus(Deliverable deliverable, DeliverableStatus newStatus) async {
     // Optimistic update
     final oldStatus = deliverable.status;
-
+    
     // RBAC: Team Members cannot move to/from Signed Off
-    if (_authService.isTeamMember &&
-        !_authService.isDeliveryLead &&
-        !_authService.isSystemAdmin) {
+    if (_authService.isTeamMember && !_authService.isDeliveryLead && !_authService.isSystemAdmin) {
       if (newStatus == DeliverableStatus.signedOff) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Only Delivery Leads can sign off deliverables.'),
-              backgroundColor: Colors.red),
+          const SnackBar(content: Text('Only Delivery Leads can sign off deliverables.'), backgroundColor: Colors.red),
         );
         return;
       }
       if (oldStatus == DeliverableStatus.signedOff) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'Only Delivery Leads can reopen signed off deliverables.'),
-              backgroundColor: Colors.red),
+          const SnackBar(content: Text('Only Delivery Leads can reopen signed off deliverables.'), backgroundColor: Colors.red),
         );
         return;
       }
     }
 
     // Check validation rules
-    if ((newStatus == DeliverableStatus.inProgress ||
-            newStatus == DeliverableStatus.inReview ||
-            newStatus == DeliverableStatus.signedOff) &&
-        deliverable.ownerId == null) {
+    if ((newStatus == DeliverableStatus.inProgress || 
+         newStatus == DeliverableStatus.inReview || 
+         newStatus == DeliverableStatus.signedOff) && 
+         deliverable.ownerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Cannot move to this status without an assigned owner. Please edit the deliverable first.'),
+          content: Text('Cannot move to this status without an assigned owner. Please edit the deliverable first.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -184,31 +184,17 @@ class _DeliverablesOverviewScreenState
       // Map enum to backend string
       String statusStr;
       switch (newStatus) {
-        case DeliverableStatus.draft:
-          statusStr = 'draft';
-          break;
-        case DeliverableStatus.inProgress:
-          statusStr = 'in_progress';
-          break;
-        case DeliverableStatus.inReview:
-          statusStr = 'in_review';
-          break;
-        case DeliverableStatus.signedOff:
-          statusStr = 'signed_off';
-          break;
-        case DeliverableStatus.changeRequested:
-          statusStr = 'change_requested';
-          break;
-        case DeliverableStatus.rejected:
-          statusStr = 'rejected';
-          break;
-        default:
-          statusStr = 'draft';
+        case DeliverableStatus.draft: statusStr = 'draft'; break;
+        case DeliverableStatus.inProgress: statusStr = 'in_progress'; break;
+        case DeliverableStatus.inReview: statusStr = 'in_review'; break;
+        case DeliverableStatus.signedOff: statusStr = 'signed_off'; break;
+        case DeliverableStatus.changeRequested: statusStr = 'change_requested'; break;
+        case DeliverableStatus.rejected: statusStr = 'rejected'; break;
+        default: statusStr = 'draft';
       }
 
-      final response = await _backendService.updateDeliverableStatus(
-          deliverable.id, statusStr);
-
+      final response = await _backendService.updateDeliverableStatus(deliverable.id, statusStr);
+      
       if (response.isSuccess) {
         // Refresh list to ensure consistency
         _loadDeliverables();
@@ -229,14 +215,13 @@ class _DeliverablesOverviewScreenState
 
   List<Deliverable> get _filteredDeliverables {
     return _deliverables.where((d) {
-      final matchesStatus = _filterStatus == 'All' ||
+      final matchesStatus = _filterStatus == 'All' || 
           d.statusDisplayName.toLowerCase() == _filterStatus.toLowerCase();
-
+      
       final matchesSearch = _searchQuery.isEmpty ||
           d.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           d.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (d.ownerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
-              false);
+          (d.ownerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
 
       return matchesStatus && matchesSearch;
     }).toList();
@@ -247,8 +232,7 @@ class _DeliverablesOverviewScreenState
       final matchesSearch = _searchQuery.isEmpty ||
           d.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           d.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (d.ownerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
-              false);
+          (d.ownerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
       return matchesSearch;
     }).toList();
 
@@ -258,7 +242,7 @@ class _DeliverablesOverviewScreenState
       DeliverableStatus.inReview,
       DeliverableStatus.signedOff,
     ];
-
+    
     // Filter columns if a specific status is selected via BottomNavigationBar
     if (_filterStatus != 'All') {
       columns = columns.where((s) => s.displayName == _filterStatus).toList();
@@ -270,16 +254,10 @@ class _DeliverablesOverviewScreenState
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: columns.map((status) {
-          final items = kanbanDeliverables
-              .where(
-                (d) =>
-                    d.status == status ||
-                    (status == DeliverableStatus.inReview &&
-                        d.status == DeliverableStatus.submitted) ||
-                    (status == DeliverableStatus.signedOff &&
-                        d.status == DeliverableStatus.approved),
-              )
-              .toList();
+          final items = kanbanDeliverables.where((d) => d.status == status || 
+              (status == DeliverableStatus.inReview && d.status == DeliverableStatus.submitted) ||
+              (status == DeliverableStatus.signedOff && d.status == DeliverableStatus.approved),
+          ).toList();
 
           return _buildKanbanColumn(status, items);
         }).toList(),
@@ -304,10 +282,8 @@ class _DeliverablesOverviewScreenState
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: status.color.withOpacity(0.1),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-              border: Border(
-                  bottom: BorderSide(color: status.color.withOpacity(0.3))),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              border: Border(bottom: BorderSide(color: status.color.withOpacity(0.3))),
             ),
             child: Row(
               children: [
@@ -325,8 +301,7 @@ class _DeliverablesOverviewScreenState
                 ),
                 const Spacer(),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.black26,
                     borderRadius: BorderRadius.circular(12),
@@ -339,7 +314,7 @@ class _DeliverablesOverviewScreenState
               ],
             ),
           ),
-
+          
           // Drop Target Area
           Expanded(
             child: DragTarget<Deliverable>(
@@ -350,8 +325,8 @@ class _DeliverablesOverviewScreenState
               builder: (context, candidateData, rejectedData) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: candidateData.isNotEmpty
-                        ? status.color.withOpacity(0.1)
+                    color: candidateData.isNotEmpty 
+                        ? status.color.withOpacity(0.1) 
                         : Colors.transparent,
                   ),
                   child: ListView(
@@ -378,7 +353,7 @@ class _DeliverablesOverviewScreenState
                             child: DeliverableCard(
                               deliverable: deliverable,
                               onTap: () {}, // Disable tap while dragging
-                              compact: true,
+                              compact: true, 
                             ),
                           ),
                         ),
@@ -388,8 +363,7 @@ class _DeliverablesOverviewScreenState
                             deliverable: deliverable,
                             showArtifactsPreview: true,
                             onTap: () {
-                              context.push('/deliverable-detail',
-                                  extra: deliverable);
+                              context.push('/deliverable-detail', extra: deliverable);
                             },
                           ),
                         ),
@@ -407,9 +381,10 @@ class _DeliverablesOverviewScreenState
 
   @override
   Widget build(BuildContext context) {
+    final canCreate = _authService.canCreateDeliverable();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Deliverables'),
+        title: const Text('Deliverables Overview'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -424,11 +399,12 @@ class _DeliverablesOverviewScreenState
             },
             tooltip: _isKanbanView ? 'List View' : 'Kanban View',
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => context.go('/deliverable-setup'),
-            tooltip: 'Create Deliverable',
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => context.go('/deliverable-setup'),
+              tooltip: 'Create Deliverable',
+            ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -455,12 +431,8 @@ class _DeliverablesOverviewScreenState
           ),
         ],
         currentIndex: _currentNavIndex,
-        selectedItemColor: FlownetColors.crimsonRed,
-        unselectedItemColor: FlownetColors.graphiteGray,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        iconSize: 22,
-        showUnselectedLabels: true,
+        selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         onTap: _onNavTapped,
       ),
@@ -495,8 +467,7 @@ class _DeliverablesOverviewScreenState
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(_error!,
-                                style: const TextStyle(color: Colors.red)),
+                            Text(_error!, style: const TextStyle(color: Colors.red)),
                             const SizedBox(height: 16),
                             ElevatedButton(
                               onPressed: _loadDeliverables,
@@ -515,21 +486,16 @@ class _DeliverablesOverviewScreenState
                                   padding: const EdgeInsets.all(16),
                                   itemCount: _filteredDeliverables.length,
                                   itemBuilder: (context, index) {
-                                    final deliverable =
-                                        _filteredDeliverables[index];
+                                    final deliverable = _filteredDeliverables[index];
                                     return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.only(bottom: 12),
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           DeliverableCard(
                                             deliverable: deliverable,
                                             onTap: () {
-                                              context.push(
-                                                  '/deliverable-detail',
-                                                  extra: deliverable);
+                                              context.push('/deliverable-detail', extra: deliverable);
                                             },
                                           ),
                                           const SizedBox(height: 8),
@@ -561,14 +527,8 @@ class _DeliverablesOverviewScreenState
             Text('Artifacts (${deliverable.artifacts.length})'),
             const Spacer(),
             ElevatedButton.icon(
-              onPressed:
-                  isUploading ? null : () => _uploadArtifactFor(deliverable),
-              icon: isUploading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.upload_file),
+              onPressed: isUploading ? null : () => _uploadArtifactFor(deliverable),
+              icon: isUploading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.upload_file),
               label: Text(isUploading ? 'Uploading...' : 'Upload'),
             ),
           ],
@@ -589,30 +549,24 @@ class _DeliverablesOverviewScreenState
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: DropTarget(
-              onDragDone: (detail) =>
-                  _handleDroppedFilesFor(deliverable, detail.files),
+              onDragDone: (detail) => _handleDroppedFilesFor(deliverable, detail.files),
               onDragEntered: (detail) => setState(() => _isDragging = true),
               onDragExited: (detail) => setState(() => _isDragging = false),
               child: Container(
                 constraints: const BoxConstraints(minHeight: 100),
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _isDragging
-                        ? Theme.of(context).primaryColor
-                        : Colors.grey.shade300,
+                    color: _isDragging ? Theme.of(context).primaryColor : Colors.grey.shade300,
                     width: _isDragging ? 2 : 1,
                   ),
                   borderRadius: BorderRadius.circular(8),
-                  color: _isDragging
-                      ? Theme.of(context).primaryColor.withOpacity(0.1)
-                      : null,
+                  color: _isDragging ? Theme.of(context).primaryColor.withOpacity(0.1) : null,
                 ),
                 child: deliverable.artifacts.isEmpty
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.all(16.0),
-                          child: Text(
-                              'No artifacts yet. Drag & drop files here or click Upload.'),
+                          child: Text('No artifacts yet. Drag & drop files here or click Upload.'),
                         ),
                       )
                     : ListView.separated(
@@ -636,10 +590,8 @@ class _DeliverablesOverviewScreenState
                                   onPressed: () => _downloadArtifact(artifact),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.red),
-                                  onPressed: () => _deleteArtifactFor(
-                                      deliverable.id, artifact.id),
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () => _deleteArtifactFor(deliverable.id, artifact.id),
                                 ),
                               ],
                             ),
@@ -670,14 +622,16 @@ class _DeliverablesOverviewScreenState
 
   Future<void> _uploadArtifactFor(Deliverable deliverable) async {
     try {
-      final res = await FilePicker.platform.pickFiles();
-      if (res != null && res.files.single.path != null) {
+      final res = await FilePicker.platform.pickFiles(withData: true, withReadStream: true);
+      if (res != null && res.files.isNotEmpty) {
         setState(() => _uploadingIds.add(deliverable.id));
         final file = res.files.single;
+        final bytes = await _platformFileBytes(file);
         final response = await _deliverableService.uploadArtifact(
           deliverableId: deliverable.id,
-          filePath: file.path!,
+          filePath: kIsWeb ? '' : (file.path ?? ''),
           fileName: file.name,
+          fileBytes: bytes,
         );
         setState(() => _uploadingIds.remove(deliverable.id));
         if (response.isSuccess) {
@@ -687,34 +641,31 @@ class _DeliverablesOverviewScreenState
           await _refreshDeliverable(deliverable.id);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Upload failed: ${response.error}'),
-                backgroundColor: Colors.red),
+            SnackBar(content: Text('Upload failed: ${response.error}'), backgroundColor: Colors.red),
           );
         }
       }
     } catch (e) {
       setState(() => _uploadingIds.remove(deliverable.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Error uploading file: $e'),
-            backgroundColor: Colors.red),
+        SnackBar(content: Text('Error uploading file: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
-  Future<void> _handleDroppedFilesFor(
-      Deliverable deliverable, List<XFile> files) async {
+  Future<void> _handleDroppedFilesFor(Deliverable deliverable, List<XFile> files) async {
     if (files.isEmpty) return;
     setState(() => _uploadingIds.add(deliverable.id));
     int successCount = 0;
     final List<String> errors = [];
     for (final file in files) {
       try {
+        final bytes = await file.readAsBytes();
         final response = await _deliverableService.uploadArtifact(
           deliverableId: deliverable.id,
-          filePath: file.path,
+          filePath: kIsWeb ? '' : file.path,
           fileName: file.name,
+          fileBytes: bytes,
         );
         if (response.isSuccess) {
           successCount++;
@@ -733,18 +684,14 @@ class _DeliverablesOverviewScreenState
     }
     if (errors.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Errors: ${errors.take(3).join(", ")}'),
-            backgroundColor: Colors.red),
+        SnackBar(content: Text('Errors: ${errors.take(3).join(", ")}'), backgroundColor: Colors.red),
       );
     }
     setState(() => _uploadingIds.remove(deliverable.id));
   }
 
-  Future<void> _deleteArtifactFor(
-      String deliverableId, String artifactId) async {
-    final response =
-        await _deliverableService.deleteArtifact(deliverableId, artifactId);
+  Future<void> _deleteArtifactFor(String deliverableId, String artifactId) async {
+    final response = await _deliverableService.deleteArtifact(deliverableId, artifactId);
     if (response.isSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Artifact deleted successfully')),
@@ -752,9 +699,7 @@ class _DeliverablesOverviewScreenState
       await _refreshDeliverable(deliverableId);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Delete failed: ${response.error}'),
-            backgroundColor: Colors.red),
+        SnackBar(content: Text('Delete failed: ${response.error}'), backgroundColor: Colors.red),
       );
     }
   }
@@ -771,16 +716,12 @@ class _DeliverablesOverviewScreenState
         await launchUrl(uri);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Could not launch $url'),
-              backgroundColor: Colors.red),
+          SnackBar(content: Text('Could not launch $url'), backgroundColor: Colors.red),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Error launching URL: $e'),
-            backgroundColor: Colors.red),
+        SnackBar(content: Text('Error launching URL: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -789,18 +730,9 @@ class _DeliverablesOverviewScreenState
     final type = fileType.toLowerCase();
     if (type.contains('pdf')) return Icons.picture_as_pdf;
     if (type.contains('doc') || type.contains('word')) return Icons.description;
-    if (type.contains('xls') || type.contains('sheet')) {
-      return Icons.table_chart;
-    }
-    if (type.contains('ppt') || type.contains('presentation')) {
-      return Icons.slideshow;
-    }
-    if (type.contains('img') ||
-        type.contains('png') ||
-        type.contains('jpg') ||
-        type.contains('jpeg')) {
-      return Icons.image;
-    }
+    if (type.contains('xls') || type.contains('sheet')) return Icons.table_chart;
+    if (type.contains('ppt') || type.contains('presentation')) return Icons.slideshow;
+    if (type.contains('img') || type.contains('png') || type.contains('jpg') || type.contains('jpeg')) return Icons.image;
     if (type.contains('zip') || type.contains('rar')) return Icons.folder_zip;
     return Icons.insert_drive_file;
   }
@@ -834,10 +766,10 @@ class _DeliverablesOverviewScreenState
         },
         children: [
           if (logs.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Center(child: Text('No history available.')),
-            )
+             const Padding(
+               padding: EdgeInsets.all(16.0),
+               child: Center(child: Text('No history available.')),
+             )
           else
             ListView.separated(
               shrinkWrap: true,
@@ -852,16 +784,14 @@ class _DeliverablesOverviewScreenState
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            AuditLogDetailScreen(logEntry: log),
+                        builder: (context) => AuditLogDetailScreen(logEntry: log),
                       ),
                     );
                   },
                   leading: CircleAvatar(
                     radius: 12,
                     backgroundColor: Colors.grey[200],
-                    child: Icon(_getAuditIcon(log.action),
-                        size: 14, color: Colors.grey[700]),
+                    child: Icon(_getAuditIcon(log.action), size: 14, color: Colors.grey[700]),
                   ),
                   title: Text(
                     log.action.replaceAll('_', ' ').toUpperCase(),
@@ -875,29 +805,19 @@ class _DeliverablesOverviewScreenState
                         TextSpan(
                           children: [
                             TextSpan(text: 'by ${log.userEmail ?? 'System'}'),
-                            if (log.userRole != null)
-                              TextSpan(
-                                  text: ' (${log.userRole})',
-                                  style: const TextStyle(
-                                      fontStyle: FontStyle.italic)),
-                            TextSpan(
-                                text:
-                                    ' • ${DateFormat('MMM d, y HH:mm').format(log.createdAt)}'),
+                            if (log.userRole != null) TextSpan(text: ' (${log.userRole})', style: const TextStyle(fontStyle: FontStyle.italic)),
+                            TextSpan(text: ' • ${DateFormat('MMM d, y HH:mm').format(log.createdAt)}'),
                           ],
                         ),
                         style: TextStyle(fontSize: 12, color: Colors.grey[800]),
                       ),
-                      if ((log.oldValues != null &&
-                              log.oldValues!.isNotEmpty) ||
-                          (log.newValues != null &&
-                              log.newValues!.isNotEmpty)) ...[
+                      if ((log.oldValues != null && log.oldValues!.isNotEmpty) || (log.newValues != null && log.newValues!.isNotEmpty)) ...[
                         const SizedBox(height: 4),
                         _buildChangeDetails(log),
                       ],
                     ],
                   ),
-                  trailing: const Icon(Icons.chevron_right,
-                      size: 16, color: Colors.grey),
+                  trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
                 );
               },
             ),
@@ -919,8 +839,7 @@ class _DeliverablesOverviewScreenState
     if (log.changedFields != null && log.changedFields!.isNotEmpty) {
       return Text(
         'Changed: ${log.changedFields!.join(", ")}',
-        style: TextStyle(
-            fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
       );
     }
     return const SizedBox.shrink();

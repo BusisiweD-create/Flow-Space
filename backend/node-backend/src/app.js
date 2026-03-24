@@ -112,8 +112,9 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/deliverables', deliverablesRoutes);
 app.use('/api/v1/sprints', sprintsRoutes);
 app.use('/api/v1/projects', projectsRoutes);
+const { optionalAuthenticateToken } = require('./middleware/auth');
 app.use('/api/v1/signoff', authenticateToken, signoffRoutes);
-app.use('/api/v1/sign-off-reports', authenticateToken, signoffRoutes);
+app.use('/api/v1/sign-off-reports', optionalAuthenticateToken, signoffRoutes);
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
 app.use('/api/v1/ai', aiLimiter, aiRoutes);
 app.use('/api/ai', aiLimiter, aiRoutes);
@@ -304,6 +305,16 @@ async function startServer() {
     console.log('✅ Database connection established successfully');
     if (!syncOk) {
       console.warn('⚠️ Database sync failed; continuing without alter sync');
+    }
+
+    try {
+      if (sequelize.getDialect() === 'postgres') {
+        await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
+        await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id UUID");
+        await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by UUID");
+      }
+    } catch (e) {
+      console.warn('⚠️ Unable to ensure sprints.created_by column; continuing', e?.message || e);
     }
     
     // Sync database (use with caution in production)

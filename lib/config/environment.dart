@@ -20,13 +20,22 @@ class Environment {
       return _apiBaseUrl;
     }
 
-    // Fallback to production URL if deployed on Render
+    // Fallback if deployed but build-time URL wasn't provided
     if (isRenderDeployed) {
       return "https://flow-space.onrender.com/api/v1";
     }
 
     // Default to localhost for development
     return _apiBaseUrl;
+  }
+
+  // Base URL without version for endpoints that already include version
+  static String get baseUrlWithoutVersion {
+    final baseUrl = apiBaseUrl;
+    if (baseUrl.endsWith('/api/v1')) {
+      return baseUrl.replaceAll('/api/v1', '');
+    }
+    return baseUrl;
   }
 
   static const int apiTimeout = 30000;
@@ -51,8 +60,7 @@ class Environment {
     try {
       final uri = Uri.base;
       return uri.host.contains('onrender.com') ||
-          uri.host.contains('flownet.works') ||
-          (!uri.host.contains('localhost') && !uri.host.contains('127.0.0.1'));
+          uri.host.contains('flownet.works');
     } catch (e) {
       return false;
     }

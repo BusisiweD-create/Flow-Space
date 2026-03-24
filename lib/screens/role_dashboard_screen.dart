@@ -324,13 +324,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         setState(() {
           _auditLogsError = response.error ?? 'Failed to load audit logs';
         });
-        debugPrint('❌ Error loading audit logs: \${_auditLogsError}');
+        debugPrint('❌ Error loading audit logs: $_auditLogsError');
       }
     } catch (e) {
       setState(() {
-        _auditLogsError = 'Failed to load audit logs: \$e';
+        _auditLogsError = 'Failed to load audit logs: $e';
       });
-      debugPrint('❌ Exception loading audit logs: \$e');
+      debugPrint('❌ Exception loading audit logs: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -450,7 +450,98 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         imagePath: 'assets/Icons/khono_bg.png',
         withGlassEffect: false,
         overlayOpacity: 0.25,
-        child: _buildRoleSpecificContent(),
+        child: Column(
+          children: [
+            // Role header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Row(
+                children: [
+                  const SizedBox(width: 48), // Space for hamburger menu alignment
+                  Expanded(
+                    child: Text(
+                      '${_currentUser!.role.displayName} Dashboard',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Builder(
+                    builder: (context) => PopupMenuButton<String>(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'profile':
+                            context.go('/profile');
+                            break;
+                          case 'notifications':
+                            context.go('/notifications');
+                            break;
+                          case 'settings':
+                            context.go('/settings');
+                            break;
+                          case 'logout':
+                            _handleLogout();
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'profile',
+                          child: Row(
+                            children: [
+                              Icon(Icons.person),
+                              SizedBox(width: 8),
+                              Text('Profile'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'notifications',
+                          child: Row(
+                            children: [
+                              Icon(Icons.notifications),
+                              SizedBox(width: 8),
+                              Text('Notifications'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'settings',
+                          child: Row(
+                            children: [
+                              Icon(Icons.settings),
+                              SizedBox(width: 8),
+                              Text('Settings'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'logout',
+                          child: Row(
+                            children: [
+                              Icon(Icons.logout),
+                              SizedBox(width: 8),
+                              Text('Logout'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Main content
+            Expanded(
+              child: _buildRoleSpecificContent(),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: _buildRoleSpecificFAB(),
     );
@@ -653,49 +744,55 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
-  Widget _buildRoleSpecificFAB() {
+  Widget? _buildRoleSpecificFAB() {
+    final auth = AuthService();
+    final canCreateDeliverable = auth.canCreateDeliverable();
+    final canManageUsers = auth.canManageUsers();
+
+    if (!canCreateDeliverable && !canManageUsers) return null;
+
     return FloatingActionButton(
       onPressed: () {
-        // Show centered modal for Team Member and Delivery Lead roles
-        if (_currentUser!.role == UserRole.teamMember ||
-            _currentUser!.role == UserRole.deliveryLead) {
+        if ((_currentUser!.role == UserRole.teamMember ||
+                _currentUser!.role == UserRole.deliveryLead) &&
+            canCreateDeliverable) {
           _showCreateDeliverableModal();
-        } else {
-          // Use bottom sheet for other roles (Client, System Admin, etc.)
-          showAppModalBottomSheet(
-            context: context,
-            builder: (context) {
-              return SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.assignment_outlined),
-                      title: const Text('Create Deliverable'),
-                      onTap: () {
-                        context.go('/deliverable-setup');
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.folder),
-                      title: const Text('View Projects'),
-                      onTap: () {
-                        context.go('/projects');
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.admin_panel_settings),
-                      title: const Text('Role Management'),
-                      onTap: () {
-                        context.go('/role-management');
-                      },
-                    ),
-                  ],
+          return;
+        }
+
+        showAppModalBottomSheet(
+          context: context,
+          builder: (context) {
+            final items = <Widget>[];
+
+            if (canCreateDeliverable) {
+              items.add(
+                ListTile(
+                  leading: const Icon(Icons.assignment_outlined),
+                  title: const Text('Create Deliverable'),
+                  onTap: () => context.go('/deliverable-setup'),
                 ),
               );
-            },
-          );
-        }
+            }
+
+            if (canManageUsers) {
+              items.add(
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings),
+                  title: const Text('Role Management'),
+                  onTap: () => context.go('/role-management'),
+                ),
+              );
+            }
+
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: items,
+              ),
+            );
+          },
+        );
       },
       backgroundColor:
           _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
@@ -784,57 +881,78 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   Widget _buildQuickActions() {
     final canCreate = _authService.canCreateDeliverable();
-    return Row(
-      children: [
+    final tiles = <Widget>[
+      Expanded(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildActionButton(
+              icon: Icons.folder_outlined,
+              label: 'View Projects',
+              onTap: () => context.go('/projects'),
+            ),
+          ),
+        ),
+      ),
+      Expanded(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildActionButton(
+              icon: Icons.assignment_outlined,
+              label: 'View Deliverables',
+              onTap: () => context.go('/deliverables'),
+            ),
+          ),
+        ),
+      ),
+    ];
+
+    if (canCreate) {
+      tiles.insert(
+        0,
         Expanded(
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.assignment_outlined,
+                icon: Icons.assignment_add,
                 label: 'Create Deliverable',
                 onTap: () => context.go('/deliverable-setup'),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+      );
+      tiles.add(
         Expanded(
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.folder_outlined,
-                label: 'View Projects',
-                onTap: () => context.go('/projects'),
+                icon: Icons.description_outlined,
+                label: 'Build Report',
+                onTap: () {
+                  final first =
+                      _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                  final id = first != null
+                      ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
+                      : '';
+                  if (id.isNotEmpty) context.go('/report-builder/$id');
+                },
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        if (canCreate)
-          Expanded(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: _buildActionButton(
-                  icon: Icons.description_outlined,
-                  label: 'Build Report',
-                  onTap: () {
-                    final first = _dashboardDeliverables.isNotEmpty
-                        ? _dashboardDeliverables.first
-                        : null;
-                    final id = first != null
-                        ? (first['id']?.toString() ??
-                            first['uuid']?.toString() ??
-                            '')
-                        : '';
-                    if (id.isNotEmpty) context.go('/report-builder/$id');
-                  },
-                ),
-              ),
-            ),
-          ),
+      );
+    }
+
+    return Row(
+      children: [
+        for (int i = 0; i < tiles.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          tiles[i],
+        ]
       ],
     );
   }
@@ -2421,5 +2539,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         ),
       ),
     );
+  }
+
+  void _handleLogout() async {
+    try {
+      await _authService.signOut();
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      debugPrint('Logout error: $e');
+      if (mounted) {
+        context.go('/');
+      }
+    }
   }
 }

@@ -13,7 +13,6 @@ import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
-import '../widgets/flownet_logo.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/document_preview_widget.dart';
 import 'report_editor_screen.dart';
@@ -27,8 +26,6 @@ class ReportRepositoryScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen> {
-  static const Color _reportsAccentBlue = Color(0xFF0623B1);
-
   List<SignOffReport> _reports = [];
   List<RepositoryFile> _reportDocuments = [];
   String _selectedFilter = 'all';
@@ -409,7 +406,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           backgroundColor: FlownetColors.graphiteGray,
           title: const Row(
             children: [
-              Icon(Icons.comment, color: _reportsAccentBlue),
+              Icon(Icons.comment, color: FlownetColors.electricBlue),
               SizedBox(width: 8),
               Text(
                 'Add Client Feedback',
@@ -440,7 +437,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   onChanged: (value) {
                     setState(() => requestChanges = value ?? false);
                   },
-                  activeColor: _reportsAccentBlue,
+                  activeColor: FlownetColors.electricBlue,
                   checkColor: FlownetColors.pureWhite,
                 ),
                 const SizedBox(height: 16),
@@ -462,7 +459,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       borderSide: BorderSide(color: FlownetColors.slate),
                     ),
                     focusedBorder: const OutlineInputBorder(
-                      borderSide: const BorderSide(color: _reportsAccentBlue),
+                      borderSide: BorderSide(color: FlownetColors.electricBlue),
                     ),
                   ),
                 ),
@@ -498,7 +495,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: requestChanges 
                     ? FlownetColors.amberOrange 
-                    : _reportsAccentBlue,
+                    : FlownetColors.electricBlue,
                 foregroundColor: FlownetColors.pureWhite,
               ),
             ),
@@ -798,7 +795,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: _ReportRepositoryScreenState._reportsAccentBlue,
+              primary: FlownetColors.electricBlue,
               surface: FlownetColors.surfaceLight,
             ),
           ),
@@ -831,29 +828,19 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       useBackgroundImage: true,
       centered: false,
       scrollable: false,
-      appBar: AppBar(
-        title: const FlownetLogo(),
-        backgroundColor: Colors.transparent,
-        foregroundColor: FlownetColors.pureWhite,
-        centerTitle: false,
-        elevation: 0,
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ReportEditorScreen(),
-                ),
-              ).then((_) => _loadReports());
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Create Report'),
-            style: TextButton.styleFrom(
-              foregroundColor: FlownetColors.crimsonRed,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ReportEditorScreen(),
             ),
-          ),
-        ],
+          ).then((_) => _loadReports());
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Create Report'),
+        backgroundColor: FlownetColors.electricBlue,
+        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
@@ -918,7 +905,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                     IconButton(
                       icon: Icon(
                         _showAdvancedFilters ? Icons.filter_alt_off : Icons.filter_alt,
-                        color: _showAdvancedFilters ? _reportsAccentBlue : FlownetColors.coolGray,
+                        color: _showAdvancedFilters ? FlownetColors.electricBlue : FlownetColors.coolGray,
                       ),
                       tooltip: 'Advanced Filters',
                       onPressed: () {
@@ -945,11 +932,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               length: 2,
               child: Column(
                 children: [
-                  TabBar(
-                    labelColor: _reportsAccentBlue,
+                  const TabBar(
+                    labelColor: FlownetColors.electricBlue,
                     unselectedLabelColor: FlownetColors.coolGray,
-                    indicatorColor: _reportsAccentBlue,
-                    tabs: const [
+                    indicatorColor: FlownetColors.electricBlue,
+                    tabs: [
                       Tab(text: 'Reports', icon: Icon(Icons.assignment)),
                       Tab(text: 'Documents', icon: Icon(Icons.folder)),
                     ],
@@ -1080,8 +1067,8 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                   spacing: 4,
                   children: document.tags!.split(',').map((tag) => Chip(
                     label: Text(tag.trim(), style: const TextStyle(fontSize: 10)),
-                    backgroundColor: _reportsAccentBlue.withValues(alpha: 0.2),
-                    labelStyle: const TextStyle(color: _reportsAccentBlue),
+                    backgroundColor: FlownetColors.electricBlue.withValues(alpha: 0.2),
+                    labelStyle: const TextStyle(color: FlownetColors.electricBlue),
                   ),).toList(),
                 ),
               ),
@@ -1091,15 +1078,22 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.visibility, color: _reportsAccentBlue),
+              icon: const Icon(Icons.visibility, color: FlownetColors.electricBlue),
               onPressed: () => _previewDocument(document),
               tooltip: 'Preview',
             ),
             IconButton(
-              icon: const Icon(Icons.download, color: _reportsAccentBlue),
+              icon: const Icon(Icons.download, color: FlownetColors.electricBlue),
               onPressed: () => _downloadDocument(document),
               tooltip: 'Download',
             ),
+            // Delete button - only for system admins, delivery leads, and document uploader
+            if (_canDeleteDocument(document))
+              IconButton(
+                icon: const Icon(Icons.delete, color: FlownetColors.crimsonRed),
+                onPressed: () => _confirmDeleteDocument(document),
+                tooltip: 'Delete',
+              ),
           ],
         ),
         isThreeLine: true,
@@ -1120,7 +1114,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       case 'txt':
         return FlownetColors.slate;
       default:
-        return _reportsAccentBlue;
+        return FlownetColors.electricBlue;
     }
   }
 
@@ -1163,7 +1157,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
         _loadReports();
       },
       backgroundColor: FlownetColors.slate,
-      selectedColor: _reportsAccentBlue,
+      selectedColor: FlownetColors.electricBlue,
       labelStyle: TextStyle(
         color: isSelected ? Colors.white : Colors.grey,
       ),
@@ -1204,6 +1198,13 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                           const Tooltip(
                             message: 'Sealed (Approved)',
                             child: Icon(Icons.lock, color: FlownetColors.emeraldGreen, size: 16),
+                          ),
+                        ],
+                        if (report.status == ReportStatus.submitted) ...[
+                          const SizedBox(width: 8),
+                          const Tooltip(
+                            message: 'Submitted (Editable)',
+                            child: Icon(Icons.edit, color: Colors.orange, size: 16),
                           ),
                         ],
                       ],
@@ -1301,8 +1302,9 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Edit button for draft and change_requested reports
+                  // Edit button for draft, submitted, and change_requested reports
                   if (report.status == ReportStatus.draft || 
+                      report.status == ReportStatus.submitted ||
                       report.status == ReportStatus.changeRequested) ...[
                     TextButton.icon(
                       onPressed: () {
@@ -1316,7 +1318,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       icon: const Icon(Icons.edit, size: 16),
                       label: const Text('Edit'),
                       style: TextButton.styleFrom(
-                        foregroundColor: _reportsAccentBlue,
+                        foregroundColor: FlownetColors.electricBlue,
                       ),
                     ),
                   ],
@@ -1350,7 +1352,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       icon: const Icon(Icons.comment, size: 16),
                       label: const Text('Feedback'),
                       style: TextButton.styleFrom(
-                        foregroundColor: _reportsAccentBlue,
+                        foregroundColor: FlownetColors.electricBlue,
                       ),
                     ),
                   ],
@@ -1362,7 +1364,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       icon: const Icon(Icons.download, size: 16),
                       label: const Text('Export'),
                       style: TextButton.styleFrom(
-                        foregroundColor: _reportsAccentBlue,
+                        foregroundColor: FlownetColors.electricBlue,
                       ),
                     ),
                   ],
@@ -1446,6 +1448,85 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
     }
   }
 
+  bool _canDeleteDocument(RepositoryFile document) {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) return false;
+    
+    // System admins can delete any document
+    if (currentUser.role == UserRole.systemAdmin) return true;
+    
+    // Delivery leads can delete any document
+    if (currentUser.role == UserRole.deliveryLead) return true;
+    
+    // Document uploader can delete their own documents
+    // Check by uploader ID or uploader email/name match
+    if (document.uploader == currentUser.id) return true;
+    if (document.uploaderName == currentUser.email) return true;
+    
+    return false;
+  }
+
+  Future<void> _confirmDeleteDocument(RepositoryFile document) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FlownetColors.graphiteGray,
+        title: const Text('Delete Document', style: TextStyle(color: FlownetColors.pureWhite)),
+        content: Text(
+          'Are you sure you want to delete "${_getDisplayName(document)}"?\n\nThis action cannot be undone.',
+          style: const TextStyle(color: FlownetColors.coolGray),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: FlownetColors.coolGray)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.crimsonRed),
+            child: const Text('Delete', style: TextStyle(color: FlownetColors.pureWhite)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        final response = await _documentService.deleteDocument(document.id);
+        if (response.isSuccess) {
+          setState(() {
+            _reportDocuments.removeWhere((doc) => doc.id == document.id);
+          });
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Document deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadReportDocuments(); // Refresh the document list
+        } else {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete document: ${response.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Error deleting document: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _exportReport(SignOffReport report) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -1462,12 +1543,12 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.picture_as_pdf, color: _reportsAccentBlue),
+                leading: const Icon(Icons.picture_as_pdf, color: FlownetColors.electricBlue),
                 title: const Text('PDF', style: TextStyle(color: FlownetColors.pureWhite)),
                 onTap: () => Navigator.pop(context, 'pdf'),
               ),
               ListTile(
-                leading: const Icon(Icons.print, color: _reportsAccentBlue),
+                leading: const Icon(Icons.print, color: FlownetColors.electricBlue),
                 title: const Text('Print', style: TextStyle(color: FlownetColors.pureWhite)),
                 onTap: () => Navigator.pop(context, 'print'),
               ),

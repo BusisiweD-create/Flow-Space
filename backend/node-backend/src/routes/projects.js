@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { Project, Sprint, AuditLog, User, ProjectMember, Notification, sequelize } = require('../models');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const { Op, QueryTypes } = require('sequelize');
+const { carryOverOverdueDeliverablesForProject } = require('../services/sprintCarryOverService');
 
 /**
  * @route GET /api/projects
@@ -123,6 +124,7 @@ router.get('/:id', async (req, res) => {
 
     // Map snake_case to camelCase for critical fields
     projectJSON.ownerId = projectJSON.owner_id;
+    projectJSON.clientOwnerName = projectJSON.client_owner_name;
     
     res.json({
       success: true,
@@ -142,7 +144,7 @@ router.get('/:id', async (req, res) => {
  * @desc Create a new project
  * @access Private
  */
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     // Generate a project key from the name if not provided
     let projectKey = req.body.key;
@@ -159,6 +161,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const projectData = {
       ...req.body,
       client_name: req.body.clientName || req.body.client_name,
+      client_owner_name: req.body.clientOwnerName || req.body.client_owner_name,
       start_date: req.body.startDate || req.body.start_date,
       end_date: req.body.endDate || req.body.end_date,
       project_type: req.body.projectType || req.body.project_type,
@@ -287,6 +290,47 @@ router.post('/', authenticateToken, async (req, res) => {
        }
     }
 
+    // Notify system admins about project creation (even if they are not assigned)
+    try {
+      const assigned = await ProjectMember.findAll({
+        where: { project_id: project.id },
+        attributes: ['user_id']
+      });
+      const assignedIds = new Set((assigned || []).map((m) => String(m.user_id)));
+
+      const systemAdmins = await User.findAll({
+        where: { role: { [Op.in]: ['systemAdmin', 'SystemAdmin', 'systemadmin'] } },
+        attributes: ['id']
+      });
+
+      const adminNotifications = (systemAdmins || [])
+        .filter((u) => u && u.id && !assignedIds.has(String(u.id)))
+        .map((u) => ({
+          recipient_id: u.id,
+          sender_id: req.user.id,
+          type: 'project_created',
+          message: `New project created: "${project.name}".`,
+          payload: {
+            project_id: project.id,
+            project_name: project.name,
+            project_key: project.key,
+            client_name: project.client_name,
+            status: project.status,
+            priority: project.priority,
+            created_at: new Date(),
+            reason: 'project_created'
+          },
+          is_read: false,
+          created_at: new Date()
+        }));
+
+      if (adminNotifications.length > 0) {
+        await Notification.bulkCreate(adminNotifications);
+      }
+    } catch (notifyErr) {
+      console.error('Error sending system admin project creation notifications:', notifyErr);
+    }
+
     // Log the project creation
     await AuditLog.create({
       user_id: req.user.id,
@@ -360,6 +404,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       name: req.body.name,
       description: req.body.description,
       client_name: req.body.clientName || req.body.client_name,
+      client_owner_name: req.body.clientOwnerName || req.body.client_owner_name,
       start_date: req.body.startDate || req.body.start_date,
       end_date: req.body.endDate || req.body.end_date,
       project_type: req.body.projectType || req.body.project_type,
@@ -607,6 +652,12 @@ router.get('/:projectId/sprints', async (req, res) => {
       });
     }
 
+    try {
+      await carryOverOverdueDeliverablesForProject(projectId);
+    } catch (e) {
+      console.error('Error carrying over overdue deliverables:', e);
+    }
+
     const sprints = await Sprint.findAll({
       where: { project_id: projectId },
       order: [['created_at', 'DESC']]
@@ -714,7 +765,7 @@ router.get('/:projectId/available-sprints', async (req, res) => {
  * @desc Link multiple existing sprints to a project
  * @access Private
  */
-router.post('/:projectId/sprints', authenticateToken, async (req, res) => {
+router.post('/:projectId/sprints', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { projectId } = req.params;
     const { sprintIds } = req.body;
@@ -772,7 +823,7 @@ router.post('/:projectId/sprints', authenticateToken, async (req, res) => {
  * @desc Create a new sprint directly linked to a project
  * @access Private
  */
-router.post('/:projectId/sprints/new', authenticateToken, async (req, res) => {
+router.post('/:projectId/sprints/new', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { projectId } = req.params;
     const { name, description, start_date, end_date } = req.body;
@@ -833,7 +884,7 @@ router.post('/:projectId/sprints/new', authenticateToken, async (req, res) => {
  * @desc Unlink a sprint from a project (sets project_id to null)
  * @access Private
  */
-router.delete('/:projectId/sprints/:sprintId', authenticateToken, async (req, res) => {
+router.delete('/:projectId/sprints/:sprintId', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { projectId, sprintId } = req.params;
 

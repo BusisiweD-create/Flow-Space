@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../services/project_service.dart';
 import '../services/project_sprint_service.dart';
 import 'package:khono/models/project.dart';
+import '../services/auth_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/glass_card.dart';
 import 'project_workspace_screen.dart';
@@ -98,6 +99,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   void _navigateToProjectSetup() {
+    final auth = AuthService();
+    if (!auth.hasPermission('manage_projects')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only Delivery Leads and System Admins can create projects.')),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const ProjectWorkspaceScreen(),
@@ -136,6 +144,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final theme = Theme.of(context);
     final onSurfaceColor = theme.colorScheme.onSurface;
     final primaryColor = theme.colorScheme.primary;
+    final canManageProjects = AuthService().hasPermission('manage_projects');
 
     return AppScaffold(
       useBackgroundImage: true,
@@ -221,18 +230,20 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                     horizontal: 16, vertical: 8),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              onPressed: _navigateToProjectSetup,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Project'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.purple,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
+                            if (canManageProjects) ...[
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: _navigateToProjectSetup,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Create Project'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purple,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ],
@@ -253,6 +264,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Widget _buildProjectsList() {
+    final canManageProjects = AuthService().hasPermission('manage_projects');
     if (_projects.isEmpty) {
       return GlassCard(
         padding: const EdgeInsets.all(32),
@@ -279,18 +291,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         Theme.of(context).colorScheme.onSurface.withAlpha(179),
                   ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _navigateToProjectSetup,
-              icon: const Icon(Icons.add),
-              label: const Text('Create Project'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            if (canManageProjects) ...[
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _navigateToProjectSetup,
+                icon: const Icon(Icons.add),
+                label: const Text('Create Project'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       );

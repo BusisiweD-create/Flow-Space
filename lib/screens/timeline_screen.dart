@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +7,7 @@ import '../widgets/glass_card.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/app_modal.dart';
 import '../models/timeline_event.dart';
+import '../services/timeline_event_service.dart';
 import 'add_event_modal.dart';
 
 /// Timeline/Calendar Screen
@@ -33,6 +33,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   // Events
   final List<TimelineEvent> _events = [];
+  final TimelineEventService _timelineEventService = TimelineEventService();
 
   // Calendar view constants - Professional scheduling standards
   static const int _startHour = 6; // 6 AM
@@ -47,98 +48,17 @@ class _TimelineScreenState extends State<TimelineScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSampleEvents();
+    _loadEvents();
   }
 
-  void _loadSampleEvents() {
-    final now = DateTime.now();
+  Future<void> _loadEvents() async {
+    final loaded = await _timelineEventService.loadEvents();
+    loaded.sort((a, b) => _getEventStartDateTime(a).compareTo(_getEventStartDateTime(b)));
+    if (!mounted) return;
     setState(() {
-      _events.addAll([
-        TimelineEvent(
-          id: '1',
-          title: 'Stand-Up Meeting',
-          description: 'Daily stand-up with team',
-          type: TimelineEventType.meeting,
-          date: now,
-          createdAt: now.subtract(const Duration(minutes: 10)),
-          time: '08:30',
-          priority: 'medium',
-          project: 'Sprint Planning',
-          colorTag: 'blue',
-        ),
-        TimelineEvent(
-          id: '2',
-          title: 'Working Group Session',
-          description: 'Team collaboration session',
-          type: TimelineEventType.task,
-          date: now,
-          createdAt: now.subtract(const Duration(minutes: 5)),
-          time: '11:00',
-          priority: 'high',
-          project: 'Feature Development',
-          colorTag: 'red',
-        ),
-        TimelineEvent(
-          id: '3',
-          title: 'Quick Sync',
-          description: '15-minute team sync',
-          type: TimelineEventType.meeting,
-          date: now,
-          createdAt: now.subtract(const Duration(minutes: 2)),
-          time: '09:15',
-          priority: 'medium',
-          project: 'Daily Operations',
-          colorTag: 'purple',
-        ),
-        TimelineEvent(
-          id: '4',
-          title: 'Code Review',
-          description: 'Review pull requests',
-          type: TimelineEventType.review,
-          date: now,
-          createdAt: now,
-          time: '14:30',
-          priority: 'high',
-          project: 'Development',
-          colorTag: 'green',
-        ),
-        TimelineEvent(
-          id: '5',
-          title: 'Client Call',
-          description: 'Quarterly review call',
-          type: TimelineEventType.meeting,
-          date: now,
-          createdAt: now.add(const Duration(minutes: 5)),
-          time: '15:45',
-          priority: 'high',
-          project: 'Client Relations',
-          colorTag: 'orange',
-        ),
-        TimelineEvent(
-          id: '6',
-          title: 'Sprint Planning',
-          description: 'Review sprint progress',
-          type: TimelineEventType.review,
-          date: now.add(const Duration(days: 2)),
-          createdAt: now,
-          time: '10:00',
-          priority: 'high',
-          project: 'Sprint Planning',
-          colorTag: 'green',
-        ),
-        TimelineEvent(
-          id: '7',
-          title: 'Training Session',
-          description: 'Team training on new tools',
-          type: TimelineEventType.other,
-          date: now.add(const Duration(days: 5)),
-          createdAt: now.add(const Duration(days: 1)),
-          time: '13:20',
-          priority: 'low',
-          project: 'Training',
-          colorTag: 'orange',
-        ),
-      ]);
+      _events
+        ..clear()
+        ..addAll(loaded);
     });
   }
 
@@ -238,6 +158,38 @@ class _TimelineScreenState extends State<TimelineScreen> {
     setState(() {
       _events.add(event);
     });
+    _timelineEventService.saveEvents(_events);
+  }
+
+  void _toggleTaskCompleted(TimelineEvent event, bool isCompleted) {
+    final idx = _events.indexWhere((e) => e.id == event.id);
+    if (idx < 0) return;
+    setState(() {
+      _events[idx] = _events[idx].copyWith(
+        isCompleted: isCompleted,
+        updatedAt: DateTime.now(),
+      );
+    });
+    _timelineEventService.saveEvents(_events);
+  }
+
+  List<TimelineEvent> _getUpcomingTasksForToday() {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+    final tasks = _events.where((e) {
+      if (e.type != TimelineEventType.task) return false;
+      if (e.isCompleted) return false;
+      final start = _getEventStartDateTime(e);
+      if (start.isBefore(startOfDay) || !start.isBefore(endOfDay)) return false;
+      return !start.isBefore(now) || _isAllDayEvent(e);
+    }).toList();
+    tasks.sort((a, b) => _getEventStartDateTime(a).compareTo(_getEventStartDateTime(b)));
+    return tasks;
+  }
+
+  bool _isAllDayEvent(TimelineEvent event) {
+    return event.startTime == null || event.endTime == null;
   }
 
   void _handleTimeSlotTap(DateTime day, int hour) {
@@ -422,6 +374,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
                     _buildViewSwitcher(),
                     const SizedBox(height: 24),
 
+                    _buildTaskReminders(),
+                    const SizedBox(height: 24),
+
                     // Calendar/Timeline Content with subtle view transition
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 220),
@@ -465,6 +420,110 @@ class _TimelineScreenState extends State<TimelineScreen> {
             Expanded(child: _buildViewButton('Timeline', Icons.timeline)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTaskReminders() {
+    final tasks = _getUpcomingTasksForToday();
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.task_alt, color: FlownetColors.crimsonRed, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                "Today's Task Reminders",
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: FlownetColors.pureWhite,
+                    ),
+              ),
+              const Spacer(),
+              Text(
+                '${tasks.length} upcoming',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: FlownetColors.coolGray,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (tasks.isEmpty)
+            Text(
+              'No upcoming tasks for today.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: FlownetColors.coolGray,
+                  ),
+            )
+          else
+            ...tasks.take(6).map((task) {
+              final start = _getEventStartDateTime(task);
+              final timeLabel = _isAllDayEvent(task) ? 'All day' : DateFormat('HH:mm').format(start);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  borderRadius: 12.0,
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: task.isCompleted,
+                        onChanged: (v) => _toggleTaskCompleted(task, v ?? false),
+                        activeColor: FlownetColors.emeraldGreen,
+                        checkColor: FlownetColors.pureWhite,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.title,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: FlownetColors.pureWhite,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            if (task.description.trim().isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                task.description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: FlownetColors.coolGray,
+                                    ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: FlownetColors.electricBlue.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          timeLabel,
+                          style: const TextStyle(
+                            color: FlownetColors.electricBlue,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -1675,95 +1734,13 @@ class _TimelineScreenState extends State<TimelineScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _buildDeliverableItem(
-            title: 'Sprint Run',
-            status: 'approved',
-            daysRemaining: 36,
-            priority: 'medium',
+          Text(
+            'No deliverables to display.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: FlownetColors.coolGray,
+                ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDeliverableItem({
-    required String title,
-    required String status,
-    required int daysRemaining,
-    required String priority,
-  }) {
-    final isApproved = status == 'approved';
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => context.go('/deliverables'),
-        child: GlassCard(
-          padding: const EdgeInsets.all(16),
-          borderRadius: 12.0,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  if (isApproved)
-                    const Icon(Icons.check_circle,
-                        color: FlownetColors.emeraldGreen, size: 20)
-                  else
-                    const SizedBox(width: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '$title • $status',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: FlownetColors.pureWhite,
-                          ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: FlownetColors.amberOrange.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.local_fire_department,
-                            size: 14, color: FlownetColors.amberOrange),
-                        const SizedBox(width: 4),
-                        Text(
-                          priority,
-                          style: const TextStyle(
-                            color: FlownetColors.amberOrange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today,
-                      size: 14, color: FlownetColors.coolGray),
-                  const SizedBox(width: 4),
-                  Text(
-                    'In $daysRemaining days',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: FlownetColors.coolGray,
-                        ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
