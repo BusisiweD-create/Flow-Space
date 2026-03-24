@@ -155,23 +155,97 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
 
           debugPrint('📋 Content keys: ${content.keys.toList()}');
 
+          // Create SignOffReport object from loaded data
+          final reportId = data['id']?.toString() ?? '';
+          final status = data['status']?.toString();
+          final deliverableId = data['deliverableId']?.toString() ??
+              data['deliverable_id']?.toString() ??
+              '';
+          final createdBy = data['createdBy']?.toString() ?? '';
+
+          // Set _existingReport with proper status
+          _existingReport = SignOffReport(
+            id: reportId.isNotEmpty ? reportId : 'unknown',
+            deliverableId: deliverableId.isNotEmpty ? deliverableId : 'unknown',
+            reportTitle: data['reportTitle']?.toString() ?? '',
+            reportContent: data['reportContent']?.toString() ?? '',
+            sprintIds: (data['sprintIds'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [],
+            status: status == 'submitted'
+                ? ReportStatus.submitted
+                : ReportStatus.draft,
+            preparedBy: data['preparedBy']?.toString(),
+            preparedByName: data['preparedByName']?.toString(),
+            submittedBy: data['submittedBy']?.toString(),
+            submittedByName: data['submittedByName']?.toString(),
+            reviewedBy: data['reviewedBy']?.toString(),
+            reviewedByName: data['reviewedByName']?.toString(),
+            approvedBy: data['approvedBy']?.toString(),
+            approvedByName: data['approvedByName']?.toString(),
+            digitalSignature: data['digitalSignature']?.toString(),
+            createdAt: DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
+                DateTime.now(),
+            createdBy: createdBy.isNotEmpty ? createdBy : 'unknown',
+            submittedAt: data['submittedAt'] != null
+                ? DateTime.tryParse(data['submittedAt']!.toString())
+                : null,
+            changeRequestDetails: data['changeRequestDetails']?.toString(),
+            sprintPerformanceData: data['sprintPerformanceData']?.toString(),
+          );
+
+          debugPrint('📋 Report loaded successfully');
+          debugPrint('📊 Report status: ${_existingReport?.status}');
+
           setState(() {
             _selectedDeliverableId = data['deliverableId']?.toString() ??
                 data['deliverable_id']?.toString();
-            _titleController.text = content['reportTitle']?.toString() ?? '';
-            _contentController.text =
-                content['reportContent']?.toString() ?? '';
-            _knownLimitationsController.text =
-                content['knownLimitations']?.toString() ?? '';
-            _nextStepsController.text = content['nextSteps']?.toString() ?? '';
-            _preparedById = content['preparedBy']?.toString() ?? _preparedById;
-            _selectedSprintIds = (content['sprintIds'] as List?)
+
+            // Try to load content from nested 'content' field first, then from direct fields
+            final reportTitle = content['reportTitle']?.toString() ??
+                data['reportTitle']?.toString() ??
+                '';
+            final reportContent = content['reportContent']?.toString() ??
+                data['reportContent']?.toString() ??
+                '';
+            final knownLimitations = content['knownLimitations']?.toString() ??
+                data['knownLimitations']?.toString() ??
+                '';
+            final nextSteps = content['nextSteps']?.toString() ??
+                data['nextSteps']?.toString() ??
+                '';
+            final preparedBy = content['preparedBy']?.toString() ??
+                data['preparedBy']?.toString() ??
+                _preparedById;
+            final sprintIds = (content['sprintIds'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                (data['sprintIds'] as List?)
                     ?.map((e) => e.toString())
                     .toList() ??
                 [];
+            final sprintPerformanceData =
+                content['sprintPerformanceData']?.toString() ??
+                    data['sprintPerformanceData']?.toString();
+
+            // Set the controllers with the loaded content
+            _titleController.text = reportTitle;
+            _contentController.text = reportContent;
+            _knownLimitationsController.text = knownLimitations;
+            _nextStepsController.text = nextSteps;
+            _preparedById = preparedBy;
+            _selectedSprintIds = sprintIds;
             _changeRequestDetails = data['changeRequestDetails']?.toString();
-            _existingPerformanceData =
-                content['sprintPerformanceData']?.toString();
+            _existingPerformanceData = sprintPerformanceData;
+
+            debugPrint('📝 Loaded content:');
+            debugPrint('  Title: $reportTitle');
+            debugPrint('  Content length: ${reportContent.length}');
+            debugPrint('  Known limitations: ${knownLimitations.isNotEmpty}');
+            debugPrint('  Next steps: ${nextSteps.isNotEmpty}');
+            debugPrint('  Sprint IDs: ${sprintIds.join(', ')}');
+
             _normalizeSelectedDeliverable();
           });
 

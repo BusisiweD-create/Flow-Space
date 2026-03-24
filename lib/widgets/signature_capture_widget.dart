@@ -207,7 +207,7 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
       final prefs = await SharedPreferences.getInstance();
       final signaturesJson = prefs.getString(_signaturesKey);
 
-      if (signaturesJson != null) {
+      if (signaturesJson != null && signaturesJson.isNotEmpty) {
         final List<dynamic> signaturesList = json.decode(signaturesJson);
         _localSignatures =
             signaturesList.map((json) => UserSignature.fromJson(json)).toList();
