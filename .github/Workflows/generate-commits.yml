@@ -1,6 +1,11 @@
 name: Generate Daily Commits
  
 on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - '**'
   schedule:
     # Run daily at 4:30 PM UTC (2:30 PM SAST, 6:30 AM PST)
     - cron: '30 16 * * *'
@@ -12,17 +17,28 @@ permissions:
 jobs:
   generate-commits:
     runs-on: ubuntu-latest
+    concurrency:
+      group: daily-commits-${{ github.ref }}
+      cancel-in-progress: false
  
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 0 # Fetch all history for complete commit log
+        persist-credentials: true
  
     - name: Setup Node.js for commit processing
       uses: actions/setup-node@v4
       with:
         node-version: '18'
+    - name: Ensure dependencies (jq)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq
+    - name: Ensure output directory
+      run: |
+        mkdir -p assets/data
  
     - name: Generate daily commits JSON
       run: |
