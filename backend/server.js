@@ -2436,6 +2436,20 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     const normalizedUatNotes = uatNotes || uatNotes_raw;
     const normalizedUatPassRate = uatPassRate || uatPassRate_raw;
     
+    // Convert string values to integers for numeric fields
+    const convertedPlannedPoints = normalizedPlannedPoints ? parseInt(normalizedPlannedPoints, 10) || 0 : null;
+    const convertedCommittedPoints = normalizedCommittedPoints ? parseInt(normalizedCommittedPoints, 10) || 0 : null;
+    const convertedCompletedPoints = normalizedCompletedPoints ? parseInt(normalizedCompletedPoints, 10) || 0 : null;
+    const convertedCarriedOverPoints = normalizedCarriedOverPoints ? parseInt(normalizedCarriedOverPoints, 10) || 0 : null;
+    const convertedTestPassRate = normalizedTestPassRate ? parseInt(normalizedTestPassRate, 10) || 0 : null;
+    const convertedCodeCoverage = normalizedCodeCoverage ? parseInt(normalizedCodeCoverage, 10) || 0 : null;
+    const convertedEscapedDefects = normalizedEscapedDefects ? parseInt(normalizedEscapedDefects, 10) || 0 : null;
+    const convertedDefectsOpened = normalizedDefectsOpened ? parseInt(normalizedDefectsOpened, 10) || 0 : null;
+    const convertedDefectsClosed = normalizedDefectsClosed ? parseInt(normalizedDefectsClosed, 10) || 0 : null;
+    const convertedCodeReviewCompletion = normalizedCodeReviewCompletion ? parseInt(normalizedCodeReviewCompletion, 10) || 0 : null;
+    const convertedDocumentationStatus = normalizedDocumentationStatus ? parseInt(normalizedDocumentationStatus, 10) || 0 : null;
+    const convertedUatPassRate = normalizedUatPassRate ? parseInt(normalizedUatPassRate, 10) || 0 : null;
+    
     // Build metrics insert if any metric fields are provided
     const hasMetrics = normalizedPlannedPoints || 
                     normalizedCommittedPoints ||
@@ -2456,57 +2470,57 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
       const metricsFields = [];
       const metricsVals = [];
       
-      if (normalizedPlannedPoints) {
+      if (convertedPlannedPoints !== null) {
         metricsFields.push('planned_points');
-        metricsVals.push(normalizedPlannedPoints);
+        metricsVals.push(convertedPlannedPoints);
       }
-      if (normalizedCommittedPoints) {
+      if (convertedCommittedPoints !== null) {
         metricsFields.push('committed_points');
-        metricsVals.push(normalizedCommittedPoints);
+        metricsVals.push(convertedCommittedPoints);
       }
-      if (normalizedCompletedPoints) {
+      if (convertedCompletedPoints !== null) {
         metricsFields.push('completed_points');
-        metricsVals.push(normalizedCompletedPoints);
+        metricsVals.push(convertedCompletedPoints);
       }
-      if (normalizedCarriedOverPoints) {
+      if (convertedCarriedOverPoints !== null) {
         metricsFields.push('carried_over_points');
-        metricsVals.push(normalizedCarriedOverPoints);
+        metricsVals.push(convertedCarriedOverPoints);
       }
-      if (normalizedTestPassRate) {
+      if (convertedTestPassRate !== null) {
         metricsFields.push('test_pass_rate');
-        metricsVals.push(normalizedTestPassRate);
+        metricsVals.push(convertedTestPassRate);
       }
-      if (normalizedCodeCoverage) {
+      if (convertedCodeCoverage !== null) {
         metricsFields.push('code_coverage');
-        metricsVals.push(normalizedCodeCoverage);
+        metricsVals.push(convertedCodeCoverage);
       }
-      if (normalizedEscapedDefects) {
+      if (convertedEscapedDefects !== null) {
         metricsFields.push('escaped_defects');
-        metricsVals.push(normalizedEscapedDefects);
+        metricsVals.push(convertedEscapedDefects);
       }
-      if (normalizedDefectsOpened) {
+      if (convertedDefectsOpened !== null) {
         metricsFields.push('defects_opened');
-        metricsVals.push(normalizedDefectsOpened);
+        metricsVals.push(convertedDefectsOpened);
       }
-      if (normalizedDefectsClosed) {
+      if (convertedDefectsClosed !== null) {
         metricsFields.push('defects_closed');
-        metricsVals.push(normalizedDefectsClosed);
+        metricsVals.push(convertedDefectsClosed);
       }
-      if (normalizedCodeReviewCompletion) {
+      if (convertedCodeReviewCompletion !== null) {
         metricsFields.push('code_review_completion');
-        metricsVals.push(normalizedCodeReviewCompletion);
+        metricsVals.push(convertedCodeReviewCompletion);
       }
-      if (normalizedDocumentationStatus) {
+      if (convertedDocumentationStatus !== null) {
         metricsFields.push('documentation_status');
-        metricsVals.push(normalizedDocumentationStatus);
+        metricsVals.push(convertedDocumentationStatus);
       }
       if (normalizedUatNotes) {
         metricsFields.push('uat_notes');
         metricsVals.push(normalizedUatNotes);
       }
-      if (normalizedUatPassRate) {
+      if (convertedUatPassRate !== null) {
         metricsFields.push('uat_pass_rate');
-        metricsVals.push(normalizedUatPassRate);
+        metricsVals.push(convertedUatPassRate);
       }
       if (risks) {
         metricsFields.push('risks');

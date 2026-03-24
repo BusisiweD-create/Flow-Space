@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../services/backend_api_service.dart';
 import '../services/sprint_database_service.dart';
-import '../services/backend_api_service.dart';
 import '../widgets/glass_card.dart';
 import '../theme/flownet_theme.dart';
 
@@ -82,7 +81,7 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
         // Load sprints for this project
         await _loadSprints();
       } else {
-        debugPrint('❌ Backend response failed: ${response.error}');
+        debugPrint('❌ Backend response failed: ${resp.error}');
         setState(() => _error = 'Project not found');
       }
     } catch (e) {

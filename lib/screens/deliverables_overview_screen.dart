@@ -17,7 +17,6 @@ import 'package:khono/services/realtime_service.dart';
 import 'package:khono/config/environment.dart';
 import 'package:khono/widgets/deliverable_card.dart';
 import 'package:khono/theme/flownet_theme.dart';
-import 'package:khono/services/deliverable_websocket_service.dart';
 
 class DeliverablesOverviewScreen extends StatefulWidget {
   const DeliverablesOverviewScreen({super.key});
@@ -41,7 +40,7 @@ class _DeliverablesOverviewScreenState
   bool _isKanbanView = false;
   int _currentNavIndex = 0;
   bool _isDragging = false;
-  bool _hasRealTimeConnection = false;
+  final bool _hasRealTimeConnection = false;
   final Set<String> _expandedIds = {};
   final Set<String> _expandedAuditLogIds = {};
   final Set<String> _uploadingIds = {};
