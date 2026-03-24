@@ -1270,7 +1270,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     // Sprint Selection (Multi-select)
                     if (_sprints.isNotEmpty) ...[
                       const Text(
-                        'Link Sprints (Optional)',
+                        'Link Completed Sprints (Optional)',
                         style: TextStyle(color: FlownetColors.coolGray, fontSize: 14),
                       ),
                       const SizedBox(height: 8),
@@ -1279,10 +1279,21 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                         children: _sprints.map((sprint) {
                           final sprintId = sprint['id'].toString();
                           final isSelected = _selectedSprintIds.contains(sprintId);
+                          final status = (sprint['status'] ?? '').toString().toLowerCase();
+                          final isCompleted = status == 'completed' || status == 'done' || status == 'closed';
                           return FilterChip(
                             label: Text(sprint['name'] as String? ?? 'Unnamed Sprint'),
                             selected: isSelected,
                             onSelected: (selected) {
+                              if (selected && !isCompleted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Only completed sprints can be linked to a report.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
                               setState(() {
                                 if (selected) {
                                   _selectedSprintIds.add(sprintId);

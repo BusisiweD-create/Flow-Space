@@ -1,12 +1,61 @@
 const express = require('express');
 const router = express.Router();
 const { Signoff, AuditLog, Deliverable, Sprint, User, sequelize } = require('../models');
-const { QueryTypes } = require('sequelize');
+const { QueryTypes, Op } = require('sequelize');
 const { verifyToken } = require('../utils/authUtils');
 const { optionalAuthenticateToken } = require('../middleware/auth');
+const { isSprintCompletedStatus } = require('../services/sprintCarryOverService');
 
 function safeParseJson(text) {
   try { return JSON.parse(text); } catch (_) { return {}; }
+}
+
+async function validateCompletedSprintIds(sprintIds) {
+  const raw = Array.isArray(sprintIds) ? sprintIds : (sprintIds == null ? [] : [sprintIds]);
+  const ids = raw
+    .map((v) => String(v || '').trim())
+    .filter((v) => v.length > 0);
+  if (ids.length === 0) return null;
+
+  const numericIds = Array.from(new Set(ids))
+    .map((v) => parseInt(v, 10))
+    .filter((n) => Number.isFinite(n));
+  if (numericIds.length === 0) {
+    return { error: 'Invalid sprintIds', invalidSprintIds: ids };
+  }
+
+  const sprints = await Sprint.findAll({
+    where: { id: { [Op.in]: numericIds } },
+    attributes: ['id', 'name', 'status'],
+  });
+  const byId = new Map((sprints || []).map((s) => [String(s.id), s]));
+
+  const missingSprintIds = [];
+  const invalidSprints = [];
+  for (const id of numericIds) {
+    const s = byId.get(String(id));
+    if (!s) {
+      missingSprintIds.push(String(id));
+      continue;
+    }
+    if (!isSprintCompletedStatus(s.status)) {
+      invalidSprints.push({
+        id: String(s.id),
+        name: s.name || null,
+        status: s.status || null,
+      });
+    }
+  }
+
+  if (missingSprintIds.length > 0 || invalidSprints.length > 0) {
+    return {
+      error: 'Reports can only be linked to completed sprints',
+      missingSprintIds,
+      invalidSprints,
+    };
+  }
+
+  return null;
 }
 
 function normalizeRoleValue(r) {
@@ -586,6 +635,12 @@ router.post('/', async (req, res) => {
       if (!reportContent || typeof reportContent !== 'string' || reportContent.trim().length === 0) {
         return res.status(400).json({ error: 'reportContent is required' });
       }
+
+      const sprintValidation = await validateCompletedSprintIds(sprintIds);
+      if (sprintValidation) {
+        return res.status(400).json(sprintValidation);
+      }
+
       const actor = await resolveActorIdentity({ userId: String(req.user.id), email: req.user.email });
       const actorRole = actor.role ? String(actor.role) : (req.user && req.user.role ? String(req.user.role) : null);
       const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
@@ -676,6 +731,16 @@ router.put('/:id', async (req, res) => {
       const currentStatus = String(existing[0].status || 'draft');
       if (currentStatus === 'approved') {
         return res.status(403).json({ error: 'Report is approved and sealed. No further updates allowed.' });
+      }
+
+      const nextSprintIds = Object.prototype.hasOwnProperty.call(updates, 'sprintIds')
+        ? updates.sprintIds
+        : (Object.prototype.hasOwnProperty.call(updates, 'sprint_ids') ? updates.sprint_ids : null);
+      if (nextSprintIds != null) {
+        const sprintValidation = await validateCompletedSprintIds(nextSprintIds);
+        if (sprintValidation) {
+          return res.status(400).json(sprintValidation);
+        }
       }
 
       const [results] = await sequelize.query(
@@ -962,6 +1027,11 @@ router.post('/:id/submit', async (req, res) => {
       const submitterRoleRaw = identity.role ? String(identity.role) : (user.role ? String(user.role) : null);
       const submitterRole = roleDisplayValue(submitterRoleRaw) || submitterRoleRaw || null;
       const curContent = cur && cur.content ? (typeof cur.content === 'string' ? safeParseJson(cur.content) : cur.content) : {};
+      const curSprintIds = (curContent && (curContent.sprintIds || curContent.sprint_ids)) ? (curContent.sprintIds || curContent.sprint_ids) : [];
+      const sprintValidation = await validateCompletedSprintIds(curSprintIds);
+      if (sprintValidation) {
+        return res.status(400).json(sprintValidation);
+      }
       const originalTitle = (curContent && (curContent.reportTitle || curContent.report_title)) ? (curContent.reportTitle || curContent.report_title) : 'Untitled Report';
       const sanitizedTitle = sanitizeReportTitle(originalTitle);
       const [results] = await sequelize.query(

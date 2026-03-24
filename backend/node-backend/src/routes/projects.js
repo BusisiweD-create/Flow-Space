@@ -3,6 +3,7 @@ const router = express.Router();
 const { Project, Sprint, AuditLog, User, ProjectMember, Notification, sequelize } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { Op, QueryTypes } = require('sequelize');
+const { carryOverOverdueDeliverablesForProject } = require('../services/sprintCarryOverService');
 
 /**
  * @route GET /api/projects
@@ -649,6 +650,12 @@ router.get('/:projectId/sprints', async (req, res) => {
         success: false,
         error: 'Project not found' 
       });
+    }
+
+    try {
+      await carryOverOverdueDeliverablesForProject(projectId);
+    } catch (e) {
+      console.error('Error carrying over overdue deliverables:', e);
     }
 
     const sprints = await Sprint.findAll({

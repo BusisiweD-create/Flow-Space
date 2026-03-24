@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Sprint, Project } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const { carryOverOverdueDeliverablesForProject } = require('../services/sprintCarryOverService');
 
 function normalizeSprintData(body) {
   const d = {};
@@ -81,6 +82,14 @@ router.get('/', async (req, res) => {
 
     const include = [{ model: Project, as: 'project', attributes: ['id', 'name', 'key'] }];
     if (!projectId && projectKey) include[0].where = { key: projectKey };
+
+    if (projectId) {
+      try {
+        await carryOverOverdueDeliverablesForProject(projectId);
+      } catch (e) {
+        console.error('Error carrying over overdue deliverables:', e);
+      }
+    }
 
     const sprints = await Sprint.findAll({
       offset: parseInt(skip),

@@ -345,12 +345,34 @@ Future<void> _generateTitleSuggestion() async {
   Future<void> generateReport() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isGenerating = true;
-    });
-
     try {
       final backend = ref.read(backendApiServiceProvider);
+
+      final sprintIds = _deliverable?.sprintIds ?? [];
+      for (final sprintId in sprintIds) {
+        final resp = await backend.getSprint(sprintId);
+        if (resp.isSuccess && resp.data != null) {
+          final raw = resp.data;
+          final data = raw is Map && raw['data'] is Map ? Map<String, dynamic>.from(raw['data'] as Map) : (raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{});
+          final status = (data['status'] ?? '').toString().toLowerCase();
+          final isCompleted = status == 'completed' || status == 'done' || status == 'closed';
+          if (!isCompleted) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('A sprint report can only be generated for completed sprints.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+            return;
+          }
+        }
+      }
+
+      setState(() {
+        _isGenerating = true;
+      });
       
       String? sprintPerformanceData;
       if (_sprintMetrics.isNotEmpty) {
