@@ -5,11 +5,14 @@ import '../models/project.dart';
 import '../models/deliverable.dart';
 import '../models/sprint.dart';
 import '../models/user.dart';
+import '../models/user_role.dart';
 import '../widgets/glass_card.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_data_service.dart';
+import '../services/backend_api_service.dart';
 import '../providers/service_providers.dart';
+import '../utils/project_extensions.dart';
 
 class ProjectWorkspaceScreen extends ConsumerStatefulWidget {
   final String? projectId;
@@ -97,6 +100,15 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
           _tagsController.text = project.tags.join(', ');
           _members = project.members;
 
+          // Debug: Print member information
+          debugPrint('=== PROJECT MEMBERS DEBUG ===');
+          debugPrint('Project: ${project.name}');
+          debugPrint('Members count: ${project.members.length}');
+          for (var member in project.members) {
+            debugPrint('  - ${member.userName} (${member.userEmail}) - ${member.role}');
+          }
+          debugPrint('=============================');
+
           // Prefer IDs from project payload when present
           _deliverableIds = project.deliverableIds;
           _sprintIds = project.sprintIds;
@@ -150,15 +162,114 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
   }
 
   Future<void> _loadAvailableData() async {
+    debugPrint('🔍 Starting to load available data for project workspace...');
     try {
       final deliverables = await ApiService.getDeliverables();
       final sprints = await ApiService.getSprints();
-      final users = await UserDataService().getUsers(limit: 1000);
+      
+      // Try direct API call first - more reliable
+      List<User> users = [];
+      try {
+        debugPrint('🔍 Trying direct API call for users...');
+        final backend = BackendApiService();
+        final response = await backend.getUsers(limit: 1000);
+        
+        if (response.isSuccess && response.data != null) {
+          debugPrint('✅ Direct API call successful - response type: ${response.data.runtimeType}');
+          
+          final responseData = response.data;
+          List<dynamic> usersDataList = [];
+          
+          if (responseData is Map && responseData['data'] is List) {
+            usersDataList = responseData['data'];
+            debugPrint('📦 Extracted ${usersDataList.length} users from data array');
+          } else if (responseData is List) {
+            usersDataList = responseData;
+            debugPrint('📦 Extracted ${usersDataList.length} users from direct list');
+          }
+          
+          users = usersDataList.map((userData) {
+            String displayName;
+            if (userData['name'] != null && userData['name'].toString().isNotEmpty) {
+              displayName = userData['name'];
+            } else {
+              displayName = userData['email'] ?? 'Unknown User';
+            }
+            
+            // Parse role string to UserRole enum
+            UserRole userRole = UserRole.teamMember; // default
+            final roleString = userData['role']?.toString().toLowerCase();
+            if (roleString != null) {
+              switch (roleString) {
+                case 'systemadmin':
+                  userRole = UserRole.systemAdmin;
+                  break;
+                case 'projectmanager':
+                  userRole = UserRole.projectManager;
+                  break;
+                case 'deliverylead':
+                  userRole = UserRole.deliveryLead;
+                  break;
+                case 'developer':
+                  userRole = UserRole.developer;
+                  break;
+                case 'qaengineer':
+                  userRole = UserRole.qaEngineer;
+                  break;
+                case 'client':
+                  userRole = UserRole.client;
+                  break;
+                case 'clientreviewer':
+                  userRole = UserRole.clientReviewer;
+                  break;
+                case 'scrummaster':
+                  userRole = UserRole.scrumMaster;
+                  break;
+                case 'stakeholder':
+                  userRole = UserRole.stakeholder;
+                  break;
+                default:
+                  userRole = UserRole.teamMember;
+              }
+            }
+            
+            debugPrint('👤 Processing user: $displayName (${userData['id']}) - Role: ${userRole.name}');
+            
+            return User(
+              id: userData['id'],
+              email: userData['email'] ?? '',
+              name: displayName,
+              role: userRole,
+              isActive: userData['is_active'] ?? userData['isActive'] ?? true,
+              emailVerified: userData['emailVerified'] ?? true,
+              createdAt: DateTime.tryParse(userData['createdAt'] ?? '') ?? DateTime.now(),
+            );
+          }).toList();
+          
+          debugPrint('✅ Successfully processed ${users.length} users from direct API');
+        } else {
+          debugPrint('❌ Direct API call failed: ${response.error}');
+          throw Exception('Direct API call failed');
+        }
+      } catch (e) {
+        debugPrint('❌ Direct API call failed, trying UserDataService: $e');
+        
+        // Fallback to UserDataService
+        try {
+          users = await UserDataService().getUsers(limit: 1000);
+          debugPrint('✅ Successfully loaded ${users.length} users from UserDataService');
+        } catch (e2) {
+          debugPrint('❌ UserDataService also failed: $e2');
+          users = [];
+        }
+      }
       
       setState(() {
         _availableDeliverables = deliverables.map((d) => Deliverable.fromJson(d)).toList();
         _availableSprints = sprints.map((s) => Sprint.fromJson(s)).toList();
         _availableUsers = users;
+
+        debugPrint('📊 Final state: ${_availableUsers.length} users available');
 
         // Set default owner if creating new project
         if (!_isEditing && _selectedOwner == null) {
@@ -166,11 +277,20 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
            if (currentUserId != null) {
              try {
                _selectedOwner = _availableUsers.firstWhere((u) => u.id == currentUserId);
-             } catch (_) {}
+               debugPrint('✅ Set default owner: ${_selectedOwner?.name}');
+             } catch (_) {
+               debugPrint('⚠️ Current user not found in available users');
+             }
            }
+        }
+        
+        debugPrint('✅ Loaded ${_availableUsers.length} available users for project owner selection');
+        for (final user in _availableUsers) {
+          debugPrint('  - ${user.name} (${user.id}) - ${user.role.name}');
         }
       });
     } catch (e) {
+      debugPrint('❌ Failed to load available data: $e');
       _showErrorSnackBar('Failed to load available data: $e');
     }
   }
@@ -231,6 +351,10 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
     setState(() => _isLoading = true);
 
     try {
+      debugPrint('💾 Saving project with dates:');
+      debugPrint('  Start Date: $_startDate');
+      debugPrint('  End Date: $_endDate');
+      
       final project = Project(
         id: _isEditing ? _currentProject!.id : DateTime.now().millisecondsSinceEpoch.toString(),
         name: _nameController.text.trim(),
@@ -670,14 +794,20 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
               filled: true,
               fillColor: _isEditing ? colorScheme.surface.withAlpha(100) : colorScheme.surface.withAlpha(50), // Visual cue for disabled state
             ),
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 16,
-              color: colorScheme.onSurface,
+              color: Colors.black87,
             ),
             items: _availableUsers.map((user) {
               return DropdownMenuItem(
                 value: user,
-                child: Text(user.name),
+                child: Text(
+                  user.name,
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               );
             }).toList(),
             validator: (value) {
@@ -929,13 +1059,14 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
                 ),
               ),
               subtitle: Text(
-                _startDate != null ? _startDate!.toString().split(' ')[0] : 'Not set',
+                _currentProject?.formattedStartDate ?? 'Not set',
                 style: TextStyle(
                   color: colorScheme.onSurface.withAlpha(180),
                 ),
               ),
               trailing: Icon(Icons.arrow_drop_down, color: colorScheme.tertiary),
               onTap: () async {
+                debugPrint('🗓️ Start date picker opened');
                 final date = await showDatePicker(
                   context: context,
                   initialDate: _startDate ?? DateTime.now(),
@@ -943,9 +1074,13 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
                   lastDate: DateTime(2030),
                 );
                 if (date != null) {
+                  debugPrint('🗓️ Start date selected: $date');
                   setState(() {
                     _startDate = date;
+                    debugPrint('🗓️ _startDate updated to: $_startDate');
                   });
+                } else {
+                  debugPrint('🗓️ Start date selection cancelled');
                 }
               },
             ),
@@ -969,13 +1104,14 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
                 ),
               ),
               subtitle: Text(
-                _endDate != null ? _endDate!.toString().split(' ')[0] : 'Not set',
+                _currentProject?.formattedEndDate ?? 'Not set',
                 style: TextStyle(
                   color: colorScheme.onSurface.withAlpha(180),
                 ),
               ),
               trailing: Icon(Icons.arrow_drop_down, color: colorScheme.tertiary),
               onTap: () async {
+                debugPrint('🗓️ End date picker opened');
                 final date = await showDatePicker(
                   context: context,
                   initialDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
@@ -983,9 +1119,13 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
                   lastDate: DateTime(2030),
                 );
                 if (date != null) {
+                  debugPrint('🗓️ End date selected: $date');
                   setState(() {
                     _endDate = date;
+                    debugPrint('🗓️ _endDate updated to: $_endDate');
                   });
+                } else {
+                  debugPrint('🗓️ End date selection cancelled');
                 }
               },
             ),
@@ -1036,7 +1176,7 @@ class _ProjectWorkspaceScreenState extends ConsumerState<ProjectWorkspaceScreen>
         children: [
           Row(
             children: [
-              Icon(Icons.people_outline, color: colorScheme.primary, size: 24),
+              const Icon(Icons.people_outline, color: Colors.blue, size: 24),
               const SizedBox(width: 8),
               Text(
                 'Team Members',

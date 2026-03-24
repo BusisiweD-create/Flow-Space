@@ -80,6 +80,8 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
+    console.log(`🔍 Fetching project details for ID: ${id}`);
+    
     const project = await Project.findByPk(id, {
       include: [
         {
@@ -101,6 +103,8 @@ router.get('/:id', async (req, res) => {
       ]
     });
     
+    console.log(`📊 Raw project data:`, JSON.stringify(project?.toJSON(), null, 2));
+    
     if (!project) {
       return res.status(404).json({ 
         success: false,
@@ -111,7 +115,7 @@ router.get('/:id', async (req, res) => {
     // Transform for frontend compatibility
     const projectJSON = project.toJSON();
     
-    // Map members to flat structure expected by frontend
+    console.log(`👥 Members found: ${projectJSON.members?.length || 0}`);
     if (projectJSON.members) {
       projectJSON.members = projectJSON.members.map(m => ({
         userId: m.user_id,
@@ -125,6 +129,11 @@ router.get('/:id', async (req, res) => {
     // Map snake_case to camelCase for critical fields
     projectJSON.ownerId = projectJSON.owner_id;
     projectJSON.clientOwnerName = projectJSON.client_owner_name;
+    
+    console.log(`📤 Final API response:`, JSON.stringify({
+      success: true,
+      data: projectJSON
+    }, null, 2));
     
     res.json({
       success: true,
