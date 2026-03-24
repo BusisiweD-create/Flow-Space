@@ -4,7 +4,6 @@ import '../theme/flownet_theme.dart';
 import '../services/auth_service.dart';
 import '../utils/app_icons.dart';
 import 'background_image.dart';
-import 'notification_center_widget.dart';
 import 'sidebar_version_display.dart';
 
 class _NavItem {
@@ -36,14 +35,26 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   bool _collapsed = false;
   static const double _sidebarWidth = 280;
   static const double _collapsedWidth = 80;
-  static const double _logoMinCollapsedSize = 44;
-  static const double _logoExpandedSize = 64;
 
-  double _logoSizeFor(double screenWidth) {
-    // Responsive "breakpoints" so the logo stays readable on all widths.
-    final expanded = screenWidth >= 1024 ? _logoExpandedSize : 56.0;
-    final collapsed = screenWidth >= 1024 ? _logoMinCollapsedSize : 40.0;
-    return _collapsed ? collapsed : expanded;
+  // Navigation history tracking
+  List<String> _navigationHistory = ['/dashboard'];
+  int _historyIndex = 0;
+
+  // Track navigation history
+  void _updateNavigationHistory(String route) {
+    if (_navigationHistory.isEmpty ||
+        _navigationHistory[_historyIndex] != route) {
+      // Remove any forward history when navigating to new route
+      if (_historyIndex < _navigationHistory.length - 1) {
+        _navigationHistory =
+            _navigationHistory.take(_historyIndex + 1).toList();
+      }
+
+      setState(() {
+        _navigationHistory.add(route);
+        _historyIndex = _navigationHistory.length - 1;
+      });
+    }
   }
 
   List<_NavItem> get _navItems {
@@ -51,7 +62,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     final allItems = [
       // Work-focused items only
       const _NavItem(
-        label: 'Dashboard', 
+        label: 'Dashboard',
         icon: Icons.dashboard_outlined,
         iconName: 'dashboard',
         route: '/dashboard',
@@ -65,31 +76,25 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null,
       ),
       const _NavItem(
-        label: 'Sprints', 
-        icon: Icons.timer_outlined, 
+        label: 'Sprints',
+        icon: Icons.timer_outlined,
         iconName: 'sprints',
         route: '/sprint-console',
         requiredPermission: 'view_sprints',
       ),
+      // Sprints accessed via Projects
       const _NavItem(
         label: 'Deliverables',
         icon: Icons.assignment_outlined,
         iconName: 'deliverables',
         route: '/deliverables-overview',
-        requiredPermission: null,
+        requiredPermission: 'view_all_deliverables',
       ),
       const _NavItem(
         label: 'Timeline',
         icon: Icons.calendar_today_outlined,
         iconName: 'timeline',
         route: '/timeline',
-        requiredPermission: null,
-      ),
-      const _NavItem(
-        label: 'AI Assistant',
-        icon: Icons.smart_toy_outlined,
-        iconName: 'ai_assistant',
-        route: '/ai-assistant',
         requiredPermission: null,
       ),
       const _NavItem(
@@ -100,15 +105,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'view_approvals',
       ),
       const _NavItem(
-        label: 'Repository', 
-        icon: Icons.folder_outlined, 
+        label: 'Repository',
+        icon: Icons.folder_outlined,
         iconName: 'repository',
         route: '/repository',
         requiredPermission: 'view_all_deliverables',
       ),
       const _NavItem(
-        label: 'Reports', 
-        icon: Icons.assessment_outlined, 
+        label: 'Reports',
+        icon: Icons.assessment_outlined,
         iconName: 'reports',
         route: '/report-repository',
         requiredPermission: 'view_all_deliverables',
@@ -131,13 +136,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
     // Filter items based on user permissions
     return allItems.where((item) {
-      if (authService.isClientReviewer || authService.isClient) {
-        if (item.route == '/projects' ||
-            item.route == '/sprint-console' ||
-            item.route == '/deliverables-overview') {
-          return false;
-        }
-      }
       // Special flag: hide from sidebar even if user has permission
       if (item.requiredPermission == 'HIDE_FROM_SIDEBAR') return false;
       if (item.requiredPermission == null) return true;
@@ -184,8 +182,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
     }
     final isDesktop = MediaQuery.of(context).size.width > 768;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = _logoSizeFor(screenWidth);
+
+    // Track navigation history
+    _updateNavigationHistory(routeLocation);
 
     if (isDesktop) {
       return Scaffold(
@@ -218,150 +217,133 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       color: Colors.transparent,
                     ),
                     child: Column(
-                        children: [
-                          // Header with logo and collapse toggle
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                left: 12, right: 12, top: 24, bottom: 16,),
-                            child: SizedBox(
-                              height: logoSize,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  // Centered logo (universal home navigation)
-                                  Material(
-                                    type: MaterialType.transparency,
-                                    child: InkWell(
-                                      onTap: () => context.go('/dashboard'),
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(6),
-                                        child: Image.asset(
-                                          'assets/Icons/Red_Khono_Discs.png',
-                                          width: logoSize,
-                                          height: logoSize,
-                                          fit: BoxFit.contain,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Collapse toggle (kept intact, aligned right)
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: IconButton(
-                                      onPressed: _toggleSidebar,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      icon: Icon(
-                                        _collapsed
-                                            ? Icons.chevron_right
-                                            : Icons.chevron_left,
-                                        color: FlownetColors.textSecondary,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                      children: [
+                        // Header with logo and collapse toggle
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 12,
+                            right: 12,
+                            top: 24,
+                            bottom: 16,
                           ),
-                          // Navigation items (pill-style highlight like reference UI)
-                          Expanded(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              itemCount: _navItems.length,
-                              itemExtent: 56, // Match Busisiwe sidebar height
-                              cacheExtent: 200,
-                              addAutomaticKeepAlives: true,
-                              itemBuilder: (context, index) {
-                                final item = _navItems[index];
-                                final active =
-                                    routeLocation.startsWith(item.route);
-                                return Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    // Active item: soft pill-shaped dark highlight, no red border
-                                    color: active
-                                        ? Colors.white.withAlpha(
-                                            (0.08 * 255).round(),
-                                          )
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: () {
-                                        if (!routeLocation
-                                            .startsWith(item.route)) {
-                                          context.go(item.route);
-                                        }
-                                      },
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: _collapsed ? 8 : 16,
-                                          vertical: 12,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment: _collapsed
-                                              ? MainAxisAlignment.center
-                                              : MainAxisAlignment.start,
-                                          children: [
-                                            SizedBox(
-                                              width: 24,
-                                              height: 24,
-                                              child: AppIcons.getIconWidget(
-                                                item.iconName,
-                                                fallbackIcon: item.icon,
-                                                isActive: active,
-                                                size: 20,
-                                                color: active
-                                                    ? FlownetColors.pureWhite
-                                                    : FlownetColors
-                                                        .textSecondary,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Image.asset(
+                                'assets/Icons/Red_Khono_Discs.png',
+                                width: _collapsed ? 28 : 64,
+                                height: _collapsed ? 28 : 64,
+                                fit: BoxFit.contain,
+                              ),
+                              IconButton(
+                                onPressed: _toggleSidebar,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                icon: Icon(
+                                  _collapsed
+                                      ? Icons.chevron_right
+                                      : Icons.chevron_left,
+                                  color: FlownetColors.textSecondary,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Navigation items (pill-style highlight like reference UI)
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            itemCount: _navItems.length,
+                            itemExtent: 56, // Match Busisiwe sidebar height
+                            cacheExtent: 200,
+                            addAutomaticKeepAlives: true,
+                            itemBuilder: (context, index) {
+                              final item = _navItems[index];
+                              final active =
+                                  routeLocation.startsWith(item.route);
+                              return Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  // Active item: soft pill-shaped dark highlight, no red border
+                                  color: active
+                                      ? Colors.white.withAlpha(
+                                          (0.08 * 255).round(),
+                                        )
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      if (!routeLocation
+                                          .startsWith(item.route)) {
+                                        context.go(item.route);
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: _collapsed ? 8 : 16,
+                                        vertical: 12,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: _collapsed
+                                            ? MainAxisAlignment.center
+                                            : MainAxisAlignment.start,
+                                        children: [
+                                          SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: AppIcons.getIconWidget(
+                                              item.iconName,
+                                              fallbackIcon: item.icon,
+                                              isActive: active,
+                                              size: 20,
+                                              color: active
+                                                  ? FlownetColors.pureWhite
+                                                  : FlownetColors.textSecondary,
+                                            ),
+                                          ),
+                                          if (!_collapsed) ...[
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                item.label,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
-                                            if (!_collapsed) ...[
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Text(
-                                                  item.label,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.w500,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
                                           ],
-                                        ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                                );
-                              },
-                            ),
+                                ),
+                              );
+                            },
                           ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                            child: _buildLogoutButton(),
-                          ),
-                          SidebarVersionDisplay(
-                            isSidebarCollapsed: _collapsed,
-                          ),
-                        ],
-                      ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                          child: _buildLogoutButton(),
+                        ),
+                        SidebarVersionDisplay(
+                          isSidebarCollapsed: _collapsed,
+                        ),
+                      ],
                     ),
                   ),
                 ),
+              ),
               Expanded(
                 child: Container(
                   color: Colors.transparent,
@@ -380,172 +362,103 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       // Mobile layout with drawer
       return Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          title: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: () => context.go('/dashboard'),
-              borderRadius: BorderRadius.circular(10),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Image.asset(
-                  'assets/Icons/Red_Khono_Discs.png',
-                  width: 32,
-                  height: 32,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-          ),
-          centerTitle: false,
-          actions: [
-            if (routeLocation != '/dashboard')
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
-                tooltip: 'Back',
-              ),
-            // Profile Icon
-            IconButton(
-              onPressed: () => context.go('/profile'),
-              icon: const Icon(Icons.person_outline),
-              tooltip: 'Profile',
-              color: FlownetColors.pureWhite,
-              iconSize: 20,
-            ),
-            // Settings Icon
-            IconButton(
-              onPressed: () => context.go('/settings'),
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings',
-              color: FlownetColors.pureWhite,
-              iconSize: 20,
-            ),
-            const NotificationCenterWidget(),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: () => context.go('/profile?mode=view'),
-              icon: const Icon(Icons.account_circle_outlined),
-              tooltip: 'Account',
-              color: FlownetColors.pureWhite,
-              iconSize: 22,
-            ),
-          ],
-        ),
         body: BackgroundImage(
           child: widget.child,
         ),
         drawer: Drawer(
           backgroundColor: FlownetColors.charcoalBlack,
-          child: SafeArea(
-            child: Column(
-              children: [
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.go('/dashboard');
-                        },
-                        borderRadius: BorderRadius.circular(14),
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: Image.asset(
-                            'assets/Icons/Red_Khono_Discs.png',
-                            width: 72,
-                            height: 72,
-                            fit: BoxFit.contain,
-                          ),
+          child: Column(
+            children: [
+              // Drawer header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: FlownetColors.coolGray,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Image.asset(
+                      'assets/images/flownet_logo.png',
+                      height: 32,
+                      width: 32,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Flow-Space',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const Divider(color: FlownetColors.slate),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _navItems.length,
-                    itemExtent: 56, // Fixed height for better performance
-                    cacheExtent: 200, // Cache more items for smoother scrolling
-                    addAutomaticKeepAlives: true, // Keep state of list items
-                    itemBuilder: (context, index) {
-                      final item = _navItems[index];
-                      final active = routeLocation.startsWith(item.route);
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2,),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? FlownetColors.crimsonRed.withAlpha((0.1 * 255).round())
-                              : null,
-                          borderRadius: BorderRadius.circular(12),
-                          border: active
-                              ? const Border(
-                                  left: BorderSide(
-                                    color: FlownetColors.crimsonRed,
-                                    width: 4,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        child: ListTile(
-                          leading: AppIcons.getIconWidget(
-                            item.iconName,
-                            fallbackIcon: item.icon,
-                            isActive: active,
-                            size: 24,
-                            color: active
-                                ? FlownetColors.crimsonRed
-                                : FlownetColors.coolGray,
-                          ),
-                          title: Text(
-                            item.label,
-                            style: TextStyle(
-                              color: active
-                                  ? FlownetColors.crimsonRed
-                                  : FlownetColors.pureWhite,
-                              fontWeight: active
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            if (!routeLocation.startsWith(item.route)) {
-                              context.go(item.route);
-                            }
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.logout,
-                      color: FlownetColors.textSecondary,
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white),
                     ),
-                    title: const Text(
-                      'Logout',
-                      style: TextStyle(color: FlownetColors.pureWhite),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _handleLogout(context);
-                    },
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              // Navigation items
+              Expanded(
+                child: _buildNavigationItems(isMobile: true),
+              ),
+            ],
           ),
         ),
       );
     }
+  }
+
+  Widget _buildNavigationItems({required bool isMobile}) {
+    final routeLocation = GoRouterState.of(context).uri.path;
+
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: _navItems.length,
+      itemBuilder: (context, index) {
+        final item = _navItems[index];
+        final active = routeLocation.startsWith(item.route);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: active
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ListTile(
+            leading: AppIcons.getIconWidget(
+              item.iconName,
+              fallbackIcon: item.icon,
+              isActive: active,
+              size: 20,
+              color: active ? Colors.white : FlownetColors.textSecondary,
+            ),
+            title: Text(
+              item.label,
+              style: TextStyle(
+                color: active ? Colors.white : FlownetColors.textSecondary,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            onTap: () {
+              if (!routeLocation.startsWith(item.route)) {
+                context.go(item.route);
+                Navigator.pop(context); // Close drawer on mobile
+              }
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleLogout(BuildContext ctx) async {
