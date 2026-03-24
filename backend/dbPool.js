@@ -7,7 +7,7 @@ function createPool() {
   console.log('🛜 Using DATABASE_URL (safest approach)');
   console.log('📊 Connection URL:', process.env.DATABASE_URL ? '***CONFIGURED***' : 'NOT SET');
   
-  if (!process.env.DATABASE_URL) {
+if (!process.env.DATABASE_URL) {
     return new Pool({
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),

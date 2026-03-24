@@ -458,7 +458,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Row(
                 children: [
-                  const SizedBox(width: 48), // Space for hamburger menu alignment
+                  const SizedBox(
+                      width: 48), // Space for hamburger menu alignment
                   Expanded(
                     child: Text(
                       '${_currentUser!.role.displayName} Dashboard',
@@ -1277,8 +1278,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCardHeader(Icons.group_outlined, 'Team Metrics',
-                route: '/sprint-console'),
+            _buildCardHeader(Icons.group_outlined, 'Team Metrics', route: null),
             const SizedBox(height: 12),
             if (_isLoadingTeamMetrics)
               const Center(child: CircularProgressIndicator())
@@ -1388,7 +1388,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 Expanded(
                     child: _buildCardHeader(
                         Icons.insights_outlined, 'Team Performance',
-                        route: '/sprint-console')),
+                        route: null)),
                 const SizedBox(width: 12),
                 DropdownButton<String>(
                   value: _selectedChartType,
@@ -1478,7 +1478,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         if (status == 'completed' || status == 'cancelled') {
           return false;
         }
-        final endStr = p['end_date']?.toString() ?? p['endDate']?.toString() ?? '';
+        final endStr =
+            p['end_date']?.toString() ?? p['endDate']?.toString() ?? '';
         if (endStr.isEmpty) return false;
         final end = DateTime.parse(endStr);
         return now.isAfter(end);
@@ -1502,7 +1503,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               final title = p['name'] ?? 'Untitled Project';
               final status = (p['status'] ?? '').toString();
               final id = p['id']?.toString() ?? '';
-              final isOverdue = overdueProjects.any((op) => op['id'] == p['id']);
+              final isOverdue =
+                  overdueProjects.any((op) => op['id'] == p['id']);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: InkWell(
