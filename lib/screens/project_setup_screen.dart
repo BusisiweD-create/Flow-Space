@@ -5,6 +5,7 @@ import '../models/project.dart';
 import '../models/user.dart';
 import '../services/project_service.dart';
 import '../services/user_data_service.dart';
+import '../services/backend_api_service.dart';
 import '../widgets/glass_card.dart';
 
 class ProjectSetupScreen extends StatefulWidget {
@@ -21,7 +22,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _clientNameController = TextEditingController();
-  final _clientProjectOwnerController = TextEditingController();
   final _keyController = TextEditingController();
 
   DateTime? _startDate;
@@ -75,7 +75,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _clientNameController.dispose();
-    _clientProjectOwnerController.dispose();
     _keyController.dispose();
     super.dispose();
   }
@@ -91,7 +90,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           _nameController.text = project.name;
           _descriptionController.text = project.description;
           _clientNameController.text = project.clientName ?? '';
-          _clientProjectOwnerController.text = project.clientOwnerName ?? '';
           _keyController.text = project.key;
           _selectedProjectType = project.projectType;
           _selectedStatus = project.status;
@@ -208,38 +206,101 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
     setState(() => _isLoadingUsers = true);
     try {
       debugPrint('🔍 Loading available users from backend...');
-      final List<User> users = await UserDataService().getUsers(limit: 1000);
-      debugPrint('✅ Successfully loaded ${users.length} users from backend');
       
-      setState(() {
-        _availableUsers = users.map((user) {
-          final displayName =
-              (user.name.isNotEmpty ? user.name : user.email).trim();
-          final userMap = {
-            'id': user.id,
-            'name': displayName.isNotEmpty ? displayName : 'Unknown User',
-            'email': user.email,
-            'role': user.role.name,
-            'originalRole': user.role.name, // Store original role for removal
-            'isActive': user.isActive,
-            'emailVerified': user.emailVerified,
-          };
-          debugPrint('🔍 Processed user: ${userMap['name']} (${userMap['id']}) - Active: ${userMap['isActive']}');
-          return userMap;
-        }).where((user) => user['isActive'] == true).toList(); // Only show active users
-        _isLoadingUsers = false;
+      // Try UserDataService first
+      try {
+        final List<User> users = await UserDataService().getUsers(limit: 1000);
+        debugPrint('✅ Successfully loaded ${users.length} users from UserDataService');
         
-        debugPrint('✅ Final available users count: ${_availableUsers.length}');
-        for (final user in _availableUsers) {
-          debugPrint('  - ${user['name']} (${user['id']})');
+        setState(() {
+          _availableUsers = users.map((user) {
+            final displayName =
+                (user.name.isNotEmpty ? user.name : user.email).trim();
+            final userMap = {
+              'id': user.id,
+              'name': displayName.isNotEmpty ? displayName : 'Unknown User',
+              'email': user.email,
+              'role': user.role.name,
+              'originalRole': user.role.name, // Store original role for removal
+              'isActive': user.isActive,
+              'emailVerified': user.emailVerified,
+            };
+            debugPrint('🔍 Processed user: ${userMap['name']} (${userMap['id']}) - Active: ${userMap['isActive']}');
+            return userMap;
+          }).where((user) => user['isActive'] == true).toList(); // Only show active users
+          _isLoadingUsers = false;
+          
+          debugPrint('✅ Final available users count: ${_availableUsers.length}');
+          for (final user in _availableUsers) {
+            debugPrint('  - ${user['name']} (${user['id']})');
+          }
+        });
+      } catch (e) {
+        debugPrint('❌ UserDataService failed, trying direct API call: $e');
+        
+        // Fallback: Direct API call
+        final backend = BackendApiService();
+        final response = await backend.getUsers(limit: 1000);
+        
+        if (response.isSuccess && response.data != null) {
+          debugPrint('✅ Direct API call successful - response type: ${response.data.runtimeType}');
+          
+          final responseData = response.data;
+          List<dynamic> usersDataList = [];
+          
+          if (responseData is Map) {
+            // Handle different response formats
+            if (responseData['users'] is List) {
+              usersDataList = responseData['users'];
+            } else if (responseData['data'] is List) {
+              usersDataList = responseData['data'];
+            } else if (responseData['success'] == true && responseData['data'] is List) {
+              usersDataList = responseData['data'];
+            }
+          } else if (responseData is List) {
+            usersDataList = responseData;
+          }
+          
+          setState(() {
+            _availableUsers = usersDataList.map((userData) {
+              // Handle different name formats
+              String displayName;
+              if (userData['name'] != null && userData['name'].toString().isNotEmpty) {
+                displayName = userData['name'];
+              } else if (userData['first_name'] != null && userData['first_name'].toString().isNotEmpty) {
+                displayName = '${userData['first_name']} ${userData['last_name'] ?? ''}'.trim();
+              } else {
+                displayName = userData['email'] ?? 'Unknown User';
+              }
+              
+              return {
+                'id': userData['id'],
+                'name': displayName,
+                'email': userData['email'],
+                'role': userData['role'] ?? 'user',
+                'isActive': userData['is_active'] ?? userData['isActive'] ?? true,
+                'emailVerified': userData['emailVerified'] ?? true,
+              };
+            }).where((user) => user['isActive'] == true).toList();
+            _isLoadingUsers = false;
+            
+            debugPrint('✅ Final available users count (direct API): ${_availableUsers.length}');
+            for (final user in _availableUsers) {
+              debugPrint('  - ${user['name']} (${user['id']})');
+            }
+          });
+        } else {
+          throw Exception('API call failed: ${response.error}');
         }
-      });
+      }
       
       debugPrint('✅ Processed ${_availableUsers.length} active users for display');
     } catch (e) {
       setState(() => _isLoadingUsers = false);
       debugPrint('❌ Error loading users: $e');
-      _showErrorSnackBar('Failed to load users from server. Please check your connection and try again.');
+      setState(() {
+        _availableUsers = [];
+      });
     }
   }
 
@@ -303,7 +364,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         'name': _nameController.text.trim(),
         'description': _descriptionController.text.trim(),
         'clientName': _clientNameController.text.trim(),
-        'client_owner_name': _clientProjectOwnerController.text.trim(),
         'projectKey': _keyController.text.trim(),
         'projectType': _selectedProjectType,
         'status': _selectedStatus.name,
@@ -360,8 +420,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         _descriptionController.text.trim() != _originalProject!.description ||
         _clientNameController.text.trim() !=
             (_originalProject!.clientName ?? '') ||
-        _clientProjectOwnerController.text.trim() !=
-            (_originalProject!.clientOwnerName ?? '') ||
         _selectedProjectType != _originalProject!.projectType ||
         _selectedStatus != _originalProject!.status ||
         _selectedPriority != _originalProject!.priority ||
@@ -377,8 +435,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         _nameController.text = _originalProject!.name;
         _descriptionController.text = _originalProject!.description;
         _clientNameController.text = _originalProject!.clientName ?? '';
-        _clientProjectOwnerController.text =
-            _originalProject!.clientOwnerName ?? '';
         _keyController.text = _originalProject!.key;
 
         final loadedType = _originalProject!.projectType;
@@ -675,8 +731,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           const SizedBox(height: 16),
           _buildModernClientField(),
           const SizedBox(height: 16),
-          _buildModernClientProjectOwnerField(),
-          const SizedBox(height: 16),
           _buildModernProjectTypeField(),
         ],
       ),
@@ -908,6 +962,149 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
+      ),
+    );
+  }
+
+  void _showSelectOwnerDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_isLoadingUsers ? 'Loading Users...' : 'Select Project Owner'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: _isLoadingUsers
+              ? const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Fetching available users from server...'),
+                    SizedBox(height: 8),
+                    Text(
+                      'Please wait',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                )
+              : _availableUsers.isEmpty
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.person_off, size: 48, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'No Available Users',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'No users available to assign as project owner',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        Text(
+                          'Available Users (${_availableUsers.length})',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: ListView(
+                            children: _availableUsers.map((user) {
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.green[100],
+                                  child: Text(
+                                    _getInitials(user['name']),
+                                    style: TextStyle(
+                                      color: Colors.green[800],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                title: Text(user['name']),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(user['email']),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue[100],
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            user['role'] ?? 'user',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.blue[800],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        if (user['isActive'] == true) ...[
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green[100],
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'Active',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  setState(() {
+                                    _selectedProjectOwner = user;
+                                  });
+                                  debugPrint('🔍 Selected project owner: ${user['name']}');
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          if (!_isLoadingUsers && _availableUsers.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Optionally refresh users
+                _loadAvailableUsers();
+              },
+              child: const Text('Refresh'),
+            ),
+        ],
       ),
     );
   }
@@ -1326,11 +1523,12 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
   }
 
   Widget _buildModernProjectOwnerField() {
+    debugPrint('🔥 Building project owner field with new implementation!');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Project Manager*',
+          'Project Owner*',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -1339,59 +1537,56 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
         ),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            color: const Color(0xFF2D3748),
+            border: Border.all(color: const Color(0xFF4A5568)),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<Map<String, dynamic>>(
-              value: _selectedProjectOwner,
-              hint: Text(
-                _isLoadingUsers ? 'Loading users...' : 'Select project manager',
-                style: const TextStyle(color: Color(0xFFA0AEC0)),
-              ),
-              style: const TextStyle(
-                fontSize: 16,
-                color: Color(0xFF1A202C),
-                fontWeight: FontWeight.w400,
-              ),
-              isExpanded: true,
-              icon: const Icon(Icons.arrow_drop_down),
-              dropdownColor: Colors.white,
-              menuMaxHeight: 200,
-              items: _availableUsers.map((user) {
-                debugPrint('🔍 Adding user to dropdown: ${user['name']} (${user['id']})');
-                return DropdownMenuItem<Map<String, dynamic>>(
-                  value: user,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 250),
-                    child: Text(
-                      user['name'],
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF1A202C),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+          child: Row(
+            children: [
+              Icon(Icons.person, color: Colors.grey[400], size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _selectedProjectOwner?['name'] ?? 'Select Project Owner',
+                  style: TextStyle(
+                    color: _selectedProjectOwner != null ? Colors.white : Colors.grey[400],
+                    fontSize: 16,
                   ),
-                );
-              }).toList(),
-              onChanged: (Map<String, dynamic>? user) {
-                debugPrint('🔍 Selected project owner: ${user?['name']}');
-                setState(() {
-                  _selectedProjectOwner = user;
-                });
-              },
-            ),
+                ),
+              ),
+              if (_selectedProjectOwner != null)
+                IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      _selectedProjectOwner = null;
+                    });
+                  },
+                  tooltip: 'Clear Selection',
+                ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _showSelectOwnerDialog,
+                icon: const Icon(Icons.people, size: 16),
+                label: const Text('Select'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[600],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  textStyle: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
           ),
         ),
-        if (_availableUsers.isEmpty && !_isLoadingUsers)
+        if (_selectedProjectOwner == null)
           const Padding(
             padding: EdgeInsets.only(top: 4),
             child: Text(
-              'No available users. Please add users first.',
+              'Please select a project owner',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.red,
@@ -1449,54 +1644,6 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
           ),
           onChanged: (value) => _validateFieldOnChange('clientName', value),
           validator: (value) => _validateField('clientName', value),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildModernClientProjectOwnerField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Project Owner (Client Side)',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF4A5568),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _clientProjectOwnerController,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Color(0xFF1A202C),
-            fontWeight: FontWeight.w400,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Enter client project owner',
-            hintStyle: const TextStyle(
-              color: Color(0xFFA0AEC0),
-              fontSize: 14,
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF3182CE)),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
         ),
       ],
     );

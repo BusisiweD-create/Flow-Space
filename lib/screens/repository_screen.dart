@@ -292,12 +292,29 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     setState(() => _isLoading = true);
 
     try {
+      String? selectedProjectKey;
+      try {
+        if (_selectedProjectId != null) {
+          final p = _projects.firstWhere(
+            (x) => (x['id']?.toString() ?? '') == _selectedProjectId,
+            orElse: () => const <String, dynamic>{},
+          );
+          if (p.isNotEmpty) {
+            selectedProjectKey = (p['key'] ?? '').toString();
+          }
+        }
+      } catch (_) {}
+
       final response = await _documentService.uploadDocument(
         filePath: filePath,
         description: _descriptionController.text.isNotEmpty
             ? _descriptionController.text
             : null,
         tags: _tagsController.text.isNotEmpty ? _tagsController.text : null,
+        projectId: _selectedProjectId,
+        projectKey: selectedProjectKey,
+        sprintId: _selectedSprintId,
+        deliverableId: _selectedDeliverableId,
       );
 
       if (response.isSuccess) {
@@ -393,6 +410,19 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
     setState(() => _isLoading = true);
 
     try {
+      String? selectedProjectKey;
+      try {
+        if (_selectedProjectId != null) {
+          final p = _projects.firstWhere(
+            (x) => (x['id']?.toString() ?? '') == _selectedProjectId,
+            orElse: () => const <String, dynamic>{},
+          );
+          if (p.isNotEmpty) {
+            selectedProjectKey = (p['key'] ?? '').toString();
+          }
+        }
+      } catch (_) {}
+
       final response = await _documentService.uploadWebDocument(
         fileBytes: pickedFile.bytes!,
         fileName: pickedFile.name,
@@ -400,6 +430,10 @@ class _RepositoryScreenState extends State<RepositoryScreen> {
             ? _descriptionController.text
             : null,
         tags: _tagsController.text.isNotEmpty ? _tagsController.text : null,
+        projectId: _selectedProjectId,
+        projectKey: selectedProjectKey,
+        sprintId: _selectedSprintId,
+        deliverableId: _selectedDeliverableId,
       );
 
       if (response.isSuccess) {

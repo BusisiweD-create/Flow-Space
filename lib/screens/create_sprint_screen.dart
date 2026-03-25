@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/sprint_database_service.dart';
+import '../services/auth_service.dart';
 
 class CreateSprintScreen extends StatefulWidget {
   final String? projectId;
@@ -65,11 +66,76 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureCanOpen();
+    });
     _fetchProjectDates();
     _checkActiveSprints();
     _loadProjects(); // Load projects for dropdown
     if (_isEditing) {
       _fillSprintData();
+    }
+  }
+
+  Future<void> _ensureCanOpen() async {
+    final auth = AuthService();
+    if (auth.hasPermission('create_sprint')) return;
+    if (!_isEditing) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only Delivery Leads, System Admins, or Project Owners can create sprints.')),
+      );
+      Navigator.of(context).pop(false);
+      return;
+    }
+
+    final currentUserId = auth.currentUser?.id.toString();
+    if (currentUserId == null || currentUserId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to edit this sprint.')),
+      );
+      Navigator.of(context).pop(false);
+      return;
+    }
+
+    final sprintProjectId = (widget.projectId ??
+            widget.sprint?['project_id']?.toString() ??
+            widget.sprint?['projectId']?.toString())
+        ?.toString();
+    if (sprintProjectId == null || sprintProjectId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing project context for sprint.')),
+      );
+      Navigator.of(context).pop(false);
+      return;
+    }
+
+    try {
+      final projects = await _sprintService.getProjects();
+      final project = projects.firstWhere(
+        (p) => p['id']?.toString() == sprintProjectId || p['key']?.toString() == sprintProjectId,
+        orElse: () => <String, dynamic>{},
+      );
+      final ownerId = (project['owner_id'] ?? project['ownerId'])?.toString() ??
+          (project['owner'] is Map ? project['owner']['id']?.toString() : null);
+      final isOwner = ownerId != null && ownerId.isNotEmpty && ownerId == currentUserId;
+      if (!isOwner) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Only the Project Owner can edit sprint details.')),
+        );
+        Navigator.of(context).pop(false);
+        return;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to verify sprint permissions.')),
+      );
+      Navigator.of(context).pop(false);
+      return;
     }
   }
 
@@ -328,31 +394,79 @@ class _CreateSprintScreenState extends State<CreateSprintScreen> {
         return;
       }
 
-      await _sprintService.createSprint(
-        name: _nameController.text,
-        startDate: _startDate!,
-        endDate: _endDate!,
-        projectId: projectIdToUse,
-        plannedPoints: int.tryParse(_plannedPointsController.text) ?? 0,
-        committedPoints: int.tryParse(_committedPointsController.text),
-        completedPoints: int.tryParse(_completedPointsController.text),
-        carriedOverPoints: int.tryParse(_carriedOverPointsController.text),
-        testPassRate: double.tryParse(_testPassRateController.text),
-        codeCoverage: int.tryParse(_codeCoverageController.text),
-        escapedDefects: int.tryParse(_escapedDefectsController.text),
-        defectsOpened: int.tryParse(_defectsOpenedController.text),
-        defectsClosed: int.tryParse(_defectsClosedController.text),
-        defectSeverityMix: severityMix,
-        codeReviewCompletion: int.tryParse(_codeReviewCompletionController.text),
-        documentationStatus: _documentationStatusController.text.isNotEmpty ? _documentationStatusController.text : null,
-        uatNotes: _uatNotesController.text.isNotEmpty ? _uatNotesController.text : null,
-        uatPassRate: int.tryParse(_uatPassRateController.text),
-        risksIdentified: int.tryParse(_risksIdentifiedController.text),
-        risks: _risksController.text.isNotEmpty ? _risksController.text : null,
-        risksMitigated: int.tryParse(_risksMitigatedController.text),
-        blockers: _blockersController.text.isNotEmpty ? _blockersController.text : null,
-        decisions: _decisionsController.text.isNotEmpty ? _decisionsController.text : null,
-      );
+      final plannedPoints = int.tryParse(_plannedPointsController.text) ?? 0;
+      final committedPoints = int.tryParse(_committedPointsController.text);
+      final completedPoints = int.tryParse(_completedPointsController.text);
+      final carriedOverPoints = int.tryParse(_carriedOverPointsController.text);
+      final addedDuringSprint = int.tryParse(_addedDuringSprintController.text);
+      final removedDuringSprint = int.tryParse(_removedDuringSprintController.text);
+
+      if (_isEditing) {
+        final rawId = widget.sprint?['id']?.toString() ?? widget.sprint?['sprint_id']?.toString();
+        final sid = int.tryParse(rawId ?? '');
+        if (sid == null) {
+          throw Exception('Missing sprint id');
+        }
+        final ok = await _sprintService.updateSprint(
+          sprintId: sid,
+          name: _nameController.text,
+          description: _descriptionController.text,
+          startDate: _startDate,
+          endDate: _endDate,
+          projectId: projectIdToUse,
+          plannedPoints: plannedPoints,
+          committedPoints: committedPoints,
+          completedPoints: completedPoints,
+          carriedOverPoints: carriedOverPoints,
+          addedDuringSprint: addedDuringSprint,
+          removedDuringSprint: removedDuringSprint,
+          testPassRate: double.tryParse(_testPassRateController.text),
+          codeCoverage: int.tryParse(_codeCoverageController.text),
+          escapedDefects: int.tryParse(_escapedDefectsController.text),
+          defectsOpened: int.tryParse(_defectsOpenedController.text),
+          defectsClosed: int.tryParse(_defectsClosedController.text),
+          defectSeverityMix: severityMix,
+          codeReviewCompletion: int.tryParse(_codeReviewCompletionController.text),
+          documentationStatus: _documentationStatusController.text.isNotEmpty ? _documentationStatusController.text : null,
+          uatNotes: _uatNotesController.text.isNotEmpty ? _uatNotesController.text : null,
+          uatPassRate: int.tryParse(_uatPassRateController.text),
+          risksIdentified: int.tryParse(_risksIdentifiedController.text),
+          risks: _risksController.text.isNotEmpty ? _risksController.text : null,
+          risksMitigated: int.tryParse(_risksMitigatedController.text),
+          blockers: _blockersController.text.isNotEmpty ? _blockersController.text : null,
+          decisions: _decisionsController.text.isNotEmpty ? _decisionsController.text : null,
+        );
+        if (ok == null) {
+          throw Exception('Failed to update sprint');
+        }
+      } else {
+        await _sprintService.createSprint(
+          name: _nameController.text,
+          description: _descriptionController.text,
+          startDate: _startDate!,
+          endDate: _endDate!,
+          projectId: projectIdToUse,
+          plannedPoints: plannedPoints,
+          committedPoints: committedPoints,
+          completedPoints: completedPoints,
+          carriedOverPoints: carriedOverPoints,
+          testPassRate: double.tryParse(_testPassRateController.text),
+          codeCoverage: int.tryParse(_codeCoverageController.text),
+          escapedDefects: int.tryParse(_escapedDefectsController.text),
+          defectsOpened: int.tryParse(_defectsOpenedController.text),
+          defectsClosed: int.tryParse(_defectsClosedController.text),
+          defectSeverityMix: severityMix,
+          codeReviewCompletion: int.tryParse(_codeReviewCompletionController.text),
+          documentationStatus: _documentationStatusController.text.isNotEmpty ? _documentationStatusController.text : null,
+          uatNotes: _uatNotesController.text.isNotEmpty ? _uatNotesController.text : null,
+          uatPassRate: int.tryParse(_uatPassRateController.text),
+          risksIdentified: int.tryParse(_risksIdentifiedController.text),
+          risks: _risksController.text.isNotEmpty ? _risksController.text : null,
+          risksMitigated: int.tryParse(_risksMitigatedController.text),
+          blockers: _blockersController.text.isNotEmpty ? _blockersController.text : null,
+          decisions: _decisionsController.text.isNotEmpty ? _decisionsController.text : null,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

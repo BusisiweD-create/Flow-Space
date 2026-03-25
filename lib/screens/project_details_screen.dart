@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../services/backend_api_service.dart';
 import '../services/sprint_database_service.dart';
 import '../widgets/glass_card.dart';
 import '../theme/flownet_theme.dart';
@@ -31,33 +33,59 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
     try {
       setState(() => _isLoading = true);
 
-      // Load project details - use getProjects and find by ID
-      final projectsData = await SprintDatabaseService().getProjects();
-      final projectData = projectsData.firstWhere(
-        (project) => project['id'] == widget.projectId,
-        orElse: () => {},
-      );
+      final resp = await BackendApiService().getProject(widget.projectId);
+      if (!resp.isSuccess || resp.data == null) {
+        setState(() => _error = resp.error ?? 'Failed to load project details');
+        return;
+      }
+      final raw = resp.data;
+      final Map<String, dynamic> projectData;
+      if (raw is Map) {
+        final inner = raw['data'] ?? raw['project'] ?? raw;
+        projectData = inner is Map ? Map<String, dynamic>.from(inner) : <String, dynamic>{};
+      } else {
+        projectData = <String, dynamic>{};
+      }
       
       if (projectData.isNotEmpty) {
         setState(() {
           _project = projectData;
           // Calculate project duration
-          if (projectData['start_date'] != null && projectData['end_date'] != null) {
-            final startDate = DateTime.parse(projectData['start_date']);
-            final endDate = DateTime.parse(projectData['end_date']);
+          final startRaw = projectData['start_date'] ?? projectData['startDate'];
+          final endRaw = projectData['end_date'] ?? projectData['endDate'];
+          if (startRaw != null && endRaw != null) {
+            final startDate = DateTime.parse(startRaw.toString());
+            final endDate = DateTime.parse(endRaw.toString());
             _projectDuration = endDate.difference(startDate).inDays;
+          }
+
+          final membersRaw = projectData['members'];
+          if (membersRaw is List) {
+            _projectMembers = membersRaw
+                .where((m) => m != null)
+                .map((m) => m is Map ? Map<String, dynamic>.from(m) : <String, dynamic>{})
+                .where((m) => m.isNotEmpty)
+                .map((m) => <String, dynamic>{
+                      'id': (m['userId'] ?? m['user_id'] ?? m['id'] ?? '').toString(),
+                      'name': (m['userName'] ?? m['user_name'] ?? m['name'] ?? '').toString(),
+                      'role': (m['role'] ?? '').toString(),
+                      'email': (m['userEmail'] ?? m['user_email'] ?? m['email'] ?? '').toString(),
+                      'avatar': m['avatar'],
+                    })
+                .toList();
+          } else {
+            _projectMembers = [];
           }
         });
 
         // Load sprints for this project
         await _loadSprints();
-        
-        // Load project members
-        await _loadProjectMembers();
       } else {
+        debugPrint('❌ Backend response failed: ${resp.error}');
         setState(() => _error = 'Project not found');
       }
     } catch (e) {
+      debugPrint('❌ Error loading project details: $e');
       setState(() => _error = 'Failed to load project details: $e');
     } finally {
       setState(() => _isLoading = false);
@@ -75,52 +103,43 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
     }
   }
 
-  Future<void> _loadProjectMembers() async {
-    try {
-      // Since we don't have a dedicated project members service, 
-      // we'll use mock data for now
-      setState(() {
-        _projectMembers = [
-          {
-            'id': '1',
-            'name': 'John Doe',
-            'role': 'Project Manager',
-            'email': 'john@example.com',
-            'avatar': null,
-          },
-          {
-            'id': '2',
-            'name': 'Jane Smith',
-            'role': 'Lead Developer',
-            'email': 'jane@example.com',
-            'avatar': null,
-          },
-        ];
-      });
-    } catch (e) {
-      debugPrint('Error loading project members: $e');
-    }
-  }
-
   String _formatStatus(String? status) {
-    switch (status?.toLowerCase()) {
+    final raw = (status ?? '').toString().trim();
+    if (raw.isEmpty) return 'Draft';
+    switch (raw.toLowerCase()) {
+      case 'draft':
+        return 'Draft';
       case 'planning':
+      case 'planned':
+      case 'to do':
         return 'Planning';
       case 'in_progress':
+      case 'inprogress':
+      case 'in progress':
+      case 'active':
         return 'In Progress';
       case 'completed':
+      case 'done':
         return 'Completed';
       case 'on_hold':
+      case 'onhold':
         return 'On Hold';
       case 'cancelled':
         return 'Cancelled';
       default:
-        return 'Unknown';
+        final normalized = raw.replaceAll('_', ' ').replaceAll('-', ' ').trim();
+        if (normalized.isEmpty) return 'Draft';
+        return normalized
+            .split(RegExp(r'\s+'))
+            .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+            .join(' ');
     }
   }
 
   String _formatPriority(String? priority) {
     switch (priority?.toLowerCase()) {
+      case 'critical':
+        return 'Critical';
       case 'high':
         return 'High';
       case 'medium':
@@ -150,14 +169,24 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
   }
 
   Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
+    final s = (status ?? '').toString().toLowerCase().trim();
+    switch (s) {
+      case '':
+      case 'draft':
+        return Colors.grey;
       case 'planning':
+      case 'planned':
+      case 'to do':
         return Colors.blue;
       case 'in_progress':
+      case 'in progress':
+      case 'active':
         return Colors.orange;
       case 'completed':
+      case 'done':
         return Colors.green;
       case 'on_hold':
+      case 'onhold':
         return Colors.grey;
       case 'cancelled':
         return Colors.red;
@@ -182,6 +211,13 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
   String _formatDate(DateTime? date) {
     if (date == null) return 'Not set';
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _projectField(String key, [String? altKey]) {
+    final p = _project;
+    if (p == null) return '';
+    final v = p[key] ?? (altKey != null ? p[altKey] : null);
+    return (v ?? '').toString();
   }
 
   @override
@@ -300,6 +336,64 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                     _buildPriorityChip(),
                                   ],
                                 ),
+                                if (_projectField('client_name', 'clientName').trim().isNotEmpty ||
+                                    _projectField('client_owner_name', 'clientOwnerName').trim().isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _projectField('client_name', 'clientName').trim().isEmpty
+                                            ? const SizedBox.shrink()
+                                            : Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Client',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    _projectField('client_name', 'clientName'),
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: FlownetColors.textPrimary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                      ),
+                                      Expanded(
+                                        child: _projectField('client_owner_name', 'clientOwnerName').trim().isEmpty
+                                            ? const SizedBox.shrink()
+                                            : Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Client Owner',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    _projectField('client_owner_name', 'clientOwnerName'),
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: FlownetColors.textPrimary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -435,8 +529,8 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            _project!['start_date'] != null
-                                                ? _formatDate(DateTime.parse(_project!['start_date']))
+                                            (_project!['start_date'] ?? _project!['startDate']) != null
+                                                ? _formatDate(DateTime.parse((_project!['start_date'] ?? _project!['startDate']).toString()))
                                                 : 'Not set',
                                             style: const TextStyle(
                                               fontSize: 14,
@@ -460,8 +554,8 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            _project!['end_date'] != null
-                                                ? _formatDate(DateTime.parse(_project!['end_date']))
+                                            (_project!['end_date'] ?? _project!['endDate']) != null
+                                                ? _formatDate(DateTime.parse((_project!['end_date'] ?? _project!['endDate']).toString()))
                                                 : 'Not set',
                                             style: const TextStyle(
                                               fontSize: 14,
@@ -571,7 +665,13 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
                                     if (_sprints.isNotEmpty)
                                       TextButton(
                                         onPressed: () {
-                                          // Navigate to sprints screen
+                                          final pid = widget.projectId;
+                                          final pkey = (_project?['key'] ?? '').toString();
+                                          final qp = <String, String>{
+                                            'projectId': pid,
+                                            if (pkey.trim().isNotEmpty) 'projectKey': pkey.trim(),
+                                          };
+                                          context.go(Uri(path: '/sprint-console', queryParameters: qp).toString());
                                         },
                                         child: const Text('View All'),
                                       ),

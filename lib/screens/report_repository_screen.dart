@@ -461,7 +461,7 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
                       borderSide: BorderSide(color: FlownetColors.slate),
                     ),
                     focusedBorder: const OutlineInputBorder(
-                      borderSide: const BorderSide(color: _reportsAccentBlue),
+                      borderSide: BorderSide(color: _reportsAccentBlue),
                     ),
                   ),
                 ),
@@ -944,11 +944,11 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
               length: 2,
               child: Column(
                 children: [
-                  TabBar(
+                  const TabBar(
                     labelColor: _reportsAccentBlue,
                     unselectedLabelColor: FlownetColors.coolGray,
                     indicatorColor: _reportsAccentBlue,
-                    tabs: const [
+                    tabs: [
                       Tab(text: 'Reports', icon: Icon(Icons.assignment)),
                       Tab(text: 'Documents', icon: Icon(Icons.folder)),
                     ],

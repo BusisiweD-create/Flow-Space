@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/project_service.dart';
-import '../services/project_sprint_service.dart';
+import '../services/backend_api_service.dart';
 import 'package:khono/models/project.dart';
+import '../services/auth_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/glass_card.dart';
 import 'project_workspace_screen.dart';
+import '../utils/project_extensions.dart';
 
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key});
@@ -17,13 +19,46 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   List<Project> _projects = [];
   bool _isLoading = false;
-  String? _selectedProjectId;
-  Map<String, dynamic>? _projectSprints;
-
+    
+  // Unified management mode
+  bool _isCreateMode = false;
+  String? _editingProjectId;
+  
+  // Form controllers for creation/editing
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _clientNameController = TextEditingController();
+  final _keyController = TextEditingController();
+  
+  DateTime? _startDate;
+  DateTime? _endDate;
+  final String _selectedProjectType = 'Fixed Scope';
+  final ProjectStatus _selectedStatus = ProjectStatus.planning;
+  final ProjectPriority _selectedPriority = ProjectPriority.medium;
+  
   @override
   void initState() {
     super.initState();
     _loadProjects();
+  }
+
+  void _toggleCreateMode() {
+    setState(() {
+      _isCreateMode = !_isCreateMode;
+      if (!_isCreateMode) {
+        _clearForm();
+      }
+    });
+  }
+
+  void _clearForm() {
+    _nameController.clear();
+    _descriptionController.clear();
+    _clientNameController.clear();
+    _keyController.clear();
+    _startDate = null;
+    _endDate = null;
+    _editingProjectId = null;
   }
 
   Future<void> _loadProjects() async {
@@ -51,53 +86,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
-  Future<void> _loadProjectSprints(String projectId) async {
-    try {
-      final projectSprints =
-          await ProjectSprintService.getProjectSprints(projectId);
-      if (mounted) {
-        setState(() {
-          _projectSprints = projectSprints;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading sprints: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _selectProject(Project project) {
-    setState(() {
-      _selectedProjectId = project.id;
-    });
-    _loadProjectSprints(project.id);
-  }
-
-  void _deselectProject() {
-    setState(() {
-      _selectedProjectId = null;
-      _projectSprints = null;
-    });
-  }
-
-  void _navigateToSprintConsole(String? projectId, {String? sprintId}) {
-    final queryParams = <String, String>{};
-    if (projectId != null) queryParams['projectId'] = projectId;
-    if (sprintId != null) queryParams['sprintId'] = sprintId;
-
-    final uri = Uri(
-        path: '/sprint-console',
-        queryParameters: queryParams.isEmpty ? null : queryParams);
-    context.go(uri.toString());
-  }
-
   void _navigateToProjectSetup() {
+    final auth = AuthService();
+    if (!auth.hasPermission('manage_projects')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only Delivery Leads and System Admins can create projects.')),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const ProjectWorkspaceScreen(),
@@ -105,6 +101,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  
   void _showErrorMessage(dynamic error) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -136,77 +133,65 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final theme = Theme.of(context);
     final onSurfaceColor = theme.colorScheme.onSurface;
     final primaryColor = theme.colorScheme.primary;
+    final canManageProjects = AuthService().hasPermission('manage_projects');
 
     return AppScaffold(
       useBackgroundImage: true,
       centered: false,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  GlassCard(
+          : Column(
+              children: [
+                // Header
+                Container(
+                  margin: const EdgeInsets.all(16),
+                  child: GlassCard(
                     padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: primaryColor.withAlpha(51),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: primaryColor.withAlpha(128)),
-                              ),
-                              child: Icon(
-                                Icons.folder,
-                                color: primaryColor,
-                                size: 24,
-                              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withAlpha(51),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: primaryColor.withAlpha(128)),
                             ),
-                            const SizedBox(width: 16),
-                            Text(
-                              'Projects',
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                color: onSurfaceColor,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Icon(
+                              _isCreateMode ? Icons.edit : Icons.folder,
+                              color: primaryColor,
+                              size: 24,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'View and manage your projects and their sprints',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: onSurfaceColor.withAlpha(230),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _selectedProjectId != null
-                                  ? _deselectProject
-                                  : null,
-                              icon: const Icon(Icons.arrow_back),
-                              label: Text(_selectedProjectId != null
-                                  ? 'Back to Projects'
-                                  : 'All Projects'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _selectedProjectId != null
-                                    ? Colors.grey
-                                    : primaryColor,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                              ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _isCreateMode 
+                                      ? (_editingProjectId != null ? 'Edit Project' : 'Create New Project')
+                                      : 'Projects',
+                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                    color: onSurfaceColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  _isCreateMode 
+                                      ? 'Fill in the project details below'
+                                      : 'View and manage your projects and their sprints',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: onSurfaceColor.withAlpha(230),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
+                          ),
+                          if (!_isCreateMode) ...[
                             ElevatedButton.icon(
                               onPressed: () =>
                                   _navigateToSprintConsole(_selectedProjectId),
@@ -221,38 +206,41 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                     horizontal: 16, vertical: 8),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              onPressed: _navigateToProjectSetup,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Project'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.purple,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
+                            if (canManageProjects) ...[
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: _navigateToProjectSetup,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Create Project'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purple,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-
-                  // Projects List or Project Details
-                  if (_selectedProjectId == null) ...[
-                    _buildProjectsList(),
-                  ] else ...[
-                    _buildProjectDetails(),
-                  ],
-                ],
-              ),
+                ),
+                  ),
+                
+                // Main Content
+                Expanded(
+                  child: _isCreateMode 
+                      ? _buildProjectForm()
+                      : _buildProjectsList(),
+                ),
+              ],
             ),
     );
   }
 
   Widget _buildProjectsList() {
+    final canManageProjects = AuthService().hasPermission('manage_projects');
     if (_projects.isEmpty) {
       return GlassCard(
         padding: const EdgeInsets.all(32),
@@ -279,18 +267,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         Theme.of(context).colorScheme.onSurface.withAlpha(179),
                   ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _navigateToProjectSetup,
-              icon: const Icon(Icons.add),
-              label: const Text('Create Project'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            if (canManageProjects) ...[
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _navigateToProjectSetup,
+                icon: const Icon(Icons.add),
+                label: const Text('Create Project'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       );
@@ -328,7 +317,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       child: GlassCard(
         padding: const EdgeInsets.all(20),
         child: InkWell(
-          onTap: () => _selectProject(project),
+          onTap: () {},
           borderRadius: BorderRadius.circular(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,7 +331,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         Text(
                           project.name,
                           style: theme.textTheme.titleMedium?.copyWith(
-                            color: theme.colorScheme.onSurface,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -350,7 +339,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         Text(
                           project.key,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withAlpha(179),
+                            color: Colors.white70,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -359,7 +348,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           Text(
                             project.description,
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withAlpha(230),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -413,50 +402,50 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       }
                     },
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _getProjectStatusColor(project.status),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _formatProjectStatus(project.status),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.calendar_today,
                     size: 16,
-                    color: theme.colorScheme.onSurface.withAlpha(179),
+                    color: Colors.white70,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Start: ${_formatDate(project.startDate)}',
+                    'Start: ${project.formattedStartDate}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withAlpha(179),
+                      color: Colors.white70,
                     ),
                   ),
-                  if (project.endDate != null) ...[
+                  if (project.displayEndDate != null) ...[
                     const SizedBox(width: 16),
-                    Icon(
+                    const Icon(
                       Icons.event,
                       size: 16,
-                      color: theme.colorScheme.onSurface.withAlpha(179),
+                      color: Colors.white70,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'End: ${_formatDate(project.endDate!)}',
+                      'End: ${project.formattedEndDate}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withAlpha(179),
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.warning_amber,
+                      size: 16,
+                      color: Colors.orange[300],
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'No end date set',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.orange[300],
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
@@ -469,347 +458,120 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  Widget _buildProjectDetails() {
-    final project = _projects.firstWhere((p) => p.id == _selectedProjectId);
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Project Header
-        GlassCard(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withAlpha(51),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: primaryColor.withAlpha(128)),
-                    ),
-                    child: Icon(
-                      Icons.folder,
-                      color: primaryColor,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          project.name,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          project.key,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withAlpha(179),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (project.description.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            project.description,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withAlpha(230),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getProjectStatusColor(project.status),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _formatProjectStatus(project.status),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: theme.colorScheme.onSurface.withAlpha(179),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Start: ${_formatDate(project.startDate)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withAlpha(179),
-                    ),
-                  ),
-                  if (project.endDate != null) ...[
-                    const SizedBox(width: 16),
-                    Icon(
-                      Icons.event,
-                      size: 16,
-                      color: theme.colorScheme.onSurface.withAlpha(179),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'End: ${_formatDate(project.endDate!)}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withAlpha(179),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
+  
+  Widget _buildProjectForm() {
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Project Form',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-
-        // Sprints Section
-        GlassCard(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Sprints',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () =>
-                        _navigateToSprintConsole(_selectedProjectId),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Manage Sprints'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (_projectSprints == null) ...[
-                const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ] else if (_projectSprints!['sprints'].isEmpty) ...[
-                Center(
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.directions_run_outlined,
-                        size: 64,
-                        color: theme.colorScheme.onSurface.withAlpha(128),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No sprints for this project',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Create sprints to start planning your work',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withAlpha(179),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _projectSprints!['sprints'].length,
-                  itemBuilder: (context, index) {
-                    final sprint = _projectSprints!['sprints'][index];
-                    return _buildSprintCard(sprint);
-                  },
-                ),
-              ],
-            ],
+          const SizedBox(height: 20),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Project Name',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'Use the full Project Workspace form to create a project.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
-              ),
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: () {
-            context.push<bool>('/project-workspace/new').then((created) {
-              if (created == true) {
-                _loadProjects();
-              }
-            });
-          },
-          child: const Text('Open Project Workspace'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSprintCard(Map<String, dynamic> sprint) {
-    final theme = Theme.of(context);
-    final sprintId = (sprint['id'] ?? '').toString();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: GlassCard(
-        padding: const EdgeInsets.all(16),
-        child: InkWell(
-          onTap: () =>
-              _navigateToSprintConsole(_selectedProjectId, sprintId: sprintId),
-          borderRadius: BorderRadius.circular(12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _getSprintStatusColor(sprint['status'] ?? 'planned'),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.directions_run,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      sprint['name'] ?? 'Untitled Sprint',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (sprint['description'] != null &&
-                        sprint['description'].isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        sprint['description'],
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withAlpha(179),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    if (sprint['start_date'] != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 14,
-                            color: theme.colorScheme.onSurface.withAlpha(128),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Start: ${_formatDate(DateTime.parse(sprint['start_date']))}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withAlpha(128),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+          const SizedBox(height: 16),
+          TextField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Description',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
           ),
-        ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _clientNameController,
+            decoration: const InputDecoration(
+              labelText: 'Client Name',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _keyController,
+            decoration: const InputDecoration(
+              labelText: 'Project Key',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Color _getProjectStatusColor(ProjectStatus status) {
-    switch (status) {
-      case ProjectStatus.active:
-        return Colors.green;
-      case ProjectStatus.completed:
-        return Colors.blue;
-      case ProjectStatus.onHold:
-        return Colors.orange;
-      case ProjectStatus.cancelled:
-        return Colors.red;
-      default:
-        return Colors.grey;
+  Future<void> _saveProject() async {
+    if (_nameController.text.isEmpty || _keyController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all required fields'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
-  }
 
-  String _formatProjectStatus(ProjectStatus status) {
-    switch (status) {
-      case ProjectStatus.active:
-        return 'Active';
-      case ProjectStatus.completed:
-        return 'Completed';
-      case ProjectStatus.onHold:
-        return 'On Hold';
-      case ProjectStatus.cancelled:
-        return 'Cancelled';
-      default:
-        return 'Unknown';
+    try {
+      final projectData = {
+        'name': _nameController.text,
+        'description': _descriptionController.text,
+        'clientName': _clientNameController.text,
+        'key': _keyController.text,
+        'startDate': _startDate?.toIso8601String(),
+        'endDate': _endDate?.toIso8601String(),
+        'projectType': _selectedProjectType,
+        'status': _selectedStatus.toString(),
+        'priority': _selectedPriority.toString(),
+      };
+
+      if (_editingProjectId != null) {
+        // Update existing project
+        final apiService = BackendApiService();
+        await apiService.updateProject(_editingProjectId!, projectData);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Project updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        // Create new project
+        final apiService = BackendApiService();
+        await apiService.createProject(projectData);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Project created successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+
+      _clearForm();
+      _toggleCreateMode();
+      _loadProjects();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving project: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
-  }
-
-  Color _getSprintStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'in_progress':
-      case 'in progress':
-        return Colors.blue;
-      case 'completed':
-      case 'done':
-        return Colors.green;
-      case 'planned':
-      case 'to do':
-        return Colors.orange;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 }
