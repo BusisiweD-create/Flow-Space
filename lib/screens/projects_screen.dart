@@ -208,21 +208,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                             ),
                             const SizedBox(width: 12),
                             ElevatedButton.icon(
-                              onPressed: () =>
-                                  _navigateToSprintConsole(_selectedProjectId),
-                              icon: const Icon(Icons.directions_run),
-                              label: Text(_selectedProjectId != null
-                                  ? 'View Sprints'
-                                  : 'Sprint Console'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
                               onPressed: _navigateToProjectSetup,
                               icon: const Icon(Icons.add),
                               label: const Text('Create Project'),
@@ -684,18 +669,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _buildSprintCard(Map<String, dynamic> sprint) {
     final theme = Theme.of(context);
-    final sprintId = (sprint['id'] ?? '').toString();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: GlassCard(
         padding: const EdgeInsets.all(16),
-        child: InkWell(
-          onTap: () =>
-              _navigateToSprintConsole(_selectedProjectId, sprintId: sprintId),
-          borderRadius: BorderRadius.circular(12),
-          child: Row(
-            children: [
+        // Removed InkWell to prevent navigation to Sprint Console
+        child: Row(
+          children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(

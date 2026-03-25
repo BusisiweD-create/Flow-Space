@@ -54,7 +54,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                   // Header Section
                   _buildHeaderSection(),
                   const SizedBox(height: 32),
-                  
+
                   // Your Projects Section
                   _buildProjectsSection(),
                 ],
@@ -95,7 +95,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        
+
         // Subtitle
         const Text(
           'View and manage your projects and their sprints',
@@ -105,7 +105,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        
+
         // Action Buttons
         Row(
           children: [
@@ -120,26 +120,12 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.grey,
                 side: const BorderSide(color: Colors.grey),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
             const SizedBox(width: 12),
-            
-            // Sprint Console Button
-            ElevatedButton.icon(
-              onPressed: () {
-                context.push('/sprint-console');
-              },
-              icon: const Icon(Icons.timer_outlined, size: 18),
-              label: const Text('Sprint Console'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-            ),
-            const SizedBox(width: 12),
-            
+
             // Create Project Button
             ElevatedButton.icon(
               onPressed: () async {
@@ -153,7 +139,8 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
           ],
@@ -176,10 +163,10 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // Project Cards
         for (final project in _projects) _buildProjectCard(project),
-        
+
         // Empty state
         if (_projects.isEmpty)
           Container(
@@ -227,7 +214,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
     final startDate = project['start_date']?.toString() ?? '';
     final endDate = project['end_date']?.toString() ?? '';
     final status = project['status']?.toString() ?? 'active';
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
@@ -311,7 +298,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // Project Key and Description
           if (key.isNotEmpty) ...[
             Text(
@@ -334,7 +321,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
             ),
             const SizedBox(height: 12),
           ],
-          
+
           // Dates and Status
           Row(
             children: [
@@ -351,7 +338,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                 ),
                 const SizedBox(width: 16),
               ],
-              
+
               // End Date
               if (endDate.isNotEmpty) ...[
                 const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
@@ -367,7 +354,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Status Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -420,7 +407,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              
+
               final projectId = project['id']?.toString();
               if (projectId == null || projectId.isEmpty) {
                 if (mounted) {
@@ -433,25 +420,26 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                 }
                 return;
               }
-              
+
               // Show loading indicator
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Deleting project...')),
                 );
               }
-              
+
               try {
                 final success = await _sprintService.deleteProject(projectId);
-                
+
                 if (success) {
                   // Refresh the projects list
                   await _loadProjects();
-                  
+
                   if (mounted && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Project "${project['name']}" deleted successfully'),
+                        content: Text(
+                            'Project "${project['name']}" deleted successfully'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -460,7 +448,8 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                   if (mounted && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Failed to delete project "${project['name']}"'),
+                        content: Text(
+                            'Failed to delete project "${project['name']}"'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -485,4 +474,3 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
     );
   }
 }
-
