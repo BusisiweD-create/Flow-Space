@@ -250,8 +250,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       // Initialize AuthService first
       await _authService.initialize();
 
-      // Get the current user from AuthService
-      final user = await _authService.getCurrentUser();
+      // Always refresh from `/auth/me` so UI matches DB role (e.g. after promote to admin).
+      final user = await _authService.getCurrentUser(refresh: true);
       if (user != null && (user.isActive || user.isSystemAdmin)) {
         if (!mounted) return;
         setState(() {

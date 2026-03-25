@@ -18,6 +18,7 @@ app.use((req, res, next) => {
 
 // Import database configuration
 const { testConnection, syncDatabase } = require('./config/database');
+const { ensureProjectsSchema } = require('./config/ensureProjectsSchema');
 
 // Import models
 const { sequelize, User, Notification, Ticket, ApprovalRequest } = require('./models');
@@ -315,9 +316,11 @@ async function startServer() {
         await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id UUID");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by UUID");
+        await ensureProjectsSchema(sequelize);
+        console.log('✅ projects table schema aligned with API (key, client_*, etc.)');
       }
     } catch (e) {
-      console.warn('⚠️ Unable to ensure sprints.created_by column; continuing', e?.message || e);
+      console.warn('⚠️ Unable to ensure DB columns; continuing', e?.message || e);
     }
     
     // Sync database (use with caution in production)

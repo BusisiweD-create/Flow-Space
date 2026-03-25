@@ -9,6 +9,32 @@ import 'package:khono/models/sprint_metrics.dart';
 import 'package:khono/models/sign_off_report.dart';
 import 'package:khono/config/environment.dart';
 
+/// JWT access token payload may include `role` when API user object omits it.
+String? _roleFromAccessToken(String? token) {
+  if (token == null || token.isEmpty) return null;
+  final parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    var payload = parts[1];
+    switch (payload.length % 4) {
+      case 1:
+        payload += '===';
+        break;
+      case 2:
+        payload += '==';
+        break;
+      case 3:
+        payload += '=';
+        break;
+    }
+    final decoded = utf8.decode(base64Url.decode(payload));
+    final map = jsonDecode(decoded) as Map<String, dynamic>;
+    return map['role']?.toString();
+  } catch (_) {
+    return null;
+  }
+}
+
 class BackendApiService {
   static final BackendApiService _instance = BackendApiService._internal();
   factory BackendApiService() => _instance;
@@ -758,29 +784,54 @@ class BackendApiService {
       // Handle different field names from different backend endpoints
       
       // Convert backend role string to UserRole enum name format
-      final backendRole = userData['role']?.toString() ?? '';
+      var backendRole = userData['role']?.toString().trim() ?? '';
+      if (backendRole.isEmpty) {
+        backendRole = _roleFromAccessToken(_apiClient.accessToken) ?? '';
+      }
       String userRoleForParsing;
       
-      switch (backendRole.toLowerCase()) {
+      // Must match Node/Postgres role strings (legacy uses e.g. admin, developer, project_manager).
+      // Previously `default` forced teamMember — so DB role `admin` showed as Team Member Dashboard.
+      final r = backendRole.toLowerCase().replaceAll(RegExp(r'[\s_-]'), '');
+      switch (r) {
         case 'client':
           userRoleForParsing = 'client';
           break;
         case 'clientreviewer':
-        case 'client_reviewer':
           userRoleForParsing = 'clientReviewer';
           break;
         case 'deliverylead':
-        case 'delivery_lead':
           userRoleForParsing = 'deliveryLead';
           break;
         case 'systemadmin':
-        case 'system_admin':
           userRoleForParsing = 'systemAdmin';
           break;
+        case 'admin':
+          userRoleForParsing = 'systemAdmin';
+          break;
+        case 'developer':
+          userRoleForParsing = 'developer';
+          break;
+        case 'projectmanager':
+          userRoleForParsing = 'projectManager';
+          break;
+        case 'scrummaster':
+          userRoleForParsing = 'scrumMaster';
+          break;
+        case 'qaengineer':
+          userRoleForParsing = 'qaEngineer';
+          break;
+        case 'stakeholder':
+          userRoleForParsing = 'stakeholder';
+          break;
         case 'teammember':
-        case 'team_member':
-        default:
           userRoleForParsing = 'teamMember';
+          break;
+        default:
+          // Fallback: let User.fromJson map raw role (handles camelCase enum names from API)
+          userRoleForParsing = backendRole.isNotEmpty
+              ? backendRole
+              : 'teamMember';
           break;
       }
       

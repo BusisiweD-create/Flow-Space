@@ -29,8 +29,9 @@ class AuthService {
 
   // Getters
   User? get currentUser => _currentUser;
-  Future<User?> getCurrentUser() async {
-    if (_currentUser == null) {
+  /// When [refresh] is true, always reloads from `/auth/me` (use after role changes / login).
+  Future<User?> getCurrentUser({bool refresh = false}) async {
+    if (refresh || _currentUser == null) {
       await _loadCurrentUser();
     }
     return _currentUser;

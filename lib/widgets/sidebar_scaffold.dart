@@ -600,18 +600,59 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     router.go('/');
   }
 
+  /// Desktop sidebar logout: icon-only when collapsed (matches nav row height/spacing);
+  /// full [TextButton.icon] when expanded (unchanged styling).
   Widget _buildLogoutButton() {
+    final decoration = BoxDecoration(
+      color: FlownetColors.crimsonRed.withAlpha((0.1 * 255).round()),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: FlownetColors.crimsonRed.withAlpha((0.3 * 255).round()),
+        width: 1,
+      ),
+    );
+
+    if (_collapsed) {
+      return Tooltip(
+        message: 'Logout',
+        waitDuration: const Duration(milliseconds: 400),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _handleLogout(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 56,
+                width: double.infinity,
+                alignment: Alignment.center,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: decoration,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Center(
+                    child: AppIcons.getIconWidget(
+                      'logout',
+                      fallbackIcon: Icons.logout,
+                      isActive: true,
+                      size: 20,
+                      color: FlownetColors.crimsonRed,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: FlownetColors.crimsonRed.withAlpha((0.1 * 255).round()),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: FlownetColors.crimsonRed.withAlpha((0.3 * 255).round()),
-          width: 1,
-        ),
-      ),
+      decoration: decoration,
       child: TextButton.icon(
         onPressed: () => _handleLogout(context),
         icon: AppIcons.getIconWidget(
