@@ -66,6 +66,11 @@ class AppIcons {
         'active': 'assets/Icons/Timeline Page active.png.png',
         'inactive': 'assets/Icons/Timeline Page inactive.png.png',
       },
+      // AI Assistant: inactive = light/white treatment (unselected); active = red (selected route)
+      'ai_assistant': {
+        'active': 'assets/Icons/ai_assistant_active.png',
+        'inactive': 'assets/Icons/ai_assistant_inactive.png',
+      },
       'teams': {
         'active': 'assets/Icons/Home_Dashboard active.png.png',
         'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
@@ -100,6 +105,7 @@ class AppIcons {
       'settings': Icons.settings_outlined,
       'account': Icons.person_outline,
       'timeline': Icons.calendar_today_outlined,
+      'ai_assistant': Icons.smart_toy_outlined,
     };
 
     return iconMap[iconName] ?? fallbackIcon;

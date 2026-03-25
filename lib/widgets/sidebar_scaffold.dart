@@ -303,46 +303,62 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                       borderRadius: BorderRadius.circular(12),
                                       child: Padding(
                                         padding: EdgeInsets.symmetric(
-                                          horizontal: _collapsed ? 8 : 16,
+                                          horizontal: _collapsed ? 4 : 16,
                                           vertical: 12,
                                         ),
-                                        child: Row(
-                                          mainAxisAlignment: _collapsed
-                                              ? MainAxisAlignment.center
-                                              : MainAxisAlignment.start,
-                                          children: [
-                                            SizedBox(
-                                              width: 24,
-                                              height: 24,
-                                              child: AppIcons.getIconWidget(
-                                                item.iconName,
-                                                fallbackIcon: item.icon,
-                                                isActive: active,
-                                                size: 20,
-                                                color: active
-                                                    ? FlownetColors.pureWhite
-                                                    : FlownetColors
-                                                        .textSecondary,
-                                              ),
-                                            ),
-                                            if (!_collapsed) ...[
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Text(
-                                                  item.label,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.w500,
+                                        child: _collapsed
+                                            ? Center(
+                                                child: SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child: AppIcons.getIconWidget(
+                                                    item.iconName,
+                                                    fallbackIcon: item.icon,
+                                                    isActive: active,
+                                                    size: 20,
+                                                    color: active
+                                                        ? FlownetColors.pureWhite
+                                                        : FlownetColors
+                                                            .textSecondary,
                                                   ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
                                                 ),
+                                              )
+                                            : Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.start,
+                                                children: [
+                                                  SizedBox(
+                                                    width: 24,
+                                                    height: 24,
+                                                    child:
+                                                        AppIcons.getIconWidget(
+                                                      item.iconName,
+                                                      fallbackIcon: item.icon,
+                                                      isActive: active,
+                                                      size: 20,
+                                                      color: active
+                                                          ? FlownetColors
+                                                              .pureWhite
+                                                          : FlownetColors
+                                                              .textSecondary,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Text(
+                                                      item.label,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                      overflow: TextOverflow
+                                                          .ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ],
-                                          ],
-                                        ),
                                       ),
                                     ),
                                   ),
