@@ -221,6 +221,29 @@ class BackendApiService {
     return await _apiClient.get('/sprints/$sprintId');
   }
 
+  Future<ApiResponse> getSprintReport(
+    String sprintId, {
+    String? statusCategory,
+    String? ownerId,
+    DateTime? dueFrom,
+    DateTime? dueTo,
+  }) async {
+    final queryParams = <String, String>{};
+    if (statusCategory != null && statusCategory.trim().isNotEmpty) {
+      queryParams['statusCategory'] = statusCategory.trim();
+    }
+    if (ownerId != null && ownerId.trim().isNotEmpty) {
+      queryParams['ownerId'] = ownerId.trim();
+    }
+    if (dueFrom != null) {
+      queryParams['dueFrom'] = dueFrom.toIso8601String();
+    }
+    if (dueTo != null) {
+      queryParams['dueTo'] = dueTo.toIso8601String();
+    }
+    return await _apiClient.get('/sprints/$sprintId/report', queryParams: queryParams);
+  }
+
   Future<ApiResponse> createSprint(Map<String, dynamic> sprintData) async {
     return await _apiClient.post('/sprints', body: sprintData);
   }

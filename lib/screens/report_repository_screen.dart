@@ -829,16 +829,100 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
       centered: false,
       scrollable: false,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ReportEditorScreen(),
-            ),
-          ).then((_) => _loadReports());
+        onPressed: () async {
+          final ctx = context;
+          if (_sprints.isEmpty) {
+            await _loadFilterOptions();
+          }
+          if (!mounted || !ctx.mounted) return;
+          if (_sprints.isEmpty) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(
+                content: Text('No sprints available to report on.'),
+                backgroundColor: FlownetColors.crimsonRed,
+              ),
+            );
+            return;
+          }
+
+          String? selectedSprintId;
+          await showDialog(
+            context: ctx,
+            builder: (context) {
+              final sprints = _sprints
+                  .where((s) => _selectedProjectId == null || _selectedProjectId!.isEmpty
+                      ? true
+                      : (s['project_id']?.toString() == _selectedProjectId || s['projectId']?.toString() == _selectedProjectId))
+                  .toList();
+
+              return StatefulBuilder(
+                builder: (context, setLocal) {
+                  return AlertDialog(
+                    title: const Text('Create Sprint Report'),
+                    content: SizedBox(
+                      width: 420,
+                      child: DropdownButtonFormField<String>(
+                        key: ValueKey('sprint:$selectedSprintId'),
+                        initialValue: selectedSprintId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Sprint',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: sprints.map((s) {
+                          final id = s['id']?.toString() ?? '';
+                          final name = s['name']?.toString() ?? 'Sprint';
+                          final status = (s['status'] ?? '').toString();
+                          final label = status.isNotEmpty ? '$name ($status)' : name;
+                          return DropdownMenuItem(
+                            value: id,
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (v) => setLocal(() => selectedSprintId = v),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: (selectedSprintId == null || selectedSprintId!.isEmpty)
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: FlownetColors.electricBlue,
+                          foregroundColor: FlownetColors.pureWhite,
+                        ),
+                        child: const Text('Open'),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          );
+
+          if (!mounted || !ctx.mounted) return;
+          if (selectedSprintId == null || selectedSprintId!.isEmpty) return;
+
+          final sprint = _sprints.firstWhere(
+            (s) => s['id']?.toString() == selectedSprintId,
+            orElse: () => <String, dynamic>{},
+          );
+          final name = sprint.isNotEmpty ? (sprint['name']?.toString() ?? '') : '';
+          final q = name.isNotEmpty ? '?name=${Uri.encodeComponent(name)}' : '';
+          if (!ctx.mounted) return;
+          ctx.go('/sprint-report/$selectedSprintId$q');
         },
         icon: const Icon(Icons.add),
-        label: const Text('Create Report'),
+        label: const Text('Create Sprint Report'),
         backgroundColor: FlownetColors.electricBlue,
         foregroundColor: Colors.white,
       ),

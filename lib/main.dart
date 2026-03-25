@@ -33,6 +33,7 @@ import 'screens/role_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
+import 'screens/sprint_report_screen.dart';
 import 'screens/timeline_screen.dart';
 import 'screens/system_metrics_screen.dart';
 import 'screens/system_health_screen.dart';
@@ -406,6 +407,22 @@ final GoRouter _router = GoRouter(
           route: '/sprint-board',
           child: SidebarScaffold(
             child: SprintBoardScreen(
+              sprintId: sprintId,
+              sprintName: sprintName,
+            ),
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/sprint-report/:sprintId',
+      builder: (context, state) {
+        final sprintId = state.pathParameters['sprintId']!;
+        final sprintName = state.uri.queryParameters['name'];
+        return RouteGuard(
+          route: '/sprint-report',
+          child: SidebarScaffold(
+            child: SprintReportScreen(
               sprintId: sprintId,
               sprintName: sprintName,
             ),
