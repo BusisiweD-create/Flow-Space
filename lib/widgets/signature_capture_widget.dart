@@ -112,6 +112,7 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
     }
   }
 
+  @override
   Future<void> saveSignatureLocally(
       String signatureData, String signatureType, String signatureName) async {
     // Check if signature with same name exists and remove it (override logic)
@@ -180,21 +181,25 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
         }
         debugPrint(
             '🗑️ Deleted signature: ${signature.userName} (${signature.id})');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Signature deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Signature deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('❌ Error deleting signature: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error deleting signature'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error deleting signature'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -562,7 +567,7 @@ class _SignatureCaptureWidgetState extends SignatureCaptureWidgetState {
                             onTap: () => _deleteSignature(signature),
                             child: Container(
                               padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 color: Colors.red,
                                 shape: BoxShape.circle,
                               ),
