@@ -586,6 +586,58 @@ async function initializeDatabase() {
 
 initializeDatabase();
 
+// Compatibility pass for mixed schemas after branch merges.
+// Keeps endpoints working even when older DB columns are missing.
+async function ensureLegacySchemaCompatibility() {
+  const compatibilityStatements = [
+    `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS name TEXT;
+    `,
+    `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS first_name TEXT,
+        ADD COLUMN IF NOT EXISTS last_name TEXT;
+    `,
+    `
+      UPDATE users
+      SET name = COALESCE(
+        NULLIF(TRIM(name), ''),
+        NULLIF(TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))), ''),
+        email
+      )
+      WHERE name IS NULL OR TRIM(name) = '';
+    `,
+    `
+      ALTER TABLE sign_off_reports
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `,
+    `
+      UPDATE sign_off_reports
+      SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
+      WHERE updated_at IS NULL;
+    `,
+    `
+      ALTER TABLE audit_logs
+        ADD COLUMN IF NOT EXISTS resource_type TEXT,
+        ADD COLUMN IF NOT EXISTS resource_id TEXT,
+        ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb;
+    `,
+  ];
+
+  for (const statement of compatibilityStatements) {
+    try {
+      await pool.query(statement);
+    } catch (error) {
+      console.warn('⚠️ Compatibility migration skipped:', error?.message);
+    }
+  }
+
+  console.log('✅ Legacy schema compatibility checks completed');
+}
+
+ensureLegacySchemaCompatibility();
+
 // Email validation function
 function validateEmail(email) {
   console.log(`🔍 Validating email: ${email}`);
