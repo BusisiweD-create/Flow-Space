@@ -428,9 +428,12 @@ async function initializeDatabase() {
         ALTER TABLE deliverables ADD CONSTRAINT deliverables_status_check
         CHECK (status IN (
           'draft', 'Draft', 'DRAFT',
+          'todo', 'To Do', 'TODO',
           'pending', 'submitted', 'pending_review',
+          'in_review', 'In Review', 'IN_REVIEW',
           'approved', 'change_requested', 'rejected', 'cancelled',
-          'active', 'completed', 'in_progress'
+          'active', 'completed', 'in_progress', 'In Progress', 'IN_PROGRESS',
+          'signed_off', 'Signed Off', 'SIGNED_OFF'
         ));
       `);
       console.log('✅ Ensured deliverables_status_check allows draft, Draft, pending, approved, change_requested, etc.');
@@ -2060,8 +2063,8 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     // Ensure creator/owner is also in project_members
     try {
       await pool.query(
-        `INSERT INTO project_members (project_id, user_id, role)
-         VALUES ($1, $2, $3)
+        `INSERT INTO project_members (project_id, user_id, role, joined_at)
+         VALUES ($1, $2, $3, NOW())
          ON CONFLICT (project_id, user_id) DO NOTHING`,
         [result.rows[0].id, ownerIdToUse, 'owner']
       );
@@ -2073,13 +2076,15 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
 
     // Handle additional members if provided
     if (members && Array.isArray(members) && members.length > 0) {
+      console.log(`👥 Adding ${members.length} additional members to project...`);
       for (const member of members) {
         try {
           const memberUserId = member.userId || member.id || member;
-          const memberRole = member.role || 'member';
+          const memberRole = member.role || 'contributor';
+          console.log(`➕ Adding member: ${memberUserId} as ${memberRole}`);
           await pool.query(
-            `INSERT INTO project_members (project_id, user_id, role)
-             VALUES ($1, $2, $3)
+            `INSERT INTO project_members (project_id, user_id, role, joined_at)
+             VALUES ($1, $2, $3, NOW())
              ON CONFLICT (project_id, user_id) DO UPDATE SET role = $3`,
             [result.rows[0].id, memberUserId, memberRole]
           );
@@ -2087,6 +2092,7 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
           console.error('Error adding project member:', memberError);
         }
       }
+      console.log(`✅ Successfully added members to project`);
     }
 
     res.status(201).json({ success: true, data: result.rows[0] });
@@ -2157,7 +2163,45 @@ app.get('/api/v1/projects/:projectId', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
-    res.json({ success: true, data: result.rows[0] });
+
+    // Get project members
+    let projectData = result.rows[0];
+    
+    try {
+      const membersResult = await pool.query(`
+        SELECT 
+          pm.id,
+          pm.project_id,
+          pm.user_id,
+          pm.role,
+          pm.joined_at,
+          u.first_name,
+          u.last_name,
+          u.email
+        FROM project_members pm
+        LEFT JOIN users u ON pm.user_id = u.id
+        WHERE pm.project_id = $1
+        ORDER BY pm.role, u.first_name
+      `, [projectId]);
+      
+      console.log(`🔍 Found ${membersResult.rows.length} members for project ${projectId}`);
+      
+      // Add members to project data
+      projectData.members = membersResult.rows.map(m => ({
+        userId: m.user_id,
+        userName: `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown',
+        userEmail: m.email || '',
+        role: m.role,
+        assignedAt: m.joined_at
+      }));
+      
+      console.log(`✅ Added ${projectData.members.length} members to project response`);
+    } catch (memberError) {
+      console.error('❌ Error fetching project members:', memberError);
+      projectData.members = [];
+    }
+    
+    res.json({ success: true, data: projectData });
   } catch (error) {
     console.error('Error fetching project:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch project' });
@@ -2236,7 +2280,25 @@ app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
     const userRole = req.user.role;
     const { project_id } = req.query;
 
-    let query = `SELECT s.* FROM sprints s`;
+    let query = `SELECT s.*, 
+                      sm.planned_points,
+                      sm.committed_points,
+                      sm.completed_points,
+                      sm.carried_over_points,
+                      sm.test_pass_rate,
+                      sm.code_coverage,
+                      sm.escaped_defects,
+                      sm.defects_opened,
+                      sm.defects_closed,
+                      sm.code_review_completion,
+                      sm.documentation_status,
+                      sm.uat_notes,
+                      sm.uat_pass_rate,
+                      sm.risks,
+                      sm.blockers,
+                      sm.decisions
+               FROM sprints s 
+               LEFT JOIN sprint_metrics sm ON s.id = sm.sprint_id`;
     const params = [];
     let where = [];
 
@@ -2269,9 +2331,13 @@ app.get('/api/v1/sprints', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    
     const userId = req.user?.id ?? req.user?.sub ?? null;
     if (!userId) {
+      await client.query('ROLLBACK');
       return res.status(401).json({
         success: false,
         error: 'Authentication required (missing user id in token)'
@@ -2288,7 +2354,6 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
       end_date,
       endDate,
       planned_points,
-      plannedPoints,
       project_id,
       projectId,
       created_by,
@@ -2351,6 +2416,7 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     }
 
     // Sprints table: id, name, project_id, start_date, end_date, status, created_by, created_at, updated_at
+    // Sprint metrics go to sprint_metrics table
     const createdByVal = String(normalizedCreatedBy || userId);
     const fields = ['name', 'start_date', 'end_date', 'created_by'];
     const vals = [name, normalizedStartDate, normalizedEndDate, createdByVal];
@@ -2361,11 +2427,179 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     fields.push('status');
     vals.push('planning');
 
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO sprints (${fields.join(', ')}, created_at, updated_at) VALUES (${vals.map((_, i) => `$${i + 1}`).join(', ')}, NOW(), NOW()) RETURNING *`,
       vals
     );
     const sprint = result.rows[0];
+    
+    // Handle sprint metrics if provided
+    const sprintId = sprint.id;
+    const metricsFields = [];
+    const metricsVals = [];
+    const metricBindings = [];
+    let paramIndex = 1;
+    
+    // Check for sprint metrics fields in the request
+    const {
+      planned_points: plannedPoints_from_metrics,
+      plannedPoints,
+      committed_points: committedPoints_raw,
+      committedPoints,
+      completed_points: completedPoints_raw,
+      completedPoints,
+      carried_over_points: carriedOverPoints_raw,
+      carriedOverPoints,
+      test_pass_rate: testPassRate_raw,
+      testPassRate,
+      code_coverage: codeCoverage_raw,
+      codeCoverage,
+      escaped_defects: escapedDefects_raw,
+      escapedDefects,
+      defects_opened: defectsOpened_raw,
+      defectsOpened,
+      defects_closed: defectsClosed_raw,
+      defectsClosed,
+      code_review_completion: codeReviewCompletion_raw,
+      codeReviewCompletion,
+      documentation_status: documentationStatus_raw,
+      documentationStatus,
+      uat_notes: uatNotes_raw,
+      uatNotes,
+      uat_pass_rate: uatPassRate_raw,
+      uatPassRate,
+      risks,
+      blockers,
+      decisions
+    } = body;
+    
+    // Normalize variable names (prefer camelCase, fallback to snake_case)
+    const normalizedPlannedPoints = plannedPoints || plannedPoints_from_metrics;
+    const normalizedCommittedPoints = committedPoints || committedPoints_raw;
+    const normalizedCompletedPoints = completedPoints || completedPoints_raw;
+    const normalizedCarriedOverPoints = carriedOverPoints || carriedOverPoints_raw;
+    const normalizedTestPassRate = testPassRate || testPassRate_raw;
+    const normalizedCodeCoverage = codeCoverage || codeCoverage_raw;
+    const normalizedEscapedDefects = escapedDefects || escapedDefects_raw;
+    const normalizedDefectsOpened = defectsOpened || defectsOpened_raw;
+    const normalizedDefectsClosed = defectsClosed || defectsClosed_raw;
+    const normalizedCodeReviewCompletion = codeReviewCompletion || codeReviewCompletion_raw;
+    const normalizedDocumentationStatus = documentationStatus || documentationStatus_raw;
+    const normalizedUatNotes = uatNotes || uatNotes_raw;
+    const normalizedUatPassRate = uatPassRate || uatPassRate_raw;
+    
+    // Convert string values to integers for numeric fields
+    const convertedPlannedPoints = normalizedPlannedPoints ? parseInt(normalizedPlannedPoints, 10) || 0 : null;
+    const convertedCommittedPoints = normalizedCommittedPoints ? parseInt(normalizedCommittedPoints, 10) || 0 : null;
+    const convertedCompletedPoints = normalizedCompletedPoints ? parseInt(normalizedCompletedPoints, 10) || 0 : null;
+    const convertedCarriedOverPoints = normalizedCarriedOverPoints ? parseInt(normalizedCarriedOverPoints, 10) || 0 : null;
+    const convertedTestPassRate = normalizedTestPassRate ? parseInt(normalizedTestPassRate, 10) || 0 : null;
+    const convertedCodeCoverage = normalizedCodeCoverage ? parseInt(normalizedCodeCoverage, 10) || 0 : null;
+    const convertedEscapedDefects = normalizedEscapedDefects ? parseInt(normalizedEscapedDefects, 10) || 0 : null;
+    const convertedDefectsOpened = normalizedDefectsOpened ? parseInt(normalizedDefectsOpened, 10) || 0 : null;
+    const convertedDefectsClosed = normalizedDefectsClosed ? parseInt(normalizedDefectsClosed, 10) || 0 : null;
+    const convertedCodeReviewCompletion = normalizedCodeReviewCompletion ? parseInt(normalizedCodeReviewCompletion, 10) || 0 : null;
+    const convertedDocumentationStatus = normalizedDocumentationStatus ? parseInt(normalizedDocumentationStatus, 10) || 0 : null;
+    const convertedUatPassRate = normalizedUatPassRate ? parseInt(normalizedUatPassRate, 10) || 0 : null;
+    
+    // Build metrics insert if any metric fields are provided
+    const hasMetrics = normalizedPlannedPoints || 
+                    normalizedCommittedPoints ||
+                    normalizedCompletedPoints ||
+                    normalizedCarriedOverPoints ||
+                    normalizedTestPassRate ||
+                    normalizedCodeCoverage ||
+                    normalizedEscapedDefects ||
+                    normalizedDefectsOpened ||
+                    normalizedDefectsClosed ||
+                    normalizedCodeReviewCompletion ||
+                    normalizedDocumentationStatus ||
+                    normalizedUatNotes ||
+                    normalizedUatPassRate ||
+                    risks || blockers || decisions;
+    
+    if (hasMetrics) {
+      const metricsFields = [];
+      const metricsVals = [];
+      
+      if (convertedPlannedPoints !== null) {
+        metricsFields.push('planned_points');
+        metricsVals.push(convertedPlannedPoints);
+      }
+      if (convertedCommittedPoints !== null) {
+        metricsFields.push('committed_points');
+        metricsVals.push(convertedCommittedPoints);
+      }
+      if (convertedCompletedPoints !== null) {
+        metricsFields.push('completed_points');
+        metricsVals.push(convertedCompletedPoints);
+      }
+      if (convertedCarriedOverPoints !== null) {
+        metricsFields.push('carried_over_points');
+        metricsVals.push(convertedCarriedOverPoints);
+      }
+      if (convertedTestPassRate !== null) {
+        metricsFields.push('test_pass_rate');
+        metricsVals.push(convertedTestPassRate);
+      }
+      if (convertedCodeCoverage !== null) {
+        metricsFields.push('code_coverage');
+        metricsVals.push(convertedCodeCoverage);
+      }
+      if (convertedEscapedDefects !== null) {
+        metricsFields.push('escaped_defects');
+        metricsVals.push(convertedEscapedDefects);
+      }
+      if (convertedDefectsOpened !== null) {
+        metricsFields.push('defects_opened');
+        metricsVals.push(convertedDefectsOpened);
+      }
+      if (convertedDefectsClosed !== null) {
+        metricsFields.push('defects_closed');
+        metricsVals.push(convertedDefectsClosed);
+      }
+      if (convertedCodeReviewCompletion !== null) {
+        metricsFields.push('code_review_completion');
+        metricsVals.push(convertedCodeReviewCompletion);
+      }
+      if (convertedDocumentationStatus !== null) {
+        metricsFields.push('documentation_status');
+        metricsVals.push(convertedDocumentationStatus);
+      }
+      if (normalizedUatNotes) {
+        metricsFields.push('uat_notes');
+        metricsVals.push(normalizedUatNotes);
+      }
+      if (convertedUatPassRate !== null) {
+        metricsFields.push('uat_pass_rate');
+        metricsVals.push(convertedUatPassRate);
+      }
+      if (risks) {
+        metricsFields.push('risks');
+        metricsVals.push(risks);
+      }
+      if (blockers) {
+        metricsFields.push('blockers');
+        metricsVals.push(blockers);
+      }
+      if (decisions) {
+        metricsFields.push('decisions');
+        metricsVals.push(decisions);
+      }
+      
+      // Insert sprint metrics
+      if (metricsFields.length > 0) {
+        const placeholders = metricsVals.map((_, i) => `$${i + 1}`).join(', ');
+        await client.query(
+          `INSERT INTO sprint_metrics (sprint_id, ${metricsFields.join(', ')}) VALUES ($1, ${placeholders})`,
+          [sprintId, ...metricsVals]
+        );
+      }
+    }
+    
+    // Commit the transaction
+    await client.query('COMMIT');
+    
     if (process.env.NODE_ENV !== 'production') {
       console.log('[Create Sprint] success id=%s', sprint?.id);
     }
@@ -2375,12 +2609,15 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Create sprint error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to create sprint',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  } finally {
+    client.release();
   }
 });
 
@@ -2700,7 +2937,28 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, requirePermission
 app.get('/api/v1/sprints/:sprintId', authenticateToken, async (req, res) => {
   try {
     const { sprintId } = req.params;
-    const result = await pool.query('SELECT * FROM sprints WHERE id = $1', [sprintId]);
+    const result = await pool.query(`
+      SELECT s.*, 
+             sm.planned_points,
+             sm.committed_points,
+             sm.completed_points,
+             sm.carried_over_points,
+             sm.test_pass_rate,
+             sm.code_coverage,
+             sm.escaped_defects,
+             sm.defects_opened,
+             sm.defects_closed,
+             sm.code_review_completion,
+             sm.documentation_status,
+             sm.uat_notes,
+             sm.uat_pass_rate,
+             sm.risks,
+             sm.blockers,
+             sm.decisions
+      FROM sprints s 
+      LEFT JOIN sprint_metrics sm ON s.id = sm.sprint_id
+      WHERE s.id = $1
+    `, [sprintId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Sprint not found' });
@@ -3175,7 +3433,7 @@ app.get('/api/v1/deliverables', authenticateToken, async (req, res) => {
       query += ' WHERE d.assigned_to = $1::uuid OR d.created_by = $1::uuid';
       params.push(userId);
     }
-    // deliveryLead, clientReviewer and other roles can see all deliverables
+    // deliveryLead, clientReviewer, systemAdmin, stakeholder and other roles can see all deliverables
 
     query += ' ORDER BY d.created_at DESC';
 
@@ -3285,7 +3543,7 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
       description != null && String(description).trim() !== '' ? String(description).trim() : null,
       dodVal,
       priority || 'Medium',
-      status || 'Draft',
+      status || 'todo',
       due_date ? new Date(due_date) : null,
       assignTo,
       sprint_id || null,
@@ -3311,6 +3569,27 @@ app.post('/api/v1/deliverables', authenticateToken, async (req, res) => {
     }
 
     console.log('✅ Deliverable created:', result.rows[0].title);
+
+    // Create notification for deliverable creation
+    try {
+      const notificationId = uuidv4();
+      await pool.query(`
+        INSERT INTO notifications (
+          id, title, message, type, user_id, is_read, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, false, NOW())
+      `, [
+        notificationId,
+        'New Deliverable Created',
+        `A new deliverable "${result.rows[0].title}" has been created`,
+        'deliverable_created',
+        userId,
+        false
+      ]);
+      console.log('✅ Notification created for deliverable creation');
+    } catch (notifError) {
+      console.warn('⚠️ Failed to create notification for deliverable creation:', notifError?.message);
+    }
 
     // Emit real-time event for deliverable creation
     io.emit('deliverable:created', {
@@ -3424,6 +3703,93 @@ app.put('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
     }
     console.error('Error updating deliverable:', error);
     res.status(500).json({ success: false, error: 'Failed to update deliverable' });
+  }
+});
+
+// Update deliverable status (specific endpoint for frontend)
+app.put('/api/v1/deliverables/:id/updateStatus', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const userId = req.user.id;
+
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'Status is required' });
+    }
+
+    // Validate status values
+    const validStatuses = ['todo', 'in_progress', 'in_review', 'completed', 'signed_off', 'change_requested', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status value' });
+    }
+
+    const query = `
+      UPDATE deliverables 
+      SET status = $1, updated_at = NOW() 
+      WHERE id = $2::uuid 
+      RETURNING *
+    `;
+    
+    const result = await pool.query(query, [status, id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deliverable not found' });
+    }
+
+    const updatedDeliverable = result.rows[0];
+    
+    // Emit real-time update for deliverable status change
+    try {
+      // Get io from the app, not from request
+      const io = global.io || req.app.get('io');
+      if (io && typeof io.emit === 'function') {
+        io.emit('deliverable_updated', {
+          deliverable_id: updatedDeliverable.id,
+          status: updatedDeliverable.status,
+          updated_by: userId,
+          updated_at: updatedDeliverable.updated_at
+        });
+        console.log('📡 Real-time update emitted for deliverable:', updatedDeliverable.id);
+      } else {
+        console.log('⚠️ Socket.io not available for real-time update');
+      }
+    } catch (socketError) {
+      console.warn('⚠️ Failed to emit real-time update:', socketError.message);
+    }
+
+    console.log(`✅ Deliverable ${id} status updated to: ${status} by user ${userId}`);
+
+    // Create notification for deliverable status update
+    try {
+      const notificationId = uuidv4();
+      await pool.query(`
+        INSERT INTO notifications (
+          id, title, message, type, user_id, is_read, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, false, NOW())
+      `, [
+        notificationId,
+        'Deliverable Status Updated',
+        `Deliverable "${updatedDeliverable.title}" status changed to ${status}`,
+        'deliverable_updated',
+        userId,
+        false
+      ]);
+      console.log('✅ Notification created for deliverable status update');
+    } catch (notifError) {
+      console.warn('⚠️ Failed to create notification for deliverable status update:', notifError?.message);
+    }
+
+    res.json({
+      success: true,
+      data: updatedDeliverable
+    });
+  } catch (error) {
+    console.error('Error updating deliverable status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update deliverable status'
+    });
   }
 });
 

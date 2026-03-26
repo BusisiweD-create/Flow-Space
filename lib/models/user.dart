@@ -161,6 +161,7 @@ class User {
   bool get isClient => role == UserRole.client;
   bool get isClientReviewer => role == UserRole.clientReviewer;
   bool get isSystemAdmin => role == UserRole.systemAdmin;
+  bool get isStakeholder => role == UserRole.stakeholder;
 
   // UI helper methods
   String get roleDisplayName => role.displayName;

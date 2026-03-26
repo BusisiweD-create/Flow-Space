@@ -5,6 +5,15 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { Op, QueryTypes } = require('sequelize');
 const { carryOverOverdueDeliverablesForProject } = require('../services/sprintCarryOverService');
 
+/** Inserts into legacy `notifications` (user_id + title + message + type); DB has no recipient_id/payload. */
+async function insertLegacyNotification({ userId, title, message, type }) {
+  await sequelize.query(
+    `INSERT INTO notifications (id, user_id, title, message, type, is_read, created_at)
+     VALUES (gen_random_uuid(), :userId, :title, :message, :type, false, NOW())`,
+    { replacements: { userId, title, message, type } },
+  );
+}
+
 /**
  * @route GET /api/projects
  * @desc Get all projects visible to the user (owner or member) with pagination
@@ -53,9 +62,10 @@ router.get('/', authenticateToken, async (req, res) => {
         {
           model: User,
           as: 'owner',
-          attributes: ['id', 'first_name', 'last_name', 'email']
-        }
-      ]
+          attributes: ['id', 'first_name', 'last_name', 'email'],
+          required: false,
+        },
+      ],
     });
     
     res.json({
@@ -116,7 +126,47 @@ router.get('/:id', async (req, res) => {
     const projectJSON = project.toJSON();
     
     console.log(`👥 Members found: ${projectJSON.members?.length || 0}`);
-    if (projectJSON.members) {
+    
+    // Fallback: If no members from associations, manually query them
+    if (!projectJSON.members || projectJSON.members.length === 0) {
+      console.log(`🔄 No members from associations, manually querying...`);
+      try {
+        const manualMembers = await sequelize.query(`
+          SELECT 
+            pm.id,
+            pm.project_id,
+            pm.user_id,
+            pm.role,
+            pm.added_at,
+            u.first_name,
+            u.last_name,
+            u.email
+          FROM project_members pm
+          LEFT JOIN users u ON pm.user_id = u.id
+          WHERE pm.project_id = :projectId
+          ORDER BY pm.role, u.first_name
+        `, {
+          replacements: { projectId: id },
+          type: QueryTypes.SELECT
+        });
+        
+        console.log(`🔍 Manual query found ${manualMembers.length} members`);
+        
+        projectJSON.members = manualMembers.map(m => ({
+          userId: m.user_id,
+          userName: `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown',
+          userEmail: m.email || '',
+          role: m.role,
+          assignedAt: m.added_at
+        }));
+        
+        console.log(`✅ Added ${projectJSON.members.length} members manually`);
+      } catch (error) {
+        console.error('❌ Error manually querying members:', error);
+        projectJSON.members = [];
+      }
+    } else {
+      // Use association data if available
       projectJSON.members = projectJSON.members.map(m => ({
         userId: m.user_id,
         userName: m.user ? `${m.user.first_name} ${m.user.last_name}`.trim() : 'Unknown',
@@ -230,31 +280,13 @@ router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 
             attributes: ['id', 'first_name', 'last_name', 'email']
           });
 
-          const notifications = users.map(user => ({
-            recipient_id: user.id,
-            sender_id: req.user.id,
-            type: 'project_assignment',
-            message: `You have been assigned to project "${project.name}".`,
-            payload: {
-              project_id: project.id,
-              project_name: project.name,
-              project_key: project.key,
-              client_name: project.client_name,
-              status: project.status,
-              priority: project.priority,
-              role: (() => {
-                const member = membersToCreate.find(m => String(m.user_id) === String(user.id));
-                return member ? member.role : null;
-              })(),
-              assigned_at: new Date(),
-              reason: 'project_member_assignment'
-            },
-            is_read: false,
-            created_at: new Date()
-          }));
-
-          if (notifications.length > 0) {
-            await Notification.bulkCreate(notifications);
+          for (const user of users) {
+            await insertLegacyNotification({
+              userId: user.id,
+              title: 'Project assignment',
+              message: `You have been assigned to project "${project.name}".`,
+              type: 'project_assignment',
+            });
           }
         } catch (notifyErr) {
           console.error('Error sending project assignment notifications:', notifyErr);
@@ -274,24 +306,11 @@ router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 
            attributes: ['id', 'first_name', 'last_name', 'email']
          });
          if (owner) {
-           await Notification.create({
-             recipient_id: owner.id,
-             sender_id: req.user.id,
-             type: 'project_assignment',
+           await insertLegacyNotification({
+             userId: owner.id,
+             title: 'Project assignment',
              message: `You have been assigned as owner of project "${project.name}".`,
-             payload: {
-               project_id: project.id,
-               project_name: project.name,
-               project_key: project.key,
-               client_name: project.client_name,
-               status: project.status,
-               priority: project.priority,
-               role: 'owner',
-               assigned_at: new Date(),
-               reason: 'project_member_assignment'
-             },
-             is_read: false,
-             created_at: new Date()
+             type: 'project_assignment',
            });
          }
        } catch (notifyErr) {
@@ -502,31 +521,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
               attributes: ['id', 'first_name', 'last_name', 'email']
             });
 
-            const notifications = users.map(user => ({
-              recipient_id: user.id,
-              sender_id: req.user.id,
-              type: 'project_assignment',
-              message: `You have been assigned to project "${project.name}".`,
-              payload: {
-                project_id: project.id,
-                project_name: project.name,
-                project_key: project.key,
-                client_name: project.client_name,
-                status: project.status,
-                priority: project.priority,
-                role: (() => {
-                  const member = membersToCreate.find(m => String(m.user_id) === String(user.id));
-                  return member ? member.role : null;
-                })(),
-                assigned_at: new Date(),
-                reason: 'project_member_assignment'
-              },
-              is_read: false,
-              created_at: new Date()
-            }));
-
-            if (notifications.length > 0) {
-              await Notification.bulkCreate(notifications);
+            for (const user of users) {
+              await insertLegacyNotification({
+                userId: user.id,
+                title: 'Project assignment',
+                message: `You have been assigned to project "${project.name}".`,
+                type: 'project_assignment',
+              });
             }
           } catch (notifyErr) {
             console.error('Error sending project assignment notifications on update:', notifyErr);
@@ -995,36 +996,35 @@ router.post('/:id/remind-owner', authenticateToken, async (req, res) => {
 
     if (!force) {
       const recent = await sequelize.query(
-        "SELECT id FROM notifications WHERE type = 'system' AND payload->>'project_id' = :id AND created_at >= NOW() - INTERVAL '1 day'",
-        { type: QueryTypes.SELECT, replacements: { id: String(project.id) } }
+        `SELECT id FROM notifications
+         WHERE type = 'system'
+           AND message LIKE :needle
+           AND created_at >= NOW() - INTERVAL '1 day'`,
+        {
+          type: QueryTypes.SELECT,
+          replacements: { needle: `%${String(project.name).replace(/%/g, '')}%` },
+        },
       );
       if (recent && recent.length > 0) {
         return res.json({
           success: true,
-          data: { message: 'Recent reminder already sent for this project' }
+          data: { message: 'Recent reminder already sent for this project' },
         });
       }
     }
 
-    const notification = await Notification.create({
-      recipient_id: project.owner_id,
-      sender_id: userId,
+    const reminderTitle = 'Project due-date reminder';
+    const reminderMessage = `Reminder: Please review and update project "${project.name}" which is at or past its due date.`;
+    await insertLegacyNotification({
+      userId: project.owner_id,
+      title: reminderTitle,
+      message: reminderMessage,
       type: 'system',
-      message: `Reminder: Please review and update project "${project.name}" which is at or past its due date.`,
-      payload: {
-        project_id: project.id,
-        project_name: project.name,
-        end_date: project.end_date,
-        status: project.status,
-        reason: 'manual_project_due_date'
-      },
-      is_read: false,
-      created_at: new Date()
     });
 
     return res.json({
       success: true,
-      data: notification
+      data: { message: reminderMessage },
     });
   } catch (error) {
     console.error('Error sending project owner reminder:', error);
