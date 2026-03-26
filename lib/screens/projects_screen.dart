@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/project_service.dart';
-import '../services/backend_api_service.dart';
 import 'package:khono/models/project.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_scaffold.dart';
@@ -19,9 +18,10 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   List<Project> _projects = [];
   bool _isLoading = false;
+  String? _selectedProjectId;
     
   // Unified management mode
-  bool _isCreateMode = false;
+  final bool _isCreateMode = false;
   String? _editingProjectId;
   
   // Form controllers for creation/editing
@@ -30,11 +30,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   final _clientNameController = TextEditingController();
   final _keyController = TextEditingController();
   
-  DateTime? _startDate;
-  DateTime? _endDate;
-  final String _selectedProjectType = 'Fixed Scope';
-  final ProjectStatus _selectedStatus = ProjectStatus.planning;
-  final ProjectPriority _selectedPriority = ProjectPriority.medium;
   
   @override
   void initState() {
@@ -42,24 +37,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     _loadProjects();
   }
 
-  void _toggleCreateMode() {
-    setState(() {
-      _isCreateMode = !_isCreateMode;
-      if (!_isCreateMode) {
-        _clearForm();
-      }
-    });
-  }
 
-  void _clearForm() {
-    _nameController.clear();
-    _descriptionController.clear();
-    _clientNameController.clear();
-    _keyController.clear();
-    _startDate = null;
-    _endDate = null;
-    _editingProjectId = null;
-  }
 
   Future<void> _loadProjects() async {
     setState(() {
@@ -510,68 +488,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> _saveProject() async {
-    if (_nameController.text.isEmpty || _keyController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all required fields'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    try {
-      final projectData = {
-        'name': _nameController.text,
-        'description': _descriptionController.text,
-        'clientName': _clientNameController.text,
-        'key': _keyController.text,
-        'startDate': _startDate?.toIso8601String(),
-        'endDate': _endDate?.toIso8601String(),
-        'projectType': _selectedProjectType,
-        'status': _selectedStatus.toString(),
-        'priority': _selectedPriority.toString(),
-      };
-
-      if (_editingProjectId != null) {
-        // Update existing project
-        final apiService = BackendApiService();
-        await apiService.updateProject(_editingProjectId!, projectData);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Project updated successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        // Create new project
-        final apiService = BackendApiService();
-        await apiService.createProject(projectData);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Project created successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      }
-
-      _clearForm();
-      _toggleCreateMode();
-      _loadProjects();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving project: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+  void _navigateToSprintConsole(String? projectId) {
+    if (projectId != null && projectId.isNotEmpty) {
+      context.push('/sprint-console', extra: {'projectId': projectId});
+    } else {
+      context.push('/sprint-console');
     }
   }
 }

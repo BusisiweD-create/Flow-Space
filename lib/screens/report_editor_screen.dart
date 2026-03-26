@@ -59,7 +59,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   String? _existingPerformanceData;
   final GlobalKey<SignatureCaptureWidgetState> _signatureKey =
       GlobalKey<SignatureCaptureWidgetState>();
-  bool _useAiAssist = false;
+  bool _useAiAssist = false; // AI assistance toggle
   bool _isAiGenerating = false;
 
   @override
@@ -1142,6 +1142,10 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       const SizedBox(width: 12),
                       ElevatedButton.icon(
                         onPressed: () async {
+                          // Store context references before async operations
+                          final navigator = Navigator.of(context);
+                          final scaffoldMessenger = ScaffoldMessenger.of(context);
+                          
                           String? finalSignature;
 
                           if (signatureType == 'drawn') {
@@ -1157,9 +1161,6 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                           }
 
                           if (!mounted) return;
-                          final navigator = Navigator.of(context);
-                          final scaffoldMessenger =
-                              ScaffoldMessenger.of(context);
 
                           if (finalSignature != null &&
                               finalSignature.isNotEmpty) {

@@ -74,6 +74,10 @@ class AppIcons {
         'active': 'assets/Icons/Urgent Notifications active.png.png',
         'inactive': 'assets/Icons/Urgent Notifications inactive.png.png',
       },
+      'chatbot': {
+        'active': 'assets/Icons/AI_Red.png',
+        'inactive': 'assets/Icons/AI_Red.png',
+      },
     };
 
     final paths = iconPaths[iconName];

@@ -115,6 +115,8 @@ class _EnhancedDeliverableSetupScreenState
           }
         });
       }
+    } catch (e) {
+      debugPrint('Error loading users: $e');
     }
   }
 

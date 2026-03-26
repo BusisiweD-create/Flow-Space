@@ -119,6 +119,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: 'view_all_deliverables',
       ),
       const _NavItem(
+        label: 'AI Assistant',
+        icon: Icons.smart_toy_outlined,
+        iconName: 'chatbot',
+        route: '/ai-assistant',
+        requiredPermission: null,
+      ),
+      const _NavItem(
         label: 'Role Management',
         icon: Icons.admin_panel_settings_outlined,
         iconName: 'role_management',

@@ -582,6 +582,25 @@ async function initializeDatabase() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_client_reviews_report ON client_reviews(report_id)`).catch(() => {});
     console.log('✅ Ensured client_reviews table exists');
+
+    // Create user_signatures table for reusable signatures
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_signatures (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_name VARCHAR(255),
+        signature_data TEXT NOT NULL,
+        signature_type VARCHAR(20) DEFAULT 'drawn' CHECK (signature_type IN ('drawn', 'typed', 'uploaded')),
+        is_default BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_user_signatures_user_id ON user_signatures(user_id)').catch(() => {});
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_user_signatures_default_active ON user_signatures(user_id, is_default, is_active)').catch(() => {});
+    console.log('✅ Ensured user_signatures table exists');
   } catch (error) {
     console.error('Database initialization error:', error);
   }
@@ -3582,10 +3601,10 @@ app.get('/api/v1/deliverables/:id', authenticateToken, async (req, res) => {
              TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')) as assigned_to_name,
              s.name as sprint_name
       FROM deliverables d
-      LEFT JOIN users u1 ON d.created_by = CAST(u1.id AS TEXT)
-      LEFT JOIN users u2 ON d.assigned_to = CAST(u2.id AS TEXT)
-      LEFT JOIN sprints s ON d.sprint_id = s.id
-      WHERE d.id = $1
+      LEFT JOIN users u1 ON d.created_by = u1.id::uuid
+      LEFT JOIN users u2 ON d.assigned_to = u2.id::uuid
+      LEFT JOIN sprints s ON d.sprint_id = s.id::uuid
+      WHERE d.id = $1::uuid
     `;
     const params = [id];
     if (userRole === 'teamMember') {
@@ -6016,6 +6035,187 @@ app.get('/api/v1/sign-off-reports/:id/exports', authenticateToken, async (req, r
   }
 });
 
+// ==================== SYSTEM STATS ENDPOINT ====================
+
+// Get system statistics for admin dashboard
+app.get('/api/v1/system/stats', authenticateToken, async (req, res) => {
+  try {
+    // Only system admins can access system stats
+    if (req.user.role !== 'systemAdmin') {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    // Return basic system stats
+    const stats = {
+      users: 0,
+      projects: 0,
+      deliverables: 0,
+      reports: 0,
+      sprints: 0
+    };
+
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('Error fetching system stats:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch system stats' });
+  }
+});
+
+// ==================== USER ROLE MANAGEMENT ENDPOINTS ====================
+
+// Get user role
+app.get('/api/v1/users/:id/role', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT role FROM users WHERE id = $1::uuid
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.json({ success: true, data: { role: result.rows[0].role } });
+  } catch (error) {
+    console.error('Error fetching user role:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch user role' });
+  }
+});
+
+// Update user role
+app.put('/api/v1/users/:id/role', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    console.log('🔍 Role update request:', { id, role, body: req.body });
+
+    if (!role) {
+      return res.status(400).json({ success: false, error: 'Role is required' });
+    }
+
+    // Validate role
+    const validRoles = [
+      'systemAdmin', 'admin', 'projectManager', 'teamMember', 'client',
+      'deliveryLead', 'clientReviewer', 'developer', 'scrumMaster', 
+      'qaEngineer', 'stakeholder'
+    ];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, error: 'Invalid role' });
+    }
+
+    const result = await pool.query(`
+      UPDATE users 
+      SET role = $1, updated_at = NOW()
+      WHERE id = $2::uuid
+      RETURNING id, email, role
+    `, [role, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    console.log(`✅ User role updated: ${id} -> ${role}`);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    res.status(500).json({ success: false, error: 'Failed to update user role' });
+  }
+});
+
+// ==================== USER SIGNATURE MANAGEMENT ENDPOINTS ====================
+
+// Get all signatures for the authenticated user
+app.get('/api/v1/signatures', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const result = await pool.query(`
+      SELECT 
+        id,
+        user_id,
+        user_name,
+        signature_type,
+        signature_data,
+        is_default,
+        created_at,
+        updated_at
+      FROM user_signatures 
+      WHERE user_id = $1::uuid
+      ORDER BY created_at DESC
+    `, [userId]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching user signatures:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch signatures' });
+  }
+});
+
+// Save a new signature for the authenticated user
+app.post('/api/v1/signatures', authenticateToken, async (req, res) => {
+  try {
+    const { signatureData, signatureType, isDefault = false } = req.body;
+    const userId = req.user.id;
+    const userName = req.user.name || req.user.email;
+
+    if (!signatureData || !signatureType) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'signatureData and signatureType are required' 
+      });
+    }
+
+    // If this is set as default, unset other defaults
+    if (isDefault) {
+      await pool.query(`
+        UPDATE user_signatures 
+        SET is_default = false 
+        WHERE user_id = $1::uuid
+      `, [userId]);
+    }
+
+    const result = await pool.query(`
+      INSERT INTO user_signatures (
+        user_id, user_name, signature_type, signature_data, is_default, created_at
+      )
+      VALUES ($1::uuid, $2, $3, $4, $5, NOW())
+      RETURNING *
+    `, [userId, userName, signatureType, signatureData, isDefault]);
+
+    console.log('✅ User signature saved successfully, ID:', result.rows[0].id);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Error saving user signature:', error);
+    console.error('❌ Stack trace:', error.stack);
+    res.status(500).json({ success: false, error: 'Failed to save signature' });
+  }
+});
+
+// Delete a user signature
+app.delete('/api/v1/signatures/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await pool.query(`
+      DELETE FROM user_signatures 
+      WHERE id = $1::uuid AND user_id = $2::uuid
+      RETURNING *
+    `, [id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Signature not found' });
+    }
+
+    res.json({ success: true, message: 'Signature deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user signature:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete signature' });
+  }
+});
+
 // ==================== DIGITAL SIGNATURE ENDPOINTS ====================
 
 // Store digital signature
@@ -6109,7 +6309,27 @@ app.get('/api/v1/sign-off-reports/:id/signatures', authenticateToken, async (req
 // Temporarily disabled - DocuSign is optional and can be configured later
 // Manual signatures work without DocuSign
 
-// const docusignService = require('./docusign-service');
+// Get DocuSign configuration status
+app.get('/api/v1/docusign/config', authenticateToken, async (req, res) => {
+  try {
+    // Return default unconfigured state
+    res.json({ 
+      success: true, 
+      data: {
+        integration_key: '',
+        secret_key: '',
+        account_id: '',
+        user_id: '',
+        base_url: 'https://demo.docusign.net/restapi',
+        is_production: false,
+        isConfigured: false,
+      }
+    });
+  } catch (error) {
+    console.error('Error getting DocuSign config:', error);
+    res.status(500).json({ success: false, error: 'Failed to get DocuSign configuration' });
+  }
+});
 
 /* DocuSign endpoints temporarily disabled
 // Get DocuSign configuration status
