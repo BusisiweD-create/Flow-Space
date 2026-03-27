@@ -86,6 +86,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null,
       ),
       const _NavItem(
+        label: 'AI Assistant',
+        icon: Icons.smart_toy_outlined,
+        iconName: 'ai_assistant',
+        route: '/ai-assistant',
+        requiredPermission: null,
+      ),
+      const _NavItem(
         label: 'Approval Requests',
         icon: Icons.assignment_outlined,
         iconName: 'approval_requests',
@@ -124,6 +131,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
     // Filter items based on user permissions
     return allItems.where((item) {
+      if (authService.isClientReviewer || authService.isClient) {
+        if (item.route == '/projects' ||
+            item.route == '/sprint-console' ||
+            item.route == '/deliverables-overview') {
+          return false;
+        }
+      }
       // Special flag: hide from sidebar even if user has permission
       if (item.requiredPermission == 'HIDE_FROM_SIDEBAR') return false;
       if (item.requiredPermission == null) return true;
@@ -548,6 +562,51 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         ),
       );
     }
+  }
+
+  Widget _buildNavigationItems({required bool isMobile}) {
+    final routeLocation = GoRouterState.of(context).uri.path;
+
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: _navItems.length,
+      itemBuilder: (context, index) {
+        final item = _navItems[index];
+        final active = routeLocation.startsWith(item.route);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: active
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ListTile(
+            leading: AppIcons.getIconWidget(
+              item.iconName,
+              fallbackIcon: item.icon,
+              isActive: active,
+              size: 20,
+              color: active ? Colors.white : FlownetColors.textSecondary,
+            ),
+            title: Text(
+              item.label,
+              style: TextStyle(
+                color: active ? Colors.white : FlownetColors.textSecondary,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            onTap: () {
+              if (!routeLocation.startsWith(item.route)) {
+                context.go(item.route);
+                Navigator.pop(context); // Close drawer on mobile
+              }
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleLogout(BuildContext ctx) async {

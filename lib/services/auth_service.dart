@@ -397,6 +397,4 @@ class AuthService {
         return UserRole.teamMember; // Default to team member
     }
   }
-
-  Future<dynamic> authenticateWithJwtToken(String token, tokenData) async {}
 }

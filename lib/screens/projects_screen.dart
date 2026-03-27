@@ -23,6 +23,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   // Unified management mode
   bool _isCreateMode = false;
   String? _editingProjectId;
+  String? _selectedProjectId;
   
   // Form controllers for creation/editing
   final _nameController = TextEditingController();
@@ -70,6 +71,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       final projects = await ProjectService.getAllProjects();
       setState(() {
         _projects = projects;
+        _selectedProjectId = projects.isNotEmpty ? projects.first.id : null;
         _isLoading = false;
       });
 
@@ -99,6 +101,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         builder: (context) => const ProjectWorkspaceScreen(),
       ),
     );
+  }
+
+  void _navigateToSprintConsole(String? projectId) {
+    if (projectId == null || projectId.isEmpty) {
+      context.go('/sprint-console');
+      return;
+    }
+
+    final encodedProjectId = Uri.encodeComponent(projectId);
+    context.go('/sprint-console?projectId=$encodedProjectId');
   }
 
   
