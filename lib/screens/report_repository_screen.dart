@@ -850,9 +850,15 @@ class _ReportRepositoryScreenState extends ConsumerState<ReportRepositoryScreen>
             context: ctx,
             builder: (context) {
               final sprints = _sprints
-                  .where((s) => _selectedProjectId == null || _selectedProjectId!.isEmpty
-                      ? true
-                      : (s['project_id']?.toString() == _selectedProjectId || s['projectId']?.toString() == _selectedProjectId))
+                  .where((s) {
+                    final status = (s['status'] ?? '').toString().toLowerCase();
+                    final isDone = status == 'completed' || status == 'done';
+                    if (!isDone) return false;
+
+                    if (_selectedProjectId == null || _selectedProjectId!.isEmpty) return true;
+                    return s['project_id']?.toString() == _selectedProjectId || 
+                           s['projectId']?.toString() == _selectedProjectId;
+                  })
                   .toList();
 
               return StatefulBuilder(

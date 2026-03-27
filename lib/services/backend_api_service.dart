@@ -244,6 +244,31 @@ class BackendApiService {
     return await _apiClient.get('/sprints/$sprintId/report', queryParams: queryParams);
   }
 
+  Future<ApiResponse> createSprintReportFromSprint(String sprintId, {String? note}) async {
+    final body = <String, dynamic>{};
+    if (note != null && note.trim().isNotEmpty) {
+      body['note'] = note.trim();
+    }
+    final primary = await _apiClient.post('/sign-off-reports/from-sprint/$sprintId', body: body);
+    if (primary.isSuccess) return primary;
+    final fallback = await _apiClient.post('/signoff/from-sprint/$sprintId', body: body);
+    return fallback;
+  }
+
+  Future<ApiResponse> addReportSignature(String reportId, {required String signatureData, String? signatureType}) async {
+    final body = <String, dynamic>{
+      'signatureData': signatureData,
+    };
+    if (signatureType != null && signatureType.isNotEmpty) {
+      body['signatureType'] = signatureType;
+    }
+    return await _apiClient.post('/sign-off-reports/$reportId/signature', body: body);
+  }
+
+  Future<ApiResponse> submitReport(String reportId) async {
+    return await _apiClient.post('/sign-off-reports/$reportId/submit');
+  }
+
   Future<ApiResponse> createSprint(Map<String, dynamic> sprintData) async {
     return await _apiClient.post('/sprints', body: sprintData);
   }

@@ -211,6 +211,278 @@ async function ensureReportsTable() {
 }
 
 /**
+ * @route POST /api/sign-off-reports/from-sprint/:sprintId
+ * @desc Create a sprint-based sign-off report (draft) populated with sprint, project, deliverables, and team data
+ * @access Private
+ */
+router.post('/from-sprint/:sprintId', async (req, res) => {
+  try {
+    await ensureReportsTable();
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const { sprintId } = req.params;
+    const note = (req.body && req.body.note) ? String(req.body.note) : null;
+    const { Sprint, Project, Deliverable, User } = require('../models');
+    const now = new Date();
+    const sprint = await Sprint.findByPk(sprintId, {
+      include: [
+        { model: Project, as: 'project', attributes: ['id', 'name', 'key'] },
+        {
+          model: Deliverable,
+          as: 'deliverables',
+          through: { attributes: [] },
+          required: false,
+          include: [
+            { model: User, as: 'owner', attributes: ['id', 'email', 'first_name', 'last_name', 'role'] },
+          ],
+        },
+      ],
+    });
+    if (!sprint) {
+      return res.status(404).json({ error: 'Sprint not found' });
+    }
+    const allProjectSprints = sprint.project_id
+      ? await Sprint.findAll({ where: { project_id: sprint.project_id }, attributes: ['id', 'status'] })
+      : [];
+    const totalSprints = allProjectSprints.length;
+    const completedSprints = allProjectSprints.filter((s) => isSprintCompletedStatus(s.status)).length;
+    const sprintSuccessRate = totalSprints > 0 ? Math.round((completedSprints / totalSprints) * 100) : 0;
+
+    function normalizeStatus(v) {
+      return String(v || '').toLowerCase().replace(/[\s_-]+/g, '');
+    }
+    function deliverableProgressPercent(statusRaw) {
+      const s = normalizeStatus(statusRaw);
+      if (s === 'signedoff' || s === 'approved' || s === 'completed' || s === 'done') return 100;
+      if (s === 'inreview' || s === 'submitted') return 80;
+      if (s === 'changerequested') return 70;
+      if (s === 'rejected') return 50;
+      if (s === 'inprogress' || s === 'active') return 50;
+      return 0;
+    }
+    function deliverableStatusCategory(deliverable, now) {
+      const s = normalizeStatus(deliverable.status);
+      const progress = deliverableProgressPercent(deliverable.status);
+      const due = deliverable.due_date ? new Date(deliverable.due_date) : null;
+      const overdue = due != null && due.getTime() < now.getTime() && progress < 100;
+      const blocked = s === 'changerequested' || s === 'rejected';
+      if (overdue) return 'overdue';
+      if (progress >= 100) return 'completed';
+      if (blocked) return 'blocked';
+      if (progress <= 0) return 'not_started';
+      return 'in_progress';
+    }
+    function ownerDisplay(u) {
+      const first = (u && (u.first_name || '')).toString().trim();
+      const last = (u && (u.last_name || '')).toString().trim();
+      const full = `${first} ${last}`.trim();
+      return full || (u && u.email) || null;
+    }
+
+    const rawDeliverables = Array.isArray(sprint.deliverables) ? sprint.deliverables : [];
+    const deliverables = rawDeliverables.map((d) => {
+      const progressPercent = deliverableProgressPercent(d.status);
+      const dueDate = d.due_date ? new Date(d.due_date) : null;
+      const createdAt = d.created_at ? new Date(d.created_at) : null;
+      const updatedAt = d.updated_at ? new Date(d.updated_at) : null;
+      const completionDate = d.approved_at ? new Date(d.approved_at) : (d.submitted_at ? new Date(d.submitted_at) : null);
+      const category = deliverableStatusCategory(d, now);
+      const isOverdue = category === 'overdue';
+      const owner = d.owner || null;
+      const ownerId = owner && owner.id ? String(owner.id) : (d.owner_id ? String(d.owner_id) : null);
+      const ownerName = owner ? ownerDisplay(owner) : null;
+      return {
+        id: d.id != null ? String(d.id) : '',
+        name: d.title || d.name || `Deliverable ${d.id}`,
+        description: d.description || '',
+        ownerId,
+        ownerName,
+        ownerRole: owner && owner.role ? String(owner.role) : null,
+        createdAt: createdAt ? createdAt.toISOString() : null,
+        dueDate: dueDate ? dueDate.toISOString() : null,
+        status: d.status || 'draft',
+        progressPercent,
+        lastUpdated: updatedAt ? updatedAt.toISOString() : null,
+        completionDate: completionDate ? completionDate.toISOString() : null,
+        isOverdue,
+        category,
+      };
+    });
+
+    const total = deliverables.length;
+    const counts = { completed: 0, in_progress: 0, not_started: 0, overdue: 0, blocked: 0 };
+    let sumProgress = 0;
+    for (const d of deliverables) {
+      sumProgress += Number(d.progressPercent || 0);
+      if (counts[d.category] !== undefined) counts[d.category] += 1;
+    }
+    const progressPercent = total > 0 ? Math.round(sumProgress / total) : 0;
+    const completionRate = total > 0 ? Math.round((counts.completed / total) * 100) : 0;
+
+    const teamMap = new Map();
+    for (const d of rawDeliverables) {
+      const o = d.owner || null;
+      if (o && o.id != null) {
+        const uid = String(o.id);
+        if (!teamMap.has(uid)) {
+          teamMap.set(uid, { id: uid, name: ownerDisplay(o), email: o.email || null, role: o.role || null });
+        }
+      }
+    }
+    const team = Array.from(teamMap.values()).filter((m) => m.name || m.email);
+
+    const health = (counts.overdue > 0)
+      ? 'critical'
+      : (sprint.end_date && new Date(sprint.end_date).getTime() < now.getTime() && completionRate < 100 ? 'warning' : 'good');
+
+    const actor = await resolveActorIdentity({ userId: String(req.user.id), email: req.user.email });
+    const actorRole = roleDisplayValue(actor.role) || actor.role || null;
+
+    const sprintDetails = {
+      id: String(sprint.id),
+      name: sprint.name || `Sprint ${sprintId}`,
+      startDate: sprint.start_date ? new Date(sprint.start_date).toISOString() : null,
+      endDate: sprint.end_date ? new Date(sprint.end_date).toISOString() : null,
+      status: sprint.status || null,
+    };
+    const projectDetails = sprint.project
+      ? { id: sprint.project.id, name: sprint.project.name, key: sprint.project.key }
+      : null;
+    const summary = {
+      totalDeliverables: total,
+      completedDeliverables: counts.completed,
+      incompleteDeliverables: total - counts.completed,
+      inProgressDeliverables: counts.in_progress,
+      notStartedDeliverables: counts.not_started,
+      overdueDeliverables: counts.overdue,
+      blockedDeliverables: counts.blocked,
+      sprintProgressPercent: progressPercent,
+      completionRatePercent: completionRate,
+      health,
+    };
+
+    const fmtIso = (iso) => {
+      if (!iso) return '-';
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso);
+        return d.toISOString().slice(0, 10);
+      } catch (_) {
+        return String(iso);
+      }
+    };
+    const fmt = (v) => (v == null || String(v).trim() === '' ? '-' : String(v));
+    const fmtPct = (n) => `${Number(n || 0)}%`;
+
+    const reportLines = [];
+    reportLines.push('PROJECT');
+    reportLines.push(`Name: ${fmt(projectDetails && projectDetails.name)}`);
+    reportLines.push(`Key: ${fmt(projectDetails && projectDetails.key)}`);
+    reportLines.push(`ID: ${fmt(projectDetails && projectDetails.id)}`);
+    reportLines.push('');
+    reportLines.push('SPRINT');
+    reportLines.push(`Name: ${fmt(sprintDetails.name)}`);
+    reportLines.push(`ID: ${fmt(sprintDetails.id)}`);
+    reportLines.push(`Status: ${fmt(sprintDetails.status)}`);
+    reportLines.push(`Start: ${fmtIso(sprintDetails.startDate)}`);
+    reportLines.push(`End: ${fmtIso(sprintDetails.endDate)}`);
+    reportLines.push('');
+    reportLines.push('PROJECT SPRINT TOTALS');
+    reportLines.push(`Total Sprints: ${totalSprints}`);
+    reportLines.push(`Completed Sprints: ${completedSprints}`);
+    reportLines.push(`Sprint Success Rate: ${fmtPct(sprintSuccessRate)}`);
+    reportLines.push('');
+    reportLines.push('SPRINT SUMMARY');
+    reportLines.push(`Total Deliverables: ${summary.totalDeliverables}`);
+    reportLines.push(`Completed: ${summary.completedDeliverables}`);
+    reportLines.push(`In Progress: ${summary.inProgressDeliverables}`);
+    reportLines.push(`Not Started: ${summary.notStartedDeliverables}`);
+    reportLines.push(`Overdue: ${summary.overdueDeliverables}`);
+    reportLines.push(`Blocked: ${summary.blockedDeliverables}`);
+    reportLines.push(`Sprint Progress: ${fmtPct(summary.sprintProgressPercent)}`);
+    reportLines.push(`Completion Rate: ${fmtPct(summary.completionRatePercent)}`);
+    reportLines.push(`Health: ${fmt(summary.health).toUpperCase()}`);
+    reportLines.push('');
+    reportLines.push('TEAM MEMBERS');
+    if (team.length === 0) {
+      reportLines.push('None');
+    } else {
+      for (const m of team) {
+        reportLines.push(`- ${fmt(m.name)} | ${fmt(m.email)} | ${fmt(m.role)}`);
+      }
+    }
+    reportLines.push('');
+    reportLines.push('DELIVERABLES');
+    if (deliverables.length === 0) {
+      reportLines.push('None');
+    } else {
+      for (const d of deliverables) {
+        reportLines.push(
+          `- ${fmt(d.name)} | Owner: ${fmt(d.ownerName)} | Status: ${fmt(d.status)} | Progress: ${fmtPct(d.progressPercent)} | Due: ${fmtIso(d.dueDate)} | Completed: ${fmtIso(d.completionDate)} | Category: ${fmt(d.category)} | Overdue: ${d.isOverdue ? 'yes' : 'no'}`
+        );
+      }
+    }
+    reportLines.push('');
+    reportLines.push('SIGN-OFF NOTES');
+    reportLines.push(note && note.trim() ? note.trim() : '-');
+
+    const content = {
+      reportTitle: `Sprint Report: ${sprint.name || 'Sprint ' + sprintId}`,
+      reportContent: reportLines.join('\n'),
+      sprintIds: [String(sprintId)],
+      sprintPerformanceData: '',
+      sprintReportData: {
+        project: projectDetails,
+        projectSprintTotals: { totalSprints, completedSprints, sprintSuccessRate },
+        sprint: sprintDetails,
+        summary,
+        team,
+        deliverables,
+      },
+      preparedBy: actor.id,
+      preparedByName: actor.name,
+      preparedByRole: actorRole,
+      status: 'draft',
+    };
+
+    const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
+    const contentExpr = dialect === 'postgres' ? '$3::jsonb' : '$3';
+    const [results] = await sequelize.query(
+      `INSERT INTO sign_off_reports (deliverable_id, created_by, status, content) VALUES ($1, $2, $4, ${contentExpr}) RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+      { bind: [null, String(req.user.id), JSON.stringify(content), 'draft'] }
+    );
+    const row = results[0];
+    const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
+    const report = {
+      id: row.id,
+      deliverableId: (row.deliverable_id || '').toString(),
+      reportTitle: (c.reportTitle || c.report_title || 'Untitled Report'),
+      reportContent: (c.reportContent || c.report_content || ''),
+      sprintIds: c.sprintIds || c.sprint_ids || [],
+      sprintPerformanceData: c.sprintPerformanceData || c.sprint_performance_data,
+      status: row.status || 'draft',
+      preparedBy: c.preparedBy || c.prepared_by,
+      preparedByName: c.preparedByName || c.prepared_by_name,
+      preparedByRole: c.preparedByRole || c.prepared_by_role,
+      createdAt: row.created_at,
+      createdBy: (row.created_by || '').toString(),
+    };
+    if (global.realtimeEvents) {
+      global.realtimeEvents.emit('report_created', {
+        id: report.id,
+        reportTitle: report.reportTitle,
+        created_by: report.createdBy
+      });
+    }
+    return res.status(201).json(report);
+  } catch (error) {
+    console.error('Error creating sprint sign-off report:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * @route GET /api/signoff/sprint/:sprintId
  * @desc Get all signoffs for a specific sprint
  * @access Public

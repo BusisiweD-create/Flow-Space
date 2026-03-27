@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../services/backend_api_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/flownet_theme.dart';
@@ -190,6 +191,13 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
           ),
         ],
       ),
+      floatingActionButton: _report != null ? FloatingActionButton.extended(
+        onPressed: () => _showPublishDialog(context, sprintTitle),
+        icon: const Icon(Icons.assignment_turned_in),
+        label: const Text('Sign Off & Publish'),
+        backgroundColor: FlownetColors.electricBlue,
+        foregroundColor: Colors.white,
+      ) : null,
       body: _loading && _report == null
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _report == null
@@ -299,84 +307,187 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
         .where((m) => (m['id'] ?? '').toString().isNotEmpty && (m['label'] ?? '').toString().isNotEmpty)
         .toList();
 
-    return Row(
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            key: ValueKey('status:$_statusFilter'),
-            initialValue: _statusFilter.isEmpty ? '' : _statusFilter,
-            decoration: const InputDecoration(
-              labelText: 'Status',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(value: '', child: Text('All')),
-              DropdownMenuItem(value: 'completed', child: Text('Completed')),
-              DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
-              DropdownMenuItem(value: 'not_started', child: Text('Not Started')),
-              DropdownMenuItem(value: 'overdue', child: Text('Overdue')),
-              DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmall = constraints.maxWidth < 600;
+        
+        if (isSmall) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DropdownButtonFormField<String>(
+                key: ValueKey('status:$_statusFilter'),
+                initialValue: _statusFilter.isEmpty ? '' : _statusFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('All')),
+                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                  DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+                  DropdownMenuItem(value: 'not_started', child: Text('Not Started')),
+                  DropdownMenuItem(value: 'overdue', child: Text('Overdue')),
+                  DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
+                ],
+                onChanged: (v) {
+                  setState(() => _statusFilter = v ?? '');
+                  _load();
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey('owner:$_ownerFilter'),
+                initialValue: _ownerFilter.isEmpty ? '' : _ownerFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Owner',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('All')),
+                  ...owners.map(
+                    (o) => DropdownMenuItem(
+                      value: o['id']!,
+                      child: Text(o['label']!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+                onChanged: (v) {
+                  setState(() => _ownerFilter = v ?? '');
+                  _load();
+                },
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _dueFrom ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked == null) return;
+                        setState(() => _dueFrom = DateTime(picked.year, picked.month, picked.day));
+                        _load();
+                      },
+                      child: Text(_dueFrom == null ? 'Due From' : _fmtDate(_dueFrom!.toIso8601String())),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _dueTo ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked == null) return;
+                        setState(() => _dueTo = DateTime(picked.year, picked.month, picked.day, 23, 59, 59));
+                        _load();
+                      },
+                      child: Text(_dueTo == null ? 'Due To' : _fmtDate(_dueTo!.toIso8601String())),
+                    ),
+                  ),
+                ],
+              ),
             ],
-            onChanged: (v) {
-              setState(() => _statusFilter = v ?? '');
-              _load();
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            key: ValueKey('owner:$_ownerFilter'),
-            initialValue: _ownerFilter.isEmpty ? '' : _ownerFilter,
-            decoration: const InputDecoration(
-              labelText: 'Owner',
-              border: OutlineInputBorder(),
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                key: ValueKey('status:$_statusFilter'),
+                initialValue: _statusFilter.isEmpty ? '' : _statusFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('All')),
+                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                  DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+                  DropdownMenuItem(value: 'not_started', child: Text('Not Started')),
+                  DropdownMenuItem(value: 'overdue', child: Text('Overdue')),
+                  DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
+                ],
+                onChanged: (v) {
+                  setState(() => _statusFilter = v ?? '');
+                  _load();
+                },
+              ),
             ),
-            items: [
-              const DropdownMenuItem(value: '', child: Text('All')),
-              ...owners.map((o) => DropdownMenuItem(value: o['id']!, child: Text(o['label']!))),
-            ],
-            onChanged: (v) {
-              setState(() => _ownerFilter = v ?? '');
-              _load();
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _dueFrom ?? DateTime.now(),
-                firstDate: DateTime(2000),
-                lastDate: DateTime(2100),
-              );
-              if (picked == null) return;
-              setState(() => _dueFrom = DateTime(picked.year, picked.month, picked.day));
-              _load();
-            },
-            child: Text(_dueFrom == null ? 'Due From' : _fmtDate(_dueFrom!.toIso8601String())),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _dueTo ?? DateTime.now(),
-                firstDate: DateTime(2000),
-                lastDate: DateTime(2100),
-              );
-              if (picked == null) return;
-              setState(() => _dueTo = DateTime(picked.year, picked.month, picked.day, 23, 59, 59));
-              _load();
-            },
-            child: Text(_dueTo == null ? 'Due To' : _fmtDate(_dueTo!.toIso8601String())),
-          ),
-        ),
-      ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                key: ValueKey('owner:$_ownerFilter'),
+                initialValue: _ownerFilter.isEmpty ? '' : _ownerFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Owner',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('All')),
+                  ...owners.map(
+                    (o) => DropdownMenuItem(
+                      value: o['id']!,
+                      child: Text(o['label']!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+                onChanged: (v) {
+                  setState(() => _ownerFilter = v ?? '');
+                  _load();
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _dueFrom ?? DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked == null) return;
+                  setState(() => _dueFrom = DateTime(picked.year, picked.month, picked.day));
+                  _load();
+                },
+                child: Text(_dueFrom == null ? 'Due From' : _fmtDate(_dueFrom!.toIso8601String())),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _dueTo ?? DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked == null) return;
+                  setState(() => _dueTo = DateTime(picked.year, picked.month, picked.day, 23, 59, 59));
+                  _load();
+                },
+                child: Text(_dueTo == null ? 'Due To' : _fmtDate(_dueTo!.toIso8601String())),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -464,8 +575,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
 
   Widget _buildInsights(Map<String, dynamic> summary, List<Map<String, dynamic>> deliverables) {
     final completionRate = _asInt(summary['completionRatePercent']);
-    final overdue = deliverables.where((d) => d['isOverdue'] == true).length;
-    final blocked = deliverables.where((d) => (d['category']?.toString() ?? '') == 'blocked').length;
+    final overdue = _asInt(summary['overdueDeliverables']);
+    final blocked = _asInt(summary['blockedDeliverables']);
     final health = summary['health']?.toString() ?? 'good';
 
     return Container(
@@ -489,6 +600,112 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
           Text('Overall Sprint Health: ${health.toUpperCase()}', style: const TextStyle(color: Colors.white70)),
         ],
       ),
+    );
+  }
+
+  void _showPublishDialog(BuildContext context, String sprintTitle) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        bool isPublishing = false;
+        final noteController = TextEditingController();
+        final signatureController = TextEditingController();
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            return AlertDialog(
+              title: const Text('Sign Off & Publish Report'),
+              content: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'This will generate a final PDF report including sprint metrics, deliverables, team information, and sign-off signatures.',
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Sign-off Note (Optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                      controller: noteController,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Signature (Type your full name)',
+                        border: OutlineInputBorder(),
+                      ),
+                      controller: signatureController,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isPublishing ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isPublishing
+                      ? null
+                      : () async {
+                          setLocalState(() => isPublishing = true);
+                          try {
+                            final createResp = await _backend.createSprintReportFromSprint(widget.sprintId, note: noteController.text.trim());
+                            if (!context.mounted) return;
+                            if (!createResp.isSuccess || createResp.data == null) {
+                              throw Exception(createResp.error ?? 'Failed to create report');
+                            }
+                            final reportId = (createResp.data['id'] ?? createResp.data['reportId'] ?? '').toString();
+                            if (reportId.isEmpty) {
+                              throw Exception('Invalid report id');
+                            }
+                            final sig = signatureController.text.trim();
+                            if (sig.isNotEmpty) {
+                              final sigResp = await _backend.addReportSignature(reportId, signatureData: sig, signatureType: 'typed');
+                              if (!sigResp.isSuccess) {
+                                throw Exception(sigResp.error ?? 'Failed to attach signature');
+                              }
+                            }
+                            final submitResp = await _backend.submitReport(reportId);
+                            if (!submitResp.isSuccess) {
+                              throw Exception(submitResp.error ?? 'Failed to submit report');
+                            }
+                            if (!context.mounted) return;
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Report "$sprintTitle" submitted to client'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            try {
+                              context.go('/report-repository');
+                            } catch (_) {}
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            setLocalState(() => isPublishing = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: FlownetColors.electricBlue,
+                    foregroundColor: FlownetColors.pureWhite,
+                  ),
+                  child: isPublishing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Publish'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
