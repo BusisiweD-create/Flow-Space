@@ -3,9 +3,97 @@ const router = express.Router();
 const { Signoff, AuditLog, Deliverable, Sprint, User, sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
 const { verifyToken } = require('../utils/authUtils');
+const { optionalAuthenticateToken } = require('../middleware/auth');
 
 function safeParseJson(text) {
   try { return JSON.parse(text); } catch (_) { return {}; }
+}
+
+function normalizeRoleValue(r) {
+  return String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+}
+
+function roleDisplayValue(role) {
+  const raw = String(role || '').trim();
+  if (!raw) return null;
+  const spaced = raw
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim();
+  if (!spaced) return null;
+  return spaced
+    .split(/\s+/g)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function buildUserDisplayName(u) {
+  if (!u) return '';
+  const name = (u.name || '').toString().trim();
+  if (name) return name;
+  const first = (u.first_name || u.firstName || '').toString().trim();
+  const last = (u.last_name || u.lastName || '').toString().trim();
+  const full = `${first} ${last}`.trim();
+  if (full) return full;
+  const username = (u.username || '').toString().trim();
+  if (username) return username;
+  const email = (u.email || '').toString().trim();
+  if (email) return email;
+  return '';
+}
+
+function sanitizeReportTitle(value) {
+  const title = String(value || '').trim();
+  if (!title) return title;
+  const hasDigit = (s) => /\d/.test(String(s || ''));
+
+  const bracketed = /^(.*)\s*[\[\(]\s*([A-Za-z0-9-]{6,})\s*[\]\)]\s*$/.exec(title);
+  if (bracketed && hasDigit(bracketed[2])) {
+    const base = String(bracketed[1] || '').trim();
+    return base || title;
+  }
+
+  const dashed = /^(.*)\s*[-–—]\s*([A-Za-z0-9-]{6,})\s*$/.exec(title);
+  if (dashed && hasDigit(dashed[2])) {
+    const base = String(dashed[1] || '').trim();
+    return base || title;
+  }
+
+  return title;
+}
+
+async function resolveActorIdentity({ userId, email }) {
+  const uuidLike = (v) => typeof v === 'string' && /^[0-9a-fA-F-]{36}$/.test(v);
+  const emailLike = (v) => typeof v === 'string' && v.includes('@') && v.trim() !== '';
+
+  const id = typeof userId === 'string' && userId.trim() !== '' ? userId.trim() : null;
+  const em = typeof email === 'string' && email.trim() !== '' ? email.trim() : null;
+
+  try {
+    if (id) {
+      const u = await User.findByPk(id);
+      if (u) {
+        const name = buildUserDisplayName(u);
+        return { id: String(u.id || id), email: u.email || em, role: u.role, name: name || (u.email || em || 'Unknown User') };
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const lookupEmail = (em && emailLike(em)) ? em : (id && emailLike(id) ? id : null);
+    if (lookupEmail) {
+      const u = await User.findOne({ where: { email: lookupEmail } });
+      if (u) {
+        const name = buildUserDisplayName(u);
+        return { id: id || u.id || lookupEmail, email: u.email || lookupEmail, role: u.role, name: name || (u.email || lookupEmail) };
+      }
+      return { id: id || lookupEmail, email: lookupEmail, role: null, name: lookupEmail };
+    }
+  } catch (_) {}
+
+  const fallback = em || id;
+  return { id: fallback, email: em, role: null, name: fallback || 'Unknown User' };
 }
 
 /**
@@ -40,6 +128,8 @@ function extractReviewToken(req) {
     return null;
   }
 }
+
+router.use(optionalAuthenticateToken);
 
 let reportsTableReady = false;
 function getSequelizeDialect() {
@@ -101,6 +191,7 @@ router.get('/', async (req, res) => {
     if (!base.endsWith('/sign-off-reports')) {
       return res.status(404).json({ error: 'Endpoint not found' });
     }
+    
     await ensureReportsTable();
     
     const { deliverableId, status } = req.query;
@@ -141,38 +232,56 @@ router.get('/', async (req, res) => {
     const rawRows = Array.isArray(results) ? results : [];
     const looksLikeUserId = (v) => {
       if (!v) return false;
-      const s = String(v);
-      if (!s || s.trim().length < 8) return false;
+      const s = String(v).trim();
+      if (!s) return false;
       if (s.includes('@')) return false;
       if (/\s/.test(s)) return false;
-      return /^[a-f0-9-]{8,}$/i.test(s);
+      return /^[a-f0-9-]{8,}$/i.test(s) || /^\d+$/.test(s);
     };
     const userIds = new Set(rawRows.map((r) => r.created_by).filter(Boolean));
+    const emails = new Set();
     for (const row of rawRows) {
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
       const submittedBy = c.submittedBy || c.submitted_by;
       const reviewedBy = c.reviewedBy || c.reviewed_by;
       const approvedBy = c.approvedBy || c.approved_by;
+      const preparedBy = c.preparedBy || c.prepared_by;
       if (looksLikeUserId(submittedBy)) userIds.add(String(submittedBy));
       if (looksLikeUserId(reviewedBy)) userIds.add(String(reviewedBy));
       if (looksLikeUserId(approvedBy)) userIds.add(String(approvedBy));
+      if (looksLikeUserId(preparedBy)) userIds.add(String(preparedBy));
+      if (typeof submittedBy === 'string' && submittedBy.includes('@')) emails.add(submittedBy);
+      if (typeof reviewedBy === 'string' && reviewedBy.includes('@')) emails.add(reviewedBy);
+      if (typeof approvedBy === 'string' && approvedBy.includes('@')) emails.add(approvedBy);
+      if (typeof preparedBy === 'string' && preparedBy.includes('@')) emails.add(preparedBy);
     }
-    const users =
-      userIds.size > 0
-        ? await User.findAll({ where: { id: [...userIds] } })
-        : [];
-    const userMap = new Map(
-      users.map((u) => [
-        u.id,
-        (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
-      ])
-    );
+    const usersById = userIds.size > 0 ? await User.findAll({ where: { id: [...userIds] } }) : [];
+    const usersByEmail = emails.size > 0 ? await User.findAll({ where: { email: [...emails] } }) : [];
+    const userNameMap = new Map();
+    const userRoleMap = new Map();
+    for (const u of usersById) {
+      const display = buildUserDisplayName(u);
+      const roleVal = u && u.role ? String(u.role) : null;
+      if (u.id) userNameMap.set(u.id, display);
+      if (u.email) userNameMap.set(u.email, display);
+      if (u.id && roleVal) userRoleMap.set(u.id, roleVal);
+      if (u.email && roleVal) userRoleMap.set(u.email, roleVal);
+    }
+    for (const u of usersByEmail) {
+      const display = buildUserDisplayName(u);
+      const roleVal = u && u.role ? String(u.role) : null;
+      if (u.id) userNameMap.set(u.id, display);
+      if (u.email) userNameMap.set(u.email, display);
+      if (u.id && roleVal) userRoleMap.set(u.id, roleVal);
+      if (u.email && roleVal) userRoleMap.set(u.email, roleVal);
+    }
     let reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
         const submittedBy = c.submittedBy || c.submitted_by;
         const reviewedBy = c.reviewedBy || c.reviewed_by;
         const approvedBy = c.approvedBy || c.approved_by;
+        const preparedBy = c.preparedBy || c.prepared_by || (row.created_by || '').toString();
         return {
           id: row.id,
           deliverableId: (row.deliverable_id || '').toString(),
@@ -183,23 +292,46 @@ router.get('/', async (req, res) => {
           knownLimitations: c.knownLimitations || c.known_limitations,
           nextSteps: c.nextSteps || c.next_steps,
           status: row.status || 'draft',
-          preparedBy: c.preparedBy || c.prepared_by,
-          preparedByName: c.preparedByName || c.prepared_by_name,
+          preparedBy: preparedBy,
+          preparedByName:
+            c.preparedByName ||
+            c.prepared_by_name ||
+            userNameMap.get(preparedBy) ||
+            userNameMap.get((row.created_by || '').toString()) ||
+            null,
+          preparedByRole:
+            c.preparedByRole ||
+            c.prepared_by_role ||
+            userRoleMap.get(preparedBy) ||
+            userRoleMap.get((row.created_by || '').toString()) ||
+            null,
           createdAt: row.created_at,
           createdBy: (row.created_by || '').toString(),
-          createdByName: userMap.get(row.created_by) || null,
+          createdByName: userNameMap.get(row.created_by) || null,
           submittedAt: c.submittedAt || c.submitted_at,
           submittedBy: submittedBy,
           submittedByName:
             c.submittedByName ||
             c.submitted_by_name ||
-            (looksLikeUserId(submittedBy) ? (userMap.get(String(submittedBy)) || null) : null),
+            userNameMap.get(String(submittedBy)) ||
+            null,
+          submittedByRole:
+            c.submittedByRole ||
+            c.submitted_by_role ||
+            userRoleMap.get(String(submittedBy)) ||
+            null,
           reviewedAt: c.reviewedAt || c.reviewed_at,
           reviewedBy: reviewedBy,
           reviewedByName:
             c.reviewedByName ||
             c.reviewed_by_name ||
-            (looksLikeUserId(reviewedBy) ? (userMap.get(String(reviewedBy)) || null) : null),
+            userNameMap.get(String(reviewedBy)) ||
+            null,
+          reviewedByRole:
+            c.reviewedByRole ||
+            c.reviewed_by_role ||
+            userRoleMap.get(String(reviewedBy)) ||
+            null,
           clientComment: c.clientComment || c.client_comment,
           changeRequestDetails: c.changeRequestDetails || c.change_request_details,
           approvedAt: c.approvedAt || c.approved_at,
@@ -207,7 +339,13 @@ router.get('/', async (req, res) => {
           approvedByName:
             c.approvedByName ||
             c.approved_by_name ||
-            (looksLikeUserId(approvedBy) ? (userMap.get(String(approvedBy)) || null) : null),
+            userNameMap.get(String(approvedBy)) ||
+            null,
+          approvedByRole:
+            c.approvedByRole ||
+            c.approved_by_role ||
+            userRoleMap.get(String(approvedBy)) ||
+            null,
           digitalSignature: c.digitalSignature || c.digital_signature,
         };
       } catch (e) {
@@ -220,12 +358,11 @@ router.get('/', async (req, res) => {
           status: row.status || 'draft',
           createdAt: row.created_at,
           createdBy: (row.created_by || '').toString(),
-          createdByName: userMap.get(row.created_by) || null,
+          createdByName: userNameMap.get(row.created_by) || null,
         };
       }
     });
-    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
-    const role = normalizeRole(req.user && req.user.role);
+    const role = normalizeRoleValue(req.user && req.user.role);
     const qStatus = String(req.query.status || '').toLowerCase().replace(/[\s_-]+/g, '');
     if (role === 'clientreviewer') {
       const allowedStatuses = new Set(['submitted', 'approved', 'underreview', 'under_review']);
@@ -289,11 +426,11 @@ router.get('/:id', async (req, res) => {
       const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
       const looksLikeUserId = (v) => {
         if (!v) return false;
-        const s = String(v);
-        if (!s || s.trim().length < 8) return false;
+        const s = String(v).trim();
+        if (!s) return false;
         if (s.includes('@')) return false;
         if (/\s/.test(s)) return false;
-        return /^[a-f0-9-]{8,}$/i.test(s);
+        return /^[a-f0-9-]{8,}$/i.test(s) || /^\d+$/.test(s);
       };
       const creator = row.created_by ? await User.findByPk(row.created_by) : null;
       const createdByName = creator
@@ -306,18 +443,31 @@ router.get('/:id', async (req, res) => {
       const submittedBy = c.submittedBy || c.submitted_by;
       const reviewedBy = c.reviewedBy || c.reviewed_by;
       const approvedBy = c.approvedBy || c.approved_by;
+      const preparedBy = c.preparedBy || c.prepared_by || (row.created_by || '').toString();
       const extraIds = [];
       if (looksLikeUserId(submittedBy)) extraIds.push(String(submittedBy));
       if (looksLikeUserId(reviewedBy)) extraIds.push(String(reviewedBy));
       if (looksLikeUserId(approvedBy)) extraIds.push(String(approvedBy));
+      if (looksLikeUserId(preparedBy)) extraIds.push(String(preparedBy));
+      const emails = [];
+      if (typeof submittedBy === 'string' && submittedBy.includes('@')) emails.push(submittedBy);
+      if (typeof reviewedBy === 'string' && reviewedBy.includes('@')) emails.push(reviewedBy);
+      if (typeof approvedBy === 'string' && approvedBy.includes('@')) emails.push(approvedBy);
+      if (typeof preparedBy === 'string' && preparedBy.includes('@')) emails.push(preparedBy);
       const extraUsers =
         extraIds.length > 0 ? await User.findAll({ where: { id: [...new Set(extraIds)] } }) : [];
-      const userMap = new Map(
-        extraUsers.map((u) => [
-          u.id,
-          (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
-        ])
-      );
+      const extraUsersByEmail =
+        emails.length > 0 ? await User.findAll({ where: { email: [...new Set(emails)] } }) : [];
+      const userNameMap = new Map();
+      const userRoleMap = new Map();
+      for (const u of [...extraUsers, ...extraUsersByEmail]) {
+        const display = buildUserDisplayName(u);
+        const roleVal = u && u.role ? String(u.role) : null;
+        if (u.id) userNameMap.set(u.id, display);
+        if (u.email) userNameMap.set(u.email, display);
+        if (u.id && roleVal) userRoleMap.set(u.id, roleVal);
+        if (u.email && roleVal) userRoleMap.set(u.email, roleVal);
+      }
       const report = {
         id: row.id,
         deliverableId: (row.deliverable_id || '').toString(),
@@ -327,8 +477,18 @@ router.get('/:id', async (req, res) => {
         sprintPerformanceData: c.sprintPerformanceData || c.sprint_performance_data,
         knownLimitations: c.knownLimitations || c.known_limitations,
         nextSteps: c.nextSteps || c.next_steps,
-        preparedBy: c.preparedBy || c.prepared_by,
-        preparedByName: c.preparedByName || c.prepared_by_name,
+        preparedBy: preparedBy,
+        preparedByName:
+          c.preparedByName ||
+          c.prepared_by_name ||
+          userNameMap.get(String(preparedBy)) ||
+          createdByName ||
+          null,
+        preparedByRole:
+          c.preparedByRole ||
+          c.prepared_by_role ||
+          userRoleMap.get(String(preparedBy)) ||
+          null,
         status: row.status || 'draft',
         createdAt: row.created_at,
         createdBy: (row.created_by || '').toString(),
@@ -338,13 +498,25 @@ router.get('/:id', async (req, res) => {
         submittedByName:
           c.submittedByName ||
           c.submitted_by_name ||
-          (looksLikeUserId(submittedBy) ? (userMap.get(String(submittedBy)) || null) : null),
+          userNameMap.get(String(submittedBy)) ||
+          null,
+        submittedByRole:
+          c.submittedByRole ||
+          c.submitted_by_role ||
+          userRoleMap.get(String(submittedBy)) ||
+          null,
         reviewedAt: c.reviewedAt || c.reviewed_at,
         reviewedBy: reviewedBy,
         reviewedByName:
           c.reviewedByName ||
           c.reviewed_by_name ||
-          (looksLikeUserId(reviewedBy) ? (userMap.get(String(reviewedBy)) || null) : null),
+          userNameMap.get(String(reviewedBy)) ||
+          null,
+        reviewedByRole:
+          c.reviewedByRole ||
+          c.reviewed_by_role ||
+          userRoleMap.get(String(reviewedBy)) ||
+          null,
         clientComment: c.clientComment || c.client_comment,
         changeRequestDetails: c.changeRequestDetails || c.change_request_details,
         approvedAt: c.approvedAt || c.approved_at,
@@ -352,7 +524,13 @@ router.get('/:id', async (req, res) => {
         approvedByName:
           c.approvedByName ||
           c.approved_by_name ||
-          (looksLikeUserId(approvedBy) ? (userMap.get(String(approvedBy)) || null) : null),
+          userNameMap.get(String(approvedBy)) ||
+          null,
+        approvedByRole:
+          c.approvedByRole ||
+          c.approved_by_role ||
+          userRoleMap.get(String(approvedBy)) ||
+          null,
         digitalSignature: c.digitalSignature || c.digital_signature,
       };
       return res.json(report);
@@ -383,7 +561,12 @@ router.post('/', async (req, res) => {
   try {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
       await ensureReportsTable();
+      
+      // Validate required fields
       const {
         deliverableId,
         reportTitle,
@@ -394,9 +577,7 @@ router.post('/', async (req, res) => {
         nextSteps,
         status
       } = req.body || {};
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
+      
       if (!deliverableId || typeof deliverableId !== 'string' || deliverableId.trim().length === 0) {
         return res.status(400).json({ error: 'deliverableId is required' });
       }
@@ -406,15 +587,20 @@ router.post('/', async (req, res) => {
       if (!reportContent || typeof reportContent !== 'string' || reportContent.trim().length === 0) {
         return res.status(400).json({ error: 'reportContent is required' });
       }
+      const actor = await resolveActorIdentity({ userId: String(req.user.id), email: req.user.email });
+      const actorRole = actor.role ? String(actor.role) : (req.user && req.user.role ? String(req.user.role) : null);
       const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
       const content = {
-        reportTitle,
-        reportContent,
+        reportTitle: reportTitle.trim(),
+        reportContent: reportContent.trim(),
         sprintIds: sprintIds || [],
         sprintPerformanceData,
         knownLimitations,
         nextSteps,
-        status: normalizedStatus
+        status: normalizedStatus,
+        preparedBy: actor.id,
+        preparedByName: actor.name,
+        preparedByRole: actorRole
       };
       const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
       const contentExpr = dialect === 'postgres' ? '$4::jsonb' : '$4';
@@ -436,8 +622,10 @@ router.post('/', async (req, res) => {
         status: row.status || normalizedStatus,
         preparedBy: c.preparedBy || c.prepared_by,
         preparedByName: c.preparedByName || c.prepared_by_name,
+        preparedByRole: c.preparedByRole || c.prepared_by_role,
         createdAt: row.created_at,
-        createdBy: (row.created_by || '').toString()
+        createdBy: (row.created_by || '').toString(),
+        createdByName: actor.name
       };
       if (global.realtimeEvents) {
         global.realtimeEvents.emit('report_created', {
@@ -468,6 +656,9 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
       await ensureReportsTable();
       const updates = req.body || {};
       const [existing] = await sequelize.query(
@@ -546,6 +737,9 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
       await ensureReportsTable();
       const [rows] = await sequelize.query(`DELETE FROM sign_off_reports WHERE ${reportsIdWhere(1)} RETURNING id`, { bind: [id] });
       if (!rows || rows.length === 0) {
@@ -579,7 +773,7 @@ router.post('/:id/approve', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
-      const { comment, digitalSignature, clientId } = req.body || {};
+      const { comment, digitalSignature, clientId, clientName, clientRole } = req.body || {};
       
       // Check for review token (token-based access)
       const reviewToken = extractReviewToken(req);
@@ -602,14 +796,20 @@ router.post('/:id/approve', async (req, res) => {
       }
 
       const user = req.user || {};
-      const actorId = user.id || null;
-      const actorEmail = user.email || clientEmail || null;
-      const actorName =
-        user.name ||
-        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
-        user.username ||
-        actorEmail ||
-        'Unknown User';
+      const identity = await resolveActorIdentity({
+        userId: user.id ? String(user.id) : (approvedBy ? String(approvedBy) : null),
+        email: user.email || clientEmail || null
+      });
+      const actorId = identity.id || null;
+      const actorEmail = identity.email || user.email || clientEmail || null;
+      const actorName = (reviewToken && clientName && String(clientName).trim())
+        ? String(clientName).trim()
+        : identity.name;
+      const actorRoleRaw =
+        (reviewToken && clientRole && String(clientRole).trim())
+          ? String(clientRole).trim()
+          : (identity.role ? String(identity.role) : (user.role ? String(user.role) : (reviewToken ? 'clientReviewer' : null)));
+      const actorRole = roleDisplayValue(actorRoleRaw) || actorRoleRaw || null;
       
       // Seal check: Prevent re-approval
       const [existing] = await sequelize.query(
@@ -621,8 +821,8 @@ router.post('/:id/approve', async (req, res) => {
       }
 
       const [results] = await sequelize.query(
-        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'clientComment', $5::text, 'digitalSignature', $6::text, 'clientEmail', $7::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
-        { bind: [id, 'approved', (actorId ?? approvedBy), actorName, comment ?? null, digitalSignature ?? null, clientEmail] }
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('reviewedAt', NOW(), 'reviewedBy', $3::text, 'reviewedByName', $4::text, 'reviewedByRole', $5::text, 'reviewedByEmail', $6::text, 'approvedAt', NOW(), 'approvedBy', $3::text, 'approvedByName', $4::text, 'approvedByRole', $5::text, 'approvedByEmail', $6::text, 'clientComment', $7::text, 'digitalSignature', $8::text, 'clientEmail', $9::text, 'clientName', $10::text, 'clientRole', $11::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [id, 'approved', (actorId ?? approvedBy), actorName, actorRole, actorEmail, comment ?? null, digitalSignature ?? null, clientEmail || actorEmail, (clientName ?? actorName), (clientRole ?? actorRole)] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -640,6 +840,12 @@ router.post('/:id/approve', async (req, res) => {
         createdBy: (row.created_by || '').toString(),
         approvedAt: c.approvedAt || c.approved_at,
         approvedBy: c.approvedBy || c.approved_by,
+        approvedByName: c.approvedByName || c.approved_by_name || actorName,
+        approvedByRole: c.approvedByRole || c.approved_by_role || actorRole,
+        reviewedAt: c.reviewedAt || c.reviewed_at,
+        reviewedBy: c.reviewedBy || c.reviewed_by,
+        reviewedByName: c.reviewedByName || c.reviewed_by_name || actorName,
+        reviewedByRole: c.reviewedByRole || c.reviewed_by_role || actorRole,
         clientComment: c.clientComment || c.client_comment,
         digitalSignature: c.digitalSignature || c.digital_signature
       };
@@ -683,7 +889,7 @@ router.post('/:id/approve', async (req, res) => {
           action: 'approved',
           user_id: actorId,
           user_email: actorEmail,
-          user_role: user.role || null,
+          user_role: actorRole,
           entity_type: 'signoff',
           entity_id: report.id.toString(),
           entity_name: report.reportTitle,
@@ -727,8 +933,11 @@ router.post('/:id/submit', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
       const [existing] = await sequelize.query(
-        `SELECT id, created_by, status FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
+        `SELECT id, created_by, status, content FROM sign_off_reports WHERE ${reportsIdWhere(1)}`,
         { bind: [id] }
       );
       if (!existing || existing.length === 0) {
@@ -744,17 +953,21 @@ router.post('/:id/submit', async (req, res) => {
         return res.status(409).json({ error: 'Invalid report state for submission' });
       }
       const user = req.user || {};
-      const submitterId = (user.id || ownerId || null);
-      const submitterEmail = user.email || null;
-      const submitterName =
-        user.name ||
-        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
-        user.username ||
-        submitterEmail ||
-        'Unknown User';
+      const identity = await resolveActorIdentity({
+        userId: user.id ? String(user.id) : ownerId,
+        email: user.email || null
+      });
+      const submitterId = identity.id || ownerId || null;
+      const submitterEmail = identity.email || null;
+      const submitterName = identity.name;
+      const submitterRoleRaw = identity.role ? String(identity.role) : (user.role ? String(user.role) : null);
+      const submitterRole = roleDisplayValue(submitterRoleRaw) || submitterRoleRaw || null;
+      const curContent = cur && cur.content ? (typeof cur.content === 'string' ? safeParseJson(cur.content) : cur.content) : {};
+      const originalTitle = (curContent && (curContent.reportTitle || curContent.report_title)) ? (curContent.reportTitle || curContent.report_title) : 'Untitled Report';
+      const sanitizedTitle = sanitizeReportTitle(originalTitle);
       const [results] = await sequelize.query(
-        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
-        { bind: [id, 'submitted', submitterId, submitterName] }
+        `UPDATE sign_off_reports SET status = $2, content = COALESCE(content, '{}'::jsonb) || jsonb_build_object('submittedAt', NOW(), 'submittedBy', $3::text, 'submittedByName', $4::text, 'submittedByRole', $5::text, 'submittedByEmail', $6::text, 'reportTitle', $7::text), updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
+        { bind: [id, 'submitted', submitterId, submitterName, submitterRole, submitterEmail, sanitizedTitle] }
       );
       if (!results || results.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -774,7 +987,9 @@ router.post('/:id/submit', async (req, res) => {
         createdAt: row.created_at,
         createdBy: (row.created_by || '').toString(),
         submittedAt: c.submittedAt || c.submitted_at,
-        submittedBy: c.submittedBy || c.submitted_by
+        submittedBy: c.submittedBy || c.submitted_by,
+        submittedByName: c.submittedByName || c.submitted_by_name || submitterName,
+        submittedByRole: c.submittedByRole || c.submitted_by_role || submitterRole
       };
       // Create Audit Log
       try {
@@ -783,7 +998,7 @@ router.post('/:id/submit', async (req, res) => {
           action: 'submitted',
           user_id: submitterId,
           user_email: submitterEmail,
-          user_role: user.role || null,
+          user_role: submitterRole,
           entity_type: 'signoff',
           entity_id: report.id.toString(),
           entity_name: report.reportTitle,
@@ -798,7 +1013,7 @@ router.post('/:id/submit', async (req, res) => {
         global.realtimeEvents.emit('report_submitted', {
           id: report.id,
           deliverableId: report.deliverableId,
-          reportTitle: report.reportTitle,
+          reportTitle: sanitizeReportTitle(report.reportTitle),
           created_by: report.createdBy
         });
       }
@@ -1013,7 +1228,7 @@ router.post('/:id/request-changes', async (req, res) => {
     const { id } = req.params;
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
-      const { changeRequestDetails, clientId } = req.body || {};
+      const { changeRequestDetails, clientId, clientName, clientRole } = req.body || {};
       
       // Server-side validation: comment is mandatory
       if (!changeRequestDetails || typeof changeRequestDetails !== 'string' || changeRequestDetails.trim().length === 0) {
@@ -1044,14 +1259,20 @@ router.post('/:id/request-changes', async (req, res) => {
       }
 
       const user = req.user || {};
-      const actorId = user.id || null;
-      const actorEmail = user.email || clientEmail || null;
-      const actorName =
-        user.name ||
-        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : null) ||
-        user.username ||
-        actorEmail ||
-        'Unknown User';
+      const identity = await resolveActorIdentity({
+        userId: user.id ? String(user.id) : (reviewedBy ? String(reviewedBy) : null),
+        email: user.email || clientEmail || null
+      });
+      const actorId = identity.id || null;
+      const actorEmail = identity.email || user.email || clientEmail || null;
+      const actorName = (reviewToken && clientName && String(clientName).trim())
+        ? String(clientName).trim()
+        : identity.name;
+      const actorRoleRaw =
+        (reviewToken && clientRole && String(clientRole).trim())
+          ? String(clientRole).trim()
+          : (identity.role ? String(identity.role) : (user.role ? String(user.role) : (reviewToken ? 'clientReviewer' : null)));
+      const actorRole = roleDisplayValue(actorRoleRaw) || actorRoleRaw || null;
       
       await ensureReportsTable();
       const [existing] = await sequelize.query(
@@ -1087,7 +1308,11 @@ router.post('/:id/request-changes', async (req, res) => {
         reviewedAt: new Date().toISOString(),
         reviewedBy: reviewedBy ? String(reviewedBy) : (curC.reviewedBy || null),
         reviewedByName: actorName,
-        clientEmail: clientEmail || curC.clientEmail || null
+        reviewedByRole: actorRole,
+        reviewedByEmail: actorEmail,
+        clientEmail: clientEmail || actorEmail || curC.clientEmail || null,
+        clientName: clientName || actorName || curC.clientName || null,
+        clientRole: clientRole || actorRole || curC.clientRole || null
       };
       const [results] = await sequelize.query(
         `UPDATE sign_off_reports SET status = $2, content = $3::jsonb, updated_at = NOW() WHERE ${reportsIdWhere(1)} RETURNING id, deliverable_id, created_by, status, content, created_at, updated_at`,
@@ -1104,7 +1329,11 @@ router.post('/:id/request-changes', async (req, res) => {
         status: row.status || 'change_requested',
         createdAt: row.created_at,
         createdBy: (row.created_by || '').toString(),
-        changeRequestDetails: c.changeRequestDetails || c.change_request_details
+        changeRequestDetails: c.changeRequestDetails || c.change_request_details,
+        reviewedAt: c.reviewedAt || c.reviewed_at,
+        reviewedBy: c.reviewedBy || c.reviewed_by,
+        reviewedByName: c.reviewedByName || c.reviewed_by_name || actorName,
+        reviewedByRole: c.reviewedByRole || c.reviewed_by_role || actorRole
       };
       try {
         const did = parseInt(row.deliverable_id);
@@ -1204,7 +1433,7 @@ router.post('/:id/request-changes', async (req, res) => {
           action: 'request_changes',
           user_id: actorId,
           user_email: actorEmail,
-          user_role: user.role || null,
+          user_role: actorRole,
           entity_type: 'signoff',
           entity_id: report.id.toString(),
           entity_name: report.reportTitle,

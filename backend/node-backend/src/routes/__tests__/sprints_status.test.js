@@ -2,6 +2,14 @@ const request = require('supertest');
 const express = require('express');
 const bodyParser = require('body-parser');
 
+jest.mock('../../middleware/auth', () => ({
+  authenticateToken: (req, _res, next) => {
+    req.user = { id: '1', role: 'deliveryLead', email: 'dl@example.com' };
+    next();
+  },
+  requireRole: () => (_req, _res, next) => next(),
+}));
+
 jest.mock('../../models', () => ({
   Sprint: {
     findByPk: jest.fn(),
@@ -57,4 +65,3 @@ describe('PUT /api/sprints/:id/status', () => {
     expect(res.status).toBe(404);
   });
 });
-

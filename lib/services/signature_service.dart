@@ -15,7 +15,18 @@ class SignatureService {
       final response = await _apiClient.get('/signatures');
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> signaturesJson = response.data!['data'];
+        final responseData = response.data!;
+        List<dynamic> signaturesJson = [];
+        
+        if (responseData is Map<String, dynamic>) {
+          final data = responseData['data'];
+          if (data is List) {
+            signaturesJson = data;
+          }
+        } else if (responseData is List) {
+          signaturesJson = responseData;
+        }
+        
         return signaturesJson
             .map((json) => UserSignature.fromJson(json))
             .toList();
@@ -59,9 +70,16 @@ class SignatureService {
       );
 
       if (response.isSuccess && response.data != null) {
-        return UserSignature.fromJson(response.data!['data']);
+        // Handle both direct data and nested data formats
+        final responseData = response.data!;
+        if (responseData is Map<String, dynamic>) {
+          final signatureData = responseData['data'] ?? responseData;
+          if (signatureData is Map<String, dynamic>) {
+            return UserSignature.fromJson(signatureData);
+          }
+        }
       }
-      throw Exception('Failed to save signature');
+      throw Exception('Failed to save signature: Invalid response format');
     } catch (e) {
       debugPrint('Error saving signature: $e');
       throw Exception('Failed to save signature: $e');

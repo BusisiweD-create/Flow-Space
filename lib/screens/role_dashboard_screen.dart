@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/realtime_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/api_service.dart';
+import '../services/user_data_service.dart';
 import '../services/sign_off_report_service.dart';
 import '../services/notification_service.dart';
 import '../models/notification_item.dart';
@@ -42,11 +43,38 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   List<Map<String, dynamic>> _auditLogs = [];
   List<Map<String, dynamic>> _filteredAuditLogs = [];
   final BackendApiService _backendService = BackendApiService();
+  final UserDataService _userDataService = UserDataService();
   List<Map<String, dynamic>> _pendingReports = [];
   bool _isLoadingPendingReports = false;
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
+  
+  // Cache for user names to avoid repeated API calls
+  final Map<String, String> _userNamesCache = {};
+
+  // Method to get user name by ID with caching
+  Future<String> _getUserNameById(String userId) async {
+    // Check cache first
+    if (_userNamesCache.containsKey(userId)) {
+      return _userNamesCache[userId]!;
+    }
+
+    try {
+      final user = await _userDataService.getUserById(userId);
+      if (user != null) {
+        final userName = user.name.isNotEmpty ? user.name : user.email;
+        _userNamesCache[userId] = userName;
+        return userName;
+      }
+    } catch (e) {
+      debugPrint('Error fetching user name for $userId: $e');
+    }
+
+    // Fallback to showing the ID
+    _userNamesCache[userId] = 'User $userId';
+    return 'User $userId';
+  }
 
   // Missing variables
   String _selectedChartType = 'velocity';
@@ -121,10 +149,34 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       final items = await ApiService.getDeliverables();
       _dashboardDeliverables = items;
 
+      // Pre-populate user cache for better performance
+      await _preloadUserNames(items);
+
       _computeTeamMetrics();
     } finally {
       if (mounted) setState(() => _isLoadingDashboardDeliverables = false);
     }
+  }
+
+  // Preload user names for all deliverables to avoid multiple API calls
+  Future<void> _preloadUserNames(List<Map<String, dynamic>> deliverables) async {
+    final Set<String> userIds = {};
+    
+    for (final deliverable in deliverables) {
+      final ownerId = _getOwnerId(deliverable);
+      final assignedToId = deliverable['assigned_to']?.toString() ?? deliverable['assignedTo']?.toString();
+      
+      if (ownerId != null && ownerId.isNotEmpty) {
+        userIds.add(ownerId);
+      }
+      if (assignedToId != null && assignedToId.isNotEmpty) {
+        userIds.add(assignedToId);
+      }
+    }
+
+    // Batch load user names
+    final futures = userIds.map((userId) => _getUserNameById(userId));
+    await Future.wait(futures);
   }
 
   Future<void> _loadDashboardProjects() async {
@@ -415,6 +467,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _getOwnerName(Map<String, dynamic> data) {
     if (data['ownerName'] != null) return data['ownerName'].toString();
     if (data['owner_name'] != null) return data['owner_name'].toString();
+    
+    // Map backend field names to frontend expectations
+    if (data['created_by_name'] != null) return data['created_by_name'].toString();
 
     if (data['owner'] != null && data['owner'] is Map) {
       final owner = data['owner'];
@@ -431,6 +486,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _getOwnerId(Map<String, dynamic> data) {
     return data['ownerId']?.toString() ??
         data['owner_id']?.toString() ??
+        // Map backend field names to frontend expectations
+        data['created_by']?.toString() ??
         (data['owner'] != null && data['owner'] is Map
             ? data['owner']['id']?.toString()
             : null);
@@ -745,49 +802,55 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
-  Widget _buildRoleSpecificFAB() {
+  Widget? _buildRoleSpecificFAB() {
+    final auth = AuthService();
+    final canCreateDeliverable = auth.canCreateDeliverable();
+    final canManageUsers = auth.canManageUsers();
+
+    if (!canCreateDeliverable && !canManageUsers) return null;
+
     return FloatingActionButton(
       onPressed: () {
-        // Show centered modal for Team Member and Delivery Lead roles
-        if (_currentUser!.role == UserRole.teamMember ||
-            _currentUser!.role == UserRole.deliveryLead) {
+        if ((_currentUser!.role == UserRole.teamMember ||
+                _currentUser!.role == UserRole.deliveryLead) &&
+            canCreateDeliverable) {
           _showCreateDeliverableModal();
-        } else {
-          // Use bottom sheet for other roles (Client, System Admin, etc.)
-          showAppModalBottomSheet(
-            context: context,
-            builder: (context) {
-              return SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.assignment_outlined),
-                      title: const Text('Create Deliverable'),
-                      onTap: () {
-                        context.go('/deliverable-setup');
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.folder),
-                      title: const Text('View Projects'),
-                      onTap: () {
-                        context.go('/projects');
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.admin_panel_settings),
-                      title: const Text('Role Management'),
-                      onTap: () {
-                        context.go('/role-management');
-                      },
-                    ),
-                  ],
+          return;
+        }
+
+        showAppModalBottomSheet(
+          context: context,
+          builder: (context) {
+            final items = <Widget>[];
+
+            if (canCreateDeliverable) {
+              items.add(
+                ListTile(
+                  leading: const Icon(Icons.assignment_outlined),
+                  title: const Text('Create Deliverable'),
+                  onTap: () => context.go('/deliverable-setup'),
                 ),
               );
-            },
-          );
-        }
+            }
+
+            if (canManageUsers) {
+              items.add(
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings),
+                  title: const Text('Role Management'),
+                  onTap: () => context.go('/role-management'),
+                ),
+              );
+            }
+
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: items,
+              ),
+            );
+          },
+        );
       },
       backgroundColor:
           _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
@@ -876,57 +939,78 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   Widget _buildQuickActions() {
     final canCreate = _authService.canCreateDeliverable();
-    return Row(
-      children: [
+    final tiles = <Widget>[
+      Expanded(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildActionButton(
+              icon: Icons.folder_outlined,
+              label: 'View Projects',
+              onTap: () => context.go('/projects'),
+            ),
+          ),
+        ),
+      ),
+      Expanded(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildActionButton(
+              icon: Icons.assignment_outlined,
+              label: 'View Deliverables',
+              onTap: () => context.go('/deliverables'),
+            ),
+          ),
+        ),
+      ),
+    ];
+
+    if (canCreate) {
+      tiles.insert(
+        0,
         Expanded(
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.assignment_outlined,
+                icon: Icons.assignment_add,
                 label: 'Create Deliverable',
                 onTap: () => context.go('/deliverable-setup'),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+      );
+      tiles.add(
         Expanded(
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: _buildActionButton(
-                icon: Icons.folder_outlined,
-                label: 'View Projects',
-                onTap: () => context.go('/projects'),
+                icon: Icons.description_outlined,
+                label: 'Build Report',
+                onTap: () {
+                  final first =
+                      _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                  final id = first != null
+                      ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
+                      : '';
+                  if (id.isNotEmpty) context.go('/report-builder/$id');
+                },
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        if (canCreate)
-          Expanded(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: _buildActionButton(
-                  icon: Icons.description_outlined,
-                  label: 'Build Report',
-                  onTap: () {
-                    final first = _dashboardDeliverables.isNotEmpty
-                        ? _dashboardDeliverables.first
-                        : null;
-                    final id = first != null
-                        ? (first['id']?.toString() ??
-                            first['uuid']?.toString() ??
-                            '')
-                        : '';
-                    if (id.isNotEmpty) context.go('/report-builder/$id');
-                  },
-                ),
-              ),
-            ),
-          ),
+      );
+    }
+
+    return Row(
+      children: [
+        for (int i = 0; i < tiles.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          tiles[i],
+        ]
       ],
     );
   }
@@ -1774,11 +1858,56 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _ownerChip(String? ownerName, String? ownerId) {
-    final label = (ownerName != null && ownerName.isNotEmpty)
-        ? ownerName
-        : (ownerId != null && ownerId.isNotEmpty
-            ? 'Owner $ownerId'
-            : 'Unassigned');
+    // If we have a name, use it
+    if (ownerName != null && ownerName.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.purple.withValues(alpha: 0.12),
+          border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person_outline, size: 14),
+            const SizedBox(width: 4),
+            Text(ownerName),
+          ],
+        ),
+      );
+    }
+
+    // If we only have an ID, try to resolve it asynchronously
+    if (ownerId != null && ownerId.isNotEmpty) {
+      return FutureBuilder<String>(
+        future: _getUserNameById(ownerId),
+        builder: (context, snapshot) {
+          final label = snapshot.hasData 
+              ? snapshot.data! 
+              : 'Loading...';
+          
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.purple.withValues(alpha: 0.12),
+              border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person_outline, size: 14),
+                const SizedBox(width: 4),
+                Text(label),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    // Fallback to Unassigned
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -1786,12 +1915,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.person_outline, size: 14),
-          const SizedBox(width: 4),
-          Text(label),
+          Icon(Icons.person_outline, size: 14),
+          SizedBox(width: 4),
+          Text('Unassigned'),
         ],
       ),
     );

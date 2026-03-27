@@ -12,10 +12,15 @@ class AppIcons {
         'active': 'assets/Icons/Home_Dashboard active.png.png',
         'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
       },
+      // Projects folder icon (all roles)
+      'projects': {
+        'active': 'assets/icons/Repository_Project active.png.png',
+        'inactive': 'assets/icons/Repository_Project inactive.png.png',
+      },
       // Deliverables rocket icon (all roles)
       'deliverables': {
-        'active': 'assets/Icons/Approval Requests active.png.png',
-        'inactive': 'assets/Icons/Approval Requests inactive.png.png',
+        'active': 'assets/Icons/Deliverables_rocket_active.png',
+        'inactive': 'assets/Icons/Deliverables_rocket_inactive.png',
       },
       'sprints': {
         'active': 'assets/Icons/Sprints console active.png.png',
@@ -69,6 +74,10 @@ class AppIcons {
         'active': 'assets/Icons/Urgent Notifications active.png.png',
         'inactive': 'assets/Icons/Urgent Notifications inactive.png.png',
       },
+      'chatbot': {
+        'active': 'assets/Icons/AI_Red.png',
+        'inactive': 'assets/Icons/AI_Red.png',
+      },
     };
 
     final paths = iconPaths[iconName];
@@ -83,6 +92,7 @@ class AppIcons {
   }) {
     final iconMap = <String, IconData>{
       'dashboard': Icons.dashboard_outlined,
+      'projects': Icons.folder_outlined,
       'deliverables': Icons.rocket_launch_outlined,
       'sprints': Icons.timer_outlined,
       'notifications': Icons.notifications_outlined,

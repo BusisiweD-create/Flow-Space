@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/project_service.dart';
+<<<<<<< HEAD
 import '../services/backend_api_service.dart';
+=======
+>>>>>>> 5a5f93a16b6b8f56ed5bb621df94bbc060b74e35
 import 'package:khono/models/project.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_scaffold.dart';
@@ -19,9 +22,16 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   List<Project> _projects = [];
   bool _isLoading = false;
+<<<<<<< HEAD
     
   // Unified management mode
   bool _isCreateMode = false;
+=======
+  String? _selectedProjectId;
+    
+  // Unified management mode
+  final bool _isCreateMode = false;
+>>>>>>> 5a5f93a16b6b8f56ed5bb621df94bbc060b74e35
   String? _editingProjectId;
   
   // Form controllers for creation/editing
@@ -30,11 +40,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   final _clientNameController = TextEditingController();
   final _keyController = TextEditingController();
   
+<<<<<<< HEAD
   DateTime? _startDate;
   DateTime? _endDate;
   final String _selectedProjectType = 'Fixed Scope';
   final ProjectStatus _selectedStatus = ProjectStatus.planning;
   final ProjectPriority _selectedPriority = ProjectPriority.medium;
+=======
+>>>>>>> 5a5f93a16b6b8f56ed5bb621df94bbc060b74e35
   
   @override
   void initState() {
@@ -42,6 +55,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     _loadProjects();
   }
 
+<<<<<<< HEAD
   void _toggleCreateMode() {
     setState(() {
       _isCreateMode = !_isCreateMode;
@@ -60,6 +74,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     _endDate = null;
     _editingProjectId = null;
   }
+=======
+
+>>>>>>> 5a5f93a16b6b8f56ed5bb621df94bbc060b74e35
 
   Future<void> _loadProjects() async {
     setState(() {
@@ -510,6 +527,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+<<<<<<< HEAD
   Future<void> _saveProject() async {
     if (_nameController.text.isEmpty || _keyController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -573,5 +591,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         );
       }
     }
+=======
+  void _navigateToSprintConsole(String? projectId) {
+    if (projectId != null && projectId.isNotEmpty) {
+      context.push('/sprint-console', extra: {'projectId': projectId});
+    } else {
+      context.push('/sprint-console');
+    }
+>>>>>>> 5a5f93a16b6b8f56ed5bb621df94bbc060b74e35
   }
 }

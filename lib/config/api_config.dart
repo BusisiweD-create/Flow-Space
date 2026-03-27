@@ -1,15 +1,17 @@
+import 'environment.dart';
+
 class ApiConfig {
   // Base API configuration - prioritize production URL for deployed apps
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://backend-532p.onrender.com/api',
+    defaultValue: 'http://localhost:3001/api',
   );
   static const String apiVersion = '/v1';
   static const Duration requestTimeout = Duration(seconds: 30);
   static const Duration tokenRefreshBuffer = Duration(minutes: 5);
 
   // Environment-specific URLs
-  static const String developmentUrl = 'http://localhost:8000/api';
+  static const String developmentUrl = 'http://localhost:3001/api';
   static const String stagingUrl = 'https://staging-api.flownet.works';
   static const String productionUrl = 'https://flow-space.onrender.com/api';
 
@@ -71,7 +73,7 @@ class ApiConfig {
 
   // Helper methods
   static String getFullUrl(String endpoint) {
-    return '$environmentBaseUrl$apiVersion$endpoint';
+    return '${Environment.apiBaseUrl}$endpoint';
   }
 
   static String replacePathParameter(
