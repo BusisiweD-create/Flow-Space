@@ -369,6 +369,10 @@ class Project {
     return '${endDate!.day.toString().padLeft(2, '0')}/${endDate!.month.toString().padLeft(2, '0')}/${endDate!.year}';
   }
 
+  String get formattedStartDate {
+    return '${startDate.day.toString().padLeft(2, '0')}/${startDate.month.toString().padLeft(2, '0')}/${startDate.year}';
+  }
+
   Map<String, dynamic> get auditMetadata {
     return {
       'projectId': id,
