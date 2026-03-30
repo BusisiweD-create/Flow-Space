@@ -27,9 +27,9 @@ class GlassContainer extends StatelessWidget {
     this.width,
     this.height,
     this.borderRadius = 24.0,
-    this.opacity = 0.05,
-    this.blurSigmaX = 12.0,
-    this.blurSigmaY = 12.0,
+    this.opacity = 0.12,
+    this.blurSigmaX = 25.0,
+    this.blurSigmaY = 25.0,
     this.borderColor,
     this.borderWidth = 1.0,
     this.gradientColors,
@@ -55,10 +55,10 @@ class GlassContainer extends StatelessWidget {
       width: width,
       height: height,
       borderRadius: borderRadius ?? 24.0,
-      opacity: 0.05,
-      blurSigmaX: 12.0,
-      blurSigmaY: 12.0,
-      borderWidth: 0.8,
+      opacity: 0.12,
+      blurSigmaX: 25.0,
+      blurSigmaY: 25.0,
+      borderWidth: 1.0,
       padding: padding,
       margin: margin,
       onTap: onTap,
@@ -80,10 +80,10 @@ class GlassContainer extends StatelessWidget {
       width: width,
       height: height,
       borderRadius: borderRadius ?? 24.0,
-      opacity: 0.03,
-      blurSigmaX: 8.0,
-      blurSigmaY: 8.0,
-      borderWidth: 0.6,
+      opacity: 0.08,
+      blurSigmaX: 20.0,
+      blurSigmaY: 20.0,
+      borderWidth: 0.8,
       padding: padding,
       margin: margin,
       onTap: onTap,
@@ -105,10 +105,10 @@ class GlassContainer extends StatelessWidget {
       width: width,
       height: height,
       borderRadius: borderRadius ?? 24.0,
-      opacity: 0.08,
-      blurSigmaX: 14.0,
-      blurSigmaY: 14.0,
-      borderWidth: 1.0,
+      opacity: 0.20,
+      blurSigmaX: 30.0,
+      blurSigmaY: 30.0,
+      borderWidth: 1.3,
       padding: padding,
       margin: margin,
       onTap: onTap,
@@ -119,21 +119,21 @@ class GlassContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveBorderColor = borderColor ?? 
-        Colors.white.withAlpha(24);
+        Colors.white.withValues(alpha: 0.18);
     
     final effectiveGradientColors = gradientColors ?? [
-      Colors.white.withAlpha(12),
-      Colors.white.withAlpha(6),
+      Colors.white.withValues(alpha: 0.1),
+      Colors.white.withValues(alpha: 0.05),
     ];
 
     final effectiveShadow = shadow ?? BoxShadow(
-      color: Colors.black.withValues(alpha: 0.06),
-      blurRadius: 14,
+      color: Colors.black.withValues(alpha: 0.1),
+      blurRadius: 20,
       spreadRadius: 0,
       offset: const Offset(0, 4),
     );
 
-    final Widget container = Container(
+    final container = Container(
       width: width,
       height: height,
       margin: margin,
@@ -216,7 +216,7 @@ class _GlassButtonState extends State<GlassButton>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
-  
+
   @override
   void initState() {
     super.initState();

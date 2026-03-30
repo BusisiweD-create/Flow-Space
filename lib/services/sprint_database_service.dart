@@ -225,14 +225,18 @@ debugPrint('📡 Sprint creation response: ${response.statusCode}');
   Future<Map<String, dynamic>?> updateSprint({
     required int sprintId,
     String? name,
+    String? description,
     String? goal,
     String? state,
     DateTime? startDate,
     DateTime? endDate,
     String? projectId,
+    int? plannedPoints,
     int? committedPoints,
     int? completedPoints,
     int? carriedOverPoints,
+    int? addedDuringSprint,
+    int? removedDuringSprint,
     double? testPassRate,
     int? codeCoverage,
     int? escapedDefects,
@@ -252,14 +256,18 @@ debugPrint('📡 Sprint creation response: ${response.statusCode}');
     try {
       final body = <String, dynamic>{};
       if (name != null) body['name'] = name;
+      if (description != null) body['description'] = description;
       if (goal != null) body['goal'] = goal;
       if (state != null) body['state'] = state;
       if (startDate != null) body['startDate'] = startDate.toIso8601String();
       if (endDate != null) body['endDate'] = endDate.toIso8601String();
       if (projectId != null) body['project_id'] = projectId;
+      if (plannedPoints != null) body['planned_points'] = plannedPoints;
       if (committedPoints != null) body['committed_points'] = committedPoints;
       if (completedPoints != null) body['completed_points'] = completedPoints;
       if (carriedOverPoints != null) body['carried_over_points'] = carriedOverPoints;
+      if (addedDuringSprint != null) body['added_during_sprint'] = addedDuringSprint;
+      if (removedDuringSprint != null) body['removed_during_sprint'] = removedDuringSprint;
       if (testPassRate != null) body['test_pass_rate'] = testPassRate;
       if (codeCoverage != null) body['code_coverage'] = codeCoverage;
       if (escapedDefects != null) body['escaped_defects'] = escapedDefects;

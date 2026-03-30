@@ -262,19 +262,39 @@ class Deliverable {
 
     // Handle sprintIds which might come as 'sprintIds' (List) or 'sprint_id' (String)
     List<String> parseSprintIds(Map<String, dynamic> json) {
-      if (json['sprintIds'] != null) {
-        return List<String>.from(json['sprintIds']);
+      final ids = <String>{};
+
+      void add(dynamic v) {
+        final s = v?.toString();
+        if (s != null && s.trim().isNotEmpty) ids.add(s.trim());
       }
-      if (json['sprint_ids'] != null) {
-        return List<String>.from(json['sprint_ids']);
+
+      void addFromList(dynamic v) {
+        if (v is List) {
+          for (final item in v) {
+            add(item);
+          }
+        }
       }
-      if (json['sprint_id'] != null) {
-        return [json['sprint_id'].toString()];
+
+      addFromList(json['sprintIds']);
+      addFromList(json['sprint_ids']);
+
+      add(json['sprint_id']);
+      add(json['sprintId']);
+
+      final contributing = json['contributing_sprints'] ?? json['contributingSprints'] ?? json['sprints'];
+      if (contributing is List) {
+        for (final item in contributing) {
+          if (item is Map) {
+            add(item['id'] ?? item['sprint_id'] ?? item['sprintId']);
+          } else {
+            add(item);
+          }
+        }
       }
-      if (json['sprintId'] != null) {
-        return [json['sprintId'].toString()];
-      }
-      return [];
+
+      return ids.toList();
     }
     
     // Handle camelCase and snake_case keys

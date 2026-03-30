@@ -87,14 +87,37 @@ router.post('/register', async (req, res) => {
       'teammember': 'teamMember',
       'user': 'user'
     };
-    const normalizedRole = roleMap[cleanRole] || 'user';
+    // App-level role (camelCase); unknown roles default to team member
+    const normalizedRole = roleMap[cleanRole] || 'teamMember';
+
+    // DB CHECK (users_role_check) must match your Postgres schema. Repo SQL files use:
+    //   ('admin', 'project_manager', 'developer', 'client', 'stakeholder')
+    // Storing values like 'teamMember' fails that constraint.
+    // Optional: set USERS_ROLE_FORMAT=snake if your DB uses team_member, system_admin, etc.
+    const format = String(process.env.USERS_ROLE_FORMAT || 'legacy').toLowerCase();
+    const legacyDbRole = {
+      teamMember: 'developer',
+      deliveryLead: 'project_manager',
+      systemAdmin: 'admin',
+      clientReviewer: 'client',
+      user: 'developer'
+    };
+    const snakeDbRole = {
+      teamMember: 'team_member',
+      deliveryLead: 'delivery_lead',
+      systemAdmin: 'system_admin',
+      clientReviewer: 'client_reviewer',
+      user: 'user'
+    };
+    const map = format === 'snake' ? snakeDbRole : legacyDbRole;
+    const roleForDatabase = map[normalizedRole] || (format === 'snake' ? 'team_member' : 'developer');
 
     const user = await User.create({
       email,
       hashed_password: hashedPassword,
       first_name: firstName,
       last_name: lastName,
-      role: normalizedRole,
+      role: roleForDatabase,
       is_active: true
     });
 

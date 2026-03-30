@@ -101,33 +101,19 @@ router.get('/', async (req, res) => {
     if (!base.endsWith('/sign-off-reports')) {
       return res.status(404).json({ error: 'Endpoint not found' });
     }
+    
     await ensureReportsTable();
     
-    const { deliverableId, status } = req.query;
+    const { deliverableId } = req.query;
     let results;
     try {
-      const normalizeStatus = (s) => {
-        const x = String(s || '').toLowerCase().replace(/[\s_-]+/g, '');
-        if (!x) return '';
-        if (x === 'underreview') return 'under_review';
-        if (x === 'changerequested') return 'change_requested';
-        return x;
-      };
-      const s = normalizeStatus(status);
-      if (deliverableId && s) {
-        results = await sequelize.query(
-          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 AND LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($2, '-', '')) ORDER BY created_at DESC",
-          { bind: [deliverableId, s], type: QueryTypes.SELECT }
-        );
-      } else if (deliverableId) {
+      if (deliverableId) {
         results = await sequelize.query(
           "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE deliverable_id = $1 ORDER BY created_at DESC",
-          { bind: [deliverableId], type: QueryTypes.SELECT }
-        );
-      } else if (s) {
-        results = await sequelize.query(
-          "SELECT id, deliverable_id, created_by, status, content, created_at, updated_at FROM sign_off_reports WHERE LOWER(REPLACE(status, '-', '')) = LOWER(REPLACE($1, '-', '')) ORDER BY created_at DESC",
-          { bind: [s], type: QueryTypes.SELECT }
+          { 
+            bind: [deliverableId],
+            type: QueryTypes.SELECT 
+          }
         );
       } else {
         results = await sequelize.query(
@@ -167,7 +153,7 @@ router.get('/', async (req, res) => {
         (u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || '').trim(),
       ])
     );
-    let reports = rawRows.map((row) => {
+    const reports = rawRows.map((row) => {
       try {
         const c = typeof row.content === 'string' ? safeParseJson(row.content) : (row.content || {});
         const submittedBy = c.submittedBy || c.submitted_by;
@@ -224,16 +210,6 @@ router.get('/', async (req, res) => {
         };
       }
     });
-    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
-    const role = normalizeRole(req.user && req.user.role);
-    const qStatus = String(req.query.status || '').toLowerCase().replace(/[\s_-]+/g, '');
-    if (role === 'clientreviewer') {
-      const allowedStatuses = new Set(['submitted', 'approved', 'underreview', 'under_review']);
-      reports = reports.filter((r) => allowedStatuses.has(String(r.status || '').toLowerCase()));
-      if (qStatus && !allowedStatuses.has(qStatus)) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
-      }
-    }
     if (reports.length === 0) {
       try {
         const signoffs = await Signoff.findAll({
@@ -384,6 +360,8 @@ router.post('/', async (req, res) => {
     const base = req.baseUrl || '';
     if (base.endsWith('/sign-off-reports')) {
       await ensureReportsTable();
+      
+      // Validate required fields
       const {
         deliverableId,
         reportTitle,
@@ -394,9 +372,7 @@ router.post('/', async (req, res) => {
         nextSteps,
         status
       } = req.body || {};
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
+      
       if (!deliverableId || typeof deliverableId !== 'string' || deliverableId.trim().length === 0) {
         return res.status(400).json({ error: 'deliverableId is required' });
       }
@@ -408,13 +384,15 @@ router.post('/', async (req, res) => {
       }
       const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
       const content = {
-        reportTitle,
-        reportContent,
+        reportTitle: reportTitle.trim(),
+        reportContent: reportContent.trim(),
         sprintIds: sprintIds || [],
         sprintPerformanceData,
         knownLimitations,
         nextSteps,
-        status: normalizedStatus
+        status: normalizedStatus,
+        submittedBy: req.user?.id || null,
+        submittedByName: req.user?.email || 'Unknown User'
       };
       const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
       const contentExpr = dialect === 'postgres' ? '$4::jsonb' : '$4';

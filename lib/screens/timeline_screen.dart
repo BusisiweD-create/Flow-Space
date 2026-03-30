@@ -411,8 +411,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            Expanded(
-                child: _buildViewButton('Month', Icons.calendar_view_month)),
+            Expanded(child: _buildViewButton('Month', Icons.calendar_view_month)),
             const SizedBox(width: 8),
             Expanded(child: _buildViewButton('Week', Icons.calendar_view_week)),
             const SizedBox(width: 8),
@@ -553,7 +552,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
             });
           },
           borderRadius: 14.0,
-          opacity: isActive ? 0.24 : (isHovered ? 0.16 : 0.10),
+          opacity: isActive
+              ? 0.24
+              : (isHovered ? 0.16 : 0.10),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -752,14 +753,14 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
                                     return Expanded(
                                       child: MouseRegion(
-                                        onEnter: (_) => setState(() =>
-                                            _hoveredSlotStart = slotStart),
-                                        onExit: (_) => setState(
-                                            () => _hoveredSlotStart = null),
+                                        onEnter: (_) => setState(
+                                            () => _hoveredSlotStart = slotStart),
+                                        onExit: (_) =>
+                                            setState(() => _hoveredSlotStart = null),
                                         child: GestureDetector(
                                           behavior: HitTestBehavior.opaque,
-                                          onTap: () => _handleTimeSlotTap(
-                                              day, slotStartHour),
+                                          onTap: () =>
+                                              _handleTimeSlotTap(day, slotStartHour),
                                           child: AnimatedContainer(
                                             duration: const Duration(
                                                 milliseconds: 120),
@@ -1061,7 +1062,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
                               _selectedDay.day,
                               slotStartHour,
                             );
-                            final isHovered = _hoveredSlotStart == slotStart;
+                            final isHovered =
+                                _hoveredSlotStart == slotStart;
 
                             return Expanded(
                               child: MouseRegion(
@@ -1076,7 +1078,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                     slotStartHour,
                                   ),
                                   child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 120),
+                                    duration:
+                                        const Duration(milliseconds: 120),
                                     decoration: BoxDecoration(
                                       color: isHovered
                                           ? FlownetColors.pureWhite

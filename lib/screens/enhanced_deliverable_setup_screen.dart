@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/release_readiness.dart';
 import '../theme/flownet_theme.dart';
 import '../widgets/ai_readiness_gate_widget.dart';
@@ -10,6 +11,8 @@ import '../services/deliverable_service.dart';
 import '../services/sprint_database_service.dart';
 import '../services/project_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/auth_service.dart';
+import '../services/realtime_service.dart';
 import '../models/dod_item.dart';
 
 class EnhancedDeliverableSetupScreen extends ConsumerStatefulWidget {
@@ -29,8 +32,11 @@ class _EnhancedDeliverableSetupScreenState
 
   DateTime? _dueDate;
   final List<String> _selectedSprints = [];
+  String? _pendingSprintId;
   final List<DoDItem> _definitionOfDone = [];
   final List<String> _evidenceLinks = [];
+  final List<PlatformFile> _artifactFiles = [];
+  final TextEditingController _artifactDescriptionController = TextEditingController();
   final List<ReadinessItem> _readinessItems = [];
   final DeliverableService _deliverableService = DeliverableService();
   final SprintDatabaseService _sprintService = SprintDatabaseService();
@@ -45,6 +51,7 @@ class _EnhancedDeliverableSetupScreenState
   bool _isLoadingSprints = true;
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _projects = [];
+  bool _isUploadingArtifacts = false;
 
   @override
   void initState() {
@@ -63,6 +70,10 @@ class _EnhancedDeliverableSetupScreenState
         _selectedProjectId = projectId;
       }
     } catch (_) {}
+    final me = AuthService().currentUser;
+    if ((_ownerId == null || _ownerId!.trim().isEmpty) && me?.id != null) {
+      _ownerId = me!.id.toString();
+    }
     _initializeReadinessItems();
     _loadSprints();
     _loadUsers();
@@ -81,6 +92,26 @@ class _EnhancedDeliverableSetupScreenState
             _users = List<Map<String, dynamic>>.from(response.data['users']);
           } else if (response.data is Map && response.data['data'] != null) {
             _users = List<Map<String, dynamic>>.from(response.data['data']);
+          }
+        });
+      }
+      if (!mounted) return;
+      final me = AuthService().currentUser;
+      if (me?.id != null) {
+        final myId = me!.id.toString();
+        setState(() {
+          if (!_users.any((u) => u['id']?.toString() == myId)) {
+            _users = [
+              {
+                'id': myId,
+                'name': me.name,
+                'email': me.email,
+              },
+              ..._users,
+            ];
+          }
+          if ((_ownerId == null || _ownerId!.trim().isEmpty) && myId.isNotEmpty) {
+            _ownerId = myId;
           }
         });
       }
@@ -416,39 +447,70 @@ class _EnhancedDeliverableSetupScreenState
         assignedTo: _ownerId,
         projectId: _selectedProjectId,
       );
+      
+      if (!mounted) return;
 
-      if (mounted) {
+      if (!response.isSuccess) {
         setState(() {
           _isSubmitting = false;
         });
-
-        if (response.isSuccess) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('✅ Deliverable "$title" created successfully!'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-            // Navigate to dashboard instead of popping (safer)
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted) {
-                context.go('/dashboard');
-              }
-            });
-          }
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  '❌ Failed to create deliverable: ${response.error ?? "Unknown error"}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to create deliverable: ${response.error ?? "Unknown error"}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        return;
       }
+
+      String deliverableId = '';
+      try {
+        final raw = response.data;
+        if (raw is Map) {
+          final d = raw['deliverable'];
+          if (d is Map) {
+            deliverableId = (d['id'] ?? d['uuid'] ?? '').toString();
+          } else if (d != null) {
+            deliverableId = (d.id ?? '').toString();
+          }
+          if (deliverableId.isEmpty) {
+            deliverableId = (raw['id'] ?? raw['uuid'] ?? '').toString();
+          }
+        }
+      } catch (_) {}
+
+      if (_artifactFiles.isNotEmpty && deliverableId.isNotEmpty) {
+        await _uploadSelectedArtifacts(deliverableId);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+
+      try {
+        RealtimeService().emitLocal('deliverable_created', {
+          'id': deliverableId,
+          'title': title,
+          'owner_id': _ownerId,
+          'created_by': AuthService().currentUser?.id,
+        });
+      } catch (_) {}
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Deliverable "$title" created successfully!'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          context.go('/dashboard');
+        }
+      });
     } catch (e, stackTrace) {
       debugPrint('❌ Error creating deliverable: $e');
       debugPrint('📚 Stack trace: $stackTrace');
@@ -465,6 +527,112 @@ class _EnhancedDeliverableSetupScreenState
           ),
         );
       }
+    }
+  }
+
+  Future<void> _pickArtifactFiles() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: true,
+        withData: true,
+        withReadStream: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final picked = result.files.where((f) {
+        final name = (f.name).toLowerCase();
+        return !name.endsWith('.json');
+      }).toList();
+
+      if (picked.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('JSON files cannot be uploaded.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        for (final f in picked) {
+          final key = '${f.name}|${f.size}';
+          final exists = _artifactFiles.any((e) => '${e.name}|${e.size}' == key);
+          if (!exists) _artifactFiles.add(f);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to pick files: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _uploadSelectedArtifacts(String deliverableId) async {
+    if (_isUploadingArtifacts) return;
+    setState(() => _isUploadingArtifacts = true);
+    try {
+      final backend = BackendApiService();
+      final description = _artifactDescriptionController.text.trim();
+      int ok = 0;
+      int failed = 0;
+      for (final f in List<PlatformFile>.from(_artifactFiles)) {
+        List<int>? bytes = f.bytes;
+        if ((bytes == null || bytes.isEmpty) && f.readStream != null) {
+          final out = <int>[];
+          await for (final chunk in f.readStream!) {
+            out.addAll(chunk);
+          }
+          bytes = out;
+        }
+        if (bytes == null || bytes.isEmpty) {
+          failed += 1;
+          continue;
+        }
+        final resp = await backend.uploadDeliverableArtifact(
+          deliverableId,
+          bytes,
+          f.name,
+          title: f.name,
+          description: description.isEmpty ? null : description,
+        );
+        if (resp.isSuccess) {
+          ok += 1;
+        } else {
+          failed += 1;
+        }
+      }
+      if (!mounted) return;
+      if (failed == 0 && ok > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Uploaded $ok document(s)'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else if (ok > 0 && failed > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Uploaded $ok document(s), $failed failed'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else if (failed > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$failed document upload(s) failed'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingArtifacts = false);
     }
   }
 
@@ -630,8 +798,22 @@ class _EnhancedDeliverableSetupScreenState
                     );
                   }),
                 ],
-                onChanged: (value) =>
-                    setState(() => _selectedProjectId = value),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedProjectId = value;
+                    if (value != null && value.trim().isNotEmpty) {
+                      _selectedSprints.removeWhere((sid) {
+                        final s = _availableSprints.firstWhere(
+                          (sp) => (sp['id']?.toString() ?? '') == sid,
+                          orElse: () => <String, dynamic>{},
+                        );
+                        final pid = (s['project_id'] ?? s['projectId'])?.toString() ?? '';
+                        return pid.isNotEmpty && pid != value;
+                      });
+                      _pendingSprintId = null;
+                    }
+                  });
+                },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Project is required';
@@ -680,39 +862,146 @@ class _EnhancedDeliverableSetupScreenState
                   ),
                 )
               else
-                Card(
-                  color: FlownetColors.graphiteGray,
-                  child: Column(
-                    children: _availableSprints.map((sprint) {
-                      final sprintId = sprint['id']?.toString() ?? '';
-                      final sprintName =
-                          sprint['name']?.toString() ?? 'Unnamed Sprint';
-                      final status = sprint['status']?.toString() ?? '';
-                      final isSelected = _selectedSprints.contains(sprintId);
+                Builder(
+                  builder: (context) {
+                    final projectId = (_selectedProjectId ?? '').trim();
+                    final available = projectId.isEmpty
+                        ? _availableSprints
+                        : _availableSprints.where((s) {
+                            final pid = (s['project_id'] ?? s['projectId'])?.toString() ?? '';
+                            return pid == projectId;
+                          }).toList();
 
-                      return CheckboxListTile(
-                        value: isSelected,
-                        onChanged: (bool? value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedSprints.add(sprintId);
-                            } else {
-                              _selectedSprints.remove(sprintId);
-                            }
-                          });
-                        },
-                        title: Text(sprintName),
-                        subtitle: Text('Status: $status'),
-                        secondary: Icon(
-                          Icons.speed,
-                          color: isSelected
-                              ? FlownetColors.electricBlue
-                              : Colors.grey,
+                    final remaining = available.where((s) {
+                      final sid = s['id']?.toString() ?? '';
+                      return sid.isNotEmpty && !_selectedSprints.contains(sid);
+                    }).toList();
+
+                    final selected = available.where((s) {
+                      final sid = s['id']?.toString() ?? '';
+                      return sid.isNotEmpty && _selectedSprints.contains(sid);
+                    }).toList();
+
+                    return Card(
+                      color: FlownetColors.graphiteGray,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final compact = constraints.maxWidth < 520;
+
+                                final dropdown = DropdownButtonFormField<String?>(
+                                  initialValue: remaining.any((s) => (s['id']?.toString() ?? '') == _pendingSprintId)
+                                      ? _pendingSprintId
+                                      : null,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Add sprint',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        child: Text('Select sprint', overflow: TextOverflow.ellipsis),
+                                      ),
+                                    ),
+                                    ...remaining.map((s) {
+                                      final sid = s['id']?.toString() ?? '';
+                                      final name = s['name']?.toString() ?? 'Unnamed Sprint';
+                                      final status = s['status']?.toString() ?? '';
+                                      final label = status.isNotEmpty ? '$name • $status' : name;
+                                      return DropdownMenuItem<String?>(
+                                        value: sid,
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: Text(label, overflow: TextOverflow.ellipsis, softWrap: false),
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                  onChanged: (v) => setState(() => _pendingSprintId = v),
+                                );
+
+                                final addButton = SizedBox(
+                                  width: compact ? double.infinity : null,
+                                  child: ElevatedButton(
+                                    onPressed: (_pendingSprintId == null)
+                                        ? null
+                                        : () {
+                                            final sid = _pendingSprintId;
+                                            if (sid == null || sid.isEmpty) return;
+                                            setState(() {
+                                              if (!_selectedSprints.contains(sid)) _selectedSprints.add(sid);
+                                              _pendingSprintId = null;
+                                            });
+                                          },
+                                    style: ElevatedButton.styleFrom(backgroundColor: FlownetColors.electricBlue),
+                                    child: const Text('Add', overflow: TextOverflow.ellipsis),
+                                  ),
+                                );
+
+                                if (compact) {
+                                  return Column(
+                                    children: [
+                                      dropdown,
+                                      const SizedBox(height: 12),
+                                      addButton,
+                                    ],
+                                  );
+                                }
+
+                                return Row(
+                                  children: [
+                                    Expanded(child: dropdown),
+                                    const SizedBox(width: 12),
+                                    addButton,
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            if (selected.isEmpty)
+                              Text(
+                                'No sprints selected',
+                                style: TextStyle(color: FlownetColors.pureWhite.withValues(alpha: 0.7)),
+                              )
+                            else
+                              Container(
+                                constraints: const BoxConstraints(maxHeight: 180),
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: selected.length,
+                                  itemBuilder: (context, index) {
+                                    final sprint = selected[index];
+                                    final sid = sprint['id']?.toString() ?? '';
+                                    final name = sprint['name']?.toString() ?? 'Sprint';
+                                    final status = sprint['status']?.toString() ?? '';
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(name),
+                                      subtitle: Text(status.isNotEmpty ? 'Status: $status' : ''),
+                                      trailing: IconButton(
+                                        icon: const Icon(Icons.close, color: Colors.red),
+                                        onPressed: () {
+                                          setState(() {
+                                            _selectedSprints.remove(sid);
+                                          });
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                          ],
                         ),
-                        activeColor: FlownetColors.electricBlue,
-                      );
-                    }).toList(),
-                  ),
+                      ),
+                    );
+                  },
                 ),
 
               if (_selectedSprints.isNotEmpty) ...[
@@ -790,6 +1079,56 @@ class _EnhancedDeliverableSetupScreenState
                   backgroundColor: FlownetColors.electricBlue,
                 ),
               ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _artifactDescriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Document description (optional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: (_isSubmitting || _isUploadingArtifacts) ? null : _pickArtifactFiles,
+                  icon: _isUploadingArtifacts
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.upload_file),
+                  label: const Text('Upload document(s)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: FlownetColors.electricBlue,
+                  ),
+                ),
+              ),
+              if (_artifactFiles.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ..._artifactFiles.map((f) {
+                  final sizeKb = (f.size / 1024).toStringAsFixed(0);
+                  return Card(
+                    color: FlownetColors.graphiteGray,
+                    child: ListTile(
+                      leading: const Icon(Icons.insert_drive_file, color: Colors.white70),
+                      title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('$sizeKb KB'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            _artifactFiles.remove(f);
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                }),
+              ],
               const SizedBox(height: 24),
 
               // AI-Powered Release Readiness Gate

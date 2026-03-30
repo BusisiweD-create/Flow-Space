@@ -33,13 +33,14 @@ final ApiClient _apiClient = ApiClient();
     String? to,
   }) async {
     try {
+      await _apiClient.initialize();
       final queryParams = <String, String>{
         if (search != null && search.isNotEmpty) 'search': search,
         if (fileType != null && fileType.isNotEmpty) 'fileType': fileType,
         if (uploader != null && uploader.isNotEmpty) 'uploader': uploader,
-        if (projectId != null && projectId.isNotEmpty) 'projectId': projectId,
-        if (sprintId != null && sprintId.isNotEmpty) 'sprintId': sprintId,
-        if (deliverableId != null && deliverableId.isNotEmpty) 'deliverableId': deliverableId,
+        if (projectId != null && projectId.isNotEmpty) 'project_id': projectId,
+        if (sprintId != null && sprintId.isNotEmpty) 'sprint_id': sprintId,
+        if (deliverableId != null && deliverableId.isNotEmpty) 'deliverable_id': deliverableId,
         if (from != null && from.isNotEmpty) 'from': from,
         if (to != null && to.isNotEmpty) 'to': to,
       };
@@ -135,6 +136,10 @@ final ApiClient _apiClient = ApiClient();
     required String filePath,
     String? description,
     String? tags,
+    String? projectId,
+    String? projectKey,
+    String? sprintId,
+    String? deliverableId,
   }) async {
     try {
       final token = _authService.accessToken;
@@ -160,6 +165,18 @@ final ApiClient _apiClient = ApiClient();
       }
       if (tags != null && tags.isNotEmpty) {
         request.fields['tags'] = tags;
+      }
+      if (projectId != null && projectId.trim().isNotEmpty) {
+        request.fields['project_id'] = projectId.trim();
+      }
+      if (projectKey != null && projectKey.trim().isNotEmpty) {
+        request.fields['project_key'] = projectKey.trim();
+      }
+      if (sprintId != null && sprintId.trim().isNotEmpty) {
+        request.fields['sprint_id'] = sprintId.trim();
+      }
+      if (deliverableId != null && deliverableId.trim().isNotEmpty) {
+        request.fields['deliverable_id'] = deliverableId.trim();
       }
 
       final streamedResponse = await request.send();
@@ -207,6 +224,10 @@ final ApiClient _apiClient = ApiClient();
     required String fileName,
     String? description,
     String? tags,
+    String? projectId,
+    String? projectKey,
+    String? sprintId,
+    String? deliverableId,
   }) async {
     try {
       final token = _authService.accessToken;
@@ -235,6 +256,18 @@ final ApiClient _apiClient = ApiClient();
       }
       if (tags != null && tags.isNotEmpty) {
         request.fields['tags'] = tags;
+      }
+      if (projectId != null && projectId.trim().isNotEmpty) {
+        request.fields['project_id'] = projectId.trim();
+      }
+      if (projectKey != null && projectKey.trim().isNotEmpty) {
+        request.fields['project_key'] = projectKey.trim();
+      }
+      if (sprintId != null && sprintId.trim().isNotEmpty) {
+        request.fields['sprint_id'] = sprintId.trim();
+      }
+      if (deliverableId != null && deliverableId.trim().isNotEmpty) {
+        request.fields['deliverable_id'] = deliverableId.trim();
       }
 
       final streamedResponse = await request.send();

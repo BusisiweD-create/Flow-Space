@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { Sprint, Project } = require('../models');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { carryOverOverdueDeliverablesForProject } = require('../services/sprintCarryOverService');
 
 function normalizeSprintData(body) {
   const d = {};
@@ -81,6 +83,14 @@ router.get('/', async (req, res) => {
     const include = [{ model: Project, as: 'project', attributes: ['id', 'name', 'key'] }];
     if (!projectId && projectKey) include[0].where = { key: projectKey };
 
+    if (projectId) {
+      try {
+        await carryOverOverdueDeliverablesForProject(projectId);
+      } catch (e) {
+        console.error('Error carrying over overdue deliverables:', e);
+      }
+    }
+
     const sprints = await Sprint.findAll({
       offset: parseInt(skip),
       limit: parseInt(limit),
@@ -146,7 +156,7 @@ router.get('/:id', async (req, res) => {
  * @desc Create a new sprint
  * @access Private
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const sprintData = normalizeSprintData(req.body);
     const sprint = await Sprint.create(sprintData);
@@ -169,7 +179,7 @@ router.post('/', async (req, res) => {
  * @desc Update an existing sprint
  * @access Private
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = normalizeSprintData(req.body);
@@ -178,6 +188,23 @@ router.put('/:id', async (req, res) => {
     
     if (!sprint) {
       return res.status(404).json({ error: 'Sprint not found' });
+    }
+
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const isPrivileged = ['admin', 'systemadmin', 'deliverylead'].includes(role);
+    let isProjectOwner = false;
+    try {
+      const pid = sprint.project_id;
+      if (pid) {
+        const project = await Project.findByPk(pid);
+        if (project && project.owner_id && req.user && req.user.id) {
+          isProjectOwner = String(project.owner_id) === String(req.user.id);
+        }
+      }
+    } catch (_) {}
+    if (!isPrivileged && !isProjectOwner) {
+      return res.status(403).json({ error: 'Not authorized to update this sprint' });
     }
     
     await sprint.update(updateData);
@@ -194,7 +221,7 @@ router.put('/:id', async (req, res) => {
  * @desc Update sprint status (compatibility endpoint)
  * @access Private
  */
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const nextStatus = req.body?.status ?? req.body?.state ?? req.body?.newStatus;
@@ -205,6 +232,23 @@ router.put('/:id/status', async (req, res) => {
     const sprint = await Sprint.findByPk(id);
     if (!sprint) {
       return res.status(404).json({ error: 'Sprint not found' });
+    }
+
+    const normalizeRole = (r) => String(r || '').toLowerCase().replace(/[\s_-]+/g, '');
+    const role = normalizeRole(req.user && req.user.role);
+    const isPrivileged = ['admin', 'systemadmin', 'deliverylead'].includes(role);
+    let isProjectOwner = false;
+    try {
+      const pid = sprint.project_id;
+      if (pid) {
+        const project = await Project.findByPk(pid);
+        if (project && project.owner_id && req.user && req.user.id) {
+          isProjectOwner = String(project.owner_id) === String(req.user.id);
+        }
+      }
+    } catch (_) {}
+    if (!isPrivileged && !isProjectOwner) {
+      return res.status(403).json({ error: 'Not authorized to update sprint status' });
     }
 
     await sprint.update({ status: nextStatus });
@@ -220,7 +264,7 @@ router.put('/:id/status', async (req, res) => {
  * @desc Delete a sprint
  * @access Private
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(['deliveryLead', 'systemAdmin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     

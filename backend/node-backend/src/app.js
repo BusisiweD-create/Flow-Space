@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+require('dotenv').config({ path: '../.env' });
 const env = require('./config/env-loader');
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +19,7 @@ app.use((req, res, next) => {
 
 // Import database configuration
 const { testConnection, syncDatabase } = require('./config/database');
+const { ensureProjectsSchema } = require('./config/ensureProjectsSchema');
 
 // Import models
 const { sequelize, User, Notification, Ticket, ApprovalRequest } = require('./models');
@@ -156,11 +158,7 @@ app.get('/api/v1/sprints/:id/tickets', async (req, res) => {
     res.json({ success: true, data: tickets });
   } catch (error) {
     console.error('Error fetching sprint tickets:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: error.message,
-      stack: error.stack
-    });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -298,7 +296,7 @@ app.use('*', (req, res) => {
 });
 
 // Database connection and server startup
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 3001;
 
 async function startServer() {
   try {
@@ -315,9 +313,11 @@ async function startServer() {
         await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id UUID");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by UUID");
+        await ensureProjectsSchema(sequelize);
+        console.log('✅ projects table schema aligned with API (key, client_*, etc.)');
       }
     } catch (e) {
-      console.warn('⚠️ Unable to ensure sprints.created_by column; continuing', e?.message || e);
+      console.warn('⚠️ Unable to ensure DB columns; continuing', e?.message || e);
     }
     
     // Sync database (use with caution in production)
@@ -348,14 +348,12 @@ async function startServer() {
       const dbConnectionString = process.env.DATABASE_URL;
       if (dbConnectionString) {
         databaseNotificationService.initialize(dbConnectionString)
-          .then((ok) => {
-            if (ok) {
-              console.log('✅ Database notification service initialized');
-              databaseNotificationService.setSocketService(socketService);
-              console.log('✅ Real-time services integrated successfully');
-            } else {
-              console.warn('⚠️ Database notification service unavailable; continuing without LISTEN/NOTIFY');
-            }
+          .then(() => {
+            console.log('✅ Database notification service initialized');
+            
+            // Integrate socket service with database notification service
+            databaseNotificationService.setSocketService(socketService);
+            console.log('✅ Real-time services integrated successfully');
           })
           .catch(error => {
             console.error('❌ Failed to initialize database notification service:', error);

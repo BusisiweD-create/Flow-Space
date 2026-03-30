@@ -29,8 +29,9 @@ class AuthService {
 
   // Getters
   User? get currentUser => _currentUser;
-  Future<User?> getCurrentUser() async {
-    if (_currentUser == null) {
+  /// When [refresh] is true, always reloads from `/auth/me` (use after role changes / login).
+  Future<User?> getCurrentUser({bool refresh = false}) async {
+    if (refresh || _currentUser == null) {
       await _loadCurrentUser();
     }
     return _currentUser;
@@ -194,6 +195,8 @@ class AuthService {
   bool canViewTeamDashboard() => hasPermission('view_team_dashboard');
   bool canViewClientReview() => hasPermission('view_client_review');
   bool canManageUsers() => hasPermission('manage_users');
+  bool canManageProjects() => hasPermission('manage_projects');
+  bool canCreateSprints() => hasPermission('create_sprint');
   bool canViewAuditLogs() => hasPermission('view_audit_logs');
   bool canOverrideReadinessGate() => hasPermission('override_readiness_gate');
   bool canViewAllDeliverables() => hasPermission('view_all_deliverables');
@@ -203,6 +206,7 @@ class AuthService {
   bool get isDeliveryLead => _currentUser?.isDeliveryLead ?? false;
   bool get isClientReviewer => _currentUser?.isClientReviewer ?? false;
   bool get isSystemAdmin => _currentUser?.isSystemAdmin ?? false;
+  bool get isStakeholder => _currentUser?.isStakeholder ?? false;
   bool get isClient => _currentUser?.role == UserRole.client;
 
   bool _isClientRole(UserRole role) {
@@ -295,10 +299,14 @@ class AuthService {
     switch (r) {
       case '/dashboard':
         return _isAuthenticated; // All authenticated users can access dashboard
+      case '/smtp-config':
+      case '/environment-management':
+        return _currentUser?.isSystemAdmin ?? false;
       case '/deliverable-setup':
       case '/enhanced-deliverable-setup':
         return canCreateDeliverable();
       case '/role-management':
+        return hasPermission('manage_users');
       case '/approvals':
       case '/approval-requests':
         return hasPermission('view_approvals');
@@ -318,6 +326,8 @@ class AuthService {
         return hasPermission('view_team_dashboard');
       case '/sprint-board':
         return hasPermission('view_sprints');
+      case '/project-workspace':
+        return hasPermission('manage_projects');
       case '/system-metrics':
         return hasPermission('view_team_dashboard') ||
             (_currentUser?.isSystemAdmin ?? false);
@@ -330,6 +340,61 @@ class AuthService {
         return _isAuthenticated;
       default:
         return true;
+      }
+    }
+
+  // Authenticate with JWT token from external system
+  Future<bool> authenticateWithJwtToken(String token, Map<String, dynamic> userData) async {
+    try {
+      // Save the JWT token
+      await _apiService.saveTokens(token, '', DateTime.now().add(const Duration(hours: 24)));
+      
+      // Create user from token data
+      final user = User(
+        id: userData['user_id'] ?? '',
+        email: userData['email'] ?? '',
+        name: userData['full_name'] ?? userData['email']?.split('@')[0] ?? 'User',
+        role: _mapStringToUserRole(userData['role'] ?? 'user'),
+        isActive: true,
+        createdAt: DateTime.now(),
+        lastLoginAt: DateTime.now(),
+      );
+      
+      _currentUser = user;
+      _isAuthenticated = true;
+      
+      debugPrint('✅ User authenticated with JWT: ${user.name} (${user.roleDisplayName})');
+      return true;
+    } catch (e) {
+      debugPrint('JWT authentication error: $e');
+      return false;
+    }
+  }
+
+  // Map string role to UserRole enum
+  UserRole _mapStringToUserRole(String roleString) {
+    switch (roleString.toLowerCase()) {
+      case 'system admin':
+      case 'system_admin':
+      case 'admin':
+      case 'system administrator':
+        return UserRole.systemAdmin;
+      case 'client reviewer':
+      case 'client_reviewer':
+      case 'client':
+        return UserRole.clientReviewer;
+      case 'delivery lead':
+      case 'delivery_lead':
+      case 'delivery':
+        return UserRole.deliveryLead;
+      case 'team member':
+      case 'team_member':
+      case 'team':
+        return UserRole.teamMember;
+      case 'manager':
+        return UserRole.deliveryLead; // Map manager to delivery lead
+      default:
+        return UserRole.teamMember; // Default to team member
     }
   }
 }
