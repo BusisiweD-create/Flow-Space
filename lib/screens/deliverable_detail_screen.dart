@@ -19,6 +19,7 @@ import '../services/deliverable_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/auth_service.dart';
 import '../config/environment.dart';
+import '../widgets/glass_card.dart';
 import 'audit_log_detail_screen.dart';
 
 class DeliverableDetailScreen extends StatefulWidget {
@@ -604,165 +605,165 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
   }
 
   Widget _buildHeader() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Chip(
-                  label: Text(_deliverable.statusDisplayName),
-                  // ignore: duplicate_ignore
-                  // ignore: deprecated_member_use
-                  backgroundColor: _deliverable.statusColor.withOpacity(0.2),
-                  labelStyle: TextStyle(color: _deliverable.statusColor),
-                ),
-                const Spacer(),
-                if (_isEditing)
-                  DropdownButton<String>(
-                    value: _selectedPriority,
-                    items: ['Low', 'Medium', 'High', 'Critical']
-                        .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                        .toList(),
-                    onChanged: (val) => setState(() => _selectedPriority = val),
-                  )
-                else
-                  Text(
-                    'Priority: ${_deliverable.priority}',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (_isEditing)
-              InkWell(
-                onTap: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDueDate ?? DateTime.now(),
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2030),
-                  );
-                  if (date != null) {
-                    setState(() => _selectedDueDate = date);
-                  }
-                },
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      _selectedDueDate != null 
-                          ? DateFormat('MMM d, yyyy').format(_selectedDueDate!)
-                          : 'Select Due Date',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).primaryColor,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Text(
-                'Due Date: ${DateFormat('MMM d, yyyy').format(_deliverable.dueDate)}',
-                style: Theme.of(context).textTheme.bodyMedium,
+    return GlassCard(
+      borderRadius: 12,
+      padding: const EdgeInsets.all(16.0),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Chip(
+                label: Text(_deliverable.statusDisplayName),
+                // ignore: duplicate_ignore
+                // ignore: deprecated_member_use
+                backgroundColor: _deliverable.statusColor.withOpacity(0.2),
+                labelStyle: TextStyle(color: _deliverable.statusColor),
               ),
-            const SizedBox(height: 16),
-            if (_isEditing)
-              DropdownButtonFormField<String>(
-                value: _selectedProjectId,
-                decoration: const InputDecoration(
-                  labelText: 'Project',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              const Spacer(),
+              if (_isEditing)
+                DropdownButton<String>(
+                  value: _selectedPriority,
+                  items: ['Low', 'Medium', 'High', 'Critical']
+                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                      .toList(),
+                  onChanged: (val) => setState(() => _selectedPriority = val),
+                )
+              else
+                Text(
+                  'Priority: ${_deliverable.priority}',
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
-                items: [
-                  DropdownMenuItem<String>(
-                    value: null,
-                    child: Text(_projects.isEmpty ? 'No projects available' : 'Unassigned'),
-                  ),
-                  ..._projects.map((p) => DropdownMenuItem<String>(
-                    value: p['id'].toString(),
-                    child: Text(p['name'] ?? p['key'] ?? 'Unknown'),
-                  )),
-                ],
-                onChanged: (val) => setState(() => _selectedProjectId = val),
-              )
-            else if (_deliverable.projectName != null)
-              Text(
-                'Project: ${_deliverable.projectName}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            if (_deliverable.assignedToName != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Assigned to: ${_deliverable.assignedToName}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
             ],
-            if (_isEditing) ...[
-              const SizedBox(height: 16),
-              Builder(
-                builder: (context) {
-                  final displayUsers = List<Map<String, dynamic>>.from(_users);
-                  // Ensure selected owner is in the list to avoid dropdown crash
-                  if (_selectedOwnerId != null && 
-                      _selectedOwnerId!.isNotEmpty &&
-                      !displayUsers.any((u) => u['id'].toString() == _selectedOwnerId)) {
-                    displayUsers.add({
-                      'id': _selectedOwnerId,
-                      'name': _deliverable.ownerName ?? 'Current Owner',
-                      'email': 'Unknown',
-                    });
-                  }
-
-                  return DropdownButtonFormField<String>(
-                    value: _selectedOwnerId,
-                    decoration: const InputDecoration(
-                      labelText: 'Owner',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('Unassigned'),
-                      ),
-                      ...displayUsers.map((u) {
-                        String name = u['name'] ?? '';
-                        if (name.isEmpty) {
-                          final first = u['first_name'] ?? u['firstName'] ?? '';
-                          final last = u['last_name'] ?? u['lastName'] ?? '';
-                          if (first.isNotEmpty || last.isNotEmpty) {
-                            name = '$first $last'.trim();
-                          }
-                        }
-                        if (name.isEmpty) {
-                          name = u['email'] ?? 'Unknown';
-                        }
-                        
-                        return DropdownMenuItem<String>(
-                          value: u['id'].toString(),
-                          child: Text(name),
-                        );
-                      }),
-                    ],
-                    onChanged: (val) => setState(() => _selectedOwnerId = val),
-                  );
+          ),
+          const SizedBox(height: 16),
+          if (_isEditing)
+            InkWell(
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: _selectedDueDate ?? DateTime.now(),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2030),
+                );
+                if (date != null) {
+                  setState(() => _selectedDueDate = date);
                 }
+              },
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    _selectedDueDate != null 
+                        ? DateFormat('MMM d, yyyy').format(_selectedDueDate!)
+                        : 'Select Due Date',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).primaryColor,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ],
               ),
-            ] else if (_deliverable.ownerName != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Owner: ${_deliverable.ownerName}',
-                style: Theme.of(context).textTheme.bodyMedium,
+            )
+          else
+            Text(
+              'Due Date: ${DateFormat('MMM d, yyyy').format(_deliverable.dueDate)}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          const SizedBox(height: 16),
+          if (_isEditing)
+            DropdownButtonFormField<String>(
+              value: _selectedProjectId,
+              decoration: const InputDecoration(
+                labelText: 'Project',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-            ],
+              items: [
+                DropdownMenuItem<String>(
+                  value: null,
+                  child: Text(_projects.isEmpty ? 'No projects available' : 'Unassigned'),
+                ),
+                ..._projects.map((p) => DropdownMenuItem<String>(
+                  value: p['id'].toString(),
+                  child: Text(p['name'] ?? p['key'] ?? 'Unknown'),
+                )),
+              ],
+              onChanged: (val) => setState(() => _selectedProjectId = val),
+            )
+          else if (_deliverable.projectName != null)
+            Text(
+              'Project: ${_deliverable.projectName}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          if (_deliverable.assignedToName != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Assigned to: ${_deliverable.assignedToName}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
-        ),
+          if (_isEditing) ...[
+            const SizedBox(height: 16),
+            Builder(
+              builder: (context) {
+                final displayUsers = List<Map<String, dynamic>>.from(_users);
+                // Ensure selected owner is in the list to avoid dropdown crash
+                if (_selectedOwnerId != null && 
+                    _selectedOwnerId!.isNotEmpty &&
+                    !displayUsers.any((u) => u['id'].toString() == _selectedOwnerId)) {
+                  displayUsers.add({
+                    'id': _selectedOwnerId,
+                    'name': _deliverable.ownerName ?? 'Current Owner',
+                    'email': 'Unknown',
+                  });
+                }
+
+                return DropdownButtonFormField<String>(
+                  value: _selectedOwnerId,
+                  decoration: const InputDecoration(
+                    labelText: 'Owner',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Unassigned'),
+                    ),
+                    ...displayUsers.map((u) {
+                      String name = u['name'] ?? '';
+                      if (name.isEmpty) {
+                        final first = u['first_name'] ?? u['firstName'] ?? '';
+                        final last = u['last_name'] ?? u['lastName'] ?? '';
+                        if (first.isNotEmpty || last.isNotEmpty) {
+                          name = '$first $last'.trim();
+                        }
+                      }
+                      if (name.isEmpty) {
+                        name = u['email'] ?? 'Unknown';
+                      }
+                      
+                      return DropdownMenuItem<String>(
+                        value: u['id'].toString(),
+                        child: Text(name),
+                      );
+                    }),
+                  ],
+                  onChanged: (val) => setState(() => _selectedOwnerId = val),
+                );
+              }
+            ),
+          ] else if (_deliverable.ownerName != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Owner: ${_deliverable.ownerName}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -901,7 +902,10 @@ class _DeliverableDetailScreenState extends State<DeliverableDetailScreen> {
   }
 
   Widget _buildAuditLogSection() {
-    return Card(
+    return GlassCard(
+      borderRadius: 12,
+      padding: EdgeInsets.zero,
+      color: const Color(0xFF979797).withAlpha(25),
       child: ExpansionTile(
         title: Text(
           'Audit Log',

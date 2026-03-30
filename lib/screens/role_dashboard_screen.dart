@@ -17,6 +17,7 @@ import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
 import '../widgets/app_modal.dart';
+import '../widgets/glass_card.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -724,43 +725,42 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final canShow = _currentUser != null &&
         (_currentUser!.isDeliveryLead || _currentUser!.isSystemAdmin);
     if (!canShow) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.notifications_active, 'Approval Reminders',
-                route: '/approval-requests'),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                _buildActionButton(
-                  icon: Icons.assignment,
-                  label: 'Send Reminder',
-                  onTap: () => context.push('/send-reminder'),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(20),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardHeader(Icons.notifications_active, 'Approval Reminders',
+              route: '/approval-requests'),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              _buildActionButton(
+                icon: Icons.assignment,
+                label: 'Send Reminder',
+                onTap: () => context.push('/send-reminder'),
+              ),
+              _buildActionButton(
+                icon: Icons.trending_up,
+                label: 'Trigger Escalation',
+                onTap: _triggerEscalation,
+              ),
+              _buildActionButton(
+                icon: Icons.analytics_outlined,
+                label: 'Deliverables Overview',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const DeliverablesMetricsScreen()),
                 ),
-                _buildActionButton(
-                  icon: Icons.trending_up,
-                  label: 'Trigger Escalation',
-                  onTap: _triggerEscalation,
-                ),
-                _buildActionButton(
-                  icon: Icons.analytics_outlined,
-                  label: 'Deliverables Overview',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            const DeliverablesMetricsScreen()),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -899,7 +899,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildWelcomeCard() {
-    return Card(
+    return GlassCard(
+      borderRadius: 16,
+      padding: EdgeInsets.zero,
+      color: const Color(0xFF979797).withAlpha(25),
       child: ListTile(
         leading: FutureBuilder<Uint8List?>(
           future: _loadAvatarBytes(_currentUser!.id),
@@ -908,15 +911,20 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 snapshot.hasData && (snapshot.data?.isNotEmpty ?? false);
             return CircleAvatar(
               backgroundImage: hasImage ? MemoryImage(snapshot.data!) : null,
-              child: hasImage
-                  ? null
-                  : Icon(_currentUser?.roleIcon ?? Icons.person),
+              backgroundColor: Colors.white.withAlpha(40),
+              child:
+                  hasImage ? null : Icon(_currentUser?.roleIcon ?? Icons.person),
             );
           },
         ),
-        title: Text('Welcome, ${_currentUser?.name ?? 'User'}'),
-        subtitle:
-            Text('${_currentUser?.roleDisplayName ?? 'Member'} Dashboard'),
+        title: Text(
+          'Welcome, ${_currentUser?.name ?? 'User'}',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          '${_currentUser?.roleDisplayName ?? 'Member'} Dashboard',
+          style: TextStyle(color: Colors.white.withAlpha(200)),
+        ),
       ),
     );
   }
@@ -970,35 +978,49 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       tiles.insert(
         0,
         Expanded(
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildActionButton(
-                icon: Icons.assignment_add,
-                label: 'Create Deliverable',
-                onTap: () => context.go('/deliverable-setup'),
-              ),
+          child: GlassCard(
+            borderRadius: 16,
+            padding: const EdgeInsets.all(16),
+            color: const Color(0xFF979797).withAlpha(25),
+            child: _buildActionButton(
+              icon: Icons.assignment_outlined,
+              label: 'Create Deliverable',
+              onTap: () => context.go('/deliverable-setup'),
             ),
           ),
         ),
       );
       tiles.add(
         Expanded(
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildActionButton(
-                icon: Icons.description_outlined,
-                label: 'Build Report',
-                onTap: () {
-                  final first =
-                      _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
-                  final id = first != null
-                      ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
-                      : '';
-                  if (id.isNotEmpty) context.go('/report-builder/$id');
-                },
-              ),
+          child: GlassCard(
+            borderRadius: 16,
+            padding: const EdgeInsets.all(16),
+            color: const Color(0xFF979797).withAlpha(25),
+            child: _buildActionButton(
+              icon: Icons.description_outlined,
+              label: 'Build Report',
+              onTap: () {
+                final first =
+                    _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                final id = first != null
+                    ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
+                    : '';
+                if (id.isNotEmpty) context.go('/report-builder/$id');
+              },
+            ),
+          ),
+        ),
+      );
+      tiles.add(
+        Expanded(
+          child: GlassCard(
+            borderRadius: 16,
+            padding: const EdgeInsets.all(16),
+            color: const Color(0xFF979797).withAlpha(25),
+            child: _buildActionButton(
+              icon: Icons.folder_outlined,
+              label: 'View Projects',
+              onTap: () => context.go('/projects'),
             ),
           ),
         ),
@@ -1015,171 +1037,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildMyDeliverables() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingDashboardDeliverables
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardHeader(Icons.assignment_outlined, 'My Deliverables',
-                      route: '/deliverables'),
-                  const SizedBox(height: 8),
-                  Builder(builder: (context) {
-                    final uid = _currentUser?.id.toString() ?? '';
-                    final my = _dashboardDeliverables.where((d) {
-                      final assigned =
-                          (d['assigned_to'] ?? d['assignedTo'] ?? '')
-                              .toString();
-                      final created =
-                          (d['created_by'] ?? d['createdBy'] ?? '').toString();
-                      return assigned == uid || created == uid;
-                    }).toList();
-                    if (my.isEmpty) {
-                      return const Text('No deliverables yet');
-                    }
-                    return Column(
-                      children: my.take(5).map((d) {
-                        final title = d['title'] ??
-                            d['name'] ??
-                            d['deliverableName'] ??
-                            'Untitled Deliverable';
-                        final status =
-                            (d['status'] ?? d['reviewStatus'] ?? '').toString();
-                        final id = (d['id']?.toString() ??
-                            d['uuid']?.toString() ??
-                            '');
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.assignment_turned_in,
-                                      size: 18),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                      child: Text(status.isNotEmpty
-                                          ? '$title • $status'
-                                          : title)),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 4,
-                                children: [
-                                  _priorityChip(
-                                      (d['priority'] ?? '').toString()),
-                                  _dueDateChip(d['due_date'] ??
-                                      d['dueDate'] ??
-                                      d['deadline']),
-                                  _ownerChip(_getOwnerName(d), _getOwnerId(d)),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 4,
-                                runSpacing: 4,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () => _updateDeliverableStatus(
-                                            id, 'in_progress'),
-                                    icon: const Icon(Icons.play_circle_outline,
-                                        size: 18),
-                                    label: const Text('Start'),
-                                    style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8)),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () => _updateDeliverableStatus(
-                                            id, 'completed'),
-                                    icon: const Icon(Icons.check_circle_outline,
-                                        size: 18),
-                                    label: const Text('Complete'),
-                                    style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8)),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () =>
-                                            context.go('/report-builder/$id'),
-                                    icon: const Icon(Icons.description_outlined,
-                                        size: 18),
-                                    label: const Text('Report'),
-                                    style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8)),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () => _editDeliverable(d),
-                                    icon: const Icon(Icons.edit_outlined,
-                                        size: 18),
-                                    label: const Text('Edit'),
-                                    style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8)),
-                                  ),
-                                  IconButton(
-                                    onPressed: () {
-                                      if (id.isNotEmpty) {
-                                        try {
-                                          final deliverable =
-                                              Deliverable.fromJson(d);
-                                          context.push('/deliverable-detail',
-                                              extra: deliverable);
-                                        } catch (e) {
-                                          debugPrint(
-                                              'Error parsing deliverable for navigation: $e');
-                                          context.go('/repository');
-                                        }
-                                      } else {
-                                        context.go('/repository');
-                                      }
-                                    },
-                                    icon: const Icon(Icons.open_in_new),
-                                    tooltip: 'Open',
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  }),
-                ],
-              ),
-      ),
-    );
-  }
-
   Widget _buildDeliverablesOverview() {
-    // Filter out completed deliverables for the overview
     final overviewDeliverables = _dashboardDeliverables.where((d) {
       final status =
           (d['status'] ?? d['reviewStatus'] ?? '').toString().toLowerCase();
       return status != 'completed';
     }).toList();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: _isLoadingDashboardDeliverables
             ? const Center(child: CircularProgressIndicator())
             : Column(
@@ -1190,7 +1060,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       route: '/deliverables'),
                   const SizedBox(height: 8),
                   if (overviewDeliverables.isEmpty)
-                    const Text('No active deliverables'),
+                    Text('No active deliverables',
+                        style: TextStyle(color: Colors.white.withAlpha(200))),
                   ...overviewDeliverables.take(6).map((d) {
                     final title = d['title'] ??
                         d['name'] ??
@@ -1269,10 +1140,73 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  Widget _buildMyDeliverables() {
+    final userId = _currentUser?.id.toString() ?? '';
+    final myDeliverables = _dashboardDeliverables.where((d) {
+      final ownerId = (d['owner_id'] ?? d['ownerId'] ?? d['assigned_to'] ?? '').toString();
+      final ownerName = (d['owner_name'] ?? d['ownerName'] ?? '').toString();
+      return ownerId == userId || ownerName == _currentUser?.name;
+    }).toList();
+
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
+        child: _isLoadingDashboardDeliverables
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCardHeader(Icons.assignment_ind_outlined,
+                      'My Deliverables (${myDeliverables.length})',
+                      route: '/deliverables'),
+                  const SizedBox(height: 8),
+                  if (myDeliverables.isEmpty)
+                    Text('No deliverables assigned to you',
+                        style: TextStyle(color: Colors.white.withAlpha(200))),
+                  ...myDeliverables.take(5).map((d) {
+                    final title = d['title'] ??
+                        d['name'] ??
+                        d['deliverableName'] ??
+                        'Untitled Deliverable';
+                    final status =
+                        (d['status'] ?? d['reviewStatus'] ?? '').toString();
+                    final id =
+                        (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: InkWell(
+                        onTap: id.isNotEmpty
+                            ? () => context.go('/report-editor/$id')
+                            : null,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.assignment_outlined, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                                child: Text(status.isNotEmpty
+                                    ? '$title • $status'
+                                    : title)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+      ),
+    );
+  }
+
   Widget _buildRecentActivity() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: _isLoadingAuditLogs
             ? const Center(child: CircularProgressIndicator())
             : (_auditLogsError != null
@@ -1293,7 +1227,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                               (a['user_id'] ?? a['actor_id'] ?? '').toString();
                           return actor == userName || uid == userId;
                         }).toList();
-                        if (my.isEmpty) return const Text('No recent activity');
+                        if (my.isEmpty) {
+                          return Text('No recent activity',
+                              style:
+                                  TextStyle(color: Colors.white.withAlpha(200)));
+                        }
                         return Column(
                           children: my.take(5).map((a) {
                             final action = a['action'] ??
@@ -1329,9 +1267,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildTeamMetrics() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1340,7 +1281,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             if (_isLoadingTeamMetrics)
               const Center(child: CircularProgressIndicator())
             else if (_teamMetrics.isEmpty)
-              const Text('No team data available')
+              Text('No team data available',
+                  style: TextStyle(color: Colors.white.withAlpha(200)))
             else
               Wrap(
                 spacing: 12,
@@ -1383,9 +1325,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildSprintOverview() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: _isLoadingDashboardSprints
             ? const Center(child: CircularProgressIndicator())
             : Column(
@@ -1437,9 +1382,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+        GlassCard(
+          borderRadius: 16,
+          padding: const EdgeInsets.all(16),
+          color: const Color(0xFF979797).withAlpha(25),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(color: Colors.white.withAlpha(220)),
             child: Row(
               children: [
                 Expanded(
@@ -1449,6 +1397,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 const SizedBox(width: 12),
                 DropdownButton<String>(
                   value: _selectedChartType,
+                  dropdownColor: Colors.black.withAlpha(200),
+                  style: const TextStyle(color: Colors.white),
                   items: const [
                     DropdownMenuItem(
                         value: 'velocity', child: Text('Velocity')),
@@ -1481,9 +1431,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildReviewMetrics() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1545,9 +1498,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       }
     }).toList();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1555,7 +1511,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 'Projects Overview (${_dashboardProjects.length})',
                 route: null),
             const SizedBox(height: 8),
-            if (_dashboardProjects.isEmpty) const Text('No active projects'),
+            if (_dashboardProjects.isEmpty) Text('No active projects', style: TextStyle(color: Colors.white.withAlpha(200))),
             ..._dashboardProjects.take(3).map((p) {
               final title = p['name'] ?? 'Untitled Project';
               final status = (p['status'] ?? '').toString();
@@ -1595,9 +1551,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildPendingApprovals() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: _isLoadingPendingReports
             ? const Center(child: CircularProgressIndicator())
             : (_pendingReportsError != null
@@ -1678,9 +1637,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildRecentSubmissions() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1690,7 +1652,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             if (_isLoadingPendingReports)
               const Center(child: CircularProgressIndicator())
             else if (_pendingReports.isEmpty)
-              const Text('No recent submissions')
+              Text('No recent submissions', style: TextStyle(color: Colors.white.withAlpha(200)))
             else
               ..._pendingReports.take(5).map((r) {
                 final title = (r['reportTitle'] ??
@@ -1729,9 +1691,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildReviewHistory() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: _isLoadingAuditLogs
             ? const Center(child: CircularProgressIndicator())
             : (_auditLogsError != null
@@ -2248,9 +2213,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildAdminFeatures() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      color: const Color(0xFF979797).withAlpha(25),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: Colors.white.withAlpha(220)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

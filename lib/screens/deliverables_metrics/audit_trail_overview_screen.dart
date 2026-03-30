@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/backend_api_service.dart';
+import '../../widgets/glass_card.dart';
 
 class AuditTrailOverviewScreen extends StatefulWidget {
   const AuditTrailOverviewScreen({super.key});
@@ -98,17 +99,22 @@ class _AuditTrailOverviewScreenState extends State<AuditTrailOverviewScreen> {
                         final createdAt = log['created_at']?.toString() ?? '';
                         final entityType = log['entity_type'] ?? log['resource_type'] ?? '';
                         
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          child: ListTile(
-                            leading: Icon(_getActionIcon(action), color: _getActionColor(action)),
-                            title: Text('$action ${entityType.toString().isNotEmpty ? "on $entityType" : ""}'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('By: $actor'),
-                                if (createdAt.isNotEmpty) Text(createdAt),
-                              ],
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: GlassCard(
+                            borderRadius: 12,
+                            padding: EdgeInsets.zero,
+                            color: const Color(0xFF979797).withAlpha(25),
+                            child: ListTile(
+                              leading: Icon(_getActionIcon(action), color: _getActionColor(action)),
+                              title: Text('$action ${entityType.toString().isNotEmpty ? "on $entityType" : ""}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('By: $actor', style: TextStyle(color: Colors.white.withAlpha(180))),
+                                  if (createdAt.isNotEmpty) Text(createdAt, style: TextStyle(color: Colors.white.withAlpha(150))),
+                                ],
+                              ),
                             ),
                           ),
                         );

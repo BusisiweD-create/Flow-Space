@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/deliverable.dart';
+import 'glass_card.dart';
 
 class DeliverableCard extends StatelessWidget {
   final Deliverable deliverable;
@@ -17,231 +18,210 @@ class DeliverableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      deliverable.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ),
-                  _buildStatusChip(context),
-                ],
-              ),
-              if (!compact) ...[
-                const SizedBox(height: 8),
-                Text(
-                  deliverable.description,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.schedule,
-                    size: 16,
-                    color: deliverable.isOverdue ? Colors.red : Colors.grey[600],
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    deliverable.isOverdue
-                        ? 'Overdue by ${-deliverable.daysUntilDue} days'
-                        : 'Due in ${deliverable.daysUntilDue} days',
-                    style: TextStyle(
-                      color: deliverable.isOverdue ? Colors.red : Colors.grey[600],
-                      fontSize: 12,
-                      fontWeight: deliverable.isOverdue ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.group_work,
-                    size: 16,
-                    color: Colors.grey[600],
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${deliverable.sprintIds.length} sprint${deliverable.sprintIds.length == 1 ? '' : 's'}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.checklist,
-                    size: 16,
-                    color: Colors.grey[600],
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${deliverable.definitionOfDone.length} DoD',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                  ),
-                  if (deliverable.ownerName != null) ...[
-                    const SizedBox(width: 12),
+    return GlassCard(
+      borderRadius: 12,
+      padding: EdgeInsets.zero,
+      color: const Color(0xFF979797).withAlpha(25),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     Expanded(
-                      child: Tooltip(
-                        message: deliverable.ownerRole != null 
-                            ? 'Role: ${deliverable.ownerRole}' 
-                            : 'Owner',
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.person_outline,
-                              size: 16,
-                              color: Colors.blue[700],
+                      child: Text(
+                        deliverable.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                deliverable.ownerName!,
-                                style: TextStyle(
-                                  color: Colors.blue[700],
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ),
-                  ] else
-                    const Spacer(),
-                  if (deliverable.approvedAt != null && !compact) ...[
-                    if (deliverable.ownerName != null) const SizedBox(width: 8),
-                    const Icon(
-                      Icons.check_circle,
+                    _buildStatusChip(context),
+                  ],
+                ),
+                if (!compact) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    deliverable.description,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withAlpha(200),
+                        ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.schedule,
                       size: 16,
-                      color: Colors.green,
+                      color: deliverable.isOverdue
+                          ? Colors.red
+                          : Colors.white.withAlpha(180),
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      _formatDate(deliverable.approvedAt!),
-                      style: const TextStyle(
-                        color: Colors.green,
+                      deliverable.isOverdue
+                          ? 'Overdue by ${-deliverable.daysUntilDue} days'
+                          : 'Due in ${deliverable.daysUntilDue} days',
+                      style: TextStyle(
+                        color: deliverable.isOverdue
+                            ? Colors.red
+                            : Colors.white.withAlpha(180),
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: deliverable.isOverdue
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.group_work,
+                      size: 16,
+                      color: Colors.white.withAlpha(180),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${deliverable.sprintIds.length} sprint${deliverable.sprintIds.length == 1 ? '' : 's'}',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(180),
+                        fontSize: 12,
                       ),
                     ),
                   ],
-                ],
-              ),
-              if (showArtifactsPreview && deliverable.artifacts.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.attach_file, size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 8),
-                      ...deliverable.artifacts.take(4).map((artifact) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Tooltip(
-                          richMessage: WidgetSpan(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.person,
-                                      size: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            deliverable.ownerName!,
-                                            style: TextStyle(
-                                              color: Colors.blue[700],
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          if (deliverable.assignedToName != null && deliverable.assignedToName!.isNotEmpty) ...[
-                                            Text(
-                                              'Assigned to: ${deliverable.assignedToName}',
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          child: Icon(
-                            _getFileIcon(artifact.fileType),
-                            size: 16,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                      )),
-                      if (deliverable.artifacts.length > 4)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '+${deliverable.artifacts.length - 4}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.checklist,
+                      size: 16,
+                      color: Colors.white.withAlpha(180),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${deliverable.definitionOfDone.length} DoD',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(180),
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (deliverable.ownerName != null) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Tooltip(
+                          message: deliverable.ownerRole != null
+                              ? 'Role: ${deliverable.ownerRole}'
+                              : 'Owner',
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.person_outline,
+                                size: 16,
+                                color: Colors.white.withAlpha(220),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  deliverable.ownerName!,
+                                  style: TextStyle(
+                                    color: Colors.white.withAlpha(220),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else
+                      const Spacer(),
+                    if (deliverable.approvedAt != null && !compact) ...[
+                      if (deliverable.ownerName != null)
+                        const SizedBox(width: 8),
+                      const Icon(
+                        Icons.check_circle,
+                        size: 16,
+                        color: Colors.green,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatDate(deliverable.approvedAt!),
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (showArtifactsPreview &&
+                    deliverable.artifacts.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF979797).withAlpha(25),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.attach_file,
+                            size: 14, color: Colors.white.withAlpha(180)),
+                        const SizedBox(width: 8),
+                        ...deliverable.artifacts.take(4).map(
+                              (artifact) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Tooltip(
+                                  message: artifact.originalName,
+                                  child: Icon(
+                                    _getFileIcon(artifact.fileType),
+                                    size: 16,
+                                    color: Colors.white.withAlpha(200),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        if (deliverable.artifacts.length > 4)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(26),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '+${deliverable.artifacts.length - 4}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white.withAlpha(220),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

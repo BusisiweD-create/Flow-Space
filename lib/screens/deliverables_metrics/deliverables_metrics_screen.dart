@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/glass_card.dart';
 import 'stage_tracking_screen.dart';
 import 'artifacts_overview_screen.dart';
 import 'audit_trail_overview_screen.dart';
@@ -63,43 +64,48 @@ class DeliverablesMetricsScreen extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 4,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  // ignore: deprecated_member_use
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
+    return GlassCard(
+      borderRadius: 12,
+      padding: EdgeInsets.zero,
+      color: const Color(0xFF979797).withAlpha(25),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    // ignore: deprecated_member_use
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 32, color: color),
                 ),
-                child: Icon(icon, size: 32, color: color),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      description,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-                    ),
-                  ],
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        description,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withAlpha(180)),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-            ],
+                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white.withAlpha(180)),
+              ],
+            ),
           ),
         ),
       ),

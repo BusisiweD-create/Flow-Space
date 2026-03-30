@@ -38,11 +38,11 @@ class GlassCard extends StatelessWidget {
           height: height,
           padding: padding ?? const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            // More translucent to show the glass effect better
-            color: color ?? Colors.white.withAlpha(10),
+            // Gray glassmorphism color #979797
+            color: color ?? const Color(0xFF979797).withAlpha(25),
             borderRadius: BorderRadius.circular(borderRadius),
             border: border ?? Border.all(
-              color: Colors.white.withAlpha(30),
+              color: const Color(0xFF979797).withAlpha(40),
               width: 1.0,
             ),
             boxShadow: boxShadow ?? [
@@ -57,8 +57,8 @@ class GlassCard extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white.withAlpha(20),
-                Colors.white.withAlpha(5),
+                const Color(0xFF979797).withAlpha(35),
+                const Color(0xFF979797).withAlpha(10),
               ],
             ),
           ),

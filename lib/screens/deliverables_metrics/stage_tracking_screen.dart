@@ -6,6 +6,7 @@ import '../../services/deliverable_service.dart';
 import '../../models/deliverable.dart';
 import '../../widgets/deliverable_card.dart';
 import '../../theme/flownet_theme.dart';
+import '../../widgets/glass_card.dart';
 
 class StageTrackingScreen extends StatefulWidget {
   const StageTrackingScreen({super.key});
@@ -144,31 +145,39 @@ class _StageTrackingScreenState extends State<StageTrackingScreen> {
   }
 
   Widget _buildDeliverableCard(Deliverable deliverable) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        onTap: () {
-          context.push('/deliverable-detail', extra: deliverable).then((_) {
-            _loadData(); // Refresh data when returning from detail screen
-          });
-        },
-        title: Text(deliverable.title),
-        subtitle: Text('Owner: ${deliverable.ownerName ?? 'Unassigned'}'),
-        trailing: GestureDetector(
-          onTap: () => _showStatusUpdateDialog(deliverable),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              // ignore: deprecated_member_use
-              color: deliverable.status.color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: deliverable.status.color),
-            ),
-            child: Text(
-              deliverable.status.displayName,
-              style: TextStyle(
-                color: deliverable.status.color,
-                fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        borderRadius: 12,
+        padding: EdgeInsets.zero,
+        color: const Color(0xFF979797).withAlpha(25),
+        child: Material(
+          type: MaterialType.transparency,
+          child: ListTile(
+            onTap: () {
+              context.push('/deliverable-detail', extra: deliverable).then((_) {
+                _loadData(); // Refresh data when returning from detail screen
+              });
+            },
+            title: Text(deliverable.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            subtitle: Text('Owner: ${deliverable.ownerName ?? 'Unassigned'}', style: TextStyle(color: Colors.white.withAlpha(180))),
+            trailing: GestureDetector(
+              onTap: () => _showStatusUpdateDialog(deliverable),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
+                  color: deliverable.status.color.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: deliverable.status.color),
+                ),
+                child: Text(
+                  deliverable.status.displayName,
+                  style: TextStyle(
+                    color: deliverable.status.color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           ),

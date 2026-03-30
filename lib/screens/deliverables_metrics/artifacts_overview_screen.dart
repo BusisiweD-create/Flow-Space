@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../services/deliverable_service.dart';
 import '../../models/deliverable.dart';
 import '../../config/environment.dart';
+import '../../widgets/glass_card.dart';
 
 class ArtifactsOverviewScreen extends StatefulWidget {
   const ArtifactsOverviewScreen({super.key});
@@ -108,22 +109,25 @@ class _ArtifactsOverviewScreenState extends State<ArtifactsOverviewScreen> {
                     final artifact = item['artifact'] as DeliverableArtifact;
                     final deliverableTitle = item['deliverableTitle'] as String;
                     
-                    return Card(
+                    return GlassCard(
+                      borderRadius: 12,
+                      padding: EdgeInsets.zero,
+                      color: const Color(0xFF979797).withAlpha(25),
                       child: ListTile(
-                        leading: Icon(_getFileIcon(artifact.fileType)),
-                        title: Text(artifact.originalName),
+                        leading: Icon(_getFileIcon(artifact.fileType), color: Colors.white.withAlpha(200)),
+                        title: Text(artifact.originalName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Deliverable: $deliverableTitle'),
+                            Text('Deliverable: $deliverableTitle', style: TextStyle(color: Colors.white.withAlpha(180))),
                             Text(
                               'Uploaded by ${artifact.uploaderName ?? artifact.uploadedBy} on ${DateFormat('MMM d, HH:mm').format(artifact.createdAt)}',
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white.withAlpha(150)),
                             ),
                           ],
                         ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.download),
+                          icon: Icon(Icons.download, color: Colors.white.withAlpha(200)),
                           onPressed: () => _downloadArtifact(artifact),
                         ),
                       ),

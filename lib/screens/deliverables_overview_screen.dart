@@ -17,6 +17,7 @@ import 'package:khono/services/realtime_service.dart';
 import 'package:khono/config/environment.dart';
 import 'package:khono/widgets/deliverable_card.dart';
 import 'package:khono/theme/flownet_theme.dart';
+import 'package:khono/widgets/glass_card.dart';
 
 class DeliverablesOverviewScreen extends StatefulWidget {
   const DeliverablesOverviewScreen({super.key});
@@ -615,7 +616,10 @@ class _DeliverablesOverviewScreenState
   Widget _buildArtifactsPanel(Deliverable deliverable) {
     final isExpanded = _expandedIds.contains(deliverable.id);
     final isUploading = _uploadingIds.contains(deliverable.id);
-    return Card(
+    return GlassCard(
+      borderRadius: 12,
+      padding: EdgeInsets.zero,
+      color: const Color(0xFF979797).withAlpha(25),
       child: ExpansionTile(
         initiallyExpanded: isExpanded,
         title: Row(
@@ -878,7 +882,10 @@ class _DeliverablesOverviewScreenState
     final logs = List<AuditLogEntry>.from(deliverable.auditLogs)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return Card(
+    return GlassCard(
+      borderRadius: 12,
+      padding: EdgeInsets.zero,
+      color: const Color(0xFF979797).withAlpha(25),
       child: ExpansionTile(
         initiallyExpanded: isExpanded,
         title: Row(

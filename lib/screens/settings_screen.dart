@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/settings_service.dart';
 import '../theme/flownet_theme.dart';
-<<<<<<< HEAD
 import '../widgets/glass_card.dart';
-=======
-import '../widgets/app_scaffold.dart';
->>>>>>> origin/S13
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -58,7 +54,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
     }
 
-<<<<<<< HEAD
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -95,30 +90,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       await SettingsService.saveDarkMode(value);
                       setState(() => _darkMode = value);
                     },
-=======
-    return AppScaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        titleTextStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Settings',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: FlownetColors.pureWhite,
-                    fontWeight: FontWeight.bold,
->>>>>>> origin/S13
                   ),
                   ListTile(
                     title: const Text('Language'),
