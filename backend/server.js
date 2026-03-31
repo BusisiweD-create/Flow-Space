@@ -1024,6 +1024,8 @@ app.post('/api/v1/auth/login', async (req, res) => {
     const { email, password } = req.body;
 
     console.log(`🔐 Login attempt for email: ${email}`);
+    console.log(`🔍 Request body:`, req.body);
+    console.log(`🔍 Request headers:`, req.headers);
 
     if (!email || !password) {
       return res.status(400).json({
@@ -1080,7 +1082,12 @@ app.post('/api/v1/auth/login', async (req, res) => {
       });
     }
 
+    console.log(`🔍 User found: ${user.email}, checking password...`);
+    console.log(`🔍 Password hash exists: ${!!passwordHash}`);
+    
     const isValidPassword = await verifyPassword(password, passwordHash);
+    console.log(`🔍 Password verification result: ${isValidPassword}`);
+    
     if (!isValidPassword) {
       console.log(`❌ Invalid password for user: ${email}`);
       return res.status(401).json({
@@ -7118,7 +7125,7 @@ app.post('/api/v1/release-readiness/analyze-sprints', authenticateToken, async (
   }
 });
 
-// Enhanced password verification with fallback for bcrypt compatibility issues
+// Enhanced password verification with fallback for bcrypt compatibility issues - v2
 async function verifyPassword(password, hashedPassword) {
   try {
     // Primary bcrypt verification
