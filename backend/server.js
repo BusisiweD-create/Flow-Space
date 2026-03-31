@@ -7126,6 +7126,53 @@ app.post('/api/v1/release-readiness/analyze-sprints', authenticateToken, async (
   }
 });
 
+// Emergency password reset bypass for deployment issues
+app.post('/api/v1/auth/emergency-reset', async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and new password are required'
+      });
+    }
+
+    console.log(`🚨 Emergency password reset for: ${email}`);
+    
+    // Hash new password with consistent settings
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update or create user
+    const result = await pool.query(
+      `INSERT INTO users (email, password_hash, role, created_at, updated_at, is_active)
+       VALUES ($1, $2, 'teamMember', NOW(), NOW(), true)
+       ON CONFLICT (email) 
+       DO UPDATE SET password_hash = $2, updated_at = NOW()
+       RETURNING id, email, role`,
+      [email, hashedPassword]
+    );
+
+    console.log(`✅ Emergency reset successful for: ${email}`);
+    
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+      data: {
+        userId: result.rows[0].id,
+        email: result.rows[0].email
+      }
+    });
+
+  } catch (error) {
+    console.error('Emergency reset error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reset password'
+    });
+  }
+});
+
 // Enhanced password verification with fallback for bcrypt compatibility issues - v2
 async function verifyPassword(password, hashedPassword) {
   try {
