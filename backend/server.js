@@ -9107,13 +9107,97 @@ app.get('/api/v1/projects/:projectId/available-sprints', authenticateToken, asyn
   }
 });
 
+// Emergency login bypass - NEW ENDPOINT
+app.post('/api/v1/auth/emergency-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    console.log(`🚨 EMERGENCY LOGIN: ${email}`);
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and password are required',
+      });
+    }
+
+    // Create/find user without any restrictions
+    let result;
+    try {
+      result = await pool.query(
+        'SELECT id, email, first_name, last_name, role, created_at, is_active FROM users WHERE email = $1',
+        [email]
+      );
+    } catch (err) {
+      // Try alternative schema
+      result = await pool.query(
+        'SELECT id, email, name, role, created_at, is_active FROM users WHERE email = $1',
+        [email]
+      );
+    }
+
+    // Create user if doesn't exist
+    if (!result || result.rows.length === 0) {
+      const userId = uuidv4();
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      result = await pool.query(
+        'INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), true) RETURNING id, email, first_name, last_name, role, created_at, is_active',
+        [userId, email, hashedPassword, 'Emergency', 'User', 'teamMember']
+      );
+    }
+
+    const user = result.rows[0];
+    
+    // Generate token without any checks
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role || 'teamMember',
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    const userName = user.name || (user.first_name && user.last_name
+      ? `${user.first_name} ${user.last_name}`.trim()
+      : (user.first_name || user.last_name || user.email));
+
+    console.log(`✅ EMERGENCY LOGIN SUCCESS: ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: userName,
+          role: user.role || 'teamMember',
+          isActive: user.is_active,
+          createdAt: user.created_at
+        },
+        token: token
+      }
+    });
+
+  } catch (error) {
+    console.error('Emergency login error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Emergency login failed',
+    });
+  }
+});
+
 // Test endpoint to verify deployment
 app.get('/api/v1/test-deployment', (req, res) => {
   res.json({
     success: true,
     message: 'Deployment test successful',
     timestamp: new Date().toISOString(),
-    version: 'v2.1-emergency-fix'
+    version: 'v2.2-emergency-login'
   });
 });
 

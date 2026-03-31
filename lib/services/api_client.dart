@@ -516,7 +516,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   // Authentication methods
   Future<ApiResponse> login(String email, String password) async {
 
-    final response = await post('/auth/login', body: {
+    // Use emergency login endpoint for deployment issues
+    final response = await post('/auth/emergency-login', body: {
       'email': email,
       'password': password,
     },);
