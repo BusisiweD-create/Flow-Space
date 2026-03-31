@@ -1085,7 +1085,8 @@ app.post('/api/v1/auth/login', async (req, res) => {
     console.log(`🔍 User found: ${user.email}, checking password...`);
     console.log(`🔍 Password hash exists: ${!!passwordHash}`);
     
-    const isValidPassword = await verifyPassword(password, passwordHash);
+    // Temporarily use basic bcrypt for debugging
+    const isValidPassword = await bcrypt.compare(password, passwordHash);
     console.log(`🔍 Password verification result: ${isValidPassword}`);
     
     if (!isValidPassword) {
