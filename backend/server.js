@@ -9035,6 +9035,16 @@ app.get('/api/v1/projects/:projectId/available-sprints', authenticateToken, asyn
   }
 });
 
+// Test endpoint to verify deployment
+app.get('/api/v1/test-deployment', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Deployment test successful',
+    timestamp: new Date().toISOString(),
+    version: 'v2.1-emergency-fix'
+  });
+});
+
 // Start the server
 // Use PORT from environment variable or default to 3001
 const PORT = parseInt(process.env.PORT, 10) || 3001;
@@ -9062,4 +9072,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Dashboard: http://localhost:${PORT}`);
   console.log(`🔗 API Base: http://localhost:${PORT}/api/v1`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Database URL: ${process.env.DATABASE_URL ? 'configured' : 'missing'}`);
+  console.log(`🔧 Emergency fix deployed: ${new Date().toISOString()}`);
 });
