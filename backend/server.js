@@ -1234,15 +1234,63 @@ app.post('/api/v1/auth/logout', authenticateToken, async (req, res) => {
   }
 });
 
-// Refresh token endpoint (stub - returns 401 as expected)
-app.post('/api/v1/auth/refresh', async (req, res) => {
+// Refresh token endpoint - properly implemented
+app.post('/api/v1/auth/refresh', authenticateToken, async (req, res) => {
   try {
-    return res.status(401).json({
-      success: false,
-      error: 'Not logged in yet - please login first'
+    const userId = req.user.id;
+    
+    // Find user in database
+    const result = await pool.query(
+      'SELECT id, email, name, role, is_active FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    const user = result.rows[0];
+    
+    if (!user.is_active) {
+      return res.status(401).json({
+        success: false,
+        error: 'Account is deactivated'
+      });
+    }
+    
+    // Generate new JWT token
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Token refreshed successfully',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          isActive: user.is_active
+        },
+        access_token: token,
+        token: token,
+        expires_in: 86400
+      }
     });
+    
   } catch (error) {
-    console.error('Refresh error:', error);
+    console.error('Refresh token error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Internal server error' 
@@ -1530,22 +1578,10 @@ app.get('/api/v1/auth/me', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    let result;
-    try {
-      result = await pool.query(
-        'SELECT id, email, first_name, last_name, role, created_at, is_active FROM users WHERE id = $1',
-        [userId]
-      );
-    } catch (colErr) {
-      if (colErr?.message && /column.*does not exist/i.test(colErr.message)) {
-        result = await pool.query(
-          'SELECT id, email, name, role, created_at, is_active FROM users WHERE id = $1',
-          [userId]
-        );
-      } else {
-        throw colErr;
-      }
-    }
+    const result = await pool.query(
+      'SELECT id, email, name, role, created_at, is_active FROM users WHERE id = $1',
+      [userId]
+    );
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -1555,9 +1591,7 @@ app.get('/api/v1/auth/me', authenticateToken, async (req, res) => {
     }
     
     const user = result.rows[0];
-    const userName = (user.first_name && user.last_name)
-      ? `${user.first_name} ${user.last_name}`
-      : (user.first_name || user.last_name || user.name || user.email);
+    const userName = user.name || user.email;
     
     res.json({
       success: true,

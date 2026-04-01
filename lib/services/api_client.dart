@@ -601,6 +601,11 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
     // BYPASSES DISABLED: Backend is now working correctly on Render
     // The deployed app should use real API calls to backend-532p.onrender.com
 
+    // Don't call /auth/me if we don't have an access token
+    if (_accessToken == null) {
+      return ApiResponse.error('No access token available. Please login first.');
+    }
+
     return await get('/auth/me');
   }
 
