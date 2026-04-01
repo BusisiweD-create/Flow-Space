@@ -129,29 +129,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   // HTTP Methods
   Future<ApiResponse> get(String endpoint, {Map<String, String>? queryParams, bool requireAuth = true}) async {
-    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
-    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
-      debugPrint('🚨 Using client-side GET bypass for: $endpoint');
-      
-      // Return mock data for common endpoints
-      if (endpoint.startsWith('/users/')) {
-        return ApiResponse.success({
-          'id': 'user-mock-id',
-          'email': 'mock@example.com',
-          'name': 'Mock User',
-          'role': 'teamMember',
-          'isActive': true,
-          'createdAt': DateTime.now().toIso8601String()
-        }, 200);
-      }
-      
-      if (endpoint.startsWith('/projects/') || endpoint.startsWith('/deliverables/') || endpoint.startsWith('/sprints/')) {
-        return ApiResponse.success([], 200); // Empty array for list endpoints
-      }
-      
-      // Default success response
-      return ApiResponse.success({'message': 'Request successful (bypass)'}, 200);
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
 
     if (!requireAuth) {
       // Make unauthenticated request
@@ -170,11 +149,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   }
 
   Future<ApiResponse> post(String endpoint, {Map<String, dynamic>? body, Map<String, String>? queryParams, bool requireAuth = true}) async {
-    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
-    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
-      debugPrint('🚨 Using client-side POST bypass for: $endpoint');
-      return ApiResponse.success({'message': 'POST request successful (bypass)'}, 200);
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
 
     if (!requireAuth && queryParams != null && queryParams.containsKey('token')) {
       // For token-based requests, we can skip auth but still need to pass token
@@ -185,20 +161,14 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   }
 
   Future<ApiResponse> put(String endpoint, {Map<String, dynamic>? body, Map<String, String>? queryParams}) async {
-    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
-    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
-      debugPrint('🚨 Using client-side PUT bypass for: $endpoint');
-      return ApiResponse.success({'message': 'PUT request successful (bypass)'}, 200);
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
     return await _makeRequest('PUT', endpoint, body: body, queryParams: queryParams);
   }
 
   Future<ApiResponse> delete(String endpoint, {Map<String, String>? queryParams}) async {
-    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
-    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
-      debugPrint('🚨 Using client-side DELETE bypass for: $endpoint');
-      return ApiResponse.success({'message': 'DELETE request successful (bypass)'}, 200);
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
     return await _makeRequest('DELETE', endpoint, queryParams: queryParams);
   }
 
@@ -565,72 +535,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   // Authentication methods
   Future<ApiResponse> login(String email, String password) async {
 
-    // TEMPORARY: Complete frontend bypass for deployment issues
-    if (Environment.isRenderDeployed) {
-      debugPrint('🚨 Using complete frontend authentication bypass');
-      
-      // Create comprehensive mock user data with role preservation
-      final emailParts = email.split('@');
-      final nameParts = emailParts[0].split('.');
-      
-      // Determine user role based on actual email patterns from screenshots
-      String userRole = 'teamMember'; // default
-      
-      // Specific email mappings from screenshots
-      if (email.contains('dhlamininaomi1@gmail.com')) {
-        userRole = 'deliveryLead'; // Naomi - Delivery Lead
-      } else if (email.contains('dhlaminibusisiwe30@gmail.com')) {
-        userRole = 'deliveryLead'; // Busisiwe - Delivery Lead  
-      } else if (email.contains('unathi.sibanda@khonology.com')) {
-        userRole = 'systemAdmin'; // Unathi - System Admin
-      } else if (email.contains('admin') || email.contains('system')) {
-        userRole = 'systemAdmin';
-      } else if (email.contains('lead') || email.contains('manager')) {
-        userRole = 'deliveryLead';
-      } else if (email.contains('client') || email.contains('customer')) {
-        userRole = 'clientUser';
-      } else if (email.contains('approver') || email.contains('reviewer')) {
-        userRole = 'internalApprover';
-      }
-      
-      final mockUser = {
-        'id': 'user-${email.hashCode}-${DateTime.now().millisecondsSinceEpoch}',
-        'email': email,
-        'name': emailParts[0].replaceAll(RegExp(r'[0-9]'), ''),
-        'firstName': nameParts.isNotEmpty ? nameParts[0] : 'User',
-        'lastName': nameParts.length > 1 ? nameParts[1] : 'User',
-        'role': userRole,
-        'isActive': true,
-        'createdAt': DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-      };
-      
-      // Create persistent mock token
-      final mockToken = 'token-${DateTime.now().millisecondsSinceEpoch}-${email.hashCode}';
-      
-      // Store in local storage for persistence
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('access_token', mockToken);
-        await prefs.setString('refresh_token', mockToken);
-        await prefs.setString('user_email', email);
-        await prefs.setString('user_name', mockUser['name'].toString());
-        await prefs.setString('user_id', mockUser['id'].toString());
-        await prefs.setString('user_role', mockUser['role'].toString());
-        await prefs.setBool('is_authenticated', true);
-        await prefs.setString('auth_time', DateTime.now().toIso8601String());
-      } catch (e) {
-        debugPrint('Failed to store auth data: $e');
-      }
-      
-      return ApiResponse.success({
-        'user': mockUser,
-        'token': mockToken,
-        'access_token': mockToken,
-        'refresh_token': mockToken,
-        'expires_in': 86400,
-      }, 200);
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
 
     final response = await post('/auth/login', body: {
       'email': email,
@@ -682,12 +588,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   Future<ApiResponse> logout() async {
 
-    // TEMPORARY: Bypass /auth/logout for deployment issues (only when deployed on Render)
-    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
-      debugPrint('🚨 Using client-side /auth/logout bypass');
-      await clearTokens();
-      return ApiResponse.success({'message': 'Logged out successfully'}, 200);
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
 
     final response = await post('/auth/logout');
     await clearTokens();
@@ -696,39 +598,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   Future<ApiResponse> getCurrentUser() async {
 
-    // TEMPORARY: Bypass /auth/me for deployment issues (only when deployed on Render)
-    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
-      debugPrint('🚨 Using client-side /auth/me bypass');
-      
-      // Return stored user data from SharedPreferences
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final userId = prefs.getString('user_id') ?? '';
-        final userEmail = prefs.getString('user_email') ?? '';
-        final userName = prefs.getString('user_name') ?? '';
-        final userRole = prefs.getString('user_role') ?? 'teamMember';
-        final isAuthenticated = prefs.getBool('is_authenticated') ?? false;
-        
-        if (isAuthenticated && userId.isNotEmpty) {
-          return ApiResponse.success({
-            'id': userId,
-            'email': userEmail,
-            'name': userName,
-            'role': userRole,
-            'isActive': true,
-            'createdAt': prefs.getString('auth_time') ?? DateTime.now().toIso8601String(),
-            'avatarUrl': null,
-            'lastLoginAt': null,
-            'status': null
-          }, 200);
-        } else {
-          return ApiResponse.error('Not authenticated', 401);
-        }
-      } catch (e) {
-        debugPrint('Failed to get stored user data: $e');
-        return ApiResponse.error('Authentication failed', 401);
-      }
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
 
     return await get('/auth/me');
   }

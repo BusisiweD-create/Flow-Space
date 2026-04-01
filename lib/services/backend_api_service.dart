@@ -13,7 +13,6 @@ class BackendApiService {
   static final BackendApiService _instance = BackendApiService._internal();
   factory BackendApiService() => _instance;
   BackendApiService._internal();
-
   final ApiClient _apiClient = ApiClient();
 
   // Getters
@@ -39,49 +38,8 @@ class BackendApiService {
     // Use different endpoints based on environment
     final endpoint = Environment.isRenderDeployed ? '/auth/register' : '/auth/register';
     
-    // TEMPORARY: Bypass signup for deployment issues (only when deployed on Render)
-    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
-      debugPrint('🚨 Using client-side signup bypass');
-      
-      // Create mock user data
-      final mockUser = {
-        'id': 'user-${email.hashCode}-${DateTime.now().millisecondsSinceEpoch}',
-        'email': email,
-        'name': name,
-        'firstName': name.split(' ')[0],
-        'lastName': name.split(' ').length > 1 ? name.split(' ').sublist(1).join(' ') : '',
-        'role': role.name,
-        'isActive': true,
-        'createdAt': DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-      };
-      
-      // Create persistent mock token
-      final mockToken = 'token-${DateTime.now().millisecondsSinceEpoch}-${email.hashCode}';
-      
-      // Store in local storage
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('access_token', mockToken);
-        await prefs.setString('refresh_token', mockToken);
-        await prefs.setString('user_email', email);
-        await prefs.setString('user_name', name);
-        await prefs.setString('user_id', mockUser['id'].toString());
-        await prefs.setString('user_role', mockUser['role'].toString());
-        await prefs.setBool('is_authenticated', true);
-        await prefs.setString('auth_time', DateTime.now().toIso8601String());
-      } catch (e) {
-        debugPrint('Failed to store signup data: $e');
-      }
-      
-      return ApiResponse.success({
-        'user': mockUser,
-        'token': mockToken,
-        'access_token': mockToken,
-        'refresh_token': mockToken,
-        'expires_in': 86400,
-      }, 200);
-    }
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
     
     debugPrint('🔍 Environment.isRenderDeployed: ${Environment.isRenderDeployed}');
     debugPrint('🔍 Using endpoint: $endpoint');
