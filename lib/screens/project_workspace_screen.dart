@@ -12,7 +12,6 @@ import '../services/auth_service.dart';
 import '../services/user_data_service.dart';
 import '../services/backend_api_service.dart';
 import '../providers/service_providers.dart';
-import '../utils/project_extensions.dart';
 
 class ProjectWorkspaceScreen extends ConsumerStatefulWidget {
   final String? projectId;
