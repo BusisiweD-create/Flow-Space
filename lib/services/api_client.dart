@@ -129,8 +129,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   // HTTP Methods
   Future<ApiResponse> get(String endpoint, {Map<String, String>? queryParams, bool requireAuth = true}) async {
-    // TEMPORARY: Global bypass for deployment issues
-    if (Environment.isRenderDeployed) {
+    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
+    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
       debugPrint('🚨 Using client-side GET bypass for: $endpoint');
       
       // Return mock data for common endpoints
@@ -170,8 +170,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   }
 
   Future<ApiResponse> post(String endpoint, {Map<String, dynamic>? body, Map<String, String>? queryParams, bool requireAuth = true}) async {
-    // TEMPORARY: Global bypass for deployment issues
-    if (Environment.isRenderDeployed) {
+    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
+    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
       debugPrint('🚨 Using client-side POST bypass for: $endpoint');
       return ApiResponse.success({'message': 'POST request successful (bypass)'}, 200);
     }
@@ -185,8 +185,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   }
 
   Future<ApiResponse> put(String endpoint, {Map<String, dynamic>? body, Map<String, String>? queryParams}) async {
-    // TEMPORARY: Global bypass for deployment issues
-    if (Environment.isRenderDeployed) {
+    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
+    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
       debugPrint('🚨 Using client-side PUT bypass for: $endpoint');
       return ApiResponse.success({'message': 'PUT request successful (bypass)'}, 200);
     }
@@ -194,8 +194,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   }
 
   Future<ApiResponse> delete(String endpoint, {Map<String, String>? queryParams}) async {
-    // TEMPORARY: Global bypass for deployment issues
-    if (Environment.isRenderDeployed) {
+    // TEMPORARY: Global bypass for deployment issues (only when deployed on Render)
+    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
       debugPrint('🚨 Using client-side DELETE bypass for: $endpoint');
       return ApiResponse.success({'message': 'DELETE request successful (bypass)'}, 200);
     }
@@ -682,8 +682,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   Future<ApiResponse> logout() async {
 
-    // TEMPORARY: Bypass /auth/logout for deployment issues
-    if (Environment.isRenderDeployed) {
+    // TEMPORARY: Bypass /auth/logout for deployment issues (only when deployed on Render)
+    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
       debugPrint('🚨 Using client-side /auth/logout bypass');
       await clearTokens();
       return ApiResponse.success({'message': 'Logged out successfully'}, 200);
@@ -696,8 +696,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   Future<ApiResponse> getCurrentUser() async {
 
-    // TEMPORARY: Bypass /auth/me for deployment issues
-    if (Environment.isRenderDeployed) {
+    // TEMPORARY: Bypass /auth/me for deployment issues (only when deployed on Render)
+    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
       debugPrint('🚨 Using client-side /auth/me bypass');
       
       // Return stored user data from SharedPreferences

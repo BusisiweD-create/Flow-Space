@@ -9,12 +9,12 @@ class Environment {
 
   // API Configuration - Use const for production URL from build
   // Note: _apiBaseUrl kept for potential future use with build-time variables
-  static const String _apiBaseUrl = "http://localhost:8000/api/v1";
+  static const String _apiBaseUrl = "http://localhost:3001/api/v1";
 
   // Production fallback detection
   static String get apiBaseUrl {
     // First try build-time variable
-    if (_apiBaseUrl != "http://localhost:8000/api/v1") {
+    if (_apiBaseUrl != "http://localhost:3001/api/v1") {
       return _apiBaseUrl;
     }
 
@@ -63,6 +63,16 @@ class Environment {
           uri.host.contains('flownet.works');
     } catch (e) {
       return false;
+    }
+  }
+
+  // Check if running in local development mode
+  static bool get isLocalDevelopment {
+    try {
+      final uri = Uri.base;
+      return uri.host.contains('localhost') || uri.host.contains('127.0.0.1');
+    } catch (e) {
+      return true; // Assume local if can't detect
     }
   }
 }

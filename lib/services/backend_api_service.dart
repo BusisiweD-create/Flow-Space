@@ -39,8 +39,8 @@ class BackendApiService {
     // Use different endpoints based on environment
     final endpoint = Environment.isRenderDeployed ? '/auth/register' : '/auth/register';
     
-    // TEMPORARY: Bypass signup for deployment issues
-    if (Environment.isRenderDeployed) {
+    // TEMPORARY: Bypass signup for deployment issues (only when deployed on Render)
+    if (Environment.isRenderDeployed && !Environment.isLocalDevelopment) {
       debugPrint('🚨 Using client-side signup bypass');
       
       // Create mock user data
