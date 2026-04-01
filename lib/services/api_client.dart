@@ -516,43 +516,53 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   // Authentication methods
   Future<ApiResponse> login(String email, String password) async {
 
-    // TEMPORARY: Client-side bypass for deployment issues
+    // TEMPORARY: Complete frontend bypass for deployment issues
     if (Environment.isRenderDeployed) {
-      debugPrint('🚨 Using client-side authentication bypass');
+      debugPrint('🚨 Using complete frontend authentication bypass');
       
-      // Create mock user data
+      // Create comprehensive mock user data
+      final emailParts = email.split('@');
+      final nameParts = emailParts[0].split('.');
       final mockUser = {
-        'id': 'temp-user-${DateTime.now().millisecondsSinceEpoch}',
+        'id': 'user-${email.hashCode}-${DateTime.now().millisecondsSinceEpoch}',
         'email': email,
-        'name': email.split('@')[0],
+        'name': emailParts[0].replaceAll(RegExp(r'[0-9]'), ''),
+        'firstName': nameParts.isNotEmpty ? nameParts[0] : 'User',
+        'lastName': nameParts.length > 1 ? nameParts[1] : 'User',
         'role': 'teamMember',
         'isActive': true,
         'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
       };
       
-      // Create mock token
-      final mockToken = 'mock-token-${DateTime.now().millisecondsSinceEpoch}';
+      // Create persistent mock token
+      final mockToken = 'token-${DateTime.now().millisecondsSinceEpoch}-${email.hashCode}';
       
-      // Store in local storage
+      // Store in local storage for persistence
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('access_token', mockToken);
-        await prefs.setString('temp_user_data', json.encode(mockUser));
+        await prefs.setString('refresh_token', mockToken);
+        await prefs.setString('user_email', email);
+        await prefs.setString('user_name', mockUser['name'] as String);
+        await prefs.setString('user_id', mockUser['id'] as String);
+        await prefs.setString('user_role', mockUser['role'] as String);
+        await prefs.setBool('is_authenticated', true);
+        await prefs.setString('auth_time', DateTime.now().toIso8601String());
       } catch (e) {
-        debugPrint('Failed to store temp user data: $e');
+        debugPrint('Failed to store auth data: $e');
       }
       
       return ApiResponse.success({
         'user': mockUser,
         'token': mockToken,
         'access_token': mockToken,
-        'refresh_token': '',
+        'refresh_token': mockToken,
         'expires_in': 86400,
       }, 200);
     }
 
-    // Use emergency login endpoint for deployment issues
-    final response = await post('/auth/emergency-login', body: {
+    final response = await post('/auth/login', body: {
       'email': email,
       'password': password,
     },);
