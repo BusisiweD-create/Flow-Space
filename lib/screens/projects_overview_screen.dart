@@ -13,6 +13,8 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
   final SprintDatabaseService _sprintService = SprintDatabaseService();
   final List<Map<String, dynamic>> _projects = [];
   bool _isLoading = false;
+  String _searchQuery = '';
+  String _selectedFilter = 'all'; // 'all', 'active', 'completed'
 
   @override
   void initState() {
@@ -67,7 +69,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title with icon
+        // Title and Search/Filter Section
         Row(
           children: [
             Container(
@@ -81,6 +83,53 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                 Icons.folder_outlined,
                 color: Colors.white,
                 size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Search Bar
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                ),
+                child: TextField(
+                  onChanged: (value) {
+                    setState(() => _searchQuery = value);
+                  },
+                  decoration: const InputDecoration(
+                    hintText: 'Search projects...',
+                    prefixIcon: Icon(Icons.search, color: Colors.white70),
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.white70),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Filter Dropdown
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.2)),
+              ),
+              child: DropdownButton<String>(
+                value: _selectedFilter,
+                onChanged: (value) {
+                  setState(() => _selectedFilter = value!);
+                },
+                dropdownColor: Colors.grey[800],
+                icon: const Icon(Icons.filter_list, color: Colors.white70),
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('All Projects')),
+                  DropdownMenuItem(value: 'active', child: Text('Active')),
+                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                ],
               ),
             ),
             const SizedBox(width: 12),
@@ -149,6 +198,39 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
     );
   }
 
+  // Filter projects based on search query and selected filter
+  List<Map<String, dynamic>> _getFilteredProjects() {
+    var filteredProjects = List<Map<String, dynamic>>.from(_projects);
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      filteredProjects = filteredProjects.where((project) {
+        final name = project['name']?.toString().toLowerCase() ?? '';
+        final description = project['description']?.toString().toLowerCase() ?? '';
+        return name.contains(_searchQuery.toLowerCase()) || 
+               description.contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // Apply status filter
+    switch (_selectedFilter) {
+      case 'active':
+        filteredProjects = filteredProjects.where((project) => 
+          project['status']?.toString() == 'active').toList();
+        break;
+      case 'completed':
+        filteredProjects = filteredProjects.where((project) => 
+          project['status']?.toString() == 'completed').toList();
+        break;
+      case 'all':
+      default:
+        // Already filtered by search if applicable
+        break;
+    }
+
+    return filteredProjects;
+  }
+
   Widget _buildProjectsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,8 +246,8 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Project Cards
-        for (final project in _projects) _buildProjectCard(project),
+        // Filtered Project Cards
+        ..._getFilteredProjects().map((project) => _buildProjectCard(project)),
 
         // Empty state
         if (_projects.isEmpty)
