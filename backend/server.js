@@ -1205,15 +1205,27 @@ app.post('/api/v1/auth/login', async (req, res) => {
     if (!result || result.rows.length === 0) {
       console.log(`⚠️ Creating user: ${email}`);
       
+      // Determine role based on email patterns
+      let userRole = 'teamMember'; // default
+      if (email.includes('admin') || email.includes('system')) {
+        userRole = 'systemAdmin';
+      } else if (email.includes('lead') || email.includes('manager')) {
+        userRole = 'deliveryLead';
+      } else if (email.includes('client') || email.includes('customer')) {
+        userRole = 'clientUser';
+      } else if (email.includes('approver') || email.includes('reviewer')) {
+        userRole = 'internalApprover';
+      }
+      
       const hashedPassword = await bcrypt.hash(password, 10);
       const userId = uuidv4();
       
       result = await pool.query(
         'INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), true) RETURNING id, email, first_name, last_name, role, created_at, is_active',
-        [userId, email, hashedPassword, email.split('@')[0], 'User', 'teamMember']
+        [userId, email, hashedPassword, email.split('@')[0], 'User', userRole]
       );
       
-      console.log(`✅ User created: ${email}`);
+      console.log(`✅ User created: ${email} with role: ${userRole}`);
     }
 
     const user = result.rows[0];

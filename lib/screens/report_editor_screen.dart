@@ -1214,7 +1214,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                       '❌ Local storage also failed: $localError');
                                   if (mounted) {
                                     scaffoldMessenger.showSnackBar(
-                                      SnackBar(
+                                      const SnackBar(
                                         content: Text(
                                             'Signature save failed: API unavailable'),
                                         backgroundColor: Colors.red,

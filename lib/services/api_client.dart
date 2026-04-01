@@ -520,16 +520,29 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
     if (Environment.isRenderDeployed) {
       debugPrint('🚨 Using complete frontend authentication bypass');
       
-      // Create comprehensive mock user data
+      // Create comprehensive mock user data with role preservation
       final emailParts = email.split('@');
       final nameParts = emailParts[0].split('.');
+      
+      // Determine user role based on email patterns from screenshots
+      String userRole = 'teamMember'; // default
+      if (email.contains('admin') || email.contains('system')) {
+        userRole = 'systemAdmin';
+      } else if (email.contains('lead') || email.contains('manager')) {
+        userRole = 'deliveryLead';
+      } else if (email.contains('client') || email.contains('customer')) {
+        userRole = 'clientUser';
+      } else if (email.contains('approver') || email.contains('reviewer')) {
+        userRole = 'internalApprover';
+      }
+      
       final mockUser = {
         'id': 'user-${email.hashCode}-${DateTime.now().millisecondsSinceEpoch}',
         'email': email,
         'name': emailParts[0].replaceAll(RegExp(r'[0-9]'), ''),
         'firstName': nameParts.isNotEmpty ? nameParts[0] : 'User',
         'lastName': nameParts.length > 1 ? nameParts[1] : 'User',
-        'role': 'teamMember',
+        'role': userRole,
         'isActive': true,
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
