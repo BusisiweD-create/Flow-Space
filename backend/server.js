@@ -1111,19 +1111,12 @@ app.post('/api/v1/auth/login', async (req, res) => {
     let result;
     try {
       result = await pool.query(
-        'SELECT id, email, password_hash, first_name, last_name, role, created_at, is_active FROM users WHERE email = $1',
+        'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
         [email]
       );
     } catch (colErr) {
-      console.log('Login schema error (first try):', colErr.message);
-      if (colErr?.message && /column.*does not exist/i.test(colErr.message)) {
-        result = await pool.query(
-          'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
-          [email]
-        );
-      } else {
-        throw colErr;
-      }
+      console.log('Login query error:', colErr.message);
+      throw colErr;
     }
 
     // If user doesn't exist, create them (TEMPORARY FIX)
@@ -1146,8 +1139,8 @@ app.post('/api/v1/auth/login', async (req, res) => {
       const userId = uuidv4();
       
       result = await pool.query(
-        'INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), true) RETURNING id, email, first_name, last_name, role, created_at, is_active',
-        [userId, email, hashedPassword, email.split('@')[0], 'User', userRole]
+        'INSERT INTO users (id, email, password_hash, name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), true) RETURNING id, email, password_hash, name, role, created_at, is_active',
+        [userId, email, hashedPassword, email.split('@')[0], userRole]
       );
       
       console.log(`✅ User created: ${email} with role: ${userRole}`);
@@ -1194,9 +1187,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    const userName = user.name || (user.first_name && user.last_name
-      ? `${user.first_name} ${user.last_name}`.trim()
-      : (user.first_name || user.last_name || user.email));
+    const userName = user.name || email.split('@')[0];
 
     console.log(`✅ Login successful: ${user.email}`);
 
