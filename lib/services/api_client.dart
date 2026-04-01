@@ -14,7 +14,7 @@ class ApiClient {
   ApiClient._internal();
 
 static String get _baseUrlWithVersion => Environment.apiBaseUrl;
-  static const Duration _timeout = Duration(seconds: 45); // Increased timeout for Render
+  static const Duration _timeout = Duration(seconds: 90); // Increased timeout for Render cold starts
 
   bool _initialized = false;
   String? _accessToken;
@@ -538,10 +538,36 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
     // BYPASSES DISABLED: Backend is now working correctly on Render
     // The deployed app should use real API calls to backend-532p.onrender.com
 
-    final response = await post('/auth/login', body: {
-      'email': email,
-      'password': password,
-    },);
+    // Add retry logic for Render cold starts
+    ApiResponse response = ApiResponse.error('Initial response not set');
+    int attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts) {
+      try {
+        debugPrint('🔐 Login attempt ${attempts + 1} for: $email');
+        response = await post('/auth/login', body: {
+          'email': email,
+          'password': password,
+        },);
+
+        // If we get a response (success or error), break
+        if (response.statusCode != 0) {
+          break;
+        }
+      } catch (e) {
+        debugPrint('🔐 Login attempt ${attempts + 1} failed: $e');
+        attempts++;
+        
+        // If last attempt, rethrow
+        if (attempts >= maxAttempts) {
+          rethrow;
+        }
+        
+        // Wait before retry (for backend to wake up)
+        await Future.delayed(Duration(seconds: 3));
+      }
+    }
 
     if (response.isSuccess && response.data != null) {
       final data = response.data!;
