@@ -544,9 +544,9 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
         await prefs.setString('access_token', mockToken);
         await prefs.setString('refresh_token', mockToken);
         await prefs.setString('user_email', email);
-        await prefs.setString('user_name', mockUser['name'] as String);
-        await prefs.setString('user_id', mockUser['id'] as String);
-        await prefs.setString('user_role', mockUser['role'] as String);
+        await prefs.setString('user_name', mockUser['name'].toString());
+        await prefs.setString('user_id', mockUser['id'].toString());
+        await prefs.setString('user_role', mockUser['role'].toString());
         await prefs.setBool('is_authenticated', true);
         await prefs.setString('auth_time', DateTime.now().toIso8601String());
       } catch (e) {
