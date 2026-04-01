@@ -1093,81 +1093,6 @@ app.post('/api/v1/auth/signup', async (req, res) => {
   }
 });
 
-// Signup endpoint - SIMPLIFIED FOR DEPLOYMENT ISSUES
-app.post('/api/v1/auth/signup', async (req, res) => {
-  try {
-    const { email, password, firstName, lastName, role = 'teamMember' } = req.body;
-
-    console.log(`📝 Signup attempt for email: ${email}`);
-
-    if (!email || !password || !firstName || !lastName) {
-      return res.status(400).json({
-        success: false,
-        error: 'All fields are required',
-      });
-    }
-
-    // Check if user already exists
-    const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'User already exists',
-      });
-    }
-
-    // Create new user
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userId = uuidv4();
-
-    const result = await pool.query(
-      'INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), true) RETURNING id, email, first_name, last_name, role, created_at, is_active',
-      [userId, email, hashedPassword, firstName, lastName, role]
-    );
-
-    const user = result.rows[0];
-    console.log(`✅ User created successfully: ${email}`);
-
-    // Generate token
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    res.json({
-      success: true,
-      message: 'Account created successfully',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: `${user.first_name} ${user.last_name}`,
-          role: user.role,
-          isActive: user.is_active,
-          createdAt: user.created_at
-        },
-        token: token
-      }
-    });
-
-  } catch (error) {
-    console.error('Signup error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create account',
-    });
-  }
-});
-
 // Login endpoint (matching frontend expectations) - SIMPLIFIED FOR DEPLOYMENT ISSUES
 app.post('/api/v1/auth/login', async (req, res) => {
   try {
@@ -1229,9 +1154,6 @@ app.post('/api/v1/auth/login', async (req, res) => {
     }
 
     const user = result.rows[0];
-<<<<<<< HEAD
-    console.log(`✅ User authenticated: ${user.email} (ID: ${user.id})`);
-=======
     console.log(`✅ User found: ${user.email} (ID: ${user.id})`);
 
     // Check if user is active
@@ -1260,7 +1182,6 @@ app.post('/api/v1/auth/login', async (req, res) => {
         error: 'Invalid credentials',
       });
     }
->>>>>>> 03214f7dca8eecdb51636348784e12baaea8d171
 
     // Generate token without password verification (TEMPORARY)
     const token = jwt.sign(
@@ -1278,22 +1199,6 @@ app.post('/api/v1/auth/login', async (req, res) => {
       : (user.first_name || user.last_name || user.email));
 
     console.log(`✅ Login successful: ${user.email}`);
-
-    res.json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: userName,
-          role: user.role,
-          isActive: user.is_active,
-          createdAt: user.created_at
-        },
-        token: token
-      }
-    });
 
     res.json({
       success: true,
@@ -7458,9 +7363,6 @@ app.post('/api/v1/auth/reset-password', async (req, res) => {
     });
   }
 });
-
-=======
->>>>>>> 03214f7dca8eecdb51636348784e12baaea8d171
 // ==================== END AI RELEASE READINESS ENDPOINTS ====================
 
 // Send reminder for sign-off report review
