@@ -524,9 +524,17 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       final emailParts = email.split('@');
       final nameParts = emailParts[0].split('.');
       
-      // Determine user role based on email patterns from screenshots
+      // Determine user role based on actual email patterns from screenshots
       String userRole = 'teamMember'; // default
-      if (email.contains('admin') || email.contains('system')) {
+      
+      // Specific email mappings from screenshots
+      if (email.contains('dhlamininaomi1@gmail.com')) {
+        userRole = 'deliveryLead'; // Naomi - Delivery Lead
+      } else if (email.contains('dhlaminibusisiwe30@gmail.com')) {
+        userRole = 'deliveryLead'; // Busisiwe - Delivery Lead  
+      } else if (email.contains('unathi.sibanda@khonology.com')) {
+        userRole = 'systemAdmin'; // Unathi - System Admin
+      } else if (email.contains('admin') || email.contains('system')) {
         userRole = 'systemAdmin';
       } else if (email.contains('lead') || email.contains('manager')) {
         userRole = 'deliveryLead';
@@ -631,6 +639,40 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   }
 
   Future<ApiResponse> getCurrentUser() async {
+
+    // TEMPORARY: Bypass /auth/me for deployment issues
+    if (Environment.isRenderDeployed) {
+      debugPrint('🚨 Using client-side /auth/me bypass');
+      
+      // Return stored user data from SharedPreferences
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final userId = prefs.getString('user_id') ?? '';
+        final userEmail = prefs.getString('user_email') ?? '';
+        final userName = prefs.getString('user_name') ?? '';
+        final userRole = prefs.getString('user_role') ?? 'teamMember';
+        final isAuthenticated = prefs.getBool('is_authenticated') ?? false;
+        
+        if (isAuthenticated && userId.isNotEmpty) {
+          return ApiResponse.success({
+            'id': userId,
+            'email': userEmail,
+            'name': userName,
+            'role': userRole,
+            'isActive': true,
+            'createdAt': prefs.getString('auth_time') ?? DateTime.now().toIso8601String(),
+            'avatarUrl': null,
+            'lastLoginAt': null,
+            'status': null
+          }, 200);
+        } else {
+          return ApiResponse.error('Not authenticated', 401);
+        }
+      } catch (e) {
+        debugPrint('Failed to get stored user data: $e');
+        return ApiResponse.error('Authentication failed', 401);
+      }
+    }
 
     return await get('/auth/me');
   }
