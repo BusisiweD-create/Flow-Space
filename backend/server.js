@@ -1229,7 +1229,38 @@ app.post('/api/v1/auth/login', async (req, res) => {
     }
 
     const user = result.rows[0];
+<<<<<<< HEAD
     console.log(`✅ User authenticated: ${user.email} (ID: ${user.id})`);
+=======
+    console.log(`✅ User found: ${user.email} (ID: ${user.id})`);
+
+    // Check if user is active
+    if (!user.is_active) {
+      console.log(`❌ Account deactivated: ${email}`);
+      return res.status(401).json({
+        success: false,
+        error: 'Account is deactivated',
+      });
+    }
+
+    const passwordHash = user.password_hash;
+    if (!passwordHash) {
+      console.log(`❌ No password hash for user: ${email}`);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+      });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, passwordHash);
+    if (!isValidPassword) {
+      console.log(`❌ Invalid password for user: ${email}`);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+      });
+    }
+>>>>>>> 03214f7dca8eecdb51636348784e12baaea8d171
 
     // Generate token without password verification (TEMPORARY)
     const token = jwt.sign(
@@ -7277,53 +7308,6 @@ app.post('/api/v1/release-readiness/analyze-sprints', authenticateToken, async (
   }
 });
 
-// Emergency password reset bypass for deployment issues
-app.post('/api/v1/auth/emergency-reset', async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
-    
-    if (!email || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email and new password are required'
-      });
-    }
-
-    console.log(`🚨 Emergency password reset for: ${email}`);
-    
-    // Hash new password with consistent settings
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
-    // Update or create user
-    const result = await pool.query(
-      `INSERT INTO users (email, password_hash, role, created_at, updated_at, is_active)
-       VALUES ($1, $2, 'teamMember', NOW(), NOW(), true)
-       ON CONFLICT (email) 
-       DO UPDATE SET password_hash = $2, updated_at = NOW()
-       RETURNING id, email, role`,
-      [email, hashedPassword]
-    );
-
-    console.log(`✅ Emergency reset successful for: ${email}`);
-    
-    res.json({
-      success: true,
-      message: 'Password reset successfully',
-      data: {
-        userId: result.rows[0].id,
-        email: result.rows[0].email
-      }
-    });
-
-  } catch (error) {
-    console.error('Emergency reset error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to reset password'
-    });
-  }
-});
-
 // Enhanced password verification with fallback for bcrypt compatibility issues - v2
 async function verifyPassword(password, hashedPassword) {
   try {
@@ -7475,6 +7459,8 @@ app.post('/api/v1/auth/reset-password', async (req, res) => {
   }
 });
 
+=======
+>>>>>>> 03214f7dca8eecdb51636348784e12baaea8d171
 // ==================== END AI RELEASE READINESS ENDPOINTS ====================
 
 // Send reminder for sign-off report review

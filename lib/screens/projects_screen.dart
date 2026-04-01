@@ -19,25 +19,22 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   List<Project> _projects = [];
   bool _isLoading = false;
   String? _selectedProjectId;
-    
+
   // Unified management mode
   final bool _isCreateMode = false;
   String? _editingProjectId;
-  
+
   // Form controllers for creation/editing
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _clientNameController = TextEditingController();
   final _keyController = TextEditingController();
-  
-  
+
   @override
   void initState() {
     super.initState();
     _loadProjects();
   }
-
-
 
   Future<void> _loadProjects() async {
     setState(() {
@@ -68,7 +65,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final auth = AuthService();
     if (!auth.hasPermission('manage_projects')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only Delivery Leads and System Admins can create projects.')),
+        const SnackBar(
+            content: Text(
+                'Only Delivery Leads and System Admins can create projects.')),
       );
       return;
     }
@@ -79,7 +78,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  
   void _showErrorMessage(dynamic error) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -125,90 +123,93 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   margin: const EdgeInsets.all(16),
                   child: GlassCard(
                     padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withAlpha(51),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: primaryColor.withAlpha(128)),
-                            ),
-                            child: Icon(
-                              _isCreateMode ? Icons.edit : Icons.folder,
-                              color: primaryColor,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _isCreateMode 
-                                      ? (_editingProjectId != null ? 'Edit Project' : 'Create New Project')
-                                      : 'Projects',
-                                  style: theme.textTheme.headlineSmall?.copyWith(
-                                    color: onSurfaceColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  _isCreateMode 
-                                      ? 'Fill in the project details below'
-                                      : 'View and manage your projects and their sprints',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: onSurfaceColor.withAlpha(230),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (!_isCreateMode) ...[
-                            ElevatedButton.icon(
-                              onPressed: () =>
-                                  _navigateToSprintConsole(_selectedProjectId),
-                              icon: const Icon(Icons.directions_run),
-                              label: Text(_selectedProjectId != null
-                                  ? 'View Sprints'
-                                  : 'Sprint Console'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withAlpha(51),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: primaryColor.withAlpha(128)),
+                              ),
+                              child: Icon(
+                                _isCreateMode ? Icons.edit : Icons.folder,
+                                color: primaryColor,
+                                size: 24,
                               ),
                             ),
-                            if (canManageProjects) ...[
-                              const SizedBox(width: 12),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _isCreateMode
+                                        ? (_editingProjectId != null
+                                            ? 'Edit Project'
+                                            : 'Create New Project')
+                                        : 'Projects',
+                                    style:
+                                        theme.textTheme.headlineSmall?.copyWith(
+                                      color: onSurfaceColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    _isCreateMode
+                                        ? 'Fill in the project details below'
+                                        : 'View and manage your projects and their sprints',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: onSurfaceColor.withAlpha(230),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!_isCreateMode) ...[
                               ElevatedButton.icon(
-                                onPressed: _navigateToProjectSetup,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Create Project'),
+                                onPressed: () => _navigateToSprintConsole(
+                                    _selectedProjectId),
+                                icon: const Icon(Icons.directions_run),
+                                label: Text(_selectedProjectId != null
+                                    ? 'View Sprints'
+                                    : 'Sprint Console'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.purple,
+                                  backgroundColor: primaryColor,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 16, vertical: 8),
                                 ),
                               ),
+                              if (canManageProjects) ...[
+                                const SizedBox(width: 12),
+                                ElevatedButton.icon(
+                                  onPressed: _navigateToProjectSetup,
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Create Project'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.purple,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 8),
+                                  ),
+                                ),
+                              ],
                             ],
                           ],
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                  ),
-                
+
                 // Main Content
                 Expanded(
-                  child: _isCreateMode 
+                  child: _isCreateMode
                       ? _buildProjectForm()
                       : _buildProjectsList(),
                 ),
@@ -254,7 +255,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
               ),
             ],
@@ -436,8 +438,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-
-  
   Widget _buildProjectForm() {
     return GlassCard(
       padding: const EdgeInsets.all(20),
@@ -447,8 +447,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           Text(
             'Project Form',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 20),
           TextField(

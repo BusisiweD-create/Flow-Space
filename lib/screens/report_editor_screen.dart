@@ -1162,6 +1162,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
 
                           if (!mounted) return;
 
+                          if (!mounted) return;
+
                           if (finalSignature != null &&
                               finalSignature.isNotEmpty) {
                             // Save signature if requested
