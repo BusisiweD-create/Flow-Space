@@ -1866,6 +1866,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                           final sprintId = sprint['id'].toString();
                           final isSelected =
                               _selectedSprintIds.contains(sprintId);
+                          final status = (sprint['status'] ?? '').toString().toLowerCase();
+                          final isCompleted = status == 'completed' || status == 'done' || status == 'closed';
                           return FilterChip(
                             label: Text(
                                 sprint['name'] as String? ?? 'Unnamed Sprint'),
