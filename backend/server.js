@@ -1138,12 +1138,25 @@ app.post('/api/v1/auth/login', async (req, res) => {
       const hashedPassword = await bcrypt.hash(password, 10);
       const userId = uuidv4();
       
-      result = await pool.query(
-        'INSERT INTO users (id, email, password_hash, name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), true) RETURNING id, email, password_hash, name, role, created_at, is_active',
-        [userId, email, hashedPassword, email.split('@')[0], userRole]
-      );
-      
-      console.log(`✅ User created: ${email} with role: ${userRole}`);
+      try {
+        result = await pool.query(
+          'INSERT INTO users (id, email, password_hash, name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), true) RETURNING id, email, password_hash, name, role, created_at, is_active',
+          [userId, email, hashedPassword, email.split('@')[0], userRole]
+        );
+        
+        console.log(`✅ User created: ${email} with role: ${userRole}`);
+        console.log(`📝 User created with ID: ${userId}, Hash: ${hashedPassword.substring(0, 20)}...`);
+      } catch (createErr) {
+        console.error('❌ Failed to create user:', createErr);
+        console.error('❌ Error details:', createErr.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create user',
+          details: createErr.message
+        });
+      }
+    } else {
+      console.log(`✅ Found existing user: ${email}`);
     }
 
     const user = result.rows[0];
@@ -1167,7 +1180,13 @@ app.post('/api/v1/auth/login', async (req, res) => {
       });
     }
 
+    console.log(`🔐 Comparing password for user: ${email}`);
+    console.log(`📝 Stored hash: ${passwordHash.substring(0, 20)}...`);
+    console.log(`📝 Input password: ${password}`);
+
     const isValidPassword = await bcrypt.compare(password, passwordHash);
+    console.log(`🔍 Password comparison result: ${isValidPassword}`);
+    
     if (!isValidPassword) {
       console.log(`❌ Invalid password for user: ${email}`);
       return res.status(401).json({
