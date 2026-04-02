@@ -79,7 +79,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         label: 'Sprints',
         icon: Icons.timer_outlined,
         iconName: 'sprints',
-        route: '/sprint-console',
+        route: '/sprints',
         requiredPermission: 'view_sprints',
       ),
       // Sprints accessed via Projects
@@ -88,13 +88,20 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         icon: Icons.assignment_outlined,
         iconName: 'deliverables',
         route: '/deliverables-overview',
-        requiredPermission: 'view_all_deliverables',
+        requiredPermission: null,
       ),
       const _NavItem(
         label: 'Timeline',
         icon: Icons.calendar_today_outlined,
         iconName: 'timeline',
         route: '/timeline',
+        requiredPermission: null,
+      ),
+      const _NavItem(
+        label: 'AI Assistant',
+        icon: Icons.smart_toy_outlined,
+        iconName: 'ai_assistant',
+        route: '/ai-assistant',
         requiredPermission: null,
       ),
       const _NavItem(
@@ -117,13 +124,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         iconName: 'reports',
         route: '/report-repository',
         requiredPermission: 'view_all_deliverables',
-      ),
-      const _NavItem(
-        label: 'AI Assistant',
-        icon: Icons.smart_toy_outlined,
-        iconName: 'chatbot',
-        route: '/ai-assistant',
-        requiredPermission: null,
       ),
       const _NavItem(
         label: 'Role Management',
