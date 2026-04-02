@@ -669,6 +669,14 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
             onPressed: _loadSprintData,
             tooltip: 'Refresh Data',
           ),
+          IconButton(
+            icon: const Icon(Icons.description_outlined, color: Colors.white),
+            onPressed: () {
+              final encodedName = Uri.encodeComponent(widget.sprintName);
+              context.push('/sprint-report/${widget.sprintId}?name=$encodedName');
+            },
+            tooltip: 'Sprint Report',
+          ),
           if (canCreateDeliverable)
             IconButton(
               icon: const Icon(Icons.add, color: Colors.white),

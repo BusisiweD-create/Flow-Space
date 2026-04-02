@@ -993,10 +993,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 onTap: () {
                   final first =
                       _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
-                  final id = first != null
-                      ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
-                      : '';
-                  if (id.isNotEmpty) context.go('/report-builder/$id');
+                  final sprintId = first != null ? _extractFirstSprintId(first) : null;
+                  if (sprintId != null && sprintId.isNotEmpty) {
+                    context.go('/sprint-report/$sprintId');
+                    return;
+                  }
+                  context.go('/sprint-console');
                 },
               ),
             ),
@@ -1114,7 +1116,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                                     onPressed: id.isEmpty
                                         ? null
                                         : () =>
-                                            context.go('/report-builder/$id'),
+                                            _openSprintReportForDeliverable(d),
                                     icon: const Icon(Icons.description_outlined,
                                         size: 18),
                                     label: const Text('Report'),
@@ -1249,10 +1251,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                               const Spacer(),
                               IconButton(
                                 onPressed: () {
-                                  final route = id.isNotEmpty
-                                      ? '/report-editor/$id'
-                                      : '/deliverables';
-                                  context.go(route);
+                                  if (id.isNotEmpty) {
+                                    _openSprintReportForDeliverable(d);
+                                    return;
+                                  }
+                                  context.go('/deliverables');
                                 },
                                 icon: const Icon(Icons.open_in_new),
                                 tooltip: 'Open',
@@ -2498,6 +2501,53 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       ),
       label: Text(label),
     );
+  }
+
+  String? _extractFirstSprintId(Map<String, dynamic> deliverable) {
+    final ids = <String>[];
+
+    void add(dynamic v) {
+      final s = v?.toString();
+      if (s != null && s.trim().isNotEmpty) ids.add(s.trim());
+    }
+
+    void addFromList(dynamic v) {
+      if (v is List) {
+        for (final item in v) {
+          add(item);
+        }
+      }
+    }
+
+    addFromList(deliverable['sprintIds']);
+    addFromList(deliverable['sprint_ids']);
+    add(deliverable['sprint_id']);
+    add(deliverable['sprintId']);
+
+    final contributing = deliverable['contributing_sprints'] ??
+        deliverable['contributingSprints'] ??
+        deliverable['sprints'];
+    if (contributing is List) {
+      for (final item in contributing) {
+        if (item is Map) {
+          add(item['id'] ?? item['sprint_id'] ?? item['sprintId']);
+        } else {
+          add(item);
+        }
+      }
+    }
+
+    if (ids.isEmpty) return null;
+    return ids.first;
+  }
+
+  void _openSprintReportForDeliverable(Map<String, dynamic> deliverable) {
+    final sprintId = _extractFirstSprintId(deliverable);
+    if (sprintId != null && sprintId.isNotEmpty) {
+      context.go('/sprint-report/$sprintId');
+      return;
+    }
+    context.go('/sprint-console');
   }
 
   Widget _buildCardHeader(IconData icon, String label, {String? route}) {

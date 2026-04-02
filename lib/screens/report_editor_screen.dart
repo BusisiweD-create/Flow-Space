@@ -1871,6 +1871,15 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                 sprint['name'] as String? ?? 'Unnamed Sprint'),
                             selected: isSelected,
                             onSelected: (selected) {
+                              if (selected && !isCompleted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Only completed sprints can be linked to a report.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
                               setState(() {
                                 if (selected) {
                                   _selectedSprintIds.add(sprintId);

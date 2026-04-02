@@ -325,6 +325,8 @@ class AuthService {
         return hasPermission('view_team_dashboard');
       case '/sprint-board':
         return hasPermission('view_sprints');
+      case '/sprint-report':
+        return hasPermission('view_sprints');
       case '/project-workspace':
         return hasPermission('manage_projects');
       case '/system-metrics':
