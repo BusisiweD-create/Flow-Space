@@ -565,7 +565,7 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
         }
         
         // Wait before retry (for backend to wake up)
-        await Future.delayed(Duration(seconds: 3));
+        await Future.delayed(const Duration(seconds: 3));
       }
     }
 
