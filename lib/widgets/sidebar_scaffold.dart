@@ -59,8 +59,14 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   List<_NavItem> get _navItems {
     final authService = AuthService();
-    final allItems = [
-      // Work-focused items only
+    final currentUser = authService.currentUser;
+    final userRole = currentUser != null 
+        ? currentUser.role.toString().toLowerCase()
+        : '';
+
+    // Role-based navigation items
+    final List<_NavItem> allItems = [
+      // Core items for all authenticated users
       const _NavItem(
         label: 'Dashboard',
         icon: Icons.dashboard_outlined,
@@ -75,14 +81,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/projects',
         requiredPermission: null,
       ),
-      const _NavItem(
-        label: 'Sprints',
-        icon: Icons.timer_outlined,
-        iconName: 'sprints',
-        route: '/sprints',
-        requiredPermission: 'view_sprints',
-      ),
-      // Sprints accessed via Projects
       const _NavItem(
         label: 'Deliverables',
         icon: Icons.assignment_outlined,
@@ -104,47 +102,144 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/ai-assistant',
         requiredPermission: null,
       ),
-      const _NavItem(
-        label: 'Approval Requests',
-        icon: Icons.assignment_outlined,
-        iconName: 'approval_requests',
-        route: '/approval-requests',
-        requiredPermission: 'view_approvals',
-      ),
-      const _NavItem(
-        label: 'Repository',
-        icon: Icons.folder_outlined,
-        iconName: 'repository',
-        route: '/repository',
-        requiredPermission: 'view_all_deliverables',
-      ),
-      const _NavItem(
-        label: 'Reports',
-        icon: Icons.assessment_outlined,
-        iconName: 'reports',
-        route: '/report-repository',
-        requiredPermission: 'view_all_deliverables',
-      ),
-      const _NavItem(
-        label: 'Role Management',
-        icon: Icons.admin_panel_settings_outlined,
-        iconName: 'role_management',
-        route: '/role-management',
-        requiredPermission: 'manage_users',
-      ),
-      const _NavItem(
-        label: 'Settings', // kept for potential use outside sidebar
-        icon: Icons.settings_outlined,
-        iconName: 'settings',
-        route: '/settings',
-        requiredPermission: 'HIDE_FROM_SIDEBAR',
-      ),
     ];
 
+    // Role-specific items
+    final List<_NavItem> roleSpecificItems = [];
+
+    if (userRole.contains('admin') || userRole.contains('system')) {
+      // Admin/System users get full access
+      roleSpecificItems.addAll([
+        const _NavItem(
+          label: 'Sprints',
+          icon: Icons.timer_outlined,
+          iconName: 'sprints',
+          route: '/sprints',
+          requiredPermission: 'view_sprints',
+        ),
+        const _NavItem(
+          label: 'Approval Requests',
+          icon: Icons.assignment_outlined,
+          iconName: 'approval_requests',
+          route: '/approval-requests',
+          requiredPermission: 'view_approvals',
+        ),
+        const _NavItem(
+          label: 'Repository',
+          icon: Icons.folder_outlined,
+          iconName: 'repository',
+          route: '/repository',
+          requiredPermission: 'view_all_deliverables',
+        ),
+        const _NavItem(
+          label: 'Reports',
+          icon: Icons.assessment_outlined,
+          iconName: 'reports',
+          route: '/report-repository',
+          requiredPermission: 'view_all_deliverables',
+        ),
+        const _NavItem(
+          label: 'Role Management',
+          icon: Icons.admin_panel_settings_outlined,
+          iconName: 'role_management',
+          route: '/role-management',
+          requiredPermission: 'manage_users',
+        ),
+        const _NavItem(
+          label: 'Settings',
+          icon: Icons.settings_outlined,
+          iconName: 'settings',
+          route: '/settings',
+          requiredPermission: null,
+        ),
+      ]);
+    } else if (userRole.contains('delivery') || userRole.contains('project')) {
+      // Delivery/Project managers get project-related access
+      roleSpecificItems.addAll([
+        const _NavItem(
+          label: 'Sprints',
+          icon: Icons.timer_outlined,
+          iconName: 'sprints',
+          route: '/sprints',
+          requiredPermission: 'view_sprints',
+        ),
+        const _NavItem(
+          label: 'Approval Requests',
+          icon: Icons.assignment_outlined,
+          iconName: 'approval_requests',
+          route: '/approval-requests',
+          requiredPermission: 'view_approvals',
+        ),
+        const _NavItem(
+          label: 'Repository',
+          icon: Icons.folder_outlined,
+          iconName: 'repository',
+          route: '/repository',
+          requiredPermission: 'view_all_deliverables',
+        ),
+        const _NavItem(
+          label: 'Reports',
+          icon: Icons.assessment_outlined,
+          iconName: 'reports',
+          route: '/report-repository',
+          requiredPermission: 'view_all_deliverables',
+        ),
+      ]);
+    } else if (userRole.contains('client')) {
+      // Client reviewers get focused access
+      roleSpecificItems.addAll([
+        const _NavItem(
+          label: 'Timeline',
+          icon: Icons.calendar_today_outlined,
+          iconName: 'timeline',
+          route: '/timeline',
+          requiredPermission: null,
+        ),
+        const _NavItem(
+          label: 'AI Assistant',
+          icon: Icons.smart_toy_outlined,
+          iconName: 'ai_assistant',
+          route: '/ai-assistant',
+          requiredPermission: null,
+        ),
+        const _NavItem(
+          label: 'Approval Requests',
+          icon: Icons.assignment_outlined,
+          iconName: 'approval_requests',
+          route: '/approval-requests',
+          requiredPermission: 'view_approvals',
+        ),
+        const _NavItem(
+          label: 'Repository',
+          icon: Icons.folder_outlined,
+          iconName: 'repository',
+          route: '/repository',
+          requiredPermission: 'view_all_deliverables',
+        ),
+        const _NavItem(
+          label: 'Reports',
+          icon: Icons.assessment_outlined,
+          iconName: 'reports',
+          route: '/report-repository',
+          requiredPermission: 'view_all_deliverables',
+        ),
+      ]);
+    }
+
+    // Combine core items with role-specific items
+    final combinedItems = [...allItems, ...roleSpecificItems];
+
     // Filter items based on user permissions
-    return allItems.where((item) {
+    return combinedItems.where((item) {
       // Special flag: hide from sidebar even if user has permission
       if (item.requiredPermission == 'HIDE_FROM_SIDEBAR') return false;
+      
+      // Client users should not see Projects and Deliverables
+      if (userRole.contains('client') && 
+          (item.label == 'Projects' || item.label == 'Deliverables')) {
+        return false;
+      }
+      
       if (item.requiredPermission == null) return true;
       return authService.hasPermission(item.requiredPermission!);
     }).toList();

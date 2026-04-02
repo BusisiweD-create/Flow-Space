@@ -2809,31 +2809,31 @@ app.get('/api/v1/profile/:userId/picture', async (req, res) => {
   try {
     const { userId } = req.params;
     
-    // Check if user exists
-    const userResult = await pool.query(
-      'SELECT id, name, avatar_url FROM users WHERE id = $1',
-      [userId]
-    );
-    
-    if (userResult.rows.length === 0) {
+    // Check user profile using UserProfile model
+    const profile = await UserProfile.findOne({ where: { user_id: userId } });
+    if (!profile || !profile.profile_picture) {
       return res.status(404).json({
         success: false,
-        error: 'User not found'
+        error: 'Profile picture not found'
       });
     }
     
-    const user = userResult.rows[0];
+    const picUrl = profile.profile_picture.toString();
     
     // If user has an uploaded avatar, serve the file
-    if (user.avatar_url && user.avatar_url.startsWith('/uploads/')) {
-      const filePath = path.join(__dirname, user.avatar_url);
+    if (picUrl && picUrl.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '..', 'uploads', 'profile_pictures', path.basename(picUrl));
       
       // Check if file exists
       if (fs.existsSync(filePath)) {
         const stat = fs.statSync(filePath);
         
         // Set appropriate headers
-        res.setHeader('Content-Type', 'image/jpeg');
+        const ext = path.extname(filePath).toLowerCase();
+        const ct = ext === '.png' ? 'image/png'
+          : (ext === '.gif' ? 'image/gif'
+          : (ext === '.webp' ? 'image/webp' : 'image/jpeg'));
+        res.setHeader('Content-Type', ct);
         res.setHeader('Content-Length', stat.size);
         res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
         
@@ -2846,7 +2846,7 @@ app.get('/api/v1/profile/:userId/picture', async (req, res) => {
     
     // If no uploaded avatar, fetch and serve default avatar
     try {
-      const defaultAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=0D47A1&color=fff&size=200`;
+      const defaultAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'User')}&background=0D47A1&color=fff&size=200`;
       const response = await fetch(defaultAvatarUrl);
       
       if (response.ok) {
