@@ -14,8 +14,8 @@ class AppIcons {
       },
       // Projects folder icon (all roles)
       'projects': {
-        'active': 'assets/Icons/Repository_Project active.png',
-        'inactive': 'assets/Icons/Repository_Project inactive.png',
+        'active': 'assets/Icons/Project Management/Project Management_Red.png',
+        'inactive': 'assets/Icons/Project Management/Project Management_White.png',
       },
       // Deliverables rocket icon (all roles)
       'deliverables': {
@@ -66,6 +66,10 @@ class AppIcons {
         'active': 'assets/Icons/Timeline Page active.png.png',
         'inactive': 'assets/Icons/Timeline Page inactive.png.png',
       },
+      'ai_assistant': {
+        'active': 'assets/Icons/AI_Red.png',
+        'inactive': 'assets/Icons/AI_Red.png',
+      },
       'teams': {
         'active': 'assets/Icons/Home_Dashboard active.png.png',
         'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
@@ -104,6 +108,7 @@ class AppIcons {
       'settings': Icons.settings_outlined,
       'account': Icons.person_outline,
       'timeline': Icons.calendar_today_outlined,
+      'ai_assistant': Icons.smart_toy_outlined,
     };
 
     return iconMap[iconName] ?? fallbackIcon;
