@@ -189,20 +189,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       // Client reviewers get focused access
       roleSpecificItems.addAll([
         const _NavItem(
-          label: 'Timeline',
-          icon: Icons.calendar_today_outlined,
-          iconName: 'timeline',
-          route: '/timeline',
-          requiredPermission: null,
-        ),
-        const _NavItem(
-          label: 'AI Assistant',
-          icon: Icons.smart_toy_outlined,
-          iconName: 'ai_assistant',
-          route: '/ai-assistant',
-          requiredPermission: null,
-        ),
-        const _NavItem(
           label: 'Approval Requests',
           icon: Icons.assignment_outlined,
           iconName: 'approval_requests',
@@ -329,7 +315,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             bottom: 16,
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Image.asset(
                                 'assets/Icons/Red_Khono_Discs.png',
@@ -337,18 +323,20 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 height: _collapsed ? 28 : 64,
                                 fit: BoxFit.contain,
                               ),
-                              IconButton(
-                                onPressed: _toggleSidebar,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                icon: Icon(
-                                  _collapsed
-                                      ? Icons.chevron_right
-                                      : Icons.chevron_left,
-                                  color: FlownetColors.textSecondary,
-                                  size: 20,
+                              if (!_collapsed) const SizedBox(width: 40),
+                              if (!_collapsed)
+                                IconButton(
+                                  onPressed: _toggleSidebar,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: Icon(
+                                    _collapsed
+                                        ? Icons.chevron_right
+                                        : Icons.chevron_left,
+                                    color: FlownetColors.textSecondary,
+                                    size: 20,
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
