@@ -81,9 +81,11 @@ class _ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
         // Load sprints for this project
         await _loadSprints();
       } else {
+        debugPrint('❌ Backend response failed: ${resp.error}');
         setState(() => _error = 'Project not found');
       }
     } catch (e) {
+      debugPrint('❌ Error loading project details: $e');
       setState(() => _error = 'Failed to load project details: $e');
     } finally {
       setState(() => _isLoading = false);

@@ -506,6 +506,7 @@ router.get('/', async (req, res) => {
     if (!base.endsWith('/sign-off-reports')) {
       return res.status(404).json({ error: 'Endpoint not found' });
     }
+    
     await ensureReportsTable();
     
     const { deliverableId, status } = req.query;
@@ -879,6 +880,8 @@ router.post('/', async (req, res) => {
         return res.status(401).json({ error: 'Authentication required' });
       }
       await ensureReportsTable();
+      
+      // Validate required fields
       const {
         deliverableId,
         reportTitle,
@@ -889,9 +892,7 @@ router.post('/', async (req, res) => {
         nextSteps,
         status
       } = req.body || {};
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
+      
       if (!deliverableId || typeof deliverableId !== 'string' || deliverableId.trim().length === 0) {
         return res.status(400).json({ error: 'deliverableId is required' });
       }
@@ -911,8 +912,8 @@ router.post('/', async (req, res) => {
       const actorRole = actor.role ? String(actor.role) : (req.user && req.user.role ? String(req.user.role) : null);
       const normalizedStatus = (typeof status === 'string' && status.trim().length > 0) ? status.trim() : 'draft';
       const content = {
-        reportTitle,
-        reportContent,
+        reportTitle: reportTitle.trim(),
+        reportContent: reportContent.trim(),
         sprintIds: sprintIds || [],
         sprintPerformanceData,
         knownLimitations,

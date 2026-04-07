@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/sprint_database_service.dart';
-import '../services/auth_service.dart';
 
 class ProjectsOverviewScreen extends StatefulWidget {
   const ProjectsOverviewScreen({super.key});
@@ -14,6 +13,8 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
   final SprintDatabaseService _sprintService = SprintDatabaseService();
   final List<Map<String, dynamic>> _projects = [];
   bool _isLoading = false;
+  String _searchQuery = '';
+  String _selectedFilter = 'all'; // 'all', 'active', 'completed'
 
   @override
   void initState() {
@@ -55,7 +56,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                   // Header Section
                   _buildHeaderSection(),
                   const SizedBox(height: 32),
-                  
+
                   // Your Projects Section
                   _buildProjectsSection(),
                 ],
@@ -65,11 +66,10 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
   }
 
   Widget _buildHeaderSection() {
-    final canManageProjects = AuthService().hasPermission('manage_projects');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title with icon
+        // Title and Search/Filter Section
         Row(
           children: [
             Container(
@@ -85,6 +85,53 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                 size: 24,
               ),
             ),
+            const SizedBox(width: 16),
+            // Search Bar
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                child: TextField(
+                  onChanged: (value) {
+                    setState(() => _searchQuery = value);
+                  },
+                  decoration: const InputDecoration(
+                    hintText: 'Search projects...',
+                    prefixIcon: Icon(Icons.search, color: Colors.white70),
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.white70),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Filter Dropdown
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: DropdownButton<String>(
+                value: _selectedFilter,
+                onChanged: (value) {
+                  setState(() => _selectedFilter = value!);
+                },
+                dropdownColor: Colors.grey[800],
+                icon: const Icon(Icons.filter_list, color: Colors.white70),
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('All Projects')),
+                  DropdownMenuItem(value: 'active', child: Text('Active')),
+                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                ],
+              ),
+            ),
             const SizedBox(width: 12),
             const Text(
               'Projects',
@@ -97,7 +144,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        
+
         // Subtitle
         const Text(
           'View and manage your projects and their sprints',
@@ -107,7 +154,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        
+
         // Action Buttons
         Row(
           children: [
@@ -122,46 +169,66 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.grey,
                 side: const BorderSide(color: Colors.grey),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
             const SizedBox(width: 12),
-            
-            // Sprint Console Button
+
+            // Create Project Button
             ElevatedButton.icon(
-              onPressed: () {
-                context.push('/sprint-console');
+              onPressed: () async {
+                final created = await context.push<bool>('/projects/create');
+                if (created == true) {
+                  await _loadProjects();
+                }
               },
-              icon: const Icon(Icons.timer_outlined, size: 18),
-              label: const Text('Sprint Console'),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Create Project'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: Colors.purple,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
-            const SizedBox(width: 12),
-            
-            if (canManageProjects)
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final created = await context.push<bool>('/projects/create');
-                  if (created == true) {
-                    await _loadProjects();
-                  }
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Create Project'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
           ],
         ),
       ],
     );
+  }
+
+  // Filter projects based on search query and selected filter
+  List<Map<String, dynamic>> _getFilteredProjects() {
+    var filteredProjects = List<Map<String, dynamic>>.from(_projects);
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      filteredProjects = filteredProjects.where((project) {
+        final name = project['name']?.toString().toLowerCase() ?? '';
+        final description = project['description']?.toString().toLowerCase() ?? '';
+        return name.contains(_searchQuery.toLowerCase()) || 
+               description.contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // Apply status filter
+    switch (_selectedFilter) {
+      case 'active':
+        filteredProjects = filteredProjects.where((project) => 
+          project['status']?.toString() == 'active').toList();
+        break;
+      case 'completed':
+        filteredProjects = filteredProjects.where((project) => 
+          project['status']?.toString() == 'completed').toList();
+        break;
+      case 'all':
+      default:
+        // Already filtered by search if applicable
+        break;
+    }
+
+    return filteredProjects;
   }
 
   Widget _buildProjectsSection() {
@@ -178,10 +245,10 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
-        // Project Cards
-        for (final project in _projects) _buildProjectCard(project),
-        
+
+        // Filtered Project Cards
+        ..._getFilteredProjects().map((project) => _buildProjectCard(project)),
+
         // Empty state
         if (_projects.isEmpty)
           Container(
@@ -229,7 +296,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
     final startDate = project['start_date']?.toString() ?? '';
     final endDate = project['end_date']?.toString() ?? '';
     final status = project['status']?.toString() ?? 'active';
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
@@ -313,7 +380,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // Project Key and Description
           if (key.isNotEmpty) ...[
             Text(
@@ -336,7 +403,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
             ),
             const SizedBox(height: 12),
           ],
-          
+
           // Dates and Status
           Row(
             children: [
@@ -353,7 +420,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                 ),
                 const SizedBox(width: 16),
               ],
-              
+
               // End Date
               if (endDate.isNotEmpty) ...[
                 const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
@@ -369,7 +436,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Status Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -422,7 +489,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              
+
               final projectId = project['id']?.toString();
               if (projectId == null || projectId.isEmpty) {
                 if (mounted) {
@@ -435,25 +502,26 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                 }
                 return;
               }
-              
+
               // Show loading indicator
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Deleting project...')),
                 );
               }
-              
+
               try {
                 final success = await _sprintService.deleteProject(projectId);
-                
+
                 if (success) {
                   // Refresh the projects list
                   await _loadProjects();
-                  
+
                   if (mounted && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Project "${project['name']}" deleted successfully'),
+                        content: Text(
+                            'Project "${project['name']}" deleted successfully'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -462,7 +530,8 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
                   if (mounted && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Failed to delete project "${project['name']}"'),
+                        content: Text(
+                            'Failed to delete project "${project['name']}"'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -487,4 +556,3 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
     );
   }
 }
-

@@ -13,7 +13,6 @@ class BackendApiService {
   static final BackendApiService _instance = BackendApiService._internal();
   factory BackendApiService() => _instance;
   BackendApiService._internal();
-
   final ApiClient _apiClient = ApiClient();
 
   // Getters
@@ -37,7 +36,10 @@ class BackendApiService {
     final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
     // Use different endpoints based on environment
-    final endpoint = Environment.isRenderDeployed ? '/auth/signup' : '/auth/register';
+    final endpoint = Environment.isRenderDeployed ? '/auth/register' : '/auth/register';
+    
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
     
     debugPrint('🔍 Environment.isRenderDeployed: ${Environment.isRenderDeployed}');
     debugPrint('🔍 Using endpoint: $endpoint');

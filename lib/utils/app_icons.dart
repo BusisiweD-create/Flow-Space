@@ -12,10 +12,15 @@ class AppIcons {
         'active': 'assets/Icons/Home_Dashboard active.png.png',
         'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
       },
+      // Projects folder icon (all roles)
+      'projects': {
+        'active': 'assets/Icons/Project Management/Project Management_Red.png',
+        'inactive': 'assets/Icons/Project Management/Project Management_White.png',
+      },
       // Deliverables rocket icon (all roles)
       'deliverables': {
-        'active': 'assets/Icons/Approval Requests active.png.png',
-        'inactive': 'assets/Icons/Approval Requests inactive.png.png',
+        'active': 'assets/Icons/Deliverables_rocket_active.png',
+        'inactive': 'assets/Icons/Deliverables_rocket_inactive.png',
       },
       'sprints': {
         'active': 'assets/Icons/Sprints console active.png.png',
@@ -26,8 +31,8 @@ class AppIcons {
         'inactive': 'assets/Icons/Notifications inactive.png.png',
       },
       'repository': {
-        'active': 'assets/Icons/Repository_Project active.png.png',
-        'inactive': 'assets/Icons/Repository_Project inactive.png.png',
+        'active': 'assets/Icons/Repository_Project active.png',
+        'inactive': 'assets/Icons/Repository_Project inactive.png',
       },
       'approval_requests': {
         'active': 'assets/Icons/Approval Requests active.png.png',
@@ -61,6 +66,10 @@ class AppIcons {
         'active': 'assets/Icons/Timeline Page active.png.png',
         'inactive': 'assets/Icons/Timeline Page inactive.png.png',
       },
+      'ai_assistant': {
+        'active': 'assets/Icons/AI_Red.png',
+        'inactive': 'assets/Icons/AI_Red.png',
+      },
       'teams': {
         'active': 'assets/Icons/Home_Dashboard active.png.png',
         'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
@@ -68,6 +77,10 @@ class AppIcons {
       'urgent_notifications': {
         'active': 'assets/Icons/Urgent Notifications active.png.png',
         'inactive': 'assets/Icons/Urgent Notifications inactive.png.png',
+      },
+      'chatbot': {
+        'active': 'assets/Icons/AI_Red.png',
+        'inactive': 'assets/Icons/AI_Red.png',
       },
     };
 
@@ -83,6 +96,7 @@ class AppIcons {
   }) {
     final iconMap = <String, IconData>{
       'dashboard': Icons.dashboard_outlined,
+      'projects': Icons.folder_outlined,
       'deliverables': Icons.rocket_launch_outlined,
       'sprints': Icons.timer_outlined,
       'notifications': Icons.notifications_outlined,
@@ -94,6 +108,7 @@ class AppIcons {
       'settings': Icons.settings_outlined,
       'account': Icons.person_outline,
       'timeline': Icons.calendar_today_outlined,
+      'ai_assistant': Icons.smart_toy_outlined,
     };
 
     return iconMap[iconName] ?? fallbackIcon;

@@ -94,14 +94,9 @@ flutter:
 
   
   assets:
-    - assets/Icons/khono_bg.png  # Background image
-    - assets/Icons/khono.png
-    - assets/Icons/logo.png
-    - assets/logo.png
+    - assets/icons/
     - assets/fonts/
-    - assets/Icons/Red_Khono_Discs.png
-    - assets/Icons/images/auth_background.png
-    - assets/Icons/
+    - assets/logo.png
 
   fonts:
     - family: Poppins

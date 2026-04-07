@@ -29,6 +29,7 @@ const authenticateToken = async (req, res, next) => {
     
     const payload = verifyToken(token);
     if (!payload || payload.type !== 'access') {
+      console.log('Auth failed - payload:', payload);
       return res.status(401).json({
         error: 'Invalid token',
         message: 'The provided token is invalid or expired'
@@ -37,7 +38,7 @@ const authenticateToken = async (req, res, next) => {
     
     // Attach user information to request
     req.user = {
-      id: payload.sub, // UUID should not be parsed as integer
+      id: payload.sub, // Keep as string to preserve UUID format
       email: payload.email,
       role: payload.role
     };

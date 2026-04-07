@@ -8,16 +8,13 @@ class Environment {
       'A social learning platform built with Flutter';
 
   // API Configuration - Use const for production URL from build
-  // Reverting to localhost
-  static const String _apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: "http://localhost:8000/api/v1",
-  );
+  // Note: _apiBaseUrl kept for potential future use with build-time variables
+  static const String _apiBaseUrl = "http://localhost:3001/api/v1";
 
   // Production fallback detection
   static String get apiBaseUrl {
     // First try build-time variable
-    if (_apiBaseUrl != "http://localhost:8000/api/v1") {
+    if (_apiBaseUrl != "http://localhost:3001/api/v1") {
       return _apiBaseUrl;
     }
 
@@ -47,8 +44,10 @@ class Environment {
   static const bool enablePushNotifications = true;
 
   // Development Settings
-  static const bool debugMode =
-      bool.fromEnvironment('DEBUG_MODE', defaultValue: true);
+  static const bool debugMode = bool.fromEnvironment(
+    'DEBUG_MODE',
+    defaultValue: true,
+  );
   static const String logLevel = 'debug';
 
   // Environment-specific configurations
@@ -64,6 +63,16 @@ class Environment {
           uri.host.contains('flownet.works');
     } catch (e) {
       return false;
+    }
+  }
+
+  // Check if running in local development mode
+  static bool get isLocalDevelopment {
+    try {
+      final uri = Uri.base;
+      return uri.host.contains('localhost') || uri.host.contains('127.0.0.1');
+    } catch (e) {
+      return true; // Assume local if can't detect
     }
   }
 }

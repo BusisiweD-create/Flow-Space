@@ -80,6 +80,8 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
+    console.log(`🔍 Fetching project details for ID: ${id}`);
+    
     const project = await Project.findByPk(id, {
       include: [
         {
@@ -101,6 +103,8 @@ router.get('/:id', async (req, res) => {
       ]
     });
     
+    console.log(`📊 Raw project data:`, JSON.stringify(project?.toJSON(), null, 2));
+    
     if (!project) {
       return res.status(404).json({ 
         success: false,
@@ -111,8 +115,48 @@ router.get('/:id', async (req, res) => {
     // Transform for frontend compatibility
     const projectJSON = project.toJSON();
     
-    // Map members to flat structure expected by frontend
-    if (projectJSON.members) {
+    console.log(`👥 Members found: ${projectJSON.members?.length || 0}`);
+    
+    // Fallback: If no members from associations, manually query them
+    if (!projectJSON.members || projectJSON.members.length === 0) {
+      console.log(`🔄 No members from associations, manually querying...`);
+      try {
+        const manualMembers = await sequelize.query(`
+          SELECT 
+            pm.id,
+            pm.project_id,
+            pm.user_id,
+            pm.role,
+            pm.added_at,
+            u.first_name,
+            u.last_name,
+            u.email
+          FROM project_members pm
+          LEFT JOIN users u ON pm.user_id = u.id
+          WHERE pm.project_id = :projectId
+          ORDER BY pm.role, u.first_name
+        `, {
+          replacements: { projectId: id },
+          type: QueryTypes.SELECT
+        });
+        
+        console.log(`🔍 Manual query found ${manualMembers.length} members`);
+        
+        projectJSON.members = manualMembers.map(m => ({
+          userId: m.user_id,
+          userName: `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown',
+          userEmail: m.email || '',
+          role: m.role,
+          assignedAt: m.added_at
+        }));
+        
+        console.log(`✅ Added ${projectJSON.members.length} members manually`);
+      } catch (error) {
+        console.error('❌ Error manually querying members:', error);
+        projectJSON.members = [];
+      }
+    } else {
+      // Use association data if available
       projectJSON.members = projectJSON.members.map(m => ({
         userId: m.user_id,
         userName: m.user ? `${m.user.first_name} ${m.user.last_name}`.trim() : 'Unknown',
@@ -125,6 +169,11 @@ router.get('/:id', async (req, res) => {
     // Map snake_case to camelCase for critical fields
     projectJSON.ownerId = projectJSON.owner_id;
     projectJSON.clientOwnerName = projectJSON.client_owner_name;
+    
+    console.log(`📤 Final API response:`, JSON.stringify({
+      success: true,
+      data: projectJSON
+    }, null, 2));
     
     res.json({
       success: true,

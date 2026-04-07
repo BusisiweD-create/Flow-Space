@@ -298,7 +298,7 @@ app.use('*', (req, res) => {
 });
 
 // Database connection and server startup
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 3001;
 
 async function startServer() {
   try {
