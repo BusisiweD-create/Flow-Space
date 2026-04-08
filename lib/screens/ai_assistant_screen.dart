@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../services/backend_api_service.dart';
 
 class AIAssistantScreen extends StatefulWidget {
@@ -20,6 +21,19 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   ];
 
   bool _isSending = false;
+
+  String _sanitizeAssistantText(String text) {
+    var s = text;
+    s = s.replaceAll('```', '');
+    s = s.replaceAll('*', '');
+    s = s.replaceAll('#', '');
+    s = s.replaceAll('`', '');
+    s = s.replaceAll(RegExp(r'^\s*terminal\s*\d+(?:\s*-\s*\d+)?\s*$', multiLine: true, caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'^\s*•\s+', multiLine: true), '- ');
+    s = s.replaceAll(RegExp(r'^\s*\*\s+', multiLine: true), '- ');
+    s = s.replaceAll(RegExp(r'[^\S\r\n]+'), ' ');
+    return s.trim();
+  }
 
   @override
   void dispose() {
@@ -47,15 +61,53 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
               data['message'])
           ?.toString()
           .trim();
+      final actions = data['actions'];
 
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': resp.isSuccess
-              ? (content?.isNotEmpty == true ? content! : 'No response received.')
-              : (resp.error ?? 'Request failed.'),
+      bool navigated = false;
+      bool silentNavigation = false;
+      String? navigateRoute;
+
+      if (resp.isSuccess && actions is List && actions.isNotEmpty) {
+        final first = actions.first;
+        if (first is Map) {
+          final m = Map<String, dynamic>.from(first);
+          final type = (m['type'] ?? '').toString().toLowerCase();
+          if (type == 'navigate') {
+            final route = (m['route'] ?? '').toString().trim();
+            final silent = m['silent'] == true;
+            if (route.isNotEmpty) {
+              navigated = true;
+              silentNavigation = silent;
+              navigateRoute = route;
+            }
+          }
+        }
+      }
+
+      final shouldShowAssistantMessage = !(navigated && silentNavigation);
+      if (shouldShowAssistantMessage) {
+        final safeContent = resp.isSuccess
+            ? (content?.isNotEmpty == true ? _sanitizeAssistantText(content!) : 'No response received.')
+            : _sanitizeAssistantText(resp.error ?? 'Request failed.');
+        setState(() {
+          _messages.add({
+            'role': 'assistant',
+            'content': safeContent,
+          });
         });
-      });
+      }
+
+      if (navigated && navigateRoute != null && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (silentNavigation) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Navigating…')),
+            );
+          }
+          GoRouter.of(context).go(navigateRoute!);
+        });
+      }
     } catch (e) {
       setState(() {
         _messages.add({'role': 'assistant', 'content': 'Error: $e'});
@@ -146,4 +198,3 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     );
   }
 }
-

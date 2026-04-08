@@ -26,8 +26,14 @@ function setCached(key, v) { cache.set(key, { t: Date.now(), v }); }
 
 function cleanAiText(text) {
   let s = String(text || '');
-  s = s.replace(/^\s*\*\s+/gm, '- ');
-  s = s.replace(/\*/g, '');
+  s = s.replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, ''));
+  s = s.replace(/^\s*#{1,6}\s+/gm, '');
+  s = s.replace(/^\s*terminal\s*#?\s*\d+(?:\s*-\s*\d+)?\s*$/gmi, '');
+  s = s.replace(/^\s*[-*+]\s+/gm, '- ');
+  s = s.replace(/^\s*•\s+/gm, '- ');
+  s = s.replace(/[`*#]/g, '');
+  s = s.replace(/^\s*>\s?/gm, '');
+  s = s.replace(/[^\S\r\n]+/g, ' ');
   s = s.replace(/^\s*•\s+/gm, '- ');
   return s.trim();
 }
@@ -660,6 +666,146 @@ function isProjectScopedQuery(text) {
   return /\b(details|info|overview|status|progress|owner|sprints?|deliverables?|reports?)\b/.test(t) || /\bassociated\b/.test(t);
 }
 
+function isNavigationQuery(text) {
+  const t = String(text || '').toLowerCase();
+  return /\b(navigate|go to|open|take me|bring me|show me|view|switch to|route me|send me)\b/.test(t);
+}
+
+function wantsNavigationChatConfirmation(text) {
+  const t = String(text || '').toLowerCase();
+  return /\b(explain|why|summary|details|tell me|describe|what should i know)\b/.test(t);
+}
+
+function inferRouteFromText(text) {
+  const t = String(text || '').toLowerCase();
+  if (/\bdashboard\b/.test(t) || /\bhome\b/.test(t)) return '/dashboard';
+  if (/\bprojects\b/.test(t) && !/\bproject\b/.test(t)) return '/projects';
+  if (/\bdeliverables?\b/.test(t)) return '/deliverables-overview';
+  if (/\bapprovals?\b/.test(t) || /\bapproval requests?\b/.test(t)) return '/approvals';
+  if (/\brepository\b/.test(t) || /\bdocuments?\b/.test(t) || /\bfiles?\b/.test(t)) return '/repository';
+  if (/\bnotifications?\b/.test(t) || /\balerts?\b/.test(t)) return '/notifications';
+  if (/\bsettings?\b/.test(t)) return '/settings';
+  if (/\bprofile\b/.test(t) || /\baccount\b/.test(t)) return '/profile';
+  if (/\bai assistant\b/.test(t) || /\bassistant\b/.test(t)) return '/ai-assistant';
+  return null;
+}
+
+async function buildNavigationActionFromText(userText, snapshotData) {
+  const t = String(userText || '').toLowerCase();
+
+  if (/\bproject\b/.test(t)) {
+    const project = await findProjectFromText(userText, snapshotData);
+    if (!project) return null;
+    const projectId = String(project.id);
+    const wantsDetails = /\b(details|detail|overview|info|status)\b/.test(t);
+    const wantsWorkspace = /\b(workspace|board|kanban|sprint board)\b/.test(t);
+    const route = wantsDetails ? `/project-details/${projectId}` : (wantsWorkspace ? `/project-workspace/${projectId}` : `/project-details/${projectId}`);
+    const name = project.name ? String(project.name) : 'project';
+    const key = project.key ? String(project.key) : '';
+    const label = key ? `${name} (${key})` : name;
+    return { route, label };
+  }
+
+  if (/\bdeliverable\b/.test(t)) {
+    const deliverable = await findDeliverableFromText(userText, snapshotData);
+    if (!deliverable) return null;
+    const deliverableId = String(deliverable.id);
+    const title = deliverable.title ? String(deliverable.title) : 'deliverable';
+    return { route: `/deliverables/${deliverableId}`, label: title };
+  }
+
+  const directRoute = inferRouteFromText(userText);
+  if (directRoute) {
+    return { route: directRoute, label: directRoute };
+  }
+
+  return null;
+}
+
+async function findDeliverableFromText(text, snapshotData) {
+  const raw = String(text || '');
+  const t = raw.toLowerCase();
+  const deliverables = snapshotData && Array.isArray(snapshotData.deliverables) ? snapshotData.deliverables : null;
+
+  const uuidMatch = raw.match(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i);
+  if (uuidMatch) {
+    const id = uuidMatch[0];
+    if (deliverables) {
+      const d = deliverables.find((x) => String(x.id || '').toLowerCase() === id.toLowerCase());
+      if (d) return d;
+    }
+    try {
+      const d = await Deliverable.findByPk(id, { attributes: ['id', 'title', 'status', 'project_id'] });
+      if (d) return d;
+    } catch (_) {}
+  }
+
+  const explicit = parseKeyValueLines(raw);
+  const explicitDeliverable = explicit.deliverable || explicit.deliverable_id || explicit.deliverable_title || '';
+  if (explicitDeliverable) {
+    const maybeId = String(explicitDeliverable).trim();
+    if (/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i.test(maybeId)) {
+      try {
+        const d = await Deliverable.findByPk(maybeId, { attributes: ['id', 'title', 'status', 'project_id'] });
+        if (d) return d;
+      } catch (_) {}
+    }
+  }
+
+  let titleQuery = '';
+  try {
+    const m = raw.match(/\bdeliverable\b\s*(?:named\s*)?(?:"([^"]+)"|'([^']+)'|([^\n\r]+))/i);
+    titleQuery = String((m && (m[1] || m[2] || m[3])) || '').trim();
+  } catch (_) {}
+  if (!titleQuery && explicitDeliverable) titleQuery = String(explicitDeliverable).trim();
+  if (titleQuery) {
+    titleQuery = titleQuery
+      .replace(/\b(details?|overview|info|status|page|screen)\b/ig, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  if (!titleQuery) return null;
+
+  let best = null;
+  let bestScore = 0;
+  const candidates = deliverables || (await Deliverable.findAll({ attributes: ['id', 'title', 'status', 'project_id'], order: [['updated_at', 'DESC']], limit: 200 }));
+  for (const d of candidates || []) {
+    const title = String(d.title || '').toLowerCase();
+    if (!title) continue;
+    let score = 0;
+    if (title === titleQuery.toLowerCase()) score = 1000;
+    else if (t.includes(title)) score = 500 + title.length;
+    else if (title.includes(titleQuery.toLowerCase())) score = 300 + titleQuery.length;
+    if (score > bestScore) {
+      bestScore = score;
+      best = d;
+    }
+  }
+  if (best && bestScore >= 320) {
+    if (best instanceof Deliverable) return best;
+    const id = String(best.id || '');
+    try {
+      const d = await Deliverable.findByPk(id, { attributes: ['id', 'title', 'status', 'project_id'] });
+      if (d) return d;
+    } catch (_) {}
+    return best;
+  }
+
+  const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
+  const likeOp = dialect === 'postgres' ? Op.iLike : Op.like;
+  try {
+    const rows = await Deliverable.findAll({
+      attributes: ['id', 'title', 'status', 'project_id'],
+      where: { title: { [likeOp]: `%${titleQuery}%` } },
+      order: [['updated_at', 'DESC']],
+      limit: 25,
+    });
+    if (rows && rows[0]) return rows[0];
+  } catch (_) {}
+
+  return null;
+}
+
 async function findProjectFromText(text, snapshotData) {
   const raw = String(text || '');
   const t = raw.toLowerCase();
@@ -936,7 +1082,7 @@ async function formatWithOpenRouter({ userText, data, kind }) {
     'You are the Flow AI Assistant for a project management app.',
     'Use only the provided JSON data to answer.',
     'Do not say you lack access; if something is missing, say it is not present in the provided data.',
-    'Do not use markdown emphasis, do not use asterisks, do not use code fences.',
+    'Do not use markdown. Do not output *, #, or ` characters. Do not use code fences.',
     'Use plain text with "-" for lists.',
     'Be helpful and natural (not robotic).',
   ].join(' ');
@@ -953,7 +1099,7 @@ async function rephraseWithOpenRouter({ question, rawAnswer }) {
   const guidance = [
     'Rewrite the provided answer in a natural assistant tone.',
     'Do not add new facts, do not remove any listed items, do not change names.',
-    'Do not use markdown emphasis, do not use asterisks, do not use code fences.',
+    'Do not use markdown. Do not output *, #, or ` characters. Do not use code fences.',
     'Use plain text with "-" for lists.',
   ].join(' ');
   const msgs = [
@@ -1317,6 +1463,43 @@ router.post('/chat', async (req, res) => {
               ? 'To create a project, reply with:\nName: <project name>\nKey: <optional short key>\nOwner_Email: <optional email>'
               : 'To create a sign-off report, reply with:\nDeliverable_Id: <deliverable id>\nReport_Title: <title>\nReport_Content: <content>\nStatus: <draft|submitted> (optional)';
         return res.json({ success: true, data: { content: ask, usage: {}, model: 'server' } });
+      }
+    }
+    if (userText && isNavigationQuery(userText)) {
+      const nav = await buildNavigationActionFromText(userText, snapshotData || {});
+      if (nav && nav.route) {
+        const includeChat = wantsNavigationChatConfirmation(userText);
+        return res.json({
+          success: true,
+          data: {
+            content: includeChat ? cleanAiText(`Taking you to ${nav.label || 'that page'} now.`) : '',
+            actions: [{ type: 'navigate', route: String(nav.route), silent: !includeChat }],
+            usage: {},
+            model: 'server',
+          },
+        });
+      }
+      if (/\bproject\b/i.test(userText)) {
+        const projectsPreview = await answerFromDb('list the project names', 'projects');
+        return res.json({
+          success: true,
+          data: {
+            content: cleanAiText(`Which project should I open?\nReply with: Project: <project key or name>\n\n${projectsPreview || ''}`),
+            usage: {},
+            model: 'server',
+          },
+        });
+      }
+      if (/\bdeliverable\b/i.test(userText)) {
+        const preview = await answerFromDb('list the deliverable titles', 'deliverables');
+        return res.json({
+          success: true,
+          data: {
+            content: cleanAiText(`Which deliverable should I open?\nReply with: Deliverable: <deliverable id or title>\n\n${preview || ''}`),
+            usage: {},
+            model: 'server',
+          },
+        });
       }
     }
     if (userText && isProjectScopedQuery(userText)) {

@@ -49,6 +49,7 @@ import 'screens/deliverables_list_screen.dart';
 import 'screens/deliverables_overview_screen.dart';
 import 'screens/skill_assessment_screen.dart';
 import 'screens/deliverable_detail_screen.dart';
+import 'screens/deliverable_detail_by_id_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
 import 'screens/project_details_screen.dart';
@@ -447,6 +448,18 @@ final GoRouter _router = GoRouter(
         child: ApprovalRequestsScreen(),
       ),
     ),
+  ),
+  GoRoute(
+    path: '/deliverables/:deliverableId',
+    builder: (context, state) {
+      final deliverableId = state.pathParameters['deliverableId']!;
+      return RouteGuard(
+        route: '/deliverables-overview',
+        child: SidebarScaffold(
+          child: DeliverableDetailByIdScreen(deliverableId: deliverableId),
+        ),
+      );
+    },
   ),
     GoRoute(
       path: '/deliverables',

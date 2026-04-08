@@ -182,13 +182,11 @@ app.use(cors({
       'http://localhost:8081',
       'http://localhost:8000',
       'http://localhost:8001',
-      'http://localhost:3001',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:8080',
       'http://127.0.0.1:8081',
       'http://127.0.0.1:8000',
       'http://127.0.0.1:8001',
-      'http://127.0.0.1:3001'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -9213,8 +9211,8 @@ app.get('/api/v1/test-deployment', (req, res) => {
 });
 
 // Start the server
-// Use PORT from environment variable or default to 3001
-const PORT = parseInt(process.env.PORT, 10) || 3001;
+// Use PORT from environment variable or default to 8000
+const PORT = parseInt(process.env.PORT, 10) || 8000;
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);

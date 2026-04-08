@@ -94,7 +94,10 @@ flutter:
 
   
   assets:
+    - assets/Icons/
     - assets/icons/
+    - "assets/Icons/Project Management/Project Management_Red.png"
+    - "assets/Icons/Project Management/Project Management_White.png"
     - assets/fonts/
     - assets/logo.png
 
