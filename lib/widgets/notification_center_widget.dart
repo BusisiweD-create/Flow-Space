@@ -5,15 +5,23 @@ import '../services/notification_service.dart';
 import '../services/realtime_service.dart';
 import '../services/auth_service.dart';
 import '../theme/flownet_theme.dart';
+import 'interactive_header_icon.dart';
 
 class NotificationCenterWidget extends StatefulWidget {
   final bool showLabel;
   final bool showBackground;
+  /// Red circular button (e.g. dashboard header); keeps unread badge.
+  final bool circularRedButton;
+
+  /// Light circular button with red bell (Client Dashboard header mock).
+  final bool circularLightButton;
 
   const NotificationCenterWidget({
     super.key,
     this.showLabel = true,
     this.showBackground = true,
+    this.circularRedButton = false,
+    this.circularLightButton = false,
   });
 
   @override
@@ -221,6 +229,129 @@ class _NotificationCenterWidgetState extends State<NotificationCenterWidget> {
         ],
       ],
     );
+
+    if (widget.circularLightButton) {
+      final path = GoRouterState.of(context).uri.path;
+      final onNotifications = path == '/notifications' ||
+          path.startsWith('/notifications/');
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () {
+            context.go('/notifications');
+            _loadUnreadCount();
+          },
+          child: Tooltip(
+            message: 'Notifications',
+            child: InteractiveHeaderIcon(
+              inactiveAsset: 'assets/Icons/header_notifications_inactive.png',
+              activeAsset: 'assets/Icons/header_notifications_active.png',
+              routeActive: onNotifications,
+              size: 44,
+              overlay: _unreadCount > 0
+                  ? Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: FlownetColors.crimsonRed,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 14,
+                        ),
+                        child: Center(
+                          child: Text(
+                            _unreadCount > 99 ? '99+' : _unreadCount.toString(),
+                            style: const TextStyle(
+                              color: FlownetColors.pureWhite,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (widget.circularRedButton) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () {
+            context.go('/notifications');
+            _loadUnreadCount();
+          },
+          child: Tooltip(
+            message: 'Notifications',
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: FlownetColors.crimsonRed,
+                shape: BoxShape.circle,
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.notifications_outlined,
+                    color: FlownetColors.pureWhite,
+                    size: 22,
+                  ),
+                  if (_unreadCount > 0)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: FlownetColors.pureWhite,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: FlownetColors.crimsonRed,
+                            width: 1,
+                          ),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Center(
+                          child: Text(
+                            _unreadCount > 99 ? '99+' : _unreadCount.toString(),
+                            style: const TextStyle(
+                              color: FlownetColors.crimsonRed,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     if (widget.showBackground) {
       return GestureDetector(

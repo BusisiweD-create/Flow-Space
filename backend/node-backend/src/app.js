@@ -331,8 +331,8 @@ async function startServer() {
       }
     }
     
-    // Start server first to ensure it's listening
-    const server = app.listen(PORT, () => {
+    // Bind IPv4 explicitly so clients using 127.0.0.1 and localhost both reach this process.
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
       
@@ -397,7 +397,10 @@ async function startServer() {
     });
     server.on('error', (err) => {
       if (err && err.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use; another instance is running. Continuing without starting a new server.`);
+        console.error(
+          `Port ${PORT} is already in use. Stop the other process (or free the port), then restart.`,
+        );
+        process.exit(1);
         return;
       }
       console.error('Server error:', err);

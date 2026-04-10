@@ -8,10 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/profile_service.dart';
 import '../services/auth_service.dart';
+import '../models/user_role.dart';
 import '../config/environment.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_modal.dart';
+import '../widgets/interactive_header_icon.dart';
 import 'package:go_router/go_router.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -201,6 +203,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  bool get _showClientReviewerProfileSettings {
+    final role = AuthService().currentUserRole;
+    return role == UserRole.clientReviewer || role == UserRole.client;
+  }
+
   @override
   void dispose() {
     _firstNameController.dispose();
@@ -242,6 +249,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   _isEditMode = true;
                 });
               },
+            ),
+          if (_showClientReviewerProfileSettings)
+            IconButton(
+              tooltip: 'Settings',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              onPressed: () => context.go('/settings'),
+              icon: Builder(
+                builder: (context) {
+                  final path = GoRouterState.of(context).uri.path;
+                  final onSettings = path == '/settings' ||
+                      path.startsWith('/settings/');
+                  return InteractiveHeaderIcon(
+                    inactiveAsset: 'assets/Icons/Settings inactive.png.png',
+                    activeAsset: 'assets/Icons/Settings active.png.png',
+                    routeActive: onSettings,
+                    size: 44,
+                  );
+                },
+              ),
             ),
         ],
       ),

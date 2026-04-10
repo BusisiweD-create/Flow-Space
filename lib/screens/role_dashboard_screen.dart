@@ -17,6 +17,10 @@ import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
 import '../widgets/app_modal.dart';
+import '../widgets/notification_center_widget.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/interactive_header_icon.dart';
+import '../theme/flownet_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -29,6 +33,9 @@ class RoleDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
+  static const double _dashOuterPadding = 20;
+  static const double _dashSectionGap = 20;
+
   User? _currentUser;
   final AuthService _authService = AuthService();
   late RealtimeService realtimeService;
@@ -80,6 +87,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String _selectedChartType = 'velocity';
   bool _isLoadingClientMetrics = false;
   Map<String, dynamic> _clientReviewMetrics = {};
+
+  /// Client reviewer dashboard: pending list filter (all | high | medium | low).
+  String _crPendingTab = 'all';
+  final Set<String> _crCheckedReportIds = {};
 
   bool _isLoadingAuditLogs = false;
   String? _auditLogsError;
@@ -512,87 +523,120 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             // Role header
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Row(
-                children: [
-                  const SizedBox(
-                      width: 48), // Space for hamburger menu alignment
-                  Expanded(
-                    child: Text(
-                      '${_currentUser!.role.displayName} Dashboard',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Builder(
-                    builder: (context) => PopupMenuButton<String>(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onSelected: (value) {
-                        switch (value) {
-                          case 'profile':
-                            context.go('/profile');
-                            break;
-                          case 'notifications':
-                            context.go('/notifications');
-                            break;
-                          case 'settings':
-                            context.go('/settings');
-                            break;
-                          case 'logout':
-                            _handleLogout();
-                            break;
-                        }
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: _currentUser!.role == UserRole.clientReviewer ||
+                      _currentUser!.role == UserRole.client
+                  ? Builder(
+                      builder: (context) {
+                        final sideSlot = MediaQuery.sizeOf(context).width < 420
+                            ? 96.0
+                            : 108.0;
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: _buildDashboardHeaderTitleRow(
+                                  titleFontSize: 22,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: sideSlot,
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: _buildCrHeaderTrailingActions(),
+                              ),
+                            ),
+                          ],
+                        );
                       },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'profile',
-                          child: Row(
-                            children: [
-                              Icon(Icons.person),
-                              SizedBox(width: 8),
-                              Text('Profile'),
-                            ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(width: 48), // Space for hamburger menu alignment
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _buildDashboardHeaderTitleRow(
+                              titleFontSize: 20,
+                            ),
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'notifications',
-                          child: Row(
-                            children: [
-                              Icon(Icons.notifications),
-                              SizedBox(width: 8),
-                              Text('Notifications'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'settings',
-                          child: Row(
-                            children: [
-                              Icon(Icons.settings),
-                              SizedBox(width: 8),
-                              Text('Settings'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'logout',
-                          child: Row(
-                            children: [
-                              Icon(Icons.logout),
-                              SizedBox(width: 8),
-                              Text('Logout'),
-                            ],
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ..._headerProfileAndNotificationChildren(),
+                            const SizedBox(width: 8),
+                            Builder(
+                              builder: (context) => PopupMenuButton<String>(
+                                icon: const Icon(Icons.menu, color: Colors.white),
+                                onSelected: (value) {
+                                  switch (value) {
+                                    case 'profile':
+                                      context.go('/profile');
+                                      break;
+                                    case 'notifications':
+                                      context.go('/notifications');
+                                      break;
+                                    case 'settings':
+                                      context.go('/settings');
+                                      break;
+                                    case 'logout':
+                                      _handleLogout();
+                                      break;
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'profile',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.person),
+                                        SizedBox(width: 8),
+                                        Text('Profile'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'notifications',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.notifications),
+                                        SizedBox(width: 8),
+                                        Text('Notifications'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'settings',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.settings),
+                                        SizedBox(width: 8),
+                                        Text('Settings'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'logout',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.logout),
+                                        SizedBox(width: 8),
+                                        Text('Logout'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
             ),
             // Main content
             Expanded(
@@ -630,22 +674,45 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
+  /// Frosted panel for dashboard sections (shared blur/border/radius).
+  Widget _glassDashboardSection({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+    double blur = 9,
+    Color? solidTint,
+    Gradient? gradientTint,
+    Border? border,
+  }) {
+    return GlassCard(
+      borderRadius: 12,
+      blur: blur,
+      padding: padding,
+      color: solidTint,
+      gradient: gradientTint,
+      border: border,
+      child: child,
+    );
+  }
+
   Widget _buildTeamMemberDashboard() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _dashOuterPadding,
+        vertical: 18,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildWelcomeCard(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildQuickActions(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildKanbanLinkCard(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildMyDeliverables(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildReviewMetrics(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildRecentActivity(),
         ],
       ),
@@ -654,28 +721,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   Widget _buildDeliveryLeadDashboard() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _dashOuterPadding,
+        vertical: 18,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildWelcomeCard(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildReminderQuickActions(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildTeamMetrics(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildReviewMetrics(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildSprintOverview(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildKanbanLinkCard(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildDeliverablesOverview(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildProjectsOverview(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildPendingReviews(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildTeamPerformance(),
         ],
       ),
@@ -683,37 +753,928 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildClientReviewerDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            _dashOuterPadding,
+            12,
+            _dashOuterPadding,
+            12,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Title lives in the top header for client reviewer / client; stakeholder keeps it here.
+              if (_currentUser!.role == UserRole.stakeholder) ...[
+                _buildCrTitleBlock(),
+                const SizedBox(height: 14),
+              ],
+              _buildCrApprovalRemindersBanner(),
+              const SizedBox(height: 14),
+              _buildCrReviewMetricsRow(),
+              const SizedBox(height: 14),
+              Expanded(child: _buildCrFourPanelGrid()),
+              const SizedBox(height: 10),
+              Text(
+                'Ver 2026.03.AA1_SIT',
+                style: TextStyle(
+                  color: FlownetColors.textTertiary,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _dashboardHeaderUserDisplayName() {
+    final u = _currentUser!;
+    final n = u.name.trim();
+    if (n.isNotEmpty) return n;
+    final e = u.email.trim();
+    return e.isNotEmpty ? e : 'User';
+  }
+
+  /// Top bar: "{Role} Dashboard" (bold, larger) + "Hello, **name**" (single line, left-aligned).
+  Widget _buildDashboardHeaderTitleRow({required double titleFontSize}) {
+    final greetingSize = titleFontSize <= 20 ? 13.0 : 14.0;
+    final baseGreeting = TextStyle(
+      fontSize: greetingSize,
+      color: Colors.white,
+      fontWeight: FontWeight.w400,
+      height: 1.2,
+    );
+    final name = _dashboardHeaderUserDisplayName();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Flexible(
+          flex: 2,
+          child: Text(
+            '${_currentUser!.role.displayName} Dashboard',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: titleFontSize,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              height: 1.2,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Flexible(
+          flex: 2,
+          child: Text.rich(
+            TextSpan(
+              style: baseGreeting,
+              children: [
+                const TextSpan(text: 'Hello, '),
+                TextSpan(
+                  text: name,
+                  style: baseGreeting.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCrTitleBlock() {
+    final name = _currentUser?.name ?? 'User';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Client Reviewer Dashboard',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: FlownetColors.pureWhite,
+                fontWeight: FontWeight.w700,
+                fontSize: 22,
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Hello, $name',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: FlownetColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+        ),
+      ],
+    );
+  }
+
+  /// Profile + notifications (active PNG on route or hover; header only).
+  List<Widget> _headerProfileAndNotificationChildren() {
+    final path = GoRouterState.of(context).uri.path;
+    final onProfile = path == '/profile' || path.startsWith('/profile/');
+    return [
+      Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => context.go('/profile'),
+          child: Tooltip(
+            message: 'Profile',
+            child: InteractiveHeaderIcon(
+              inactiveAsset: 'assets/Icons/header_profile_inactive.png',
+              activeAsset: 'assets/Icons/header_profile_active.png',
+              routeActive: onProfile,
+              size: 44,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 12),
+      const NotificationCenterWidget(
+        showLabel: false,
+        showBackground: false,
+        circularLightButton: true,
+      ),
+    ];
+  }
+
+  Widget _buildCrHeaderTrailingActions() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: _headerProfileAndNotificationChildren(),
+    );
+  }
+
+  Widget _buildCrApprovalRemindersBanner() {
+    return _glassDashboardSection(
+      blur: 8,
+      solidTint: FlownetColors.surfaceLight.withValues(alpha: 0.48),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: Border.all(
+        color: Colors.white.withValues(alpha: 0.14),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final narrow = c.maxWidth < 720;
+          final row = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.notifications_active,
+                color: FlownetColors.crimsonRed,
+                size: 40,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Approval Reminders',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: FlownetColors.pureWhite,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Dream BIG, work hard and stay focused - make it a productive day!',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: FlownetColors.textSecondary,
+                            height: 1.25,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!narrow) ...[
+                const SizedBox(width: 8),
+                _buildCrBannerActions(),
+              ],
+            ],
+          );
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                row,
+                const SizedBox(height: 10),
+                _buildCrBannerActions(),
+              ],
+            );
+          }
+          return row;
+        },
+      ),
+    );
+  }
+
+  Widget _buildCrBannerActions() {
+    Widget btn(String label, VoidCallback onTap) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: FilledButton(
+          onPressed: onTap,
+          style: FilledButton.styleFrom(
+            backgroundColor: FlownetColors.crimsonRed,
+            foregroundColor: FlownetColors.pureWhite,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            textStyle: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+          child: Text(label),
+        ),
+      );
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 0,
+      runSpacing: 8,
+      children: [
+        btn('SEND REMINDER', () => context.push('/send-reminder')),
+        btn('TRIGGER ESCALATION', _triggerEscalation),
+        btn(
+          'DELIVERABLES OVERVIEW',
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeliverablesMetricsScreen(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const String _crMetricBlurb =
+      'Additional description information to include.';
+
+  Widget _buildCrReviewMetricsRow() {
+    if (_isLoadingClientMetrics) {
+      return const SizedBox(
+        height: 120,
+        child: Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    final m = _clientReviewMetrics;
+    final tiles = <_CrMetricSpec>[
+      _CrMetricSpec(
+        'Submitted',
+        '${m['submitted'] ?? 0}',
+        Icons.send_rounded,
+      ),
+      _CrMetricSpec(
+        'Approved',
+        '${m['approved'] ?? 0}',
+        Icons.check_rounded,
+      ),
+      _CrMetricSpec(
+        'Changes Requested',
+        '${m['changes'] ?? 0}',
+        Icons.warning_amber_rounded,
+      ),
+      _CrMetricSpec(
+        'Rejected',
+        '${m['rejected'] ?? 0}',
+        Icons.close_rounded,
+      ),
+      _CrMetricSpec(
+        'Average Review Time',
+        m['avg_review_time'] is String
+            ? (m['avg_review_time'] as String)
+            : (m['avg_review_time']?.toString() ?? '—'),
+        Icons.schedule_rounded,
+      ),
+    ];
+    return SizedBox(
+      height: 118,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildReviewMetrics(),
-          const SizedBox(height: 24),
-          _buildPendingApprovals(),
-          const SizedBox(height: 24),
-          _buildRecentSubmissions(),
-          const SizedBox(height: 24),
-          _buildReviewHistory(),
+          for (int i = 0; i < tiles.length; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(child: _buildCrMetricCard(tiles[i])),
+          ],
         ],
       ),
     );
   }
 
+  Widget _buildCrMetricCard(_CrMetricSpec spec) {
+    return _glassDashboardSection(
+      blur: 8,
+      solidTint: FlownetColors.surfaceLight.withValues(alpha: 0.45),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                spec.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: FlownetColors.pureWhite,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _crMetricBlurb,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: FlownetColors.textTertiary,
+                      fontSize: 9,
+                      height: 1.2,
+                    ),
+              ),
+              const Spacer(),
+              Text(
+                spec.valueText,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: FlownetColors.pureWhite,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                    ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(
+                color: FlownetColors.crimsonRed,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(spec.icon, color: FlownetColors.pureWhite, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _crFilteredPending() {
+    if (_crPendingTab == 'all') return _pendingReports;
+    return _pendingReports.where((r) {
+      final p = (r['priority'] ?? r['Priority'] ?? 'medium').toString().toLowerCase();
+      switch (_crPendingTab) {
+        case 'high':
+          return p == 'high';
+        case 'medium':
+          return p == 'medium';
+        case 'low':
+          return p == 'low';
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
+  Widget _buildCrFourPanelGrid() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: Column(
+            children: [
+              Expanded(child: _buildCrPendingApprovalsPanel()),
+              const SizedBox(height: 12),
+              Expanded(child: _buildCrRecentSubmissionsPanel()),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            children: [
+              Expanded(child: _buildCrProjectsOverviewPanel()),
+              const SizedBox(height: 12),
+              Expanded(child: _buildCrReviewHistoryPanel()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCrPanelShell({
+    required Widget header,
+    required Widget child,
+  }) {
+    return _glassDashboardSection(
+      blur: 8,
+      solidTint: FlownetColors.surfaceLight.withValues(alpha: 0.45),
+      padding: const EdgeInsets.all(12),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          const SizedBox(height: 8),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCrPanelHeader({
+    required IconData leadingIcon,
+    required String title,
+    required int badgeCount,
+    String? route,
+  }) {
+    final titleRow = Row(
+      children: [
+        Icon(leadingIcon, color: FlownetColors.crimsonRed, size: 22),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: FlownetColors.pureWhite,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(Icons.notifications_none_rounded,
+                color: FlownetColors.textSecondary, size: 22),
+            if (badgeCount > 0)
+              Positioned(
+                right: -4,
+                top: -6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: FlownetColors.crimsonRed,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+    if (route == null) return titleRow;
+    return InkWell(
+      onTap: () => context.go(route),
+      borderRadius: BorderRadius.circular(8),
+      child: titleRow,
+    );
+  }
+
+  Widget _buildCrPendingApprovalsPanel() {
+    final list = _crFilteredPending();
+    return _buildCrPanelShell(
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildCrPanelHeader(
+            leadingIcon: Icons.warning_amber_rounded,
+            title: 'Pending Approvals',
+            badgeCount: _pendingReports.length,
+            route: '/report-repository',
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _crPriorityTab('all', 'VIEW ALL', filled: _crPendingTab == 'all'),
+                _crPriorityTab('high', 'HIGH PRIORITY', filled: _crPendingTab == 'high'),
+                _crPriorityTab('medium', 'MEDIUM PRIORITY',
+                    filled: _crPendingTab == 'medium'),
+                _crPriorityTab('low', 'LOW PRIORITY', filled: _crPendingTab == 'low'),
+              ],
+            ),
+          ),
+        ],
+      ),
+      child: _isLoadingPendingReports
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+          : _pendingReportsError != null
+              ? Center(
+                  child: Text(
+                    _pendingReportsError!,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                  ),
+                )
+              : list.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No pending approvals',
+                        style: TextStyle(color: FlownetColors.textTertiary, fontSize: 12),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: EdgeInsets.zero,
+                      itemCount: list.length.clamp(0, 6),
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0x22FFFFFF)),
+                      itemBuilder: (context, index) {
+                        final r = list[index];
+                        final title = (r['reportTitle'] ??
+                                r['report_title'] ??
+                                (r['content'] is Map
+                                    ? (r['content']['reportTitle'] ?? r['content']['title'])
+                                    : null) ??
+                                r['title'] ??
+                                'Document Name - Draft Description')
+                            .toString();
+                        final id = (r['id'] ?? r['report_id'] ?? '').toString();
+                        final created =
+                            (r['created_at'] ?? r['createdAt'] ?? r['created'] ?? '').toString();
+                        final dateLabel = _formatCrShortDate(created);
+                        final priority =
+                            (r['priority'] ?? r['Priority'] ?? 'medium').toString();
+                        final checked = _crCheckedReportIds.contains(id);
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 28,
+                                child: Checkbox(
+                                  value: checked,
+                                  activeColor: FlownetColors.crimsonRed,
+                                  side: const BorderSide(color: FlownetColors.textTertiary),
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                  onChanged: id.isEmpty
+                                      ? null
+                                      : (v) {
+                                          setState(() {
+                                            if (v == true) {
+                                              _crCheckedReportIds.add(id);
+                                            } else {
+                                              _crCheckedReportIds.remove(id);
+                                            }
+                                          });
+                                        },
+                                ),
+                              ),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: id.isEmpty
+                                      ? null
+                                      : () => context.go('/client-review/$id'),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        title,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: FlownetColors.pureWhite,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        dateLabel,
+                                        style: TextStyle(
+                                          color: FlownetColors.textTertiary,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  _crPriorityPill(priority),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TextButton(
+                                        onPressed: id.isEmpty
+                                            ? null
+                                            : () => context.go('/client-review/$id'),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: FlownetColors.textSecondary,
+                                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: const Text('EDIT', style: TextStyle(fontSize: 11)),
+                                      ),
+                                      FilledButton(
+                                        onPressed: id.isEmpty ? null : () => _approveReport(id),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: FlownetColors.crimsonRed,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: const Text('COMPLETE', style: TextStyle(fontSize: 11)),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+    );
+  }
+
+  Widget _crPriorityTab(String id, String label, {required bool filled}) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        onTap: () => setState(() => _crPendingTab = id),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: filled ? FlownetColors.crimsonRed : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: FlownetColors.crimsonRed, width: 1.2),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: filled ? FlownetColors.pureWhite : FlownetColors.crimsonRed,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _crPriorityPill(String raw) {
+    final p = raw.toLowerCase();
+    String label;
+    Color bg;
+    Color fg;
+    if (p == 'high') {
+      label = 'High Priority';
+      bg = const Color(0xFF1E3A5F);
+      fg = const Color(0xFF5AC8FA);
+    } else if (p == 'low') {
+      label = 'Low Priority';
+      bg = const Color(0xFF1B3D2A);
+      fg = FlownetColors.emeraldGreen;
+    } else {
+      label = 'Medium Priority';
+      bg = const Color(0xFF3D2E1A);
+      fg = FlownetColors.amberOrange;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: fg, fontSize: 9, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  String _formatCrShortDate(String raw) {
+    if (raw.isEmpty) return '—';
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return raw;
+    final d = dt.toLocal();
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final yy = (d.year % 100).toString().padLeft(2, '0');
+    return '$dd-$mm-$yy';
+  }
+
+  Widget _buildCrProjectsOverviewPanel() {
+    return _buildCrPanelShell(
+      header: _buildCrPanelHeader(
+        leadingIcon: Icons.folder_special_outlined,
+        title: 'Projects Overview',
+        badgeCount: _dashboardProjects.length,
+        route: '/projects',
+      ),
+      child: _isLoadingDashboardProjects
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+          : _dashboardProjects.isEmpty
+              ? Center(
+                  child: Text(
+                    'No projects yet',
+                    style: TextStyle(color: FlownetColors.textTertiary, fontSize: 12),
+                  ),
+                )
+              : ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: _dashboardProjects.take(5).length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+                    final p = _dashboardProjects[i];
+                    final title = p['name'] ?? 'Sample Project';
+                    final id = p['id']?.toString() ?? '';
+                    return InkWell(
+                      onTap: id.isEmpty ? null : () => context.go('/project-workspace/$id'),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: const BoxDecoration(
+                              color: FlownetColors.crimsonRed,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.check, color: Colors.white, size: 14),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Project Name: $title',
+                              style: const TextStyle(
+                                color: FlownetColors.pureWhite,
+                                fontSize: 12,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+
+  Widget _buildCrRecentSubmissionsPanel() {
+    return _buildCrPanelShell(
+      header: _buildCrPanelHeader(
+        leadingIcon: Icons.send_rounded,
+        title: 'Recent Submissions',
+        badgeCount: _pendingReports.length,
+        route: '/report-repository',
+      ),
+      child: _isLoadingPendingReports
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+          : _pendingReports.isEmpty
+              ? Center(
+                  child: Text(
+                    'No recent submissions',
+                    style: TextStyle(color: FlownetColors.textTertiary, fontSize: 12),
+                  ),
+                )
+              : ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: _pendingReports.take(4).length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+                    final r = _pendingReports[i];
+                    final title = (r['reportTitle'] ??
+                            r['report_title'] ??
+                            'Document Name - Draft Description')
+                        .toString();
+                    final created =
+                        (r['created_at'] ?? r['createdAt'] ?? '').toString();
+                    final id = (r['id'] ?? r['report_id'] ?? '').toString();
+                    return InkWell(
+                      onTap: id.isEmpty ? null : () => context.go('/client-review/$id'),
+                      child: Row(
+                        children: [
+                          Icon(Icons.article_outlined,
+                              size: 18, color: FlownetColors.textSecondary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              created.isNotEmpty
+                                  ? '$title • ${_formatCrShortDate(created)}'
+                                  : title,
+                              style: const TextStyle(fontSize: 12, color: FlownetColors.pureWhite),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+
+  Widget _buildCrReviewHistoryPanel() {
+    return _buildCrPanelShell(
+      header: _buildCrPanelHeader(
+        leadingIcon: Icons.fact_check_outlined,
+        title: 'Review History',
+        badgeCount: _filteredAuditLogs.length,
+        route: '/report-repository',
+      ),
+      child: _isLoadingAuditLogs
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+          : _auditLogsError != null
+              ? Center(
+                  child: Text(
+                    _auditLogsError!,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                  ),
+                )
+              : _filteredAuditLogs.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No history yet',
+                        style: TextStyle(color: FlownetColors.textTertiary, fontSize: 12),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: EdgeInsets.zero,
+                      itemCount: _filteredAuditLogs.take(4).length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, i) {
+                        final a = _filteredAuditLogs[i];
+                        final action = a['action'] ?? a['event'] ?? a['type'] ?? 'Review';
+                        final actor = a['actor'] ?? a['user'] ?? '';
+                        return InkWell(
+                          onTap: () => context.go('/report-repository'),
+                          child: Row(
+                            children: [
+                              Icon(Icons.history_rounded,
+                                  size: 18, color: FlownetColors.textSecondary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  actor.toString().isNotEmpty
+                                      ? '$action • $actor'
+                                      : '$action',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: FlownetColors.pureWhite,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+    );
+  }
+
   Widget _buildSystemAdminDashboard() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _dashOuterPadding,
+        vertical: 18,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildWelcomeCard(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildAdminFeatures(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildProjectsOverview(),
-          const SizedBox(height: 24),
+          const SizedBox(height: _dashSectionGap),
           _buildReminderQuickActions(),
         ],
       ),
@@ -724,43 +1685,41 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final canShow = _currentUser != null &&
         (_currentUser!.isDeliveryLead || _currentUser!.isSystemAdmin);
     if (!canShow) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.notifications_active, 'Approval Reminders',
-                route: '/approval-requests'),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                _buildActionButton(
-                  icon: Icons.assignment,
-                  label: 'Send Reminder',
-                  onTap: () => context.push('/send-reminder'),
+    return _glassDashboardSection(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardHeader(Icons.notifications_active, 'Approval Reminders',
+              route: '/approval-requests'),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              _buildActionButton(
+                icon: Icons.assignment,
+                label: 'Send Reminder',
+                onTap: () => context.push('/send-reminder'),
+              ),
+              _buildActionButton(
+                icon: Icons.trending_up,
+                label: 'Trigger Escalation',
+                onTap: _triggerEscalation,
+              ),
+              _buildActionButton(
+                icon: Icons.analytics_outlined,
+                label: 'Deliverables Overview',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          const DeliverablesMetricsScreen()),
                 ),
-                _buildActionButton(
-                  icon: Icons.trending_up,
-                  label: 'Trigger Escalation',
-                  onTap: _triggerEscalation,
-                ),
-                _buildActionButton(
-                  icon: Icons.analytics_outlined,
-                  label: 'Deliverables Overview',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            const DeliverablesMetricsScreen()),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -899,8 +1858,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildWelcomeCard() {
-    return Card(
+    return _glassDashboardSection(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
       child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        iconColor: FlownetColors.pureWhite,
+        textColor: FlownetColors.pureWhite,
         leading: FutureBuilder<Uint8List?>(
           future: _loadAvatarBytes(_currentUser!.id),
           builder: (context, snapshot) {
@@ -914,9 +1878,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             );
           },
         ),
-        title: Text('Welcome, ${_currentUser?.name ?? 'User'}'),
-        subtitle:
-            Text('${_currentUser?.roleDisplayName ?? 'Member'} Dashboard'),
+        title: Text(
+          'Welcome, ${_currentUser?.name ?? 'User'}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: FlownetColors.pureWhite,
+          ),
+        ),
+        subtitle: Text(
+          '${_currentUser?.roleDisplayName ?? 'Member'} Dashboard',
+          style: TextStyle(
+            color: FlownetColors.textSecondary.withValues(alpha: 0.95),
+          ),
+        ),
       ),
     );
   }
@@ -941,26 +1915,22 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final canCreate = _authService.canCreateDeliverable();
     final tiles = <Widget>[
       Expanded(
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildActionButton(
-              icon: Icons.folder_outlined,
-              label: 'View Projects',
-              onTap: () => context.go('/projects'),
-            ),
+        child: _glassDashboardSection(
+          padding: const EdgeInsets.all(14),
+          child: _buildActionButton(
+            icon: Icons.folder_outlined,
+            label: 'View Projects',
+            onTap: () => context.go('/projects'),
           ),
         ),
       ),
       Expanded(
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildActionButton(
-              icon: Icons.assignment_outlined,
-              label: 'View Deliverables',
-              onTap: () => context.go('/deliverables'),
-            ),
+        child: _glassDashboardSection(
+          padding: const EdgeInsets.all(14),
+          child: _buildActionButton(
+            icon: Icons.assignment_outlined,
+            label: 'View Deliverables',
+            onTap: () => context.go('/deliverables'),
           ),
         ),
       ),
@@ -970,35 +1940,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       tiles.insert(
         0,
         Expanded(
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildActionButton(
-                icon: Icons.assignment_add,
-                label: 'Create Deliverable',
-                onTap: () => context.go('/deliverable-setup'),
-              ),
+          child: _glassDashboardSection(
+            padding: const EdgeInsets.all(14),
+            child: _buildActionButton(
+              icon: Icons.assignment_add,
+              label: 'Create Deliverable',
+              onTap: () => context.go('/deliverable-setup'),
             ),
           ),
         ),
       );
       tiles.add(
         Expanded(
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildActionButton(
-                icon: Icons.description_outlined,
-                label: 'Build Report',
-                onTap: () {
-                  final first =
-                      _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
-                  final id = first != null
-                      ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
-                      : '';
-                  if (id.isNotEmpty) context.go('/report-builder/$id');
-                },
-              ),
+          child: _glassDashboardSection(
+            padding: const EdgeInsets.all(14),
+            child: _buildActionButton(
+              icon: Icons.description_outlined,
+              label: 'Build Report',
+              onTap: () {
+                final first =
+                    _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                final id = first != null
+                    ? (first['id']?.toString() ?? first['uuid']?.toString() ?? '')
+                    : '';
+                if (id.isNotEmpty) context.go('/report-builder/$id');
+              },
             ),
           ),
         ),
@@ -1008,7 +1974,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Row(
       children: [
         for (int i = 0; i < tiles.length; i++) ...[
-          if (i > 0) const SizedBox(width: 12),
+          if (i > 0) const SizedBox(width: 14),
           tiles[i],
         ]
       ],
@@ -1016,17 +1982,15 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildMyDeliverables() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingDashboardDeliverables
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardHeader(Icons.assignment_outlined, 'My Deliverables',
-                      route: '/deliverables'),
-                  const SizedBox(height: 8),
+    return _glassDashboardSection(
+      child: _isLoadingDashboardDeliverables
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildCardHeader(Icons.assignment_outlined, 'My Deliverables',
+                    route: '/deliverables'),
+                const SizedBox(height: 10),
                   Builder(builder: (context) {
                     final uid = _currentUser?.id.toString() ?? '';
                     final my = _dashboardDeliverables.where((d) {
@@ -1165,7 +2129,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   }),
                 ],
               ),
-      ),
     );
   }
 
@@ -1177,18 +2140,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       return status != 'completed';
     }).toList();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingDashboardDeliverables
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardHeader(Icons.assignment_outlined,
-                      'Deliverables Overview (${overviewDeliverables.length})',
-                      route: '/deliverables'),
-                  const SizedBox(height: 8),
+    return _glassDashboardSection(
+      child: _isLoadingDashboardDeliverables
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildCardHeader(Icons.assignment_outlined,
+                    'Deliverables Overview (${overviewDeliverables.length})',
+                    route: '/deliverables'),
+                const SizedBox(height: 10),
                   if (overviewDeliverables.isEmpty)
                     const Text('No active deliverables'),
                   ...overviewDeliverables.take(6).map((d) {
@@ -1265,15 +2226,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   }),
                 ],
               ),
-      ),
     );
   }
 
   Widget _buildRecentActivity() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingAuditLogs
+    return _glassDashboardSection(
+      child: _isLoadingAuditLogs
             ? const Center(child: CircularProgressIndicator())
             : (_auditLogsError != null
                 ? Text(_auditLogsError!)
@@ -1282,7 +2240,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     children: [
                       _buildCardHeader(Icons.history, 'Recent Activity',
                           route: '/notifications'),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Builder(builder: (context) {
                         final userId = _currentUser?.id.toString() ?? '';
                         final userName = _currentUser?.name ?? '';
@@ -1324,20 +2282,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       }),
                     ],
                   )),
-      ),
     );
   }
 
   Widget _buildTeamMetrics() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.group_outlined, 'Team Metrics', route: null),
-            const SizedBox(height: 12),
-            if (_isLoadingTeamMetrics)
+    return _glassDashboardSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardHeader(Icons.group_outlined, 'Team Metrics',
+              route: '/sprint-console'),
+          const SizedBox(height: 12),
+          if (_isLoadingTeamMetrics)
               const Center(child: CircularProgressIndicator())
             else if (_teamMetrics.isEmpty)
               const Text('No team data available')
@@ -1376,25 +2332,22 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       Colors.teal),
                 ],
               ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildSprintOverview() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingDashboardSprints
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardHeader(Icons.flag_outlined,
-                      'Sprint Overview (${_dashboardSprints.length})',
-                      route: '/sprint-console'),
-                  const SizedBox(height: 8),
+    return _glassDashboardSection(
+      child: _isLoadingDashboardSprints
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildCardHeader(Icons.flag_outlined,
+                    'Sprint Overview (${_dashboardSprints.length})',
+                    route: '/sprint-console'),
+                const SizedBox(height: 10),
                   ..._dashboardSprints.take(5).map((s) {
                     final name =
                         s['name'] ?? s['title'] ?? s['sprintName'] ?? 'Sprint';
@@ -1429,7 +2382,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   }),
                 ],
               ),
-      ),
     );
   }
 
@@ -1437,41 +2389,38 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                    child: _buildCardHeader(
-                        Icons.insights_outlined, 'Team Performance',
-                        route: null)),
-                const SizedBox(width: 12),
-                DropdownButton<String>(
-                  value: _selectedChartType,
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'velocity', child: Text('Velocity')),
-                    DropdownMenuItem(
-                        value: 'burndown', child: Text('Burndown')),
-                    DropdownMenuItem(value: 'burnup', child: Text('Burnup')),
-                    DropdownMenuItem(value: 'defects', child: Text('Defects')),
-                    DropdownMenuItem(
-                        value: 'test_pass_rate', child: Text('Test Pass Rate')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() {
-                        _selectedChartType = v;
-                      });
-                    }
-                  },
-                ),
-              ],
-            ),
+        _glassDashboardSection(
+          child: Row(
+            children: [
+              Expanded(
+                  child: _buildCardHeader(
+                      Icons.insights_outlined, 'Team Performance',
+                      route: '/sprint-console')),
+              const SizedBox(width: 12),
+              DropdownButton<String>(
+                value: _selectedChartType,
+                items: const [
+                  DropdownMenuItem(
+                      value: 'velocity', child: Text('Velocity')),
+                  DropdownMenuItem(
+                      value: 'burndown', child: Text('Burndown')),
+                  DropdownMenuItem(value: 'burnup', child: Text('Burnup')),
+                  DropdownMenuItem(value: 'defects', child: Text('Defects')),
+                  DropdownMenuItem(
+                      value: 'test_pass_rate', child: Text('Test Pass Rate')),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() {
+                      _selectedChartType = v;
+                    });
+                  }
+                },
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         SprintPerformanceChart(
             sprints: _dashboardSprints, chartType: _selectedChartType),
         const SizedBox(height: 12),
@@ -1481,45 +2430,42 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildReviewMetrics() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.rate_review_outlined, 'Review Metrics',
-                route: '/report-repository'),
-            const SizedBox(height: 12),
-            if (_isLoadingClientMetrics)
-              const Center(child: CircularProgressIndicator())
-            else
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _metricTile(
-                      'Submitted',
-                      _clientReviewMetrics['submitted'] ?? 0,
-                      Icons.upload_outlined,
-                      Colors.orange),
-                  _metricTile('Approved', _clientReviewMetrics['approved'] ?? 0,
-                      Icons.check_circle_outline, Colors.green),
-                  _metricTile(
-                      'Changes Requested',
-                      _clientReviewMetrics['changes'] ?? 0,
-                      Icons.edit_note,
-                      Colors.blueGrey),
-                  _metricTile('Rejected', _clientReviewMetrics['rejected'] ?? 0,
-                      Icons.cancel_outlined, Colors.red),
-                  _metricTile(
-                      'Avg Review Time',
-                      _clientReviewMetrics['avg_review_time'] ?? '-',
-                      Icons.schedule_outlined,
-                      Colors.blue),
-                ],
-              ),
-          ],
-        ),
+    return _glassDashboardSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardHeader(Icons.rate_review_outlined, 'Review Metrics',
+              route: '/report-repository'),
+          const SizedBox(height: 12),
+          if (_isLoadingClientMetrics)
+            const Center(child: CircularProgressIndicator())
+          else
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _metricTile(
+                    'Submitted',
+                    _clientReviewMetrics['submitted'] ?? 0,
+                    Icons.upload_outlined,
+                    Colors.orange),
+                _metricTile('Approved', _clientReviewMetrics['approved'] ?? 0,
+                    Icons.check_circle_outline, Colors.green),
+                _metricTile(
+                    'Changes Requested',
+                    _clientReviewMetrics['changes'] ?? 0,
+                    Icons.edit_note,
+                    Colors.blueGrey),
+                _metricTile('Rejected', _clientReviewMetrics['rejected'] ?? 0,
+                    Icons.cancel_outlined, Colors.red),
+                _metricTile(
+                    'Avg Review Time',
+                    _clientReviewMetrics['avg_review_time'] ?? '-',
+                    Icons.schedule_outlined,
+                    Colors.blue),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -1545,17 +2491,15 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       }
     }).toList();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.folder_outlined,
-                'Projects Overview (${_dashboardProjects.length})',
-                route: null),
-            const SizedBox(height: 8),
-            if (_dashboardProjects.isEmpty) const Text('No active projects'),
+    return _glassDashboardSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardHeader(Icons.folder_outlined,
+              'Projects Overview (${_dashboardProjects.length})',
+              route: null),
+          const SizedBox(height: 10),
+          if (_dashboardProjects.isEmpty) const Text('No active projects'),
             ..._dashboardProjects.take(3).map((p) {
               final title = p['name'] ?? 'Untitled Project';
               final status = (p['status'] ?? '').toString();
@@ -1584,8 +2528,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 ),
               );
             }),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -1595,20 +2538,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildPendingApprovals() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingPendingReports
-            ? const Center(child: CircularProgressIndicator())
-            : (_pendingReportsError != null
-                ? Text(_pendingReportsError!)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildCardHeader(Icons.rule_folder_outlined,
-                          'Pending Approvals (${_pendingReports.length})',
-                          route: '/report-repository'),
-                      const SizedBox(height: 8),
+    return _glassDashboardSection(
+      child: _isLoadingPendingReports
+          ? const Center(child: CircularProgressIndicator())
+          : (_pendingReportsError != null
+              ? Text(_pendingReportsError!)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCardHeader(Icons.rule_folder_outlined,
+                        'Pending Approvals (${_pendingReports.length})',
+                        route: '/report-repository'),
+                    const SizedBox(height: 10),
                       ..._pendingReports.take(5).map((r) {
                         final title = (r['reportTitle'] ??
                                 r['report_title'] ??
@@ -1671,22 +2612,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                           ),
                         );
                       }),
-                    ],
-                  )),
-      ),
+                  ],
+                )),
     );
   }
 
   Widget _buildRecentSubmissions() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.upload_outlined, 'Recent Submissions',
-                route: '/report-repository'),
-            const SizedBox(height: 8),
+    return _glassDashboardSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardHeader(Icons.upload_outlined, 'Recent Submissions',
+              route: '/report-repository'),
+          const SizedBox(height: 10),
             if (_isLoadingPendingReports)
               const Center(child: CircularProgressIndicator())
             else if (_pendingReports.isEmpty)
@@ -1722,27 +2660,24 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   ),
                 );
               }),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildReviewHistory() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isLoadingAuditLogs
-            ? const Center(child: CircularProgressIndicator())
-            : (_auditLogsError != null
-                ? Text(_auditLogsError!)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildCardHeader(Icons.rate_review_outlined,
-                          'Review History (${_filteredAuditLogs.length})',
-                          route: '/report-repository'),
-                      const SizedBox(height: 8),
+    return _glassDashboardSection(
+      child: _isLoadingAuditLogs
+          ? const Center(child: CircularProgressIndicator())
+          : (_auditLogsError != null
+              ? Text(_auditLogsError!)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCardHeader(Icons.rate_review_outlined,
+                        'Review History (${_filteredAuditLogs.length})',
+                        route: '/report-repository'),
+                    const SizedBox(height: 10),
                       ..._filteredAuditLogs.take(5).map((a) {
                         final action =
                             a['action'] ?? a['event'] ?? a['type'] ?? 'Review';
@@ -1767,30 +2702,39 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                           ),
                         );
                       }),
-                    ],
-                  )),
-      ),
+                  ],
+                )),
     );
   }
 
   Widget _metricTile(String label, dynamic value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color),
-          const SizedBox(width: 8),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: Theme.of(context).textTheme.bodyMedium),
-              Text(value is String ? value : value.toString(),
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: FlownetColors.textSecondary,
+                    ),
+              ),
+              Text(
+                value is String ? value : value.toString(),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: FlownetColors.pureWhite,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
             ],
           ),
         ],
@@ -2248,33 +3192,30 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildAdminFeatures() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.settings_applications, 'Admin Features',
-                route: '/settings'),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _featureTile(Icons.dashboard_outlined, 'System Metrics',
-                    () => context.go('/system-metrics')),
-                _featureTile(Icons.security, 'Role Management',
-                    () => context.go('/role-management')),
-                _featureTile(Icons.health_and_safety, 'System Health',
-                    () => context.go('/system-health')),
-                _featureTile(Icons.receipt_long, 'Audit Logs',
-                    () => context.go('/audit-logs')),
-                _featureTile(Icons.assignment, 'Deliverables Overview',
-                    () => context.go('/deliverables-overview')),
-              ],
-            ),
-          ],
-        ),
+    return _glassDashboardSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardHeader(Icons.settings_applications, 'Admin Features',
+              route: '/settings'),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _featureTile(Icons.dashboard_outlined, 'System Metrics',
+                  () => context.go('/system-metrics')),
+              _featureTile(Icons.security, 'Role Management',
+                  () => context.go('/role-management')),
+              _featureTile(Icons.health_and_safety, 'System Health',
+                  () => context.go('/system-health')),
+              _featureTile(Icons.receipt_long, 'Audit Logs',
+                  () => context.go('/audit-logs')),
+              _featureTile(Icons.assignment, 'Deliverables Overview',
+                  () => context.go('/deliverables-overview')),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -2490,31 +3431,49 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       required VoidCallback onTap}) {
     return ElevatedButton.icon(
       onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
       icon: Icon(
         icon,
+        size: 20,
         color: _currentUser?.isSystemAdmin == true
             ? Theme.of(context).colorScheme.primary
-            : null,
+            : FlownetColors.pureWhite,
       ),
-      label: Text(label),
+      label: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+      ),
     );
   }
 
   Widget _buildCardHeader(IconData icon, String label, {String? route}) {
+    final iconColor = _currentUser?.isSystemAdmin == true
+        ? Theme.of(context).colorScheme.secondary
+        : FlownetColors.crimsonRed;
     final row = Row(
       children: [
-        Icon(
-          icon,
-          color: _currentUser?.isSystemAdmin == true
-              ? Theme.of(context).colorScheme.secondary
-              : null,
+        Icon(icon, color: iconColor, size: 22),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: FlownetColors.pureWhite,
+                  height: 1.2,
+                ),
+          ),
         ),
-        const SizedBox(width: 8),
-        Text(label,
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold)),
       ],
     );
     if (route == null) return row;
@@ -2658,4 +3617,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       }
     }
   }
+}
+
+class _CrMetricSpec {
+  final String title;
+  final String valueText;
+  final IconData icon;
+  const _CrMetricSpec(this.title, this.valueText, this.icon);
 }
