@@ -5,7 +5,9 @@ import '../services/auth_service.dart';
 import '../utils/app_icons.dart';
 import 'background_image.dart';
 import 'notification_center_widget.dart';
+import 'interactive_header_icon.dart';
 import 'sidebar_version_display.dart';
+import 'ai_assistant_fab_button.dart';
 
 class _NavItem {
   final String label;
@@ -86,13 +88,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null,
       ),
       const _NavItem(
-        label: 'AI Assistant',
-        icon: Icons.smart_toy_outlined,
-        iconName: 'ai_assistant',
-        route: '/ai-assistant',
-        requiredPermission: null,
-      ),
-      const _NavItem(
         label: 'Approval Requests',
         icon: Icons.assignment_outlined,
         iconName: 'approval_requests',
@@ -169,6 +164,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     _persistSidebarState();
   }
 
+  /// Timeline stacks the AI control with its own FAB; avoid duplicate controls.
+  bool _timelineHostsAiFabColumn(String path) {
+    if (path == '/timeline') return true;
+    if (path.startsWith('/timeline/')) return true;
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     String routeLocation = '/';
@@ -190,6 +192,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     if (isDesktop) {
       return Scaffold(
         backgroundColor: Colors.transparent,
+        floatingActionButton: _timelineHostsAiFabColumn(routeLocation)
+            ? null
+            : const AiAssistantFabButton(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         body: BackgroundImage(
           child: Row(
             children: [
@@ -421,13 +427,25 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 onPressed: () => Navigator.of(context).pop(),
                 tooltip: 'Back',
               ),
-            // Profile Icon
+            // Profile (same branded header assets + hover as role dashboard)
             IconButton(
               onPressed: () => context.go('/profile'),
-              icon: const Icon(Icons.person_outline),
               tooltip: 'Profile',
-              color: FlownetColors.pureWhite,
-              iconSize: 20,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              icon: Builder(
+                builder: (context) {
+                  final path = GoRouterState.of(context).uri.path;
+                  final onProfile =
+                      path == '/profile' || path.startsWith('/profile/');
+                  return InteractiveHeaderIcon(
+                    inactiveAsset: 'assets/Icons/header_profile_inactive.png',
+                    activeAsset: 'assets/Icons/header_profile_active.png',
+                    routeActive: onProfile,
+                    size: 40,
+                  );
+                },
+              ),
             ),
             // Settings Icon
             IconButton(
@@ -437,7 +455,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               color: FlownetColors.pureWhite,
               iconSize: 20,
             ),
-            const NotificationCenterWidget(),
+            const NotificationCenterWidget(
+              showLabel: false,
+              showBackground: false,
+              circularLightButton: true,
+            ),
             const SizedBox(width: 8),
             IconButton(
               onPressed: () => context.go('/profile?mode=view'),
@@ -451,6 +473,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         body: BackgroundImage(
           child: widget.child,
         ),
+        floatingActionButton: _timelineHostsAiFabColumn(routeLocation)
+            ? null
+            : const AiAssistantFabButton(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         drawer: Drawer(
           backgroundColor: FlownetColors.charcoalBlack,
           child: SafeArea(

@@ -101,6 +101,8 @@ flutter:
     - assets/fonts/
     - assets/Icons/Red_Khono_Discs.png
     - assets/Icons/images/auth_background.png
+    - assets/Icons/ai_assistant_fab.png
+    - assets/Icons/ai_assistant_icon.png
     - assets/Icons/
 
   fonts:

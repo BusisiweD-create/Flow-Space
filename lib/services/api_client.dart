@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 // ignore: depend_on_referenced_packages
@@ -15,6 +16,9 @@ class ApiClient {
 
 static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   static const Duration _timeout = Duration(seconds: 45); // Increased timeout for Render
+
+  static String _timeoutUserMessage() =>
+      'Connection timed out. Start the API on port 3001 (node backend). If the port is busy, stop the other process and restart once.';
 
   bool _initialized = false;
   String? _accessToken;
@@ -121,6 +125,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
         await saveTokens(newAccessToken, newRefreshToken, expiry);
         return true;
       }
+    } on TimeoutException {
+      debugPrint('Token refresh timed out');
     } catch (e) {
       debugPrint('Error refreshing token: $e');
     }
@@ -138,9 +144,11 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
 
   Future<ApiResponse> post(String endpoint, {Map<String, dynamic>? body, Map<String, String>? queryParams, bool requireAuth = true}) async {
     if (!requireAuth && queryParams != null && queryParams.containsKey('token')) {
-      // For token-based requests, we can skip auth but still need to pass token
-      // The token will be in query params, so we'll make a special request
       return await _makeTokenBasedRequest('POST', endpoint, body: body, queryParams: queryParams);
+    }
+    if (!requireAuth) {
+      return await _makeUnauthenticatedRequest('POST', endpoint,
+          body: body, queryParams: queryParams);
     }
     return await _makeRequest('POST', endpoint, body: body, queryParams: queryParams);
   }
@@ -292,6 +300,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       }
 
       return _handleResponse(response);
+    } on TimeoutException {
+      return ApiResponse.error(_timeoutUserMessage());
     } on SocketException {
       return ApiResponse.error('No internet connection. Please check your network.');
     } on HttpException catch (e) {
@@ -305,6 +315,7 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   Future<ApiResponse> _makeUnauthenticatedRequest(
     String method,
     String endpoint, {
+    Map<String, dynamic>? body,
     Map<String, String>? queryParams,
   }) async {
     try {
@@ -327,11 +338,34 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
         case 'GET':
           response = await http.get(Uri.parse(url), headers: headers).timeout(_timeout);
           break;
+        case 'POST':
+          response = await http
+              .post(
+                Uri.parse(url),
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(_timeout);
+          break;
+        case 'PUT':
+          response = await http
+              .put(
+                Uri.parse(url),
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(_timeout);
+          break;
+        case 'DELETE':
+          response = await http.delete(Uri.parse(url), headers: headers).timeout(_timeout);
+          break;
         default:
           throw Exception('Unsupported HTTP method for unauthenticated request: $method');
       }
 
       return _handleResponse(response);
+    } on TimeoutException {
+      return ApiResponse.error(_timeoutUserMessage());
     } on SocketException {
       return ApiResponse.error('No internet connection. Please check your network.');
     } on HttpException catch (e) {
@@ -382,6 +416,8 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       }
 
       return _handleResponse(response);
+    } on TimeoutException {
+      return ApiResponse.error(_timeoutUserMessage());
     } on SocketException {
       return ApiResponse.error('No internet connection. Please check your network.');
     } on HttpException catch (e) {
@@ -519,7 +555,7 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
     final response = await post('/auth/login', body: {
       'email': email,
       'password': password,
-    },);
+    }, requireAuth: false);
 
     if (response.isSuccess && response.data != null) {
       final data = response.data!;
@@ -546,7 +582,7 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       'firstName': firstName,
       'lastName': lastName,
       'role': role,
-    },);
+    }, requireAuth: false);
 
     // Save tokens if registration is successful
     if (response.isSuccess && response.data != null) {
@@ -590,14 +626,14 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
   Future<ApiResponse> forgotPassword(String email) async {
     return await post('/auth/forgot-password', body: {
       'email': email,
-    },);
+    }, requireAuth: false);
   }
 
   Future<ApiResponse> resetPassword(String token, String newPassword) async {
     return await post('/auth/reset-password', body: {
       'token': token,
       'password': newPassword,
-    },);
+    }, requireAuth: false);
   }
 
 }

@@ -7,10 +7,9 @@ class AppIcons {
     // Map app iconName keys to the exact icon filenames.
     // NOTE: icon files use a double extension: *.png.png
     final iconPaths = <String, Map<String, String>>{
-      // Use Home_Dashboard artwork for the main dashboard icon
       'dashboard': {
-        'active': 'assets/Icons/Home_Dashboard active.png.png',
-        'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
+        'active': 'assets/Icons/sidebar_dashboard_active.png',
+        'inactive': 'assets/Icons/sidebar_dashboard_inactive.png',
       },
       // Projects folder icon (all roles)
       'projects': {
@@ -72,8 +71,8 @@ class AppIcons {
         'inactive': 'assets/Icons/ai_assistant_inactive.png',
       },
       'teams': {
-        'active': 'assets/Icons/Home_Dashboard active.png.png',
-        'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
+        'active': 'assets/Icons/sidebar_dashboard_active.png',
+        'inactive': 'assets/Icons/sidebar_dashboard_inactive.png',
       },
       'urgent_notifications': {
         'active': 'assets/Icons/Urgent Notifications active.png.png',

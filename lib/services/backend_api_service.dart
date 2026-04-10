@@ -75,7 +75,7 @@ class BackendApiService {
       'firstName': firstName,
       'lastName': lastName,
       'role': role.name,
-    });
+    }, requireAuth: false);
 
     debugPrint('🔍 Signup response: ${response.statusCode} - ${response.error ?? "Success"}');
     return response;
@@ -695,7 +695,7 @@ class BackendApiService {
   Future<ApiResponse> resendVerificationEmail(String email) async {
     return await _apiClient.post('/auth/resend-verification', body: {
       'email': email,
-    },);
+    }, requireAuth: false);
   }
 
   Future<ApiResponse> verifyEmail(String email, String verificationCode) async {
@@ -703,7 +703,7 @@ class BackendApiService {
     final response = await _apiClient.post('/auth/verify-email', body: {
       'email': email,
       'code': verificationCode,
-    },);
+    }, requireAuth: false);
     debugPrint('📡 verifyEmail response: ${response.toString()}');
     return response;
   }
@@ -711,7 +711,7 @@ class BackendApiService {
   Future<ApiResponse> checkEmailVerificationStatus(String email) async {
     return await _apiClient.get('/auth/verification-status', queryParams: {
       'email': email,
-    },);
+    }, requireAuth: false);
   }
 
 // Approval requests endpoints
