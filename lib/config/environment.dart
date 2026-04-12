@@ -74,4 +74,14 @@ class Environment {
       return false;
     }
   }
+
+  // Check if running in local development mode
+  static bool get isLocalDevelopment {
+    try {
+      final uri = Uri.base;
+      return uri.host.contains('localhost') || uri.host.contains('127.0.0.1');
+    } catch (e) {
+      return true; // Assume local if can't detect
+    }
+  }
 }

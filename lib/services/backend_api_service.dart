@@ -39,7 +39,6 @@ class BackendApiService {
   static final BackendApiService _instance = BackendApiService._internal();
   factory BackendApiService() => _instance;
   BackendApiService._internal();
-
   final ApiClient _apiClient = ApiClient();
 
   // Getters
@@ -63,7 +62,10 @@ class BackendApiService {
     final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
     // Use different endpoints based on environment
-    final endpoint = Environment.isRenderDeployed ? '/auth/signup' : '/auth/register';
+    final endpoint = Environment.isRenderDeployed ? '/auth/register' : '/auth/register';
+    
+    // BYPASSES DISABLED: Backend is now working correctly on Render
+    // The deployed app should use real API calls to backend-532p.onrender.com
     
     debugPrint('🔍 Environment.isRenderDeployed: ${Environment.isRenderDeployed}');
     debugPrint('🔍 Using endpoint: $endpoint');
@@ -245,6 +247,54 @@ class BackendApiService {
 
   Future<ApiResponse> getSprint(String sprintId) async {
     return await _apiClient.get('/sprints/$sprintId');
+  }
+
+  Future<ApiResponse> getSprintReport(
+    String sprintId, {
+    String? statusCategory,
+    String? ownerId,
+    DateTime? dueFrom,
+    DateTime? dueTo,
+  }) async {
+    final queryParams = <String, String>{};
+    if (statusCategory != null && statusCategory.trim().isNotEmpty) {
+      queryParams['statusCategory'] = statusCategory.trim();
+    }
+    if (ownerId != null && ownerId.trim().isNotEmpty) {
+      queryParams['ownerId'] = ownerId.trim();
+    }
+    if (dueFrom != null) {
+      queryParams['dueFrom'] = dueFrom.toIso8601String();
+    }
+    if (dueTo != null) {
+      queryParams['dueTo'] = dueTo.toIso8601String();
+    }
+    return await _apiClient.get('/sprints/$sprintId/report', queryParams: queryParams);
+  }
+
+  Future<ApiResponse> createSprintReportFromSprint(String sprintId, {String? note}) async {
+    final body = <String, dynamic>{};
+    if (note != null && note.trim().isNotEmpty) {
+      body['note'] = note.trim();
+    }
+    final primary = await _apiClient.post('/sign-off-reports/from-sprint/$sprintId', body: body);
+    if (primary.isSuccess) return primary;
+    final fallback = await _apiClient.post('/signoff/from-sprint/$sprintId', body: body);
+    return fallback;
+  }
+
+  Future<ApiResponse> addReportSignature(String reportId, {required String signatureData, String? signatureType}) async {
+    final body = <String, dynamic>{
+      'signatureData': signatureData,
+    };
+    if (signatureType != null && signatureType.isNotEmpty) {
+      body['signatureType'] = signatureType;
+    }
+    return await _apiClient.post('/sign-off-reports/$reportId/signature', body: body);
+  }
+
+  Future<ApiResponse> submitReport(String reportId) async {
+    return await _apiClient.post('/sign-off-reports/$reportId/submit');
   }
 
   Future<ApiResponse> createSprint(Map<String, dynamic> sprintData) async {

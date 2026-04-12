@@ -1010,10 +1010,10 @@ if (response.isSuccess) {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? jsonStr = prefs.getString(_sprintsKey(projectId: projectId, projectKey: projectKey));
-      if (jsonStr!.isEmpty) {
+      if (jsonStr == null || jsonStr.isEmpty) {
         jsonStr = prefs.getString('cached_sprints_all');
       }
-      if (jsonStr!.isNotEmpty) {
+      if (jsonStr != null && jsonStr.isNotEmpty) {
         final list = jsonDecode(jsonStr);
         if (list is List) {
           return List<Map<String, dynamic>>.from(list);

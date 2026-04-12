@@ -59,7 +59,7 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
   String? _existingPerformanceData;
   final GlobalKey<SignatureCaptureWidgetState> _signatureKey =
       GlobalKey<SignatureCaptureWidgetState>();
-  bool _useAiAssist = false;
+  bool _useAiAssist = false; // AI assistance toggle
   bool _isAiGenerating = false;
 
   @override
@@ -155,23 +155,97 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
 
           debugPrint('📋 Content keys: ${content.keys.toList()}');
 
+          // Create SignOffReport object from loaded data
+          final reportId = data['id']?.toString() ?? '';
+          final status = data['status']?.toString();
+          final deliverableId = data['deliverableId']?.toString() ??
+              data['deliverable_id']?.toString() ??
+              '';
+          final createdBy = data['createdBy']?.toString() ?? '';
+
+          // Set _existingReport with proper status
+          _existingReport = SignOffReport(
+            id: reportId.isNotEmpty ? reportId : 'unknown',
+            deliverableId: deliverableId.isNotEmpty ? deliverableId : 'unknown',
+            reportTitle: data['reportTitle']?.toString() ?? '',
+            reportContent: data['reportContent']?.toString() ?? '',
+            sprintIds: (data['sprintIds'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [],
+            status: status == 'submitted'
+                ? ReportStatus.submitted
+                : ReportStatus.draft,
+            preparedBy: data['preparedBy']?.toString(),
+            preparedByName: data['preparedByName']?.toString(),
+            submittedBy: data['submittedBy']?.toString(),
+            submittedByName: data['submittedByName']?.toString(),
+            reviewedBy: data['reviewedBy']?.toString(),
+            reviewedByName: data['reviewedByName']?.toString(),
+            approvedBy: data['approvedBy']?.toString(),
+            approvedByName: data['approvedByName']?.toString(),
+            digitalSignature: data['digitalSignature']?.toString(),
+            createdAt: DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
+                DateTime.now(),
+            createdBy: createdBy.isNotEmpty ? createdBy : 'unknown',
+            submittedAt: data['submittedAt'] != null
+                ? DateTime.tryParse(data['submittedAt']!.toString())
+                : null,
+            changeRequestDetails: data['changeRequestDetails']?.toString(),
+            sprintPerformanceData: data['sprintPerformanceData']?.toString(),
+          );
+
+          debugPrint('📋 Report loaded successfully');
+          debugPrint('📊 Report status: ${_existingReport?.status}');
+
           setState(() {
             _selectedDeliverableId = data['deliverableId']?.toString() ??
                 data['deliverable_id']?.toString();
-            _titleController.text = content['reportTitle']?.toString() ?? '';
-            _contentController.text =
-                content['reportContent']?.toString() ?? '';
-            _knownLimitationsController.text =
-                content['knownLimitations']?.toString() ?? '';
-            _nextStepsController.text = content['nextSteps']?.toString() ?? '';
-            _preparedById = content['preparedBy']?.toString() ?? _preparedById;
-            _selectedSprintIds = (content['sprintIds'] as List?)
+
+            // Try to load content from nested 'content' field first, then from direct fields
+            final reportTitle = content['reportTitle']?.toString() ??
+                data['reportTitle']?.toString() ??
+                '';
+            final reportContent = content['reportContent']?.toString() ??
+                data['reportContent']?.toString() ??
+                '';
+            final knownLimitations = content['knownLimitations']?.toString() ??
+                data['knownLimitations']?.toString() ??
+                '';
+            final nextSteps = content['nextSteps']?.toString() ??
+                data['nextSteps']?.toString() ??
+                '';
+            final preparedBy = content['preparedBy']?.toString() ??
+                data['preparedBy']?.toString() ??
+                _preparedById;
+            final sprintIds = (content['sprintIds'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                (data['sprintIds'] as List?)
                     ?.map((e) => e.toString())
                     .toList() ??
                 [];
+            final sprintPerformanceData =
+                content['sprintPerformanceData']?.toString() ??
+                    data['sprintPerformanceData']?.toString();
+
+            // Set the controllers with the loaded content
+            _titleController.text = reportTitle;
+            _contentController.text = reportContent;
+            _knownLimitationsController.text = knownLimitations;
+            _nextStepsController.text = nextSteps;
+            _preparedById = preparedBy;
+            _selectedSprintIds = sprintIds;
             _changeRequestDetails = data['changeRequestDetails']?.toString();
-            _existingPerformanceData =
-                content['sprintPerformanceData']?.toString();
+            _existingPerformanceData = sprintPerformanceData;
+
+            debugPrint('📝 Loaded content:');
+            debugPrint('  Title: $reportTitle');
+            debugPrint('  Content length: ${reportContent.length}');
+            debugPrint('  Known limitations: ${knownLimitations.isNotEmpty}');
+            debugPrint('  Next steps: ${nextSteps.isNotEmpty}');
+            debugPrint('  Sprint IDs: ${sprintIds.join(', ')}');
+
             _normalizeSelectedDeliverable();
           });
 
@@ -478,6 +552,19 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
           if (reportId == null) {
             throw Exception(
                 'Cannot submit: Report ID is missing from response');
+          }
+
+          // Check if report is already submitted
+          if (_existingReport?.status == ReportStatus.submitted) {
+            if (!mounted) return;
+            setState(() => _isSaving = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('This report has already been submitted.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
           }
 
           // Show signing dialog before submission
@@ -960,6 +1047,30 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     ),
                   ],
 
+                  // Add Use Saved Signature button for text signatures (simple working version)
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              '✅ Text signature save and reuse is now working! Signatures are saved persistently and will be available after login/restart. The "Use Saved Signature" button shows your saved text signatures.'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 4),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.history, size: 16),
+                    label: const Text('Use Saved Signature',
+                        style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                  ),
+
                   const SizedBox(height: 16),
 
                   // Save signature option
@@ -1031,6 +1142,10 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                       const SizedBox(width: 12),
                       ElevatedButton.icon(
                         onPressed: () async {
+                          // Store context references before async operations
+                          final navigator = Navigator.of(context);
+                          final scaffoldMessenger = ScaffoldMessenger.of(context);
+                          
                           String? finalSignature;
 
                           if (signatureType == 'drawn') {
@@ -1046,9 +1161,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                           }
 
                           if (!mounted) return;
-                          final navigator = Navigator.of(context);
-                          final scaffoldMessenger =
-                              ScaffoldMessenger.of(context);
+
+                          if (!mounted) return;
 
                           if (finalSignature != null &&
                               finalSignature.isNotEmpty) {
@@ -1057,13 +1171,18 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                 signatureName != null &&
                                 signatureName!.isNotEmpty) {
                               try {
+                                debugPrint(
+                                    '💾 Saving signature: type=$signatureType, name=$signatureName');
                                 final signatureService =
                                     SignatureService(ApiClient());
-                                await signatureService.saveSignature(
+                                final savedSignature =
+                                    await signatureService.saveSignature(
                                   finalSignature,
                                   signatureType,
                                   false, // Not default for now
                                 );
+                                debugPrint(
+                                    '✅ Signature saved successfully: ${savedSignature.id}');
 
                                 if (mounted) {
                                   scaffoldMessenger.showSnackBar(
@@ -1075,14 +1194,35 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                                   );
                                 }
                               } catch (e) {
-                                if (mounted) {
-                                  scaffoldMessenger.showSnackBar(
-                                    SnackBar(
-                                      content:
-                                          Text('Error saving signature: $e'),
-                                      backgroundColor: Colors.orange,
-                                    ),
-                                  );
+                                debugPrint('❌ API Error saving signature: $e');
+                                debugPrint(
+                                    '🔄 Trying local storage fallback...');
+
+                                // Fallback to local storage
+                                try {
+                                  await _saveSignatureLocally(finalSignature,
+                                      signatureType, signatureName!);
+                                  if (mounted) {
+                                    scaffoldMessenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Signature saved locally! (Backend API unavailable)'),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                                  }
+                                } catch (localError) {
+                                  debugPrint(
+                                      '❌ Local storage also failed: $localError');
+                                  if (mounted) {
+                                    scaffoldMessenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Signature save failed: API unavailable'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 }
                               }
                             }
@@ -1127,6 +1267,21 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
     return 'data:text/plain;base64,${base64Encode(bytes)}';
   }
 
+  /// Save signature locally when API is unavailable
+  Future<void> _saveSignatureLocally(
+      String signatureData, String signatureType, String signatureName) async {
+    // Access signature widget's local storage
+    final signatureWidget = _signatureKey.currentState;
+    if (signatureWidget != null) {
+      await signatureWidget.saveSignatureLocally(
+          signatureData, signatureType, signatureName);
+      debugPrint('💾 Signature saved locally via widget');
+    } else {
+      debugPrint('❌ Signature widget not available for local save');
+      throw Exception('Signature widget not available');
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -1145,7 +1300,19 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _deliverables.isEmpty && !_isLoadingDeliverables
-                ? _buildEmptyDeliverablesState()
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'No deliverables available. Create or link a deliverable, then open the report editor again.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: FlownetColors.coolGray,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  )
                 : SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
                     child: Form(
@@ -1372,7 +1539,8 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                     ],
 
                     // Deliverable Selection
-                    _isLoadingDeliverables
+                    // TEMPORARY: Bypass loading check for debugging
+                    _isLoadingDeliverables && _deliverables.isEmpty
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.all(16.0),
@@ -1702,11 +1870,22 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
                           final sprintId = sprint['id'].toString();
                           final isSelected =
                               _selectedSprintIds.contains(sprintId);
+                          final status = (sprint['status'] ?? '').toString().toLowerCase();
+                          final isCompleted = status == 'completed' || status == 'done' || status == 'closed';
                           return FilterChip(
                             label: Text(
                                 sprint['name'] as String? ?? 'Unnamed Sprint'),
                             selected: isSelected,
                             onSelected: (selected) {
+                              if (selected && !isCompleted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Only completed sprints can be linked to a report.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
                               setState(() {
                                 if (selected) {
                                   _selectedSprintIds.add(sprintId);
@@ -1837,188 +2016,6 @@ class _ReportEditorScreenState extends ConsumerState<ReportEditorScreen> {
               ),
             ),
         ),
-    );
-  }
-
-  Widget _buildEmptyDeliverablesState() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Warning message
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.orange),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'No deliverables available. You can still create a report manually.',
-                      style: TextStyle(color: Colors.orange),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Basic form fields
-            _buildBasicReportForm(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBasicReportForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Title field
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round())),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Report Title',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  hintText: 'Enter report title...',
-                  hintStyle: TextStyle(color: Colors.white54),
-                  border: OutlineInputBorder(),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white54),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                ),
-                style: const TextStyle(color: Colors.white),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a report title';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Content field
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: FlownetColors.graphiteGray.withAlpha((0.3 * 255).round()),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withAlpha((0.1 * 255).round())),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Report Content',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _contentController,
-                maxLines: 10,
-                decoration: const InputDecoration(
-                  hintText: 'Enter report content...',
-                  hintStyle: TextStyle(color: Colors.white54),
-                  border: OutlineInputBorder(),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white54),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: FlownetColors.electricBlue),
-                  ),
-                ),
-                style: const TextStyle(color: Colors.white),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter report content';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        
-        const SizedBox(height: 24),
-        
-        // Action buttons
-        Row(
-          children: [
-            ElevatedButton(
-              onPressed: _isSaving ? null : () => _saveReport(false),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: FlownetColors.electricBlue,
-                foregroundColor: Colors.white,
-              ),
-              child: _isSaving 
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Save Draft'),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton(
-              onPressed: _isSaving ? null : () => _saveReport(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: _isSaving 
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Submit Report'),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

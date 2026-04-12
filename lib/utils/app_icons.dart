@@ -13,8 +13,8 @@ class AppIcons {
       },
       // Projects folder icon (all roles)
       'projects': {
-        'active': 'assets/icons/Repository_Project active.png.png',
-        'inactive': 'assets/icons/Repository_Project inactive.png.png',
+        'active': 'assets/Icons/Project Management/Project Management_Red.png',
+        'inactive': 'assets/Icons/Project Management/Project Management_White.png',
       },
       // Deliverables rocket icon (all roles)
       'deliverables': {
@@ -30,8 +30,8 @@ class AppIcons {
         'inactive': 'assets/Icons/Notifications inactive.png.png',
       },
       'repository': {
-        'active': 'assets/Icons/Repository_Project active.png.png',
-        'inactive': 'assets/Icons/Repository_Project inactive.png.png',
+        'active': 'assets/Icons/Repository_Project active.png',
+        'inactive': 'assets/Icons/Repository_Project inactive.png',
       },
       'approval_requests': {
         'active': 'assets/Icons/Approval Requests active.png.png',
@@ -77,6 +77,10 @@ class AppIcons {
       'urgent_notifications': {
         'active': 'assets/Icons/Urgent Notifications active.png.png',
         'inactive': 'assets/Icons/Urgent Notifications inactive.png.png',
+      },
+      'chatbot': {
+        'active': 'assets/Icons/AI_Red.png',
+        'inactive': 'assets/Icons/AI_Red.png',
       },
     };
 
