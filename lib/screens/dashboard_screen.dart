@@ -9,7 +9,6 @@ import '../providers/dashboard_provider.dart';
 import '../widgets/notification_center_widget.dart';
 import '../services/backend_api_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/app_modal.dart';
 import '../models/user.dart';
 import '../models/user_role.dart';
 
@@ -162,15 +161,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ],
                   ),
                 ),
-      floatingActionButton: canCreate
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                _showCreateDeliverableDialog();
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('New Deliverable'),
-            )
-          : null,
     );
   }
 
@@ -390,46 +380,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
       ],
-    );
-  }
-
-  void _showCreateDeliverableDialog() {
-    showAppDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create New Deliverable'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Choose the type of deliverable setup:'),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.speed),
-              title: const Text('Quick Setup'),
-              subtitle: const Text('Basic deliverable creation'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/deliverable-setup');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.engineering),
-              title: const Text('Enhanced Setup'),
-              subtitle: const Text('Full DoD, evidence, and readiness check'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/enhanced-deliverable-setup');
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
     );
   }
 

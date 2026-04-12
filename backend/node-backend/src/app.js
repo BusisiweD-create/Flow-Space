@@ -57,6 +57,7 @@ const analyticsService = require('./services/analyticsService');
 const { loggingService } = require('./services/loggingService');
 const socketService = require('./services/socketService');
 const { databaseNotificationService } = require('./services/DatabaseNotificationService');
+const { runExpiredDummy12hCleanup } = require('./services/dummyDataCleanupService');
 
 // Middleware
 app.use(helmet());
@@ -316,11 +317,23 @@ async function startServer() {
         await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id UUID");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by UUID");
+        await sequelize.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS payload JSONB");
         await ensureProjectsSchema(sequelize);
         console.log('✅ projects table schema aligned with API (key, client_*, etc.)');
       }
     } catch (e) {
       console.warn('⚠️ Unable to ensure DB columns; continuing', e?.message || e);
+    }
+
+    try {
+      await runExpiredDummy12hCleanup(sequelize);
+      setInterval(() => {
+        runExpiredDummy12hCleanup(sequelize).catch((err) =>
+          console.warn('[dummy12h-cleanup]', err?.message || err),
+        );
+      }, 15 * 60 * 1000);
+    } catch (e) {
+      console.warn('⚠️ dummy 12h cleanup scheduler skipped:', e?.message || e);
     }
     
     // Sync database (use with caution in production)

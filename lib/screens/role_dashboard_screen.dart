@@ -16,7 +16,6 @@ import '../models/deliverable.dart';
 import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
-import '../widgets/app_modal.dart';
 import '../widgets/notification_center_widget.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/interactive_header_icon.dart';
@@ -524,119 +523,33 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: _currentUser!.role == UserRole.clientReviewer ||
-                      _currentUser!.role == UserRole.client
-                  ? Builder(
-                      builder: (context) {
-                        final sideSlot = MediaQuery.sizeOf(context).width < 420
-                            ? 96.0
-                            : 108.0;
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: _buildDashboardHeaderTitleRow(
-                                  titleFontSize: 22,
-                                ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: sideSlot,
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: _buildCrHeaderTrailingActions(),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const SizedBox(width: 48), // Space for hamburger menu alignment
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: _buildDashboardHeaderTitleRow(
-                              titleFontSize: 20,
-                            ),
+              child: Builder(
+                builder: (context) {
+                  final sideSlot = MediaQuery.sizeOf(context).width < 420
+                      ? 96.0
+                      : 108.0;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _buildDashboardHeaderTitleRow(
+                            titleFontSize: 22,
                           ),
                         ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ..._headerProfileAndNotificationChildren(),
-                            const SizedBox(width: 8),
-                            Builder(
-                              builder: (context) => PopupMenuButton<String>(
-                                icon: const Icon(Icons.menu, color: Colors.white),
-                                onSelected: (value) {
-                                  switch (value) {
-                                    case 'profile':
-                                      context.go('/profile');
-                                      break;
-                                    case 'notifications':
-                                      context.go('/notifications');
-                                      break;
-                                    case 'settings':
-                                      context.go('/settings');
-                                      break;
-                                    case 'logout':
-                                      _handleLogout();
-                                      break;
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'profile',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.person),
-                                        SizedBox(width: 8),
-                                        Text('Profile'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'notifications',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.notifications),
-                                        SizedBox(width: 8),
-                                        Text('Notifications'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'settings',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.settings),
-                                        SizedBox(width: 8),
-                                        Text('Settings'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'logout',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.logout),
-                                        SizedBox(width: 8),
-                                        Text('Logout'),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                      ),
+                      SizedBox(
+                        width: sideSlot,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: _buildCrHeaderTrailingActions(),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
             // Main content
             Expanded(
@@ -645,7 +558,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           ],
         ),
       ),
-      floatingActionButton: _buildRoleSpecificFAB(),
     );
   }
 
@@ -1759,102 +1671,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     }
-  }
-
-  Widget? _buildRoleSpecificFAB() {
-    final auth = AuthService();
-    final canCreateDeliverable = auth.canCreateDeliverable();
-    final canManageUsers = auth.canManageUsers();
-
-    if (!canCreateDeliverable && !canManageUsers) return null;
-
-    return FloatingActionButton(
-      onPressed: () {
-        if ((_currentUser!.role == UserRole.teamMember ||
-                _currentUser!.role == UserRole.deliveryLead) &&
-            canCreateDeliverable) {
-          _showCreateDeliverableModal();
-          return;
-        }
-
-        showAppModalBottomSheet(
-          context: context,
-          builder: (context) {
-            final items = <Widget>[];
-
-            if (canCreateDeliverable) {
-              items.add(
-                ListTile(
-                  leading: const Icon(Icons.assignment_outlined),
-                  title: const Text('Create Deliverable'),
-                  onTap: () => context.go('/deliverable-setup'),
-                ),
-              );
-            }
-
-            if (canManageUsers) {
-              items.add(
-                ListTile(
-                  leading: const Icon(Icons.admin_panel_settings),
-                  title: const Text('Role Management'),
-                  onTap: () => context.go('/role-management'),
-                ),
-              );
-            }
-
-            return SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: items,
-              ),
-            );
-          },
-        );
-      },
-      backgroundColor:
-          _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
-      child: const Icon(Icons.add, color: Colors.white),
-    );
-  }
-
-  void _showCreateDeliverableModal() {
-    showAppDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create New Deliverable'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Choose the type of deliverable setup:'),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.speed),
-              title: const Text('Quick Setup'),
-              subtitle: const Text('Basic deliverable creation'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/deliverable-setup');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.engineering),
-              title: const Text('Enhanced Setup'),
-              subtitle: const Text('Full DoD, evidence, and readiness check'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/enhanced-deliverable-setup');
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildWelcomeCard() {
@@ -3600,20 +3416,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         ),
       ),
     );
-  }
-
-  void _handleLogout() async {
-    try {
-      await _authService.signOut();
-      if (mounted) {
-        context.go('/');
-      }
-    } catch (e) {
-      debugPrint('Logout error: $e');
-      if (mounted) {
-        context.go('/');
-      }
-    }
   }
 }
 
