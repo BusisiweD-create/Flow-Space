@@ -19,8 +19,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import pool from './dbPool.js'; // your Postgres pool connection
-import SendGridEmailService from './sendgridEmailService.js';
-import EmailService from './emailService.js';
+import SecureEmailService from './secureEmailService.js';
 
 // OpenAI initialization
 let openai = null;
@@ -142,23 +141,11 @@ export const requirePermission = (permissionName) => async (req, res, next) => {
   }
 };
 
-// Email Configuration - Use SendGrid with SMTP fallback
-const emailService = process.env.SENDGRID_API_KEY 
-  ? new SendGridEmailService() 
-  : new EmailService();
+// Email Configuration - Temporarily Disabled
+let emailService = null;
+console.log('Email service temporarily disabled - configure SENDGRID_API_KEY to enable');
 
-// Test email connection (optional — test mode works without it; sprint creation and all features still work)
-emailService
-  .testConnection()
-  .then((ok) => {
-    if (ok) {
-      console.log('✅ Email service initialized successfully');
-    }
-    // When not ok, EmailService already logged a short test-mode message; no extra errors
-  })
-  .catch(() => {
-    console.log('📧 Email not configured — test mode. Sprint creation, registration, and all features work normally.');
-  });
+// Email service disabled - Sprint creation, registration, and all features work normally.');
 
 // Initialize Express app
 const app = express();
@@ -2201,6 +2188,38 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
       console.log(`✅ Successfully added members to project`);
     }
 
+    // Create timeline entry for the new project (only on successful creation)
+    if (result.rows && result.rows.length > 0) {
+      try {
+        const projectData = result.rows[0];
+        await pool.query(`
+          INSERT INTO timeline (entity_type, entity_id, title, description, start_date, end_date, created_by, status, priority, tags, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+          'project',
+          projectData.id,
+          projectData.name,
+          projectData.description || `Project "${projectData.name}" created`,
+          projectData.start_date || new Date().toISOString(),
+          projectData.end_date || null,
+          userId,
+          'active',
+          'medium',
+          ['project', 'created'],
+          {
+            created_by: userId,
+            project_name: projectData.name,
+            client_name: projectData.client_name,
+            status: projectData.status
+          }
+        ]);
+        console.log('✅ Timeline entry created for new project');
+      } catch (timelineError) {
+        console.error('Error creating timeline entry for project:', timelineError);
+        // Don't fail the project creation response if timeline fails
+      }
+    }
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Error creating project:', error);
@@ -2709,6 +2728,39 @@ app.post('/api/v1/sprints', authenticateToken, async (req, res) => {
     if (process.env.NODE_ENV !== 'production') {
       console.log('[Create Sprint] success id=%s', sprint?.id);
     }
+
+    // Create timeline entry for new sprint
+    if (sprint && sprint.id) {
+      try {
+        await client.query(`
+          INSERT INTO timeline (entity_type, entity_id, title, description, start_date, end_date, created_by, status, priority, tags, metadata)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+          'sprint',
+          sprint.id,
+          sprint.name,
+          sprint.description || `Sprint "${sprint.name}" created`,
+          normalizedStartDate,
+          normalizedEndDate,
+          normalizedCreatedBy,
+          'active',
+          'medium',
+          ['sprint', 'created'],
+          {
+            created_by: normalizedCreatedBy,
+            sprint_name: sprint.name,
+            project_id: normalizedProjectId,
+            planned_points: sprint.planned_points,
+            status: sprint.status
+          }
+        ]);
+        console.log('✅ Timeline entry created for new sprint');
+      } catch (timelineError) {
+        console.error('Error creating timeline entry for sprint:', timelineError);
+        // Don't fail sprint creation response if timeline fails
+      }
+    }
+
     res.json({
         success: true,
         data: sprint
@@ -3117,6 +3169,14 @@ app.get('/api/v1/sprints/:sprintId/tickets', authenticateToken, async (req, res)
     res.status(500).json({ success: false, error: 'Failed to fetch sprint tickets' });
   }
 });
+
+// ==================== TIMELINE ENDPOINTS ====================
+
+// Import timeline routes
+import timelineRoutes from './timeline-api.js';
+
+// Mount timeline routes
+app.use('/api/v1/timeline', timelineRoutes);
 
 // ==================== NOTIFICATION ENDPOINTS ====================
 
@@ -8949,6 +9009,37 @@ app.post('/api/v1/projects/:projectId/sprints/new', authenticateToken, async (re
       ]);
     } catch (auditErr) {
       console.warn('Audit log skipped:', auditErr?.message);
+    }
+
+    // Create timeline entry for new sprint
+    if (sprint && sprint.id) {
+      try {
+        await client.query(`
+          INSERT INTO timeline (entity_type, entity_id, title, description, start_date, end_date, created_by, status, priority, tags, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+          'sprint',
+          sprint.id,
+          sprint.name,
+          description || `Sprint "${sprint.name}" created`,
+          startVal,
+          endVal,
+          createdByVal,
+          'planning',
+          'medium',
+          ['sprint', 'created'],
+          {
+            created_by: createdByVal,
+            sprint_name: sprint.name,
+            project_id: projectId,
+            status: 'planning'
+          }
+        ]);
+        console.log('✅ Timeline entry created for new sprint under project');
+      } catch (timelineError) {
+        console.error('Error creating timeline entry for sprint:', timelineError);
+        // Don't fail sprint creation response if timeline fails
+      }
     }
 
     res.status(201).json({
