@@ -8,6 +8,7 @@ import '../theme/flownet_theme.dart';
 import '../widgets/app_modal.dart';
 import '../models/timeline_event.dart';
 import '../services/timeline_event_service.dart';
+import '../services/timeline_sync_service.dart';
 import 'add_event_modal.dart';
 
 /// Timeline/Calendar Screen
@@ -34,6 +35,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
   // Events
   final List<TimelineEvent> _events = [];
   final TimelineEventService _timelineEventService = TimelineEventService();
+  final TimelineSyncService _timelineSyncService = TimelineSyncService();
+  bool _isSyncing = false;
 
   // Calendar view constants - Professional scheduling standards
   static const int _startHour = 6; // 6 AM
@@ -52,38 +55,100 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Future<void> _loadEvents() async {
-    final loaded = await _timelineEventService.loadEvents();
-    loaded.sort((a, b) => _getEventStartDateTime(a).compareTo(_getEventStartDateTime(b)));
-    if (!mounted) return;
-    setState(() {
-      _events
-        ..clear()
-        ..addAll(loaded);
-    });
+    // First load local events
+    final localEvents = await _timelineEventService.loadEvents();
+    
+    // Then try to sync with backend
+    await _syncWithBackend(localEvents);
+  }
+
+  Future<void> _syncWithBackend(List<TimelineEvent> localEvents) async {
+    setState(() => _isSyncing = true);
+    
+    try {
+      // Get events from backend
+      final backendEvents = await _timelineSyncService.syncTimelineEvents();
+      
+      // Merge local and backend events (backend takes precedence)
+      final allEvents = <TimelineEvent>[];
+      final seenIds = <String>{};
+      
+      // Add backend events first
+      for (final event in backendEvents) {
+        allEvents.add(event);
+        seenIds.add(event.id);
+      }
+      
+      // Add local events that don't exist in backend
+      for (final event in localEvents) {
+        if (!seenIds.contains(event.id)) {
+          allEvents.add(event);
+        }
+      }
+      
+      // Sort by start time
+      allEvents.sort((a, b) => _getEventStartDateTime(a).compareTo(_getEventStartDateTime(b)));
+      
+      // Save merged events to local storage
+      await _timelineEventService.saveEvents(allEvents);
+      
+      if (!mounted) return;
+      debugPrint('TimelineScreen: Total events loaded: ${allEvents.length}');
+      setState(() {
+        _events
+          ..clear()
+          ..addAll(allEvents);
+        _isSyncing = false;
+      });
+      
+    } catch (e) {
+      debugPrint('Error syncing with backend: $e');
+      // Fallback to local events only
+      if (!mounted) return;
+      setState(() {
+        _events
+          ..clear()
+          ..addAll(localEvents);
+        _isSyncing = false;
+      });
+    }
+  }
+
+  Future<void> _refreshTimeline() async {
+    await _loadEvents();
   }
 
   List<TimelineEvent> _getEventsForDay(DateTime day) {
-    return _events.where((event) {
-      DateTime? eventDate;
+    final dayEvents = _events.where((event) {
+      DateTime? eventStartDate;
+      DateTime? eventEndDate;
 
-      // For new events, use startTime date
+      // For new events, use startTime and endTime
       if (event.startTime != null) {
-        eventDate = event.startTime;
+        eventStartDate = event.startTime;
+        eventEndDate = event.endTime ?? event.startTime; // Use start time if no end time
       }
       // For legacy events, use date field
       else if (event.date != null) {
-        eventDate = event.date;
+        eventStartDate = event.date;
+        eventEndDate = event.date; // Single day event
       }
       // Fallback to dateTime
       else {
-        eventDate = event.dateTime;
+        eventStartDate = event.dateTime;
+        eventEndDate = event.dateTime;
       }
 
-      if (eventDate == null) return false;
-      return eventDate.year == day.year &&
-          eventDate.month == day.month &&
-          eventDate.day == day.day;
+      if (eventStartDate == null) return false;
+      
+      // Check if the day falls within the event's date range (inclusive)
+      final dayStart = DateTime(day.year, day.month, day.day);
+      final dayEnd = dayStart.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+      
+      return dayStart.isBefore(eventEndDate!) && dayEnd.isAfter(eventStartDate);
     }).toList();
+    
+    return dayEvents;
   }
 
   List<TimelineEvent> _getEventsForWeek(DateTime weekStart) {
@@ -1746,20 +1811,47 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Widget _buildFAB() {
-    return FloatingActionButton.extended(
-      onPressed: () {
-        showAppDialog(
-          context: context,
-          builder: (context) => AddEventModal(
-            onEventAdded: _addEvent,
-          ),
-        );
-      },
-      backgroundColor: FlownetColors.crimsonRed,
-      foregroundColor: FlownetColors.pureWhite,
-      icon: const Icon(Icons.add),
-      label: const Text('New Event'),
-      elevation: 8,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        // Sync button
+        FloatingActionButton.extended(
+          onPressed: _isSyncing ? null : _refreshTimeline,
+          backgroundColor: _isSyncing 
+              ? FlownetColors.coolGray 
+              : FlownetColors.electricBlue,
+          foregroundColor: FlownetColors.pureWhite,
+          icon: _isSyncing 
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(FlownetColors.pureWhite),
+                  ),
+                )
+              : const Icon(Icons.sync),
+          label: Text(_isSyncing ? 'Syncing...' : 'Sync'),
+          elevation: 4,
+        ),
+        const SizedBox(width: 12),
+        // Add event button
+        FloatingActionButton.extended(
+          onPressed: () {
+            showAppDialog(
+              context: context,
+              builder: (context) => AddEventModal(
+                onEventAdded: _addEvent,
+              ),
+            );
+          },
+          backgroundColor: FlownetColors.crimsonRed,
+          foregroundColor: FlownetColors.pureWhite,
+          icon: const Icon(Icons.add),
+          label: const Text('New Event'),
+          elevation: 8,
+        ),
+      ],
     );
   }
 

@@ -19,7 +19,6 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import pool from './dbPool.js'; // your Postgres pool connection
-import SecureEmailService from './secureEmailService.js';
 
 // OpenAI initialization
 let openai = null;
@@ -2192,28 +2191,61 @@ app.post('/api/v1/projects', authenticateToken, async (req, res) => {
     if (result.rows && result.rows.length > 0) {
       try {
         const projectData = result.rows[0];
-        await pool.query(`
-          INSERT INTO timeline (entity_type, entity_id, title, description, start_date, end_date, created_by, status, priority, tags, metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        `, [
-          'project',
-          projectData.id,
-          projectData.name,
-          projectData.description || `Project "${projectData.name}" created`,
-          projectData.start_date || new Date().toISOString(),
-          projectData.end_date || null,
-          userId,
-          'active',
-          'medium',
-          ['project', 'created'],
-          {
-            created_by: userId,
-            project_name: projectData.name,
-            client_name: projectData.client_name,
-            status: projectData.status
-          }
-        ]);
-        console.log('✅ Timeline entry created for new project');
+        
+        // Check if timeline entry already exists and update/create accordingly
+        const existingTimeline = await pool.query(`
+          SELECT id FROM timeline 
+          WHERE entity_type = 'project' AND entity_id = $1
+          LIMIT 1
+        `, [projectData.id]);
+
+        if (existingTimeline.rows.length > 0) {
+          // Update existing timeline entry
+          await pool.query(`
+            UPDATE timeline 
+            SET 
+              title = $1,
+              description = $2,
+              start_date = $3,
+              end_date = $4,
+              status = $5,
+              priority = $6,
+              updated_at = NOW()
+            WHERE entity_type = 'project' AND entity_id = $7
+          `, [
+            projectData.name,
+            projectData.description,
+            projectData.start_date,
+            projectData.end_date,
+            projectData.status,
+            projectData.priority,
+            projectData.id
+          ]);
+          console.log('Timeline entry updated for existing project:', projectData.name);
+        } else {
+          // Create new timeline entry
+          await pool.query(`
+            INSERT INTO timeline (entity_type, entity_id, title, description, start_date, end_date, created_by, status, priority, tags, metadata)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          `, [
+            'project',
+            projectData.id,
+            projectData.name,
+            projectData.description,
+            projectData.start_date,
+            projectData.end_date,
+            projectData.created_by || projectData.owner_id,
+            projectData.status,
+            projectData.priority,
+            JSON.stringify([]),
+            JSON.stringify({
+              project_type: projectData.project_type,
+              client_name: projectData.client_name,
+              key: projectData.key
+            })
+          ]);
+          console.log('Timeline entry created for new project:', projectData.name);
+        }
       } catch (timelineError) {
         console.error('Error creating timeline entry for project:', timelineError);
         // Don't fail the project creation response if timeline fails
@@ -2373,6 +2405,42 @@ app.put('/api/v1/projects/:projectId', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
+
+    // Update corresponding timeline entry
+    const projectData = result.rows[0];
+    try {
+      await pool.query(`
+        UPDATE timeline 
+        SET 
+          title = $1,
+          description = $2,
+          start_date = $3,
+          end_date = $4,
+          status = $5,
+          priority = $6,
+          updated_at = NOW()
+        WHERE entity_type = 'project' AND entity_id = $7
+      `, [
+        projectData.name,
+        projectData.description,
+        projectData.start_date,
+        projectData.end_date,
+        projectData.status,
+        projectData.priority,
+        projectId
+      ]);
+      console.log('Timeline entry updated for project:', projectData.name);
+      
+      // If project is marked as completed, this will automatically hide it from active timeline
+      // The active endpoint filters out completed projects
+      if (projectData.status === 'completed') {
+        console.log('Project marked as completed - will be filtered from active timeline:', projectData.name);
+      }
+    } catch (timelineError) {
+      console.error('Error updating timeline entry for project:', timelineError);
+      // Don't fail the project update response if timeline fails
+    }
+
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     if (error && error.code === '42703') {
@@ -3077,6 +3145,25 @@ app.put('/api/v1/sprints/:sprintId/status', authenticateToken, requirePermission
       });
     }
 
+    // Update corresponding timeline entry
+    const sprintData = result.rows[0];
+    try {
+      await pool.query(`
+        UPDATE timeline 
+        SET 
+          status = $1,
+          updated_at = NOW()
+        WHERE entity_type = 'sprint' AND entity_id = $2
+      `, [
+        normalizedStatus,
+        sprintId
+      ]);
+      console.log('Timeline entry updated for sprint:', sprintData.name);
+    } catch (timelineError) {
+      console.error('Error updating timeline entry for sprint:', timelineError);
+      // Don't fail the sprint update response if timeline fails
+    }
+
     res.json({
       success: true,
       data: result.rows[0]
@@ -3172,10 +3259,8 @@ app.get('/api/v1/sprints/:sprintId/tickets', authenticateToken, async (req, res)
 
 // ==================== TIMELINE ENDPOINTS ====================
 
-// Import timeline routes
+// Timeline routes
 import timelineRoutes from './timeline-api.js';
-
-// Mount timeline routes
 app.use('/api/v1/timeline', timelineRoutes);
 
 // ==================== NOTIFICATION ENDPOINTS ====================
