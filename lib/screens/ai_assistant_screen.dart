@@ -21,6 +21,12 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   ];
 
   bool _isSending = false;
+  List<String> _suggestions = [
+    'Can you show me all projects?',
+    'What are the active sprints?',
+    'Help me create a deliverable',
+    'Tell me what you can do'
+  ];
 
   String _sanitizeAssistantText(String text) {
     var s = text;
@@ -50,18 +56,27 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       _isSending = true;
       _messages.add({'role': 'user', 'content': text});
       _controller.clear();
+      _suggestions = [];
     });
 
     try {
+      debugPrint('AI Chat: sending messages...');
       final resp = await BackendApiService()
           .aiChat(_messages, temperature: 0.4, maxTokens: 500);
+      debugPrint('AI Chat: response success=${resp.isSuccess}');
       final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+      debugPrint('AI Chat: data keys=${data.keys.toList()}');
       final content = (data['content'] ??
               (data['data'] is Map ? (data['data']['content'] ?? data['data']['message']) : null) ??
               data['message'])
           ?.toString()
           .trim();
       final actions = data['actions'];
+      
+      // Extract suggestions
+      final rawSuggestions = data['suggestions'] ?? (data['data'] is Map ? data['data']['suggestions'] : null);
+      debugPrint('AI Chat: rawSuggestions=$rawSuggestions');
+      final suggestions = rawSuggestions is List ? rawSuggestions.cast<String>() : <String>[];
 
       bool navigated = false;
       bool silentNavigation = false;
@@ -94,6 +109,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
             'role': 'assistant',
             'content': safeContent,
           });
+          _suggestions = suggestions;
+        });
+      } else {
+        setState(() {
+          _suggestions = suggestions;
         });
       }
 
@@ -132,7 +152,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     final visible = _messages.where((m) => m['role'] != 'system').toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Assistant'),
+        title: const Text('FlowPilot'),
       ),
       body: Column(
         children: [
@@ -165,6 +185,47 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
               },
             ),
           ),
+          if (_suggestions.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Text(
+                    'Suggestions',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    height: 40,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _suggestions.length,
+                      separatorBuilder: (context, index) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final suggestion = _suggestions[index];
+                        return ActionChip(
+                          label: Text(suggestion),
+                          // ignore: deprecated_member_use
+                          backgroundColor: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                          onPressed: () {
+                            _controller.text = suggestion;
+                            _send();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           SafeArea(
             top: false,
             child: Padding(

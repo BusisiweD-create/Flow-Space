@@ -108,7 +108,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null,
       ),
       const _NavItem(
-        label: 'AI Assistant',
+        label: 'FlowPilot',
         icon: Icons.smart_toy_outlined,
         iconName: 'ai_assistant',
         route: '/ai-assistant',

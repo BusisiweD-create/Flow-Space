@@ -230,6 +230,16 @@ function isSprintCompletedStatus(v) {
   return s === 'completed' || s === 'done' || s === 'closed' || s === 'finished' || s === 'signedoff' || s === 'approved';
 }
 
+function deliverableProgressPercent(statusRaw) {
+  const s = normalizeStatus(statusRaw);
+  if (s === 'signedoff' || s === 'approved' || s === 'completed' || s === 'done') return 100;
+  if (s === 'inreview' || s === 'submitted') return 80;
+  if (s === 'changerequested') return 70;
+  if (s === 'rejected') return 50;
+  if (s === 'inprogress' || s === 'active') return 50;
+  return 0;
+}
+
 async function buildAppDataSnapshotData(user) {
   const maxProjects = Number(process.env.AI_CONTEXT_MAX_PROJECTS || 50);
   const maxSprints = Number(process.env.AI_CONTEXT_MAX_SPRINTS || 200);
@@ -545,7 +555,15 @@ function answerFromSnapshot(snapshot, userText) {
 
   if (wantsProjects && (wantsNames || wantsCount)) {
     const projects = Array.isArray(snapshot.projects) ? snapshot.projects : [];
-    if (wantsCount && !wantsNames) return `Projects: total=${projects.length}.`;
+    if (wantsCount && !wantsNames) {
+      const statuses = {};
+      for (const p of projects) {
+        const s = String(p.status || 'unknown').toLowerCase();
+        statuses[s] = (statuses[s] || 0) + 1;
+      }
+      const breakdown = Object.entries(statuses).map(([s, c]) => `${s}=${c}`).join(', ');
+      return `Projects: total=${projects.length}${breakdown ? ` (${breakdown})` : ''}.`;
+    }
     if (projects.length === 0) return 'No projects found in the snapshot.';
     const lines = projects.map((p) => `- ${p.name} (${p.key || 'no key'}, ${p.status || 'unknown'})`);
     return `Project names (${projects.length}):\n` + lines.join('\n');
@@ -599,7 +617,15 @@ async function answerFromDb(userText, topicHint) {
       order: [['updated_at', 'DESC']],
       limit: limitProjects,
     });
-    if (wantsCount && !wantsNames) return `Projects: total=${projects.length}.`;
+    if (wantsCount && !wantsNames) {
+      const statuses = {};
+      for (const p of projects) {
+        const s = String(p.status || 'unknown').toLowerCase();
+        statuses[s] = (statuses[s] || 0) + 1;
+      }
+      const breakdown = Object.entries(statuses).map(([s, c]) => `${s}=${c}`).join(', ');
+      return `Projects: total=${projects.length}${breakdown ? ` (${breakdown})` : ''}.`;
+    }
     if (projects.length === 0) return 'No projects found.';
     const lines = projects.map((p) => `- ${p.name} (${p.key || 'no key'}, ${p.status || 'unknown'})`);
     return `Project names (${projects.length}):\n` + lines.join('\n');
@@ -658,6 +684,24 @@ async function answerFromDb(userText, topicHint) {
   }
 
   return null;
+}
+
+function isAllProjectsSummaryQuery(text) {
+  const t = String(text || '').toLowerCase();
+  if (!/\bprojects?\b/.test(t)) return false;
+  return /\ball\b/.test(t) && /\b(status|progress|overview|summary|details|report)\b/.test(t);
+}
+
+function isDeliverableScopedQuery(text) {
+  const t = String(text || '').toLowerCase();
+  if (!/\bdeliverables?\b/.test(t)) return false;
+  return /\b(details|info|overview|status|priority|due date|owner|sprints|signoffs|artifacts|progress|quality)\b/.test(t);
+}
+
+function isSprintScopedQuery(text) {
+  const t = String(text || '').toLowerCase();
+  if (!/\bsprints?\b/.test(t)) return false;
+  return /\b(details|info|overview|status|progress|report|analysis|summary|risk|health|team|deliverables)\b/.test(t);
 }
 
 function isProjectScopedQuery(text) {
@@ -885,6 +929,94 @@ async function listProjectReportsByDeliverableIds(deliverableIds) {
   }
 }
 
+async function buildSprintDetailsData(userText, snapshotData) {
+  const raw = String(userText || '');
+  const t = raw.toLowerCase();
+  const sprints = snapshotData && Array.isArray(snapshotData.sprints) ? snapshotData.sprints : null;
+
+  let sprintId = null;
+  const uuidMatch = raw.match(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i);
+  if (uuidMatch) {
+    sprintId = uuidMatch[0];
+  } else {
+    const m = raw.match(/sprint\s*[:\-]?\s*["']?([A-Za-z0-9 _-]{2,60})["']?/i);
+    const sprintName = m ? m[1].trim() : '';
+    if (sprintName) {
+      const candidates = sprints || (await Sprint.findAll({ attributes: ['id', 'name'], order: [['updated_at', 'DESC']], limit: 200 }));
+      const found = candidates.find(s => String(s.name || '').toLowerCase().includes(sprintName.toLowerCase()));
+      if (found) sprintId = found.id;
+    }
+  }
+
+  if (!sprintId) return null;
+
+  try {
+    const sprintController = require('../controllers/sprintController');
+    const report = await sprintController.buildSprintReportFromDb({ id: sprintId, query: {} });
+    return report;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function buildAllProjectsSummaryData(snapshotData) {
+  const projects = snapshotData && Array.isArray(snapshotData.projects) ? snapshotData.projects : [];
+  if (projects.length === 0) return null;
+  return {
+    count: projects.length,
+    projects: projects.map((p) => ({
+      name: p.name,
+      key: p.key,
+      status: p.status,
+      sprints: p.sprints,
+      deliverables: p.deliverables,
+      startDate: p.startDate,
+      endDate: p.endDate,
+    })),
+  };
+}
+
+async function buildDeliverableDetailsData(userText, snapshotData) {
+  const deliverable = await findDeliverableFromText(userText, snapshotData);
+  if (!deliverable) return null;
+
+  const deliverableId = String(deliverable.id);
+  const deliverableRow = deliverable instanceof Deliverable
+    ? deliverable
+    : await Deliverable.findByPk(deliverableId, {
+        include: [
+          { association: 'contributing_sprints' },
+          { association: 'signoffs' },
+          { association: 'artifacts' },
+          { model: User, as: 'owner', attributes: ['id', 'email', 'first_name', 'last_name', 'role'] }
+        ]
+      });
+
+  if (!deliverableRow) return null;
+
+  const data = deliverableRow.toJSON ? deliverableRow.toJSON() : deliverableRow;
+  
+  // Format for AI
+  return {
+    id: data.id,
+    title: data.title,
+    description: data.description,
+    status: data.status,
+    priority: data.priority,
+    dueDate: data.due_date,
+    owner: data.owner ? { name: displayName(data.owner), role: data.owner.role } : null,
+    sprints: (data.contributing_sprints || []).map(s => ({ name: s.name, status: s.status })),
+    signoffs: (data.signoffs || []).map(s => ({ decision: s.decision, comments: s.comments })),
+    artifacts: (data.artifacts || []).map(a => ({ name: a.name, type: a.type })),
+    progress: deliverableProgressPercent ? deliverableProgressPercent(data.status) : null,
+    quality: {
+      testPassRate: data.test_pass_rate,
+      codeCoverage: data.code_coverage,
+      escapedDefects: data.escaped_defects
+    }
+  };
+}
+
 async function buildProjectDetailsData(userText, snapshotData) {
   const project = await findProjectFromText(userText, snapshotData);
   if (!project) return null;
@@ -1079,12 +1211,13 @@ async function buildProjectDetailsData(userText, snapshotData) {
 
 async function formatWithOpenRouter({ userText, data, kind }) {
   const guidance = [
-    'You are the Flow AI Assistant for a project management app.',
-    'Use only the provided JSON data to answer.',
-    'Do not say you lack access; if something is missing, say it is not present in the provided data.',
+    'You are FlowPilot, the friendly and supportive AI assistant for the Flow app.',
+    'Your goal is to provide a conversational, guided, and professional experience.',
+    'Use only the provided JSON data to answer, but phrase your responses naturally like a helpful team member.',
+    'Do not say you lack access; if something is missing, explain it gently based on the available data.',
     'Do not use markdown. Do not output *, #, or ` characters. Do not use code fences.',
     'Use plain text with "-" for lists.',
-    'Be helpful and natural (not robotic).',
+    'Be warm, conversational, and focus on guiding the user through their tasks.',
   ].join(' ');
   const msgs = [
     { role: 'system', content: guidance },
@@ -1097,8 +1230,9 @@ async function formatWithOpenRouter({ userText, data, kind }) {
 
 async function rephraseWithOpenRouter({ question, rawAnswer }) {
   const guidance = [
-    'Rewrite the provided answer in a natural assistant tone.',
-    'Do not add new facts, do not remove any listed items, do not change names.',
+    'Rewrite the provided answer in a warm, friendly, and professional assistant tone.',
+    'Your goal is to be conversational and helpful, making the information easy to understand.',
+    'Do not add new facts, do not remove any listed items, and do not change names.',
     'Do not use markdown. Do not output *, #, or ` characters. Do not use code fences.',
     'Use plain text with "-" for lists.',
   ].join(' ');
@@ -1212,13 +1346,58 @@ async function callOpenRouter({ msgs, temperature, max_tokens }) {
   return payload;
 }
 
+function generateSuggestions(userText, intent, snapshotData) {
+  const t = String(userText || '').toLowerCase();
+  const suggestions = [];
+
+  // 1. Context-based suggestions
+  if (/\bprojects?\b/.test(t)) {
+    suggestions.push('Could you show me all projects?');
+    suggestions.push("I'd like help starting a new project.");
+    suggestions.push('Can you tell me who the project owners are?');
+  } else if (/\bsprints?\b/.test(t)) {
+    suggestions.push('I want to see all the sprints.');
+    suggestions.push("Could we set up a new sprint together?");
+    suggestions.push('What sprints are currently active?');
+  } else if (/\bdeliverables?\b/.test(t)) {
+    suggestions.push('Show me what deliverables we have.');
+    suggestions.push('I need help creating a deliverable.');
+    suggestions.push('Are there any deliverables past their due date?');
+  } else if (/\busers?\b|\bteam\b|\bmembers?\b/.test(t)) {
+    suggestions.push('Who are the members of the team?');
+    suggestions.push('Can you show me the team assignments?');
+  }
+
+  // 2. Intent-based additions
+  if (intent === 'project') {
+    suggestions.push('Please open the project workspace.');
+    suggestions.push('Which sprints belong to this project?');
+  } else if (intent === 'sprint') {
+    suggestions.push('Could you prepare a report for this sprint?');
+    suggestions.push('Show me the deliverables for this sprint.');
+  } else if (intent === 'deliverable') {
+    suggestions.push('Help me draft a sign-off report.');
+    suggestions.push('I want to change the status of this.');
+  }
+
+  // 3. General helpful suggestions if list is short
+  if (suggestions.length < 3) {
+    suggestions.push('Take me back to the dashboard.');
+    suggestions.push('Are there any new notifications for me?');
+    suggestions.push('What kind of things can you help me with?');
+  }
+
+  // Deduplicate and limit
+  return Array.from(new Set(suggestions)).slice(0, 4);
+}
+
 router.get('/status', (req, res) => {
   const loadedFrom = process.env.ENV_LOADED_FROM || '';
   const basename = loadedFrom ? String(loadedFrom).split(/[\\/]/).pop() : '';
   return res.json({
     success: true,
     data: {
-      aiRoutesVersion: 'ai-openrouter-db-2026-04-01',
+      aiRoutesVersion: 'ai-active-2026-04-13',
       provider: 'openrouter',
       openrouterConfigured: !!(process.env.OPENROUTER_API_KEY || process.env.OpenRouter_API_KEY),
       openrouterModel: resolvedOpenRouterModel || process.env.OPENROUTER_MODEL || process.env.GEMINI_MODEL || 'google/gemini-3.1-flash-lite-preview',
@@ -1272,7 +1451,7 @@ router.post('/chat', async (req, res) => {
     } catch (_) {}
     msgs.unshift({
       role: 'system',
-      content: 'You have access to project/sprint/deliverable/user data in APP_DATA_SNAPSHOT_JSON. Use it to answer questions about counts, names, status, assignments, and progress. If something is not present in the snapshot, say it is not present in the snapshot instead of saying you have no access.',
+      content: 'You are FlowPilot. You have access to project/sprint/deliverable/user data in APP_DATA_SNAPSHOT_JSON. Use it to answer questions about counts, names, status, assignments, and progress. If something is not present in the snapshot, say it is not present in the snapshot instead of saying you have no access.',
     });
     let snapshotData = null;
     try {
@@ -1287,6 +1466,16 @@ router.post('/chat', async (req, res) => {
 
     const userText = lastUserTextFromMessages(msgs);
     const userId = req.user && req.user.id ? String(req.user.id) : '';
+    const intent = detectCreateIntent(userText);
+    
+    const sendResponse = (res, success, data) => {
+      if (success && data && !data.suggestions) {
+        data.suggestions = generateSuggestions(userText, intent, snapshotData);
+      }
+      console.log('AI Response:', JSON.stringify({ success, suggestions: data?.suggestions?.length || 0 }));
+      return res.json({ success, data });
+    };
+
     if (userId && userText) {
       const t = String(userText).toLowerCase();
       let topic = '';
@@ -1303,7 +1492,7 @@ router.post('/chat', async (req, res) => {
       const pending = pendingActions.get(userId);
       if (pending && isCancelText(userText)) {
         pendingActions.delete(userId);
-        return res.json({ success: true, data: { content: 'Cancelled.', usage: {}, model: 'server' } });
+        return sendResponse(res, true, { content: 'Cancelled.', usage: {}, model: 'server' });
       }
       if (pending) {
         const patch = parseKeyValueLines(userText);
@@ -1320,25 +1509,25 @@ router.post('/chat', async (req, res) => {
 
         if (!ready) {
           const ask = pending.type === 'deliverable'
-            ? 'To create a deliverable, reply with:\nProject: <project key or name>\nTitle: <deliverable title>\nDue_Date: <YYYY-MM-DD> (optional)\nOwner_Email: <email> (optional)\nSprint: <sprint name> (optional)\nPriority: <low|medium|high> (optional)'
+            ? "I'm ready to help you create a deliverable. Could you provide the following details?\n- Project (key or name)\n- Title\n- Due Date (optional)\n- Owner Email (optional)\n- Sprint (optional)\n- Priority (low, medium, or high)"
             : pending.type === 'sprint'
-              ? 'To create a sprint, reply with:\nProject: <project key or name>\nName: <sprint name>\nStart_Date: <YYYY-MM-DD>\nEnd_Date: <YYYY-MM-DD>'
+              ? "Let's set up a new sprint. I'll need a few things:\n- Project (key or name)\n- Sprint Name\n- Start Date (YYYY-MM-DD)\n- End Date (YYYY-MM-DD)"
               : pending.type === 'project'
-                ? 'To create a project, reply with:\nName: <project name>\nKey: <optional short key>\nOwner_Email: <optional email>'
-                : 'To create a sign-off report, reply with:\nDeliverable_Id: <deliverable id>\nReport_Title: <title>\nReport_Content: <content>\nStatus: <draft|submitted> (optional)';
-          return res.json({ success: true, data: { content: ask, usage: {}, model: 'server' } });
+                ? "I'd be happy to help you start a new project! Please provide:\n- Project Name\n- Short Key (optional)\n- Owner Email (optional)"
+                : "I'll help you draft a sign-off report. Please provide:\n- Deliverable ID\n- Report Title\n- Report Content\n- Status (draft or submitted)";
+          return sendResponse(res, true, { content: ask, usage: {}, model: 'server' });
         }
 
         if (!isConfirmText(userText) && !pending.confirmAsked) {
           pending.confirmAsked = true;
           const summary = pending.type === 'deliverable'
-            ? `I will create a deliverable:\n- Project: ${pending.data.project}\n- Title: ${pending.data.title}\n- Due date: ${pending.data.due_date || '(none)'}\nReply "confirm" to create it, or "cancel".`
+            ? `Everything looks good! I'll create the following deliverable:\n- Project: ${pending.data.project}\n- Title: ${pending.data.title}\n- Due date: ${pending.data.due_date || 'Not set'}\n\nShall I proceed with creating this? (Reply "confirm" or "cancel")`
             : pending.type === 'sprint'
-              ? `I will create a sprint:\n- Project: ${pending.data.project}\n- Name: ${pending.data.name}\n- Start: ${pending.data.start_date}\n- End: ${pending.data.end_date}\nReply "confirm" to create it, or "cancel".`
+              ? `I've prepared the sprint details:\n- Project: ${pending.data.project}\n- Name: ${pending.data.name}\n- Dates: ${pending.data.start_date} to ${pending.data.end_date}\n\nReady to create it? (Reply "confirm" or "cancel")`
               : pending.type === 'project'
-                ? `I will create a project:\n- Name: ${pending.data.name}\n- Key: ${pending.data.key || '(auto)'}\nReply "confirm" to create it, or "cancel".`
-                : `I will create a sign-off report:\n- Deliverable ID: ${pending.data.deliverable_id}\n- Title: ${pending.data.report_title}\n- Status: ${pending.data.status || 'draft'}\nReply "confirm" to create it, or "cancel".`;
-          return res.json({ success: true, data: { content: summary, usage: {}, model: 'server' } });
+                ? `I'm ready to set up your new project:\n- Name: ${pending.data.name}\n- Key: ${pending.data.key || 'Will be auto-generated'}\n\nShould I go ahead and create it? (Reply "confirm" or "cancel")`
+                : `I've drafted the sign-off report:\n- Deliverable ID: ${pending.data.deliverable_id}\n- Title: ${pending.data.report_title}\n- Status: ${pending.data.status || 'draft'}\n\nShall I save this report? (Reply "confirm" or "cancel")`;
+          return sendResponse(res, true, { content: summary, usage: {}, model: 'server' });
         }
 
         if (isConfirmText(userText)) {
@@ -1369,31 +1558,47 @@ router.post('/chat', async (req, res) => {
                 created_by: userId,
               });
               pendingActions.delete(userId);
-              return res.json({ success: true, data: { content: `Project created: ${project.name} (${project.key})`, usage: {}, model: 'server' } });
+              return sendResponse(res, true, { content: `Project created: ${project.name} (${project.key})`, usage: {}, model: 'server' });
             }
 
             if (pending.type === 'sprint') {
               if (!allowSprint) return res.status(403).json({ error: 'Insufficient permissions' });
               const projectId = await resolveProjectIdFromInput(pending.data.project, snapshotData || {});
-              if (!projectId) return res.json({ success: true, data: { content: 'Project not found. Provide Project as a valid project key or name.', usage: {}, model: 'server' } });
+              if (!projectId) return sendResponse(res, true, { content: 'Project not found. Provide Project as a valid project key or name.', usage: {}, model: 'server' });
+              
+              // Validate dates
+              const start = new Date(String(pending.data.start_date).trim());
+              const end = new Date(String(pending.data.end_date).trim());
+              if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                return sendResponse(res, true, { content: 'Invalid date format. Please use YYYY-MM-DD.', usage: {}, model: 'server' });
+              }
+              if (end <= start) {
+                return sendResponse(res, true, { content: 'End date must be after start date.', usage: {}, model: 'server' });
+              }
+
               const sprint = await Sprint.create({
                 project_id: projectId,
                 name: String(pending.data.name).trim(),
-                start_date: new Date(String(pending.data.start_date).trim()),
-                end_date: new Date(String(pending.data.end_date).trim()),
+                start_date: start,
+                end_date: end,
                 status: 'planning',
                 created_by: userId,
                 created_at: new Date(),
                 updated_at: new Date(),
               });
               pendingActions.delete(userId);
-              return res.json({ success: true, data: { content: `Sprint created: ${sprint.name} (id=${sprint.id})`, usage: {}, model: 'server' } });
+              return sendResponse(res, true, {
+                  content: `Sprint created: ${sprint.name} (id=${sprint.id})`,
+                  actions: [{ type: 'navigate', route: '/sprint-console', silent: false }],
+                  usage: {},
+                  model: 'server'
+              });
             }
 
             if (pending.type === 'deliverable') {
               if (!allowDeliverable) return res.status(403).json({ error: 'Insufficient permissions' });
               const projectId = await resolveProjectIdFromInput(pending.data.project, snapshotData || {});
-              if (!projectId) return res.json({ success: true, data: { content: 'Project not found. Provide Project as a valid project key or name.', usage: {}, model: 'server' } });
+              if (!projectId) return sendResponse(res, true, { content: 'Project not found. Provide Project as a valid project key or name.', usage: {}, model: 'server' });
               let ownerId = null;
               if (pending.data.owner_email) {
                 const u = await User.findOne({ where: { email: String(pending.data.owner_email).trim() }, attributes: ['id'] });
@@ -1424,7 +1629,12 @@ router.post('/chat', async (req, res) => {
                 }
               }
               pendingActions.delete(userId);
-              return res.json({ success: true, data: { content: `Deliverable created: ${deliverable.title} (id=${deliverable.id})`, usage: {}, model: 'server' } });
+              return sendResponse(res, true, {
+                  content: `Deliverable created: ${deliverable.title} (id=${deliverable.id})`,
+                  actions: [{ type: 'navigate', route: `/deliverables/${deliverable.id}`, silent: false }],
+                  usage: {},
+                  model: 'server'
+              });
             }
 
             if (pending.type === 'report') {
@@ -1443,7 +1653,7 @@ router.post('/chat', async (req, res) => {
               );
               const row = results && results[0] ? results[0] : null;
               pendingActions.delete(userId);
-              return res.json({ success: true, data: { content: `Sign-off report created: id=${row ? row.id : 'unknown'}`, usage: {}, model: 'server' } });
+              return sendResponse(res, true, { content: `Sign-off report created: id=${row ? row.id : 'unknown'}`, usage: {}, model: 'server' });
             }
           } catch (e) {
             pendingActions.delete(userId);
@@ -1456,60 +1666,76 @@ router.post('/chat', async (req, res) => {
       if (intent) {
         pendingActions.set(userId, { type: intent, data: {}, confirmAsked: false, createdAt: Date.now() });
         const ask = intent === 'deliverable'
-          ? 'To create a deliverable, reply with:\nProject: <project key or name>\nTitle: <deliverable title>\nDue_Date: <YYYY-MM-DD> (optional)\nOwner_Email: <email> (optional)\nSprint: <sprint name> (optional)\nPriority: <low|medium|high> (optional)'
+          ? "I'm ready to help you create a deliverable. Could you provide the following details?\n- Project (key or name)\n- Title\n- Due Date (optional)\n- Owner Email (optional)\n- Sprint (optional)\n- Priority (low, medium, or high)"
           : intent === 'sprint'
-            ? 'To create a sprint, reply with:\nProject: <project key or name>\nName: <sprint name>\nStart_Date: <YYYY-MM-DD>\nEnd_Date: <YYYY-MM-DD>'
+            ? "Let's set up a new sprint. I'll need a few things:\n- Project (key or name)\n- Sprint Name\n- Start Date (YYYY-MM-DD)\n- End Date (YYYY-MM-DD)"
             : intent === 'project'
-              ? 'To create a project, reply with:\nName: <project name>\nKey: <optional short key>\nOwner_Email: <optional email>'
-              : 'To create a sign-off report, reply with:\nDeliverable_Id: <deliverable id>\nReport_Title: <title>\nReport_Content: <content>\nStatus: <draft|submitted> (optional)';
-        return res.json({ success: true, data: { content: ask, usage: {}, model: 'server' } });
+              ? "I'd be happy to help you start a new project! Please provide:\n- Project Name\n- Short Key (optional)\n- Owner Email (optional)"
+              : "I'll help you draft a sign-off report. Please provide:\n- Deliverable ID\n- Report Title\n- Report Content\n- Status (draft or submitted)";
+        return sendResponse(res, true, { content: ask, usage: {}, model: 'server' });
       }
     }
     if (userText && isNavigationQuery(userText)) {
       const nav = await buildNavigationActionFromText(userText, snapshotData || {});
       if (nav && nav.route) {
         const includeChat = wantsNavigationChatConfirmation(userText);
-        return res.json({
-          success: true,
-          data: {
+        return sendResponse(res, true, {
             content: includeChat ? cleanAiText(`Taking you to ${nav.label || 'that page'} now.`) : '',
             actions: [{ type: 'navigate', route: String(nav.route), silent: !includeChat }],
             usage: {},
             model: 'server',
-          },
         });
       }
       if (/\bproject\b/i.test(userText)) {
         const projectsPreview = await answerFromDb('list the project names', 'projects');
-        return res.json({
-          success: true,
-          data: {
+        return sendResponse(res, true, {
             content: cleanAiText(`Which project should I open?\nReply with: Project: <project key or name>\n\n${projectsPreview || ''}`),
             usage: {},
             model: 'server',
-          },
         });
       }
       if (/\bdeliverable\b/i.test(userText)) {
         const preview = await answerFromDb('list the deliverable titles', 'deliverables');
-        return res.json({
-          success: true,
-          data: {
+        return sendResponse(res, true, {
             content: cleanAiText(`Which deliverable should I open?\nReply with: Deliverable: <deliverable id or title>\n\n${preview || ''}`),
             usage: {},
             model: 'server',
-          },
         });
       }
+    }
+    if (userText && isAllProjectsSummaryQuery(userText)) {
+      const allData = await buildAllProjectsSummaryData(snapshotData || {});
+      if (allData) {
+        const ai = await formatWithOpenRouter({ userText, data: allData, kind: 'ALL_PROJECTS_SUMMARY' });
+        return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
+      }
+    }
+    if (userText && isDeliverableScopedQuery(userText)) {
+      const delData = await buildDeliverableDetailsData(userText, snapshotData || {});
+      if (delData) {
+        const ai = await formatWithOpenRouter({ userText, data: delData, kind: 'DELIVERABLE_DETAILS' });
+        return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
+      }
+      const delPreview = await answerFromDb('list the deliverable titles', 'deliverables');
+      return sendResponse(res, true, { content: cleanAiText(`Which deliverable do you mean?\nReply with: Deliverable: <deliverable title or id>\n\n${delPreview || ''}`), usage: {}, model: 'server' });
+    }
+    if (userText && isSprintScopedQuery(userText)) {
+      const sprintData = await buildSprintDetailsData(userText, snapshotData || {});
+      if (sprintData) {
+        const ai = await formatWithOpenRouter({ userText, data: sprintData, kind: 'SPRINT_REPORT' });
+        return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
+      }
+      const sprintPreview = await answerFromDb('list the sprint names', 'sprints');
+      return sendResponse(res, true, { content: cleanAiText(`Which sprint do you mean?\nReply with: Sprint: <sprint name or id>\n\n${sprintPreview || ''}`), usage: {}, model: 'server' });
     }
     if (userText && isProjectScopedQuery(userText)) {
       const detailsData = await buildProjectDetailsData(userText, snapshotData || {});
       if (detailsData) {
         const ai = await formatWithOpenRouter({ userText, data: detailsData, kind: 'PROJECT_DETAILS' });
-        return res.json({ success: true, data: { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' } });
+        return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
       }
       const projectsPreview = await answerFromDb('list the project names', 'projects');
-      return res.json({ success: true, data: { content: cleanAiText(`Which project do you mean?\nReply with: Project: <project key or name>\n\n${projectsPreview || ''}`), usage: {}, model: 'server' } });
+      return sendResponse(res, true, { content: cleanAiText(`Which project do you mean?\nReply with: Project: <project key or name>\n\n${projectsPreview || ''}`), usage: {}, model: 'server' });
     }
     if (userText && isListOrCountQuery(userText)) {
       if (snapshotData) {
@@ -1517,9 +1743,9 @@ router.post('/chat', async (req, res) => {
         if (direct) {
           try {
             const ai = await rephraseWithOpenRouter({ question: userText, rawAnswer: direct });
-            return res.json({ success: true, data: { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' } });
+            return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
           } catch (_) {
-            return res.json({ success: true, data: { content: cleanAiText(direct), usage: {}, model: 'server' } });
+            return sendResponse(res, true, { content: cleanAiText(direct), usage: {}, model: 'server' });
           }
         }
       }
@@ -1528,22 +1754,22 @@ router.post('/chat', async (req, res) => {
       if (directDb) {
         try {
           const ai = await rephraseWithOpenRouter({ question: userText, rawAnswer: directDb });
-          return res.json({ success: true, data: { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' } });
+          return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
         } catch (_) {
-          return res.json({ success: true, data: { content: cleanAiText(directDb), usage: {}, model: 'server' } });
+          return sendResponse(res, true, { content: cleanAiText(directDb), usage: {}, model: 'server' });
         }
       }
     }
     const key = makeKey(msgs, temperature, max_tokens);
     const cached = getCached(key);
     if (cached) {
-      return res.json({ success: true, data: cached });
+      return sendResponse(res, true, cached);
     }
     const existing = inflight.get(key);
     if (existing) {
       try {
         const v = await existing;
-        return res.json({ success: true, data: v });
+        return sendResponse(res, true, v);
       } catch (e) {
         const status = (e && e.response && e.response.status) || 500;
         const upstream = (e && e.response && e.response.data && (e.response.data.error?.message || e.response.data.error || e.response.data.message)) || null;
@@ -1563,7 +1789,7 @@ router.post('/chat', async (req, res) => {
     inflight.set(key, p);
     try {
       const payload = await p;
-      return res.json({ success: true, data: payload });
+      return sendResponse(res, true, payload);
     } finally {
       inflight.delete(key);
     }
