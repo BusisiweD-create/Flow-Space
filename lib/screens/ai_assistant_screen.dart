@@ -212,6 +212,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
                         final suggestion = _suggestions[index];
                         return ActionChip(
                           label: Text(suggestion),
+                          // ignore: deprecated_member_use
                           backgroundColor: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
                           onPressed: () {
                             _controller.text = suggestion;
