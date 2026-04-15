@@ -450,11 +450,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                   child: Stack(
                     children: [
                       Positioned.fill(child: widget.child),
-                      Positioned(
-                        right: 20,
-                        bottom: 96,
-                        child: _buildThemeToggleButton(isDarkMode),
-                      ),
+                      if (routeLocation != '/dashboard')
+                        Positioned(
+                          right: 20,
+                          bottom: 96,
+                          child: _buildThemeToggleButton(isDarkMode),
+                        ),
                     ],
                   ),
                 ),
@@ -470,7 +471,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         body: BackgroundImage(
           child: widget.child,
         ),
-        floatingActionButton: _buildThemeToggleButton(isDarkMode),
+        floatingActionButton:
+            routeLocation == '/dashboard' ? null : _buildThemeToggleButton(isDarkMode),
         drawer: Drawer(
           backgroundColor: sidebarColor,
           child: Column(

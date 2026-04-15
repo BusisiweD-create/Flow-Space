@@ -18,6 +18,7 @@ import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
 import '../widgets/app_modal.dart';
 import '../theme/flownet_theme.dart';
+import '../providers/service_providers.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -50,6 +51,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
+  String? _selectedTeamFilter;
+  String? _hoveredTeamFilter;
+  bool _isBottomFabExpanded = false;
   
   // Cache for user names to avoid repeated API calls
   final Map<String, String> _userNamesCache = {};
@@ -639,7 +643,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           ],
         ),
       ),
-      floatingActionButton: _buildRoleSpecificFAB(),
+      floatingActionButton: _buildBottomRightExpandableFab(),
     );
   }
 
@@ -675,7 +679,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bool compact = constraints.maxWidth < 980;
-        final double headingSize = compact ? 28 : 34;
+        final double headingSize = compact ? 22 : 26;
         return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(10, 2, 10, 14),
           child: Center(
@@ -750,8 +754,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     if (isDarkMode) {
       return FlownetColors.sidebarDark.withValues(alpha: 0.4);
     }
-    // Light mode: pure white surfaces
-    return Colors.white;
+    // Light mode widgets at 60% opacity
+    return Colors.white.withValues(alpha: 0.6);
   }
 
   TextStyle _dashboardTextStyle({
@@ -778,7 +782,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         children: [
           _buildTeamRoundIcon(Icons.rocket_launch_outlined),
           const SizedBox(width: 10),
-          Expanded(
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -790,26 +794,24 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                _buildTeamPillButton('CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
-                _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
-                _buildTeamPillButton('BUILD REPORT', () {
-                  final first = _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
-                  final sprintId = first != null ? _extractFirstSprintId(first) : null;
-                  if (sprintId != null && sprintId.isNotEmpty) {
-                    context.go('/sprint-report/$sprintId');
-                    return;
-                  }
-                  context.go('/sprint-console');
-                }),
-              ],
-            ),
+          const Spacer(),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildTeamPillButton('CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
+              _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
+              _buildTeamPillButton('BUILD REPORT', () {
+                final first = _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                final sprintId = first != null ? _extractFirstSprintId(first) : null;
+                if (sprintId != null && sprintId.isNotEmpty) {
+                  context.go('/sprint-report/$sprintId');
+                  return;
+                }
+                context.go('/sprint-console');
+              }),
+            ],
           ),
         ],
       ),
@@ -870,11 +872,28 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   Widget _buildTeamDeliverablesPanel() {
     final uid = _currentUser?.id.toString() ?? '';
-    final myDeliverables = _dashboardDeliverables.where((d) {
+    var myDeliverables = _dashboardDeliverables.where((d) {
       final assigned = (d['assigned_to'] ?? d['assignedTo'] ?? '').toString();
       final created = (d['created_by'] ?? d['createdBy'] ?? '').toString();
       return assigned == uid || created == uid;
     }).toList();
+
+    if (_selectedTeamFilter != null) {
+      final filter = _selectedTeamFilter!;
+      if (filter == 'HIGH PRIORITY') {
+        myDeliverables = myDeliverables
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'high')
+            .toList();
+      } else if (filter == 'MEDIUM PRIORITY') {
+        myDeliverables = myDeliverables
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'medium')
+            .toList();
+      } else if (filter == 'LOW PRIORITY') {
+        myDeliverables = myDeliverables
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'low')
+            .toList();
+      }
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -1101,19 +1120,32 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildTeamMiniFilter(String label) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDarkMode ? Colors.white : Colors.black;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(
+    final bool isActive = _selectedTeamFilter == label || _hoveredTeamFilter == label;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredTeamFilter = label),
+      onExit: (_) => setState(() => _hoveredTeamFilter = null),
+      child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: FlownetColors.primary),
-        color: label == 'VIEW ALL' ? FlownetColors.primary : Colors.transparent,
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: label == 'VIEW ALL' ? Colors.white : textColor,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
+        onTap: () {
+          setState(() {
+            _selectedTeamFilter = label == 'VIEW ALL' ? null : label;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: FlownetColors.primary),
+            color: isActive ? FlownetColors.primary : Colors.transparent,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isActive ? Colors.white : textColor,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
@@ -1340,59 +1372,108 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
-  Widget? _buildRoleSpecificFAB() {
+  bool _canShowRoleAction() {
+    final auth = AuthService();
+    final canCreateDeliverable = auth.canCreateDeliverable();
+    final canManageUsers = auth.canManageUsers();
+    return canCreateDeliverable || canManageUsers;
+  }
+
+  void _handleRoleActionTap() {
     final auth = AuthService();
     final canCreateDeliverable = auth.canCreateDeliverable();
     final canManageUsers = auth.canManageUsers();
 
-    if (!canCreateDeliverable && !canManageUsers) return null;
+    if ((_currentUser!.role == UserRole.teamMember ||
+            _currentUser!.role == UserRole.deliveryLead) &&
+        canCreateDeliverable) {
+      _showCreateDeliverableModal();
+      return;
+    }
 
-    return FloatingActionButton(
-      onPressed: () {
-        if ((_currentUser!.role == UserRole.teamMember ||
-                _currentUser!.role == UserRole.deliveryLead) &&
-            canCreateDeliverable) {
-          _showCreateDeliverableModal();
-          return;
+    showAppModalBottomSheet(
+      context: context,
+      builder: (context) {
+        final items = <Widget>[];
+
+        if (canCreateDeliverable) {
+          items.add(
+            ListTile(
+              leading: const Icon(Icons.assignment_outlined),
+              title: const Text('Create Deliverable'),
+              onTap: () => context.go('/deliverable-setup'),
+            ),
+          );
         }
 
-        showAppModalBottomSheet(
-          context: context,
-          builder: (context) {
-            final items = <Widget>[];
+        if (canManageUsers) {
+          items.add(
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings),
+              title: const Text('Role Management'),
+              onTap: () => context.go('/role-management'),
+            ),
+          );
+        }
 
-            if (canCreateDeliverable) {
-              items.add(
-                ListTile(
-                  leading: const Icon(Icons.assignment_outlined),
-                  title: const Text('Create Deliverable'),
-                  onTap: () => context.go('/deliverable-setup'),
-                ),
-              );
-            }
-
-            if (canManageUsers) {
-              items.add(
-                ListTile(
-                  leading: const Icon(Icons.admin_panel_settings),
-                  title: const Text('Role Management'),
-                  onTap: () => context.go('/role-management'),
-                ),
-              );
-            }
-
-            return SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: items,
-              ),
-            );
-          },
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: items,
+          ),
         );
       },
-      backgroundColor:
-          _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
-      child: const Icon(Icons.add, color: Colors.white),
+    );
+  }
+
+  Widget _buildBottomRightExpandableFab() {
+    if (!_canShowRoleAction()) return const SizedBox.shrink();
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_isBottomFabExpanded) ...[
+          FloatingActionButton.small(
+            heroTag: 'dashboard-theme-mini',
+            onPressed: () {
+              ProviderScope.containerOf(context, listen: false)
+                  .read(themeProvider.notifier)
+                  .toggleTheme();
+            },
+            backgroundColor: isDarkMode
+                ? FlownetColors.sidebarDark
+                : FlownetColors.sidebarLight,
+            foregroundColor: isDarkMode ? Colors.white : Colors.black,
+            child: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
+          ),
+          const SizedBox(width: 8),
+          FloatingActionButton.small(
+            heroTag: 'dashboard-action-mini',
+            onPressed: _handleRoleActionTap,
+            backgroundColor:
+                _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(width: 8),
+        ],
+        FloatingActionButton.small(
+          heroTag: 'dashboard-arrow-toggle',
+          onPressed: () {
+            setState(() {
+              _isBottomFabExpanded = !_isBottomFabExpanded;
+            });
+          },
+          backgroundColor:
+              _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          child: Icon(
+            _isBottomFabExpanded
+                ? Icons.keyboard_arrow_right
+                : Icons.keyboard_arrow_left,
+          ),
+        ),
+      ],
     );
   }
 

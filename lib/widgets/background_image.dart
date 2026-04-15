@@ -38,6 +38,17 @@ class BackgroundImage extends StatelessWidget {
         (isDarkMode
             ? 'assets/Icons/khono_bg.png'
             : 'assets/Icons/light_mode_bg.png');
+    final List<Color> resolvedGradientColors =
+        gradientColors ??
+        (isDarkMode
+            ? [
+                Colors.black.withValues(alpha: 0.2),
+                Colors.black.withValues(alpha: 0.35),
+              ]
+            : [
+                Colors.transparent,
+                Colors.transparent,
+              ]);
 
     return Stack(
       children: [
@@ -59,10 +70,7 @@ class BackgroundImage extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: gradientBegin,
                   end: gradientEnd,
-                  colors: gradientColors ?? [
-                    Colors.black.withValues(alpha: 0.2),
-                    Colors.black.withValues(alpha: 0.35),
-                  ],
+                  colors: resolvedGradientColors,
                 ),
               ),
             ),
