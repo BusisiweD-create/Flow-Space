@@ -500,6 +500,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final headerTextColor = isDarkMode ? Colors.white : Colors.black;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -521,16 +523,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     child: Text(
                       '${_currentUser!.role.displayName} Dashboard',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: headerTextColor,
                       ),
                     ),
                   ),
                   Builder(
                     builder: (context) => PopupMenuButton<String>(
-                      icon: const Icon(Icons.menu, color: Colors.white),
+                      icon: Icon(Icons.menu, color: headerTextColor),
                       onSelected: (value) {
                         switch (value) {
                           case 'profile':
