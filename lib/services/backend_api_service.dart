@@ -574,10 +574,12 @@ class BackendApiService {
     final body = <String, dynamic>{};
     if (reportId != null && reportId.isNotEmpty) body['reportId'] = reportId;
     if (force) body['force'] = true;
-    if (recipientRole != null && recipientRole.isNotEmpty)
+    if (recipientRole != null && recipientRole.isNotEmpty) {
       body['recipientRole'] = recipientRole;
-    if (recipientId != null && recipientId.isNotEmpty)
+    }
+    if (recipientId != null && recipientId.isNotEmpty) {
       body['recipientId'] = recipientId;
+    }
     return await _apiClient.post('/system/simulate-report-reminder',
         body: body);
   }
