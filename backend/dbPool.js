@@ -6,6 +6,8 @@ const { Pool } = pkg;
 function createPool() {
   console.log('🛜 Using DATABASE_URL (safest approach)');
   console.log('📊 Connection URL:', process.env.DATABASE_URL ? '***CONFIGURED***' : 'NOT SET');
+  const usingRenderHost = String(process.env.DB_HOST || '').includes('render.com');
+  const sslEnabled = process.env.DB_SSL === 'true' || usingRenderHost;
   
   if (!process.env.DATABASE_URL) {
     return new Pool({
@@ -14,7 +16,7 @@ function createPool() {
       database: process.env.DB_NAME || 'flow_space',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
-      ssl: false,
+      ssl: sslEnabled ? { rejectUnauthorized: false } : false,
     });
   }
 
