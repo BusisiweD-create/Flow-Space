@@ -1,13 +1,14 @@
 const { Sequelize } = require('sequelize');
-require('dotenv').config();
+require('dotenv').config({ path: '../../.env' });
 
-const DATABASE_URL = process.env.DATABASE_URL;
-const DB_HOST = process.env.DB_HOST;
-const DB_PORT = process.env.DB_PORT || '5432';
-const DB_NAME = process.env.DB_NAME;
-const DB_USER = process.env.DB_USER;
-const DB_PASSWORD = process.env.DB_PASSWORD;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+// Temporary hardcoded PostgreSQL connection to bypass dotenv issues
+const DATABASE_URL = 'postgresql://postgres:property007@localhost:5432/flow_space';
+const DB_HOST = '127.0.0.1';
+const DB_PORT = '5432';
+const DB_NAME = 'flow_space';
+const DB_USER = 'postgres';
+const DB_PASSWORD = 'property007';
+const NODE_ENV = 'development';
 
 let sequelize;
 
