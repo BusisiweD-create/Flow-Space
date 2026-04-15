@@ -23,7 +23,7 @@ class Environment {
       return "https://backend-532p.onrender.com/api/v1";
     }
 
-    // Default to localhost for development
+    // Default to localhost for development (SIT environment)
     return _apiBaseUrl;
   }
 
