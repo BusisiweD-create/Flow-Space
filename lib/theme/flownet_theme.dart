@@ -500,8 +500,8 @@ class FlownetTheme {
 
       // Card Theme
       cardTheme: ThemeData.light().cardTheme.copyWith(
-        // Light mode widgets follow sidebar color at 40% opacity
-        color: FlownetColors.sidebarLight.withValues(alpha: 0.4),
+        // Light mode widgets are pure white
+        color: FlownetColors.sidebarLight,
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),

@@ -17,6 +17,7 @@ import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
 import '../widgets/app_modal.dart';
+import '../theme/flownet_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -502,11 +503,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final headerTextColor = isDarkMode ? Colors.white : Colors.black;
+    final isTeamMember = _currentUser!.role == UserRole.teamMember;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: BackgroundImage(
-        imagePath: 'assets/Icons/khono_bg.png',
         withGlassEffect: false,
         overlayOpacity: 0.25,
         child: Column(
@@ -517,82 +518,117 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Row(
                 children: [
-                  const SizedBox(
-                      width: 48), // Space for hamburger menu alignment
-                  Expanded(
-                    child: Text(
-                      '${_currentUser!.role.displayName} Dashboard',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: headerTextColor,
+                  if (isTeamMember) ...[
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Text(
+                            '${_currentUser!.role.displayName} Dashboard',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: headerTextColor,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Text(
+                            'Hello, ${_currentUser!.name}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: headerTextColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  Builder(
-                    builder: (context) => PopupMenuButton<String>(
-                      icon: Icon(Icons.menu, color: headerTextColor),
-                      onSelected: (value) {
-                        switch (value) {
-                          case 'profile':
-                            context.go('/profile');
-                            break;
-                          case 'notifications':
-                            context.go('/notifications');
-                            break;
-                          case 'settings':
-                            context.go('/settings');
-                            break;
-                          case 'logout':
-                            _handleLogout();
-                            break;
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'profile',
-                          child: Row(
-                            children: [
-                              Icon(Icons.person),
-                              SizedBox(width: 8),
-                              Text('Profile'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'notifications',
-                          child: Row(
-                            children: [
-                              Icon(Icons.notifications),
-                              SizedBox(width: 8),
-                              Text('Notifications'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'settings',
-                          child: Row(
-                            children: [
-                              Icon(Icons.settings),
-                              SizedBox(width: 8),
-                              Text('Settings'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'logout',
-                          child: Row(
-                            children: [
-                              Icon(Icons.logout),
-                              SizedBox(width: 8),
-                              Text('Logout'),
-                            ],
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 12),
+                    _buildTeamHeaderIconButton(
+                      icon: Icons.mail_outline,
+                      onTap: () => context.go('/notifications'),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    _buildTeamHeaderIconButton(
+                      icon: Icons.notifications_none,
+                      onTap: () => context.go('/notifications'),
+                    ),
+                  ] else ...[
+                    const SizedBox(width: 48),
+                    Expanded(
+                      child: Text(
+                        '${_currentUser!.role.displayName} Dashboard',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: headerTextColor,
+                        ),
+                      ),
+                    ),
+                    Builder(
+                      builder: (context) => PopupMenuButton<String>(
+                        icon: Icon(Icons.menu, color: headerTextColor),
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'profile':
+                              context.go('/profile');
+                              break;
+                            case 'notifications':
+                              context.go('/notifications');
+                              break;
+                            case 'settings':
+                              context.go('/settings');
+                              break;
+                            case 'logout':
+                              _handleLogout();
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'profile',
+                            child: Row(
+                              children: [
+                                Icon(Icons.person),
+                                SizedBox(width: 8),
+                                Text('Profile'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'notifications',
+                            child: Row(
+                              children: [
+                                Icon(Icons.notifications),
+                                SizedBox(width: 8),
+                                Text('Notifications'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'settings',
+                            child: Row(
+                              children: [
+                                Icon(Icons.settings),
+                                SizedBox(width: 8),
+                                Text('Settings'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'logout',
+                            child: Row(
+                              children: [
+                                Icon(Icons.logout),
+                                SizedBox(width: 8),
+                                Text('Logout'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -633,24 +669,524 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildTeamMemberDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool compact = constraints.maxWidth < 980;
+        final double headingSize = compact ? 28 : 34;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 14),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1380),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTeamQuickActionsPanel(compact: compact),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Review Metrics Overview',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: headingSize,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTeamReviewMetricsCards(compact: compact),
+                  const SizedBox(height: 10),
+                  compact
+                      ? Column(
+                          children: [
+                            _buildTeamDeliverablesPanel(),
+                            const SizedBox(height: 10),
+                            _buildTeamProjectsPanel(),
+                          ],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: _buildTeamDeliverablesPanel()),
+                            const SizedBox(width: 10),
+                            Expanded(flex: 2, child: _buildTeamProjectsPanel()),
+                          ],
+                        ),
+                  const SizedBox(height: 10),
+                  _buildTeamRecentActivitiesPanel(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTeamHeaderIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+    return Material(
+      color: _dashboardSurfaceColor(),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(icon, size: 18, color: textColor),
+        ),
+      ),
+    );
+  }
+
+  Color _dashboardSurfaceColor() {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    if (isDarkMode) {
+      return FlownetColors.sidebarDark.withValues(alpha: 0.4);
+    }
+    // Light mode: pure white surfaces
+    return Colors.white;
+  }
+
+  TextStyle _dashboardTextStyle({
+    double size = 14,
+    FontWeight weight = FontWeight.w500,
+  }) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return TextStyle(
+      color: isDarkMode ? Colors.white : Colors.black,
+      fontSize: size,
+      fontWeight: weight,
+    );
+  }
+
+  Widget _buildTeamQuickActionsPanel({bool compact = false}) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          _buildTeamRoundIcon(Icons.rocket_launch_outlined),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Quick Actions', style: _dashboardTextStyle(size: compact ? 20 : 22, weight: FontWeight.w700)),
+                Text(
+                  'Dream BIG, work hard and stay focused - make it a productive day!',
+                  style: _dashboardTextStyle(size: 11, weight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _buildTeamPillButton('CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
+                _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
+                _buildTeamPillButton('BUILD REPORT', () {
+                  final first = _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                  final sprintId = first != null ? _extractFirstSprintId(first) : null;
+                  if (sprintId != null && sprintId.isNotEmpty) {
+                    context.go('/sprint-report/$sprintId');
+                    return;
+                  }
+                  context.go('/sprint-console');
+                }),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamReviewMetricsCards({bool compact = false}) {
+    final cards = [
+      _buildTeamMetricCard('Submitted', '${_clientReviewMetrics['submitted'] ?? 0}', Icons.send_outlined),
+      _buildTeamMetricCard('Approved', '${_clientReviewMetrics['approved'] ?? 0}', Icons.check_circle_outline),
+      _buildTeamMetricCard('Changes Requested', '${_clientReviewMetrics['changes'] ?? 0}', Icons.error_outline),
+      _buildTeamMetricCard('Rejected', '${_clientReviewMetrics['rejected'] ?? 0}', Icons.close),
+      _buildTeamMetricCard('Average Review Time', '${_clientReviewMetrics['avg_review_time'] ?? '-'}', Icons.av_timer),
+    ];
+    if (compact) {
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: cards
+            .map((c) => SizedBox(width: 240, child: c))
+            .toList(),
+      );
+    }
+    return Row(
+      children: [
+        for (int i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: cards[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTeamMetricCard(String title, String value, IconData icon) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildKanbanLinkCard(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildReviewMetrics(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
+          Text(title, style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+          Text('Additional description information to include.', style: _dashboardTextStyle(size: 11)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              const Spacer(),
+              _buildTeamRoundIcon(icon, size: 16),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTeamDeliverablesPanel() {
+    final uid = _currentUser?.id.toString() ?? '';
+    final myDeliverables = _dashboardDeliverables.where((d) {
+      final assigned = (d['assigned_to'] ?? d['assignedTo'] ?? '').toString();
+      final created = (d['created_by'] ?? d['createdBy'] ?? '').toString();
+      return assigned == uid || created == uid;
+    }).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(Icons.track_changes),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Deliverables Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
+              const SizedBox(width: 6),
+              Text('${myDeliverables.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _buildTeamMiniFilter('VIEW ALL'),
+              const SizedBox(width: 8),
+              _buildTeamMiniFilter('HIGH PRIORITY'),
+              const SizedBox(width: 8),
+              _buildTeamMiniFilter('MEDIUM PRIORITY'),
+              const SizedBox(width: 8),
+              _buildTeamMiniFilter('LOW PRIORITY'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_isLoadingDashboardDeliverables)
+            const Center(child: CircularProgressIndicator())
+          else if (myDeliverables.isEmpty)
+            Text('No deliverables yet', style: _dashboardTextStyle())
+          else
+            ...myDeliverables.take(6).map((d) {
+              final title = (d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Document Name').toString();
+              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+              final shortDue = due.isNotEmpty && due.length >= 10 ? due.substring(0, 10) : due;
+              final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
+              final priority = (d['priority'] ?? 'medium').toString().toLowerCase();
+              final status = (d['status'] ?? '').toString();
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      status.toLowerCase() == 'completed' ? Icons.check_box : Icons.check_box_outline_blank,
+                      size: 16,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('$title - Draft Description', style: _dashboardTextStyle(size: 12)),
+                    ),
+                    if (shortDue.isNotEmpty)
+                      Text(shortDue, style: _dashboardTextStyle(size: 11)),
+                    const SizedBox(width: 8),
+                    _buildTeamPriorityBadge(priority),
+                    const SizedBox(width: 8),
+                    _buildTeamActionPill('EDIT', () => _editDeliverable(d)),
+                    const SizedBox(width: 6),
+                    _buildTeamActionPill('COMPLETE', () {
+                      if (id.isNotEmpty) {
+                        _updateDeliverableStatus(id, 'completed');
+                      }
+                    }),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamProjectsPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(Icons.folder_copy_outlined),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Projects Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included.', style: _dashboardTextStyle(size: 11)),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
+              const SizedBox(width: 6),
+              Text('${_dashboardProjects.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 6),
+          if (_isLoadingDashboardProjects)
+            const Center(child: CircularProgressIndicator())
+          else if (_dashboardProjects.isEmpty)
+            Text('No projects found', style: _dashboardTextStyle())
+          else
+            ..._dashboardProjects.take(8).map((p) {
+              final name = (p['name'] ?? 'Project').toString();
+              final id = (p['id'] ?? '').toString();
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: InkWell(
+                  onTap: id.isNotEmpty ? () => context.go('/project-workspace/$id') : null,
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_box, size: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(name, style: _dashboardTextStyle(size: 12))),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamRecentActivitiesPanel() {
+    final userId = _currentUser?.id.toString() ?? '';
+    final userName = _currentUser?.name ?? '';
+    final my = _filteredAuditLogs.where((a) {
+      final actor = (a['actor'] ?? a['user'] ?? '').toString();
+      final uid = (a['user_id'] ?? a['actor_id'] ?? '').toString();
+      return actor == userName || uid == userId;
+    }).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(Icons.notifications_active_outlined),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Recent Activities', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
+              const SizedBox(width: 6),
+              Text('${my.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 6),
+          if (_isLoadingAuditLogs)
+            const Center(child: CircularProgressIndicator())
+          else if (_auditLogsError != null)
+            Text(_auditLogsError!, style: _dashboardTextStyle())
+          else if (my.isEmpty)
+            Text('No Recent Activity.', style: _dashboardTextStyle())
+          else
+            ...my.take(5).map((a) {
+              final action = (a['action'] ?? a['event'] ?? a['type'] ?? 'Activity').toString();
+              final actor = (a['actor'] ?? a['user'] ?? '').toString();
+              final text = actor.isNotEmpty ? '$action • $actor' : action;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(text, style: _dashboardTextStyle(size: 12)),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamPillButton(String label, VoidCallback onTap) {
+    return SizedBox(
+      height: 30,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: FlownetColors.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+        child: Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+
+  Widget _buildTeamMiniFilter(String label) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: FlownetColors.primary),
+        color: label == 'VIEW ALL' ? FlownetColors.primary : Colors.transparent,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: label == 'VIEW ALL' ? Colors.white : textColor,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamPriorityBadge(String priority) {
+    Color color;
+    String text;
+    switch (priority) {
+      case 'high':
+        color = const Color(0xFF4A90E2);
+        text = 'High Priority';
+        break;
+      case 'low':
+        color = const Color(0xFF7ED321);
+        text = 'Low Priority';
+        break;
+      default:
+        color = const Color(0xFFF5A623);
+        text = 'Medium Priority';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamActionPill(String label, VoidCallback onTap) {
+    final bool isComplete = label == 'COMPLETE';
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: isComplete ? FlownetColors.primary : Colors.grey.shade600,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamRoundIcon(IconData icon, {double size = 20}) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, size: size, color: textColor),
     );
   }
 
@@ -939,6 +1475,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
+  // ignore: unused_element
   Widget _buildQuickActions() {
     final canCreate = _authService.canCreateDeliverable();
     final tiles = <Widget>[
@@ -1019,6 +1556,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildMyDeliverables() {
     return Card(
       child: Padding(
@@ -1274,6 +1812,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildRecentActivity() {
     return Card(
       child: Padding(
