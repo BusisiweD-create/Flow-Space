@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: flow-space-frontend
+    name: flow-space-frontend-v2
     env: static
     buildCommand: |
       git clone https://github.com/flutter/flutter.git -b stable --depth 1
