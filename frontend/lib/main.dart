@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_core/firebase_core.dart';
 import 'widgets/app_container.dart';
 import 'screens/welcome_screen.dart';
-import 'firebase_options.dart';
+// import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
 import 'screens/login_screen.dart';
@@ -57,10 +57,10 @@ import 'screens/ai_assistant_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Firebase initialization commented out for deployment
+  // await Firebase.initializeApp(
+  //   options: DefaultFirebaseOptions.currentPlatform,
+  // );
 
   try {
     // Initialize API Services
@@ -69,7 +69,7 @@ void main() async {
     // RealAuthService removed - using AuthService instead
     
     // Test SMTP connection on startup (optional)
-    // Uncomment the lines below to test SMTP on app startup
+    // Uncomment to test SMTP on app startup
     // final emailService = SmtpEmailService();
     // final isConnected = await emailService.testSmtpConnection();
     // debugPrint('SMTP Connection: ${isConnected ? "✅ Success" : "❌ Failed"}');
