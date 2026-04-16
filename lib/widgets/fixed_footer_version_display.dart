@@ -13,7 +13,7 @@ class FixedFooterVersionDisplay extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: FutureBuilder<Map<String, dynamic>>(
-            future: VersionService.getVersionDetailsFromAsset(),
+            future: VersionService.getVersionDetailsFromAsset(forceRefresh: true),
             builder: (context, snapshot) {
               final versionInfo =
                   snapshot.data ?? VersionService.getVersionDetails();

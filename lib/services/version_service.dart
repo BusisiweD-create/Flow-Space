@@ -1,19 +1,39 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:http/http.dart' as http;
 
 import '../utils/version_control.dart';
 
 class VersionService {
   static Map<String, dynamic>? _cachedVersionInfo;
 
-  static Future<Map<String, dynamic>> getVersionDetailsFromAsset() async {
-    if (_cachedVersionInfo != null) {
+  static Future<Map<String, dynamic>> getVersionDetailsFromAsset({
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _cachedVersionInfo != null) {
       return _cachedVersionInfo!;
     }
 
     try {
-      final rawJson = await rootBundle.loadString('assets/data/version.json');
+      // On web, use HTTP with a cache-busting query to ensure latest asset
+      // after pull/hot-reload cycles.
+      final String rawJson;
+      if (kIsWeb) {
+        final uri = Uri.parse(
+          'assets/data/version.json?v=${DateTime.now().millisecondsSinceEpoch}',
+        );
+        final response = await http.get(uri);
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          rawJson = response.body;
+        } else {
+          rawJson = await rootBundle.loadString('assets/data/version.json');
+        }
+      } else {
+        rawJson = await rootBundle.loadString('assets/data/version.json');
+      }
+
       final decoded = jsonDecode(rawJson);
       if (decoded is Map<String, dynamic>) {
         _cachedVersionInfo = decoded;
@@ -55,6 +75,10 @@ class VersionService {
       return _cachedVersionInfo!['version'].toString();
     }
     return VersionControl.generateVersionNumber();
+  }
+
+  static void clearCachedVersion() {
+    _cachedVersionInfo = null;
   }
   
   static String getEnvironment() {
