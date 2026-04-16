@@ -16,14 +16,19 @@ class VersionDisplay extends StatelessWidget {
       child: FutureBuilder<Map<String, dynamic>>(
         future: VersionService.getVersionDetailsFromAsset(),
         builder: (context, snapshot) {
-          final version = snapshot.data?['version']?.toString() ??
-              VersionService.getVersionDetails()['version'].toString();
-          return Text(
-            version,
-            style: GoogleFonts.poppins(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
+          final versionInfo = snapshot.data ?? VersionService.getVersionDetails();
+          final version = versionInfo['version'].toString();
+          final tooltip = VersionService.getLatestCommitTooltip(versionInfo);
+          return Tooltip(
+            message: tooltip,
+            waitDuration: const Duration(milliseconds: 250),
+            child: Text(
+              version,
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           );
         },

@@ -33,8 +33,27 @@ class VersionService {
     }
     return VersionControl.getVersionInfo();
   }
+
+  static String getLatestCommitTooltip(Map<String, dynamic> versionInfo) {
+    final commits = versionInfo['commits'];
+    if (commits is List && commits.isNotEmpty) {
+      final latest = commits.first;
+      if (latest is Map) {
+        final author = latest['author']?.toString().trim();
+        final message = latest['message']?.toString().trim();
+        if ((author != null && author.isNotEmpty) &&
+            (message != null && message.isNotEmpty)) {
+          return 'Latest commit by @$author\n$message';
+        }
+      }
+    }
+    return 'No recent commits available';
+  }
   
   static String getCurrentVersion() {
+    if (_cachedVersionInfo != null && _cachedVersionInfo!['version'] != null) {
+      return _cachedVersionInfo!['version'].toString();
+    }
     return VersionControl.generateVersionNumber();
   }
   

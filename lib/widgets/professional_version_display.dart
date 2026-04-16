@@ -46,15 +46,21 @@ class ProfessionalVersionDisplay extends StatelessWidget {
           FutureBuilder<Map<String, dynamic>>(
             future: VersionService.getVersionDetailsFromAsset(),
             builder: (context, snapshot) {
-              final version = snapshot.data?['version']?.toString() ??
-                  VersionService.getVersionDetails()['version'].toString();
-              return Text(
-                version,
-                style: GoogleFonts.inter(
-                  color: Colors.white.withAlpha((0.85 * 255).round()),
-                  fontSize: showInSidebar ? 10 : 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5,
+              final versionInfo =
+                  snapshot.data ?? VersionService.getVersionDetails();
+              final version = versionInfo['version'].toString();
+              final tooltip = VersionService.getLatestCommitTooltip(versionInfo);
+              return Tooltip(
+                message: tooltip,
+                waitDuration: const Duration(milliseconds: 250),
+                child: Text(
+                  version,
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withAlpha((0.85 * 255).round()),
+                    fontSize: showInSidebar ? 10 : 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               );
             },
