@@ -53,6 +53,15 @@ class ProfessionalVersionDisplay extends StatelessWidget {
               return Tooltip(
                 message: tooltip,
                 waitDuration: const Duration(milliseconds: 250),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF2A1C),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
                 child: Text(
                   version,
                   style: GoogleFonts.inter(
