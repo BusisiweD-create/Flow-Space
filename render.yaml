@@ -19,13 +19,14 @@ services:
         value: 10000
     healthCheckPath: /health
 
-  # Flutter Frontend - Pure Docker Deployment
+  # Flutter Frontend - Manual Flutter Build
   - type: web
     name: module4
-    env: docker
+    env: static
     rootDir: frontend
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: |
+      rm -rf flutter && git clone https://github.com/flutter/flutter.git -b stable --depth 1 && export PATH="$PATH:$(pwd)/flutter/bin" && flutter doctor -v || true && flutter pub get && flutter build web --release --base-href / --dart-define=API_BASE_URL=https://module4-api.onrender.com/api/v1
+    staticPublishPath: build/web
     envVars:
       - key: FLUTTER_WEB_CANVASKIT_URL
         value: https://cdn.jsdelivr.net/gh/flutter/canvaskit@master
