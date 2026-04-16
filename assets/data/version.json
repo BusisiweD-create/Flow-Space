@@ -1,8 +1,18 @@
 {
-  "version": "Ver 2026.04CD12 SIT",
+  "version": "Ver 2026.04CD14 SIT",
   "branch": "nathi-ui-redesign",
-  "generated_at": "2026-04-16T07:58:08Z",
+  "generated_at": "2026-04-16T08:02:45Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "Enhance VersionService to support cache-busting for web and add force refresh option",
+      "timestamp": "2026-04-16T10:02:08+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update version data [2026-04-16]",
+      "timestamp": "2026-04-16T07:58:09Z"
+    },
     {
       "author": "Nathi2266",
       "message": "Feat: - Added custom decoration and text style to tooltips in FixedFooterVersionDisplay, ProfessionalVersionDisplay, SidebarVersionDisplay, and VersionDisplay widgets for improved visibility and user experience.",
@@ -64,6 +74,6 @@
       "timestamp": "2026-04-16T07:21:29+02:00"
     }
   ],
-  "total_commits": 12,
+  "total_commits": 14,
   "date_range": "2026-04-16"
 }
