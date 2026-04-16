@@ -1,5 +1,5 @@
 # Flutter Web Dockerfile for Render
-FROM ghcr.io/cirruslabs/flutter:3.19.0 AS build
+FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
 
