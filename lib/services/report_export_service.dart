@@ -408,6 +408,69 @@ class ReportExportService {
       rethrow;
     }
   }
+
+  Future<void> exportTextAsPDF({required String title, required String content}) async {
+    final pdf = pw.Document();
+    final now = DateTime.now();
+    final safeTitle = title.trim().isEmpty ? 'Report' : title.trim();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (pw.Context context) {
+          return [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  safeTitle,
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.Text(
+                  _formatDate(now),
+                  style: const pw.TextStyle(fontSize: 10),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 12),
+            pw.Text(
+              content,
+              style: const pw.TextStyle(fontSize: 11),
+            ),
+          ];
+        },
+      ),
+    );
+
+    final bytes = await pdf.save();
+    if (kIsWeb) {
+      final blob = html.Blob([bytes], 'application/pdf');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final fileName = '${safeTitle.replaceAll(RegExp(r"[^\w\s-]"), "").replaceAll(RegExp(r"\s+"), "_")}_${now.toIso8601String().replaceAll(":", "-")}.pdf';
+      html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click()
+        ..remove();
+      html.Url.revokeObjectUrl(url);
+      return;
+    }
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/${safeTitle.replaceAll(RegExp(r"[^\w\s-]"), "").replaceAll(RegExp(r"\s+"), "_")}_${now.toIso8601String().replaceAll(":", "-")}.pdf';
+      final file = _createFile(filePath);
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles([XFile(filePath)], text: safeTitle);
+    } catch (_) {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => bytes,
+      );
+    }
+  }
   
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
