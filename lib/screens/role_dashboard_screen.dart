@@ -18,6 +18,7 @@ import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
 import '../widgets/app_modal.dart';
 import '../utils/date_utils.dart' as app_date_utils;
+import '../utils/user_label_utils.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -73,8 +74,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
 
     // Fallback to showing the ID
-    _userNamesCache[userId] = 'User $userId';
-    return 'User $userId';
+    _userNamesCache[userId] = UserLabelUtils.unknownUserLabel;
+    return UserLabelUtils.unknownUserLabel;
   }
 
   // Missing variables
@@ -468,12 +469,28 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   String? _getOwnerName(Map<String, dynamic> data) {
-    if (data['ownerName'] != null) return data['ownerName'].toString();
-    if (data['owner_name'] != null) return data['owner_name'].toString();
+    if (data['ownerName'] != null) {
+      final safe = UserLabelUtils.sanitizeUserLabel(
+        data['ownerName'].toString(),
+        emptyIsUnknown: false,
+      );
+      return safe.isNotEmpty ? safe : null;
+    }
+    if (data['owner_name'] != null) {
+      final safe = UserLabelUtils.sanitizeUserLabel(
+        data['owner_name'].toString(),
+        emptyIsUnknown: false,
+      );
+      return safe.isNotEmpty ? safe : null;
+    }
 
     // Map backend field names to frontend expectations
     if (data['created_by_name'] != null) {
-      return data['created_by_name'].toString();
+      final safe = UserLabelUtils.sanitizeUserLabel(
+        data['created_by_name'].toString(),
+        emptyIsUnknown: false,
+      );
+      return safe.isNotEmpty ? safe : null;
     }
 
     if (data['owner'] != null && data['owner'] is Map) {
@@ -481,9 +498,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       final first = owner['first_name'] ?? owner['firstName'] ?? '';
       final last = owner['last_name'] ?? owner['lastName'] ?? '';
       if (first.toString().isNotEmpty || last.toString().isNotEmpty) {
-        return '$first $last'.trim();
+        final candidate = '$first $last'.trim();
+        final safe = UserLabelUtils.sanitizeUserLabel(
+          candidate,
+          emptyIsUnknown: false,
+        );
+        return safe.isNotEmpty ? safe : null;
       }
-      return owner['email']?.toString();
+      final safe = UserLabelUtils.sanitizeUserLabel(
+        owner['email']?.toString(),
+        emptyIsUnknown: false,
+      );
+      return safe.isNotEmpty ? safe : null;
     }
     return null;
   }
@@ -1311,6 +1337,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                                 a['type'] ??
                                 'Activity';
                             final actor = a['actor'] ?? a['user'] ?? '';
+                            final safeActor = UserLabelUtils.sanitizeUserLabel(
+                              actor.toString(),
+                              emptyIsUnknown: false,
+                            );
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: InkWell(
@@ -1323,7 +1353,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                         child: Text(actor.toString().isNotEmpty
-                                            ? '$action • $actor'
+                                            ? '$action • $safeActor'
                                             : action)),
                                   ],
                                 ),
@@ -1674,6 +1704,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                               .toString();
                         }
 
+                        // Prevent UUIDs from leaking into UI.
+                        createdBy = UserLabelUtils.sanitizeUserLabel(
+                          createdBy,
+                          emptyIsUnknown: false,
+                        );
+
                         if (projectName.isEmpty) {
                           projectName = (r['projectName'] ??
                                   r['project_name'] ??
@@ -1817,6 +1853,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                         final action =
                             a['action'] ?? a['event'] ?? a['type'] ?? 'Review';
                         final actor = a['actor'] ?? a['user'] ?? '';
+                        final safeActor = UserLabelUtils.sanitizeUserLabel(
+                          actor.toString(),
+                          emptyIsUnknown: false,
+                        );
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: InkWell(
@@ -1830,7 +1870,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                     child: Text(actor.toString().isNotEmpty
-                                        ? '$action • $actor'
+                                        ? '$action • $safeActor'
                                         : action)),
                               ],
                             ),
@@ -2140,36 +2180,104 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             }
           }
         }
-        setState(() {
-          final parsed = items.whereType<Map>().map((e) {
-            final m = e.cast<String, dynamic>();
-            final c = m['content'];
-            if (c is String) {
-              try {
-                final decoded = jsonDecode(c);
-                if (decoded is Map) {
-                  m['content'] = Map<String, dynamic>.from(decoded);
-                }
-              } catch (_) {}
-            }
-            return m;
+        final parsed = items.whereType<Map>().map((e) {
+          final m = e.cast<String, dynamic>();
+          final c = m['content'];
+          if (c is String) {
+            try {
+              final decoded = jsonDecode(c);
+              if (decoded is Map) {
+                m['content'] = Map<String, dynamic>.from(decoded);
+              }
+            } catch (_) {}
+          }
+          return m;
+        }).toList();
+
+        final pending = parsed.where((m) {
+          final content = m['content'];
+          final statusRaw = (m['status'] ??
+                  m['review_status'] ??
+                  (content is Map ? content['status'] : null) ??
+                  '')
+              .toString()
+              .toLowerCase();
+          if (statusRaw.isEmpty) {
+            return true; // Default to include when unknown
+          }
+          return statusRaw == 'submitted' ||
+              statusRaw == 'under_review' ||
+              statusRaw == 'underreview';
+        }).toList();
+
+        // Resolve likely user identifiers that are returned as UUIDs.
+        final userIdsToResolve = <String>{};
+        void collectMaybeUserId(dynamic v) {
+          final s = v?.toString().trim() ?? '';
+          if (s.isEmpty) return;
+          if (UserLabelUtils.looksLikeUuid(s)) {
+            userIdsToResolve.add(s);
+          }
+        }
+
+        for (final m in pending) {
+          collectMaybeUserId(m['createdBy']);
+          collectMaybeUserId(m['created_by']);
+          collectMaybeUserId(m['submittedBy']);
+          collectMaybeUserId(m['submitted_by']);
+
+          final content = m['content'];
+          if (content is Map<String, dynamic>) {
+            collectMaybeUserId(content['createdBy']);
+            collectMaybeUserId(content['created_by']);
+            collectMaybeUserId(content['submittedBy']);
+            collectMaybeUserId(content['submitted_by']);
+            collectMaybeUserId(content['author']);
+            collectMaybeUserId(content['author_id']);
+            collectMaybeUserId(content['userId']);
+            collectMaybeUserId(content['user_id']);
+          }
+        }
+
+        final resolvedNames = <String, String>{};
+        await Future.wait(userIdsToResolve.map((id) async {
+          resolvedNames[id] = await _getUserNameById(id);
+        }));
+
+        // Overwrite UUID fields with resolved display names so UI never shows IDs.
+        String resolve(String id) => resolvedNames[id] ?? UserLabelUtils.unknownUserLabel;
+
+        for (final m in pending) {
+          void replaceIfUuid(Map<String, dynamic> map, String key) {
+            final raw = map[key]?.toString().trim() ?? '';
+            if (raw.isEmpty) return;
+            if (!UserLabelUtils.looksLikeUuid(raw)) return;
+            map[key] = resolve(raw);
+          }
+
+          final content = m['content'];
+          if (content is Map<String, dynamic>) {
+            replaceIfUuid(content, 'createdBy');
+            replaceIfUuid(content, 'created_by');
+            replaceIfUuid(content, 'submittedBy');
+            replaceIfUuid(content, 'submitted_by');
+            replaceIfUuid(content, 'author');
+            replaceIfUuid(content, 'author_id');
+            replaceIfUuid(content, 'userId');
+            replaceIfUuid(content, 'user_id');
+          }
+
+          if (m.containsKey('createdBy')) replaceIfUuid(m, 'createdBy');
+          if (m.containsKey('created_by')) replaceIfUuid(m, 'created_by');
+          if (m.containsKey('submittedBy')) replaceIfUuid(m, 'submittedBy');
+          if (m.containsKey('submitted_by')) replaceIfUuid(m, 'submitted_by');
+        }
+
+        if (mounted) {
+          setState(() {
+            _pendingReports = pending;
           });
-          _pendingReports = parsed.where((m) {
-            final content = m['content'];
-            final statusRaw = (m['status'] ??
-                    m['review_status'] ??
-                    (content is Map ? content['status'] : null) ??
-                    '')
-                .toString()
-                .toLowerCase();
-            if (statusRaw.isEmpty) {
-              return true; // Default to include when unknown
-            }
-            return statusRaw == 'submitted' ||
-                statusRaw == 'under_review' ||
-                statusRaw == 'underreview';
-          }).toList();
-        });
+        }
         _computeTeamMetrics();
       } else {
         setState(() {
