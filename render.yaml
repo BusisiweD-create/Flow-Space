@@ -32,11 +32,11 @@ services:
         value: "$(date)"
 
   - type: web
-    name: flow-space-backend
+    name: flow-space-backend-v2
     env: node
-    rootDir: backend/node-backend
-    buildCommand: npm ci
-    startCommand: npm start
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm install && node server.js
     envVars:
       - key: DB_CONNECTION_MODE
         value: external
