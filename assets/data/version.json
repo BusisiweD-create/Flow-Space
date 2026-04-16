@@ -1,8 +1,18 @@
 {
-  "version": "Ver 2026.04CD10 SIT",
+  "version": "Ver 2026.04CD12 SIT",
   "branch": "nathi-ui-redesign",
-  "generated_at": "2026-04-16T07:51:39Z",
+  "generated_at": "2026-04-16T07:58:08Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "Feat: - Added custom decoration and text style to tooltips in FixedFooterVersionDisplay, ProfessionalVersionDisplay, SidebarVersionDisplay, and VersionDisplay widgets for improved visibility and user experience.",
+      "timestamp": "2026-04-16T09:57:32+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update version data [2026-04-16]",
+      "timestamp": "2026-04-16T07:51:40Z"
+    },
     {
       "author": "Nathi2266",
       "message": "chore: Update asset paths in pubspec.yaml",
@@ -54,6 +64,6 @@
       "timestamp": "2026-04-16T07:21:29+02:00"
     }
   ],
-  "total_commits": 10,
+  "total_commits": 12,
   "date_range": "2026-04-16"
 }
