@@ -1,9 +1,9 @@
 services:
+  # Flutter Frontend - Static Site
   - type: web
     name: deliverables-sprint-signoff-frontend
     env: static
-    buildCommand: |
-      git clone https://github.com/flutter/flutter.git -b stable --depth 1 && ./flutter/bin/flutter pub get && ./flutter/bin/flutter build web --dart-define=API_BASE_URL=https://deliverables-sprint-signoff.onrender.com/api/v1
+    rootDir: frontend
     staticPublishPath: build/web
     envVars:
       - key: FLUTTER_WEB_CANVASKIT_URL
@@ -22,16 +22,14 @@ services:
       - path: /*
         name: Expires
         value: 0
-      - path: /*
-        name: Build-Timestamp
-        value: "$(date)"
 
+  # Node.js Backend - Web Service
   - type: web
     name: deliverables-sprint-signoff-backend
     env: node
     rootDir: backend
     buildCommand: npm install
-    startCommand: npm install && node server.js
+    startCommand: node server.js
     envVars:
       - key: DB_CONNECTION_MODE
         value: external
@@ -41,4 +39,6 @@ services:
         value: ${JWT_SECRET}
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000
     healthCheckPath: /health
