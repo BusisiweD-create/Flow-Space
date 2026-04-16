@@ -19,12 +19,13 @@ services:
         value: 10000
     healthCheckPath: /health
 
-  # Flutter Frontend - Static Site  
+  # Flutter Frontend - Docker Deployment
   - type: web
     name: module4
-    env: static
+    env: docker
     rootDir: frontend
-    staticPublishPath: build/web
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: FLUTTER_WEB_CANVASKIT_URL
         value: https://cdn.jsdelivr.net/gh/flutter/canvaskit@master
