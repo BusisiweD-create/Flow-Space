@@ -6,24 +6,28 @@ class FixedFooterVersionDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final versionInfo = VersionService.getVersionDetails();
-    final version = versionInfo['version'].toString();
-
     return Positioned(
       bottom: 12,
       left: 14,
       child: SafeArea(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Text(
-            version,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: Colors.white.withValues(alpha: 0.72),
-              letterSpacing: 0.2,
-            ),
-            textAlign: TextAlign.left,
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: VersionService.getVersionDetailsFromAsset(),
+            builder: (context, snapshot) {
+              final version = snapshot.data?['version']?.toString() ??
+                  VersionService.getVersionDetails()['version'].toString();
+              return Text(
+                version,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withValues(alpha: 0.72),
+                  letterSpacing: 0.2,
+                ),
+                textAlign: TextAlign.left,
+              );
+            },
           ),
         ),
       ),

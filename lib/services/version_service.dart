@@ -1,7 +1,36 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart' show rootBundle;
+
 import '../utils/version_control.dart';
 
 class VersionService {
+  static Map<String, dynamic>? _cachedVersionInfo;
+
+  static Future<Map<String, dynamic>> getVersionDetailsFromAsset() async {
+    if (_cachedVersionInfo != null) {
+      return _cachedVersionInfo!;
+    }
+
+    try {
+      final rawJson = await rootBundle.loadString('assets/data/version.json');
+      final decoded = jsonDecode(rawJson);
+      if (decoded is Map<String, dynamic>) {
+        _cachedVersionInfo = decoded;
+        return decoded;
+      }
+    } catch (_) {
+      // Fallback to generated version when asset is missing/unreadable.
+    }
+
+    _cachedVersionInfo = VersionControl.getVersionInfo();
+    return _cachedVersionInfo!;
+  }
+
   static Map<String, dynamic> getVersionDetails() {
+    if (_cachedVersionInfo != null) {
+      return _cachedVersionInfo!;
+    }
     return VersionControl.getVersionInfo();
   }
   

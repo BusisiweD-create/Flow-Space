@@ -137,22 +137,24 @@ jobs:
             --argjson commits "$COMMITS_JSON" \
             --arg total_commits "$EFFECTIVE_COMMIT_COUNT" \
             --arg date_range "$TODAY" \
+            --arg branch "$BRANCH" \
             '{
               version: $version,
+              branch: $branch,
               generated_at: $generated_at,
               commits: $commits,
               total_commits: ($total_commits | tonumber),
               date_range: $date_range
-            }' > assets/data/daily-commits.json
+            }' > assets/data/version.json
 
-          jq . assets/data/daily-commits.json > /dev/null
+          jq . assets/data/version.json > /dev/null
 
           UPDATED="No"
-          if ! git diff --quiet -- assets/data/daily-commits.json; then
+          if ! git diff --quiet -- assets/data/version.json; then
             git config --local user.email "action@github.com"
             git config --local user.name "GitHub Action"
-            git add assets/data/daily-commits.json
-            git commit -m "Update daily commits data [${TODAY}]"
+            git add assets/data/version.json
+            git commit -m "Update version data [${TODAY}]"
             git pull --rebase origin "${BRANCH}" || git pull origin "${BRANCH}" || true
             git push origin "${BRANCH}"
             UPDATED="Yes"

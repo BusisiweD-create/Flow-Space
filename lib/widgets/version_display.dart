@@ -7,22 +7,26 @@ class VersionDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final versionInfo = VersionService.getVersionDetails();
-    final version = versionInfo['version'].toString();
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
-        version,
-        style: GoogleFonts.poppins(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-        ),
+      child: FutureBuilder<Map<String, dynamic>>(
+        future: VersionService.getVersionDetailsFromAsset(),
+        builder: (context, snapshot) {
+          final version = snapshot.data?['version']?.toString() ??
+              VersionService.getVersionDetails()['version'].toString();
+          return Text(
+            version,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+          );
+        },
       ),
     );
   }
