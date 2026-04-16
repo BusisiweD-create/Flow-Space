@@ -1,7 +1,27 @@
 services:
-  # Flutter Frontend - Static Site
+  # Node.js Backend - Web Service
   - type: web
-    name: deliverables-sprint-signoff-frontend
+    name: module4-api
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: DB_CONNECTION_MODE
+        value: external
+      - key: DATABASE_URL
+        value: ${DATABASE_URL}
+      - key: JWT_SECRET
+        value: ${JWT_SECRET}
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    healthCheckPath: /health
+
+  # Flutter Frontend - Static Site  
+  - type: web
+    name: module4
     env: static
     rootDir: frontend
     staticPublishPath: build/web
@@ -22,23 +42,3 @@ services:
       - path: /*
         name: Expires
         value: 0
-
-  # Node.js Backend - Web Service
-  - type: web
-    name: deliverables-sprint-signoff-backend
-    env: node
-    rootDir: backend
-    buildCommand: npm install
-    startCommand: node server.js
-    envVars:
-      - key: DB_CONNECTION_MODE
-        value: external
-      - key: DATABASE_URL
-        value: ${DATABASE_URL}
-      - key: JWT_SECRET
-        value: ${JWT_SECRET}
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
-    healthCheckPath: /health
