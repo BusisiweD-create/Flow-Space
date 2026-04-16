@@ -2,13 +2,30 @@
 
 class Environment {
   // App Configuration
-  static const String appName = 'Deliverables and Sprint Sign-off Hub';
+  static const String appName = 'Khonology';
   static const String appVersion = '1.0.0';
   static const String appDescription =
-      'A platform for managing deliverables and sprint sign-offs';
+      'A social learning platform built with Flutter';
 
-  // API Configuration - Production URL for Render deployment
-  static const String apiBaseUrl = "https://module4-api.onrender.com/api/v1";
+  // API Configuration - Use const for production URL from build
+  // Note: _apiBaseUrl kept for potential future use with build-time variables
+  static const String _apiBaseUrl = "http://localhost:3001/api/v1";
+
+  // Production fallback detection
+  static String get apiBaseUrl {
+    // First try build-time variable
+    if (_apiBaseUrl != "http://localhost:3001/api/v1") {
+      return _apiBaseUrl;
+    }
+
+    // Fallback if deployed but build-time URL wasn't provided
+    if (isRenderDeployed) {
+      return "https://backend-532p.onrender.com/api/v1";
+    }
+
+    // Default to localhost for development
+    return _apiBaseUrl;
+  }
 
   // Base URL without version for endpoints that already include version
   static String get baseUrlWithoutVersion {
@@ -29,9 +46,9 @@ class Environment {
   // Development Settings
   static const bool debugMode = bool.fromEnvironment(
     'DEBUG_MODE',
-    defaultValue: false,
+    defaultValue: true,
   );
-  static const String logLevel = 'info';
+  static const String logLevel = 'debug';
 
   // Environment-specific configurations
   static bool get isProduction => !debugMode;
