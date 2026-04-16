@@ -18,6 +18,7 @@ import 'screens/client_review_workflow_screen.dart';
 import 'screens/report_editor_screen.dart';
 import 'screens/report_view_screen.dart';
 import 'screens/client_review_screen.dart';
+import 'screens/sprint_report_screen.dart';
 import 'models/sign_off_report.dart';
 import 'models/deliverable.dart';
 import 'screens/report_repository_screen.dart';

@@ -17,6 +17,7 @@ import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/background_image.dart';
 import '../widgets/app_modal.dart';
+import '../utils/date_utils.dart' as app_date_utils;
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -49,7 +50,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
-  
+
   // Cache for user names to avoid repeated API calls
   final Map<String, String> _userNamesCache = {};
 
@@ -159,13 +160,15 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   // Preload user names for all deliverables to avoid multiple API calls
-  Future<void> _preloadUserNames(List<Map<String, dynamic>> deliverables) async {
+  Future<void> _preloadUserNames(
+      List<Map<String, dynamic>> deliverables) async {
     final Set<String> userIds = {};
-    
+
     for (final deliverable in deliverables) {
       final ownerId = _getOwnerId(deliverable);
-      final assignedToId = deliverable['assigned_to']?.toString() ?? deliverable['assignedTo']?.toString();
-      
+      final assignedToId = deliverable['assigned_to']?.toString() ??
+          deliverable['assignedTo']?.toString();
+
       if (ownerId != null && ownerId.isNotEmpty) {
         userIds.add(ownerId);
       }
@@ -467,9 +470,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _getOwnerName(Map<String, dynamic> data) {
     if (data['ownerName'] != null) return data['ownerName'].toString();
     if (data['owner_name'] != null) return data['owner_name'].toString();
-    
+
     // Map backend field names to frontend expectations
-    if (data['created_by_name'] != null) return data['created_by_name'].toString();
+    if (data['created_by_name'] != null) {
+      return data['created_by_name'].toString();
+    }
 
     if (data['owner'] != null && data['owner'] is Map) {
       final owner = data['owner'];
@@ -991,9 +996,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 icon: Icons.description_outlined,
                 label: 'Build Report',
                 onTap: () {
-                  final first =
-                      _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
-                  final sprintId = first != null ? _extractFirstSprintId(first) : null;
+                  final first = _dashboardDeliverables.isNotEmpty
+                      ? _dashboardDeliverables.first
+                      : null;
+                  final sprintId =
+                      first != null ? _extractFirstSprintId(first) : null;
                   if (sprintId != null && sprintId.isNotEmpty) {
                     context.go('/sprint-report/$sprintId');
                     return;
@@ -1622,12 +1629,76 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                                 r['title'] ??
                                 'Sign-Off Report')
                             .toString();
-                        final createdBy = (r['createdBy'] ??
-                                r['created_by_name'] ??
-                                r['created_by'] ??
-                                '')
-                            .toString();
+                        // Extract user information from content object if available
+                        String createdBy = '';
+                        String projectName = '';
+
+                        // Check if content is a Map and extract user info
+                        final content = r['content'];
+                        if (content is Map<String, dynamic>) {
+                          createdBy = (content['createdBy'] ??
+                                  content['created_by_name'] ??
+                                  content['created_by'] ??
+                                  content['author'] ??
+                                  content['author_name'] ??
+                                  content['submitted_by'] ??
+                                  content['submitter_name'] ??
+                                  content['owner_name'] ??
+                                  content['user_name'] ??
+                                  content['name'] ??
+                                  '')
+                              .toString();
+
+                          projectName = (content['projectName'] ??
+                                  content['project_name'] ??
+                                  content['project'] ??
+                                  content['sprint_name'] ??
+                                  content['sprintName'] ??
+                                  '')
+                              .toString();
+                        }
+
+                        // Fallback to root level fields if not found in content
+                        if (createdBy.isEmpty) {
+                          createdBy = (r['createdBy'] ??
+                                  r['created_by_name'] ??
+                                  r['created_by'] ??
+                                  r['author'] ??
+                                  r['author_name'] ??
+                                  r['submitted_by'] ??
+                                  r['submitter_name'] ??
+                                  r['owner_name'] ??
+                                  r['user_name'] ??
+                                  r['name'] ??
+                                  '')
+                              .toString();
+                        }
+
+                        if (projectName.isEmpty) {
+                          projectName = (r['projectName'] ??
+                                  r['project_name'] ??
+                                  r['project'] ??
+                                  r['sprint_name'] ??
+                                  r['sprintName'] ??
+                                  '')
+                              .toString();
+                        }
+
                         final id = (r['id'] ?? r['report_id'] ?? '').toString();
+
+                        // Create user-friendly display text
+                        String displayText = title;
+                        if (createdBy.isNotEmpty && projectName.isNotEmpty) {
+                          displayText = '$title by $createdBy ($projectName)';
+                        } else if (createdBy.isNotEmpty) {
+                          displayText = '$title by $createdBy';
+                        } else if (projectName.isNotEmpty) {
+                          displayText = '$title ($projectName)';
+                        } else {
+                          // Only show ID as last resort with minimal format
+                          displayText = title;
+                        }
+
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: Row(
@@ -1645,10 +1716,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                                           Icons.assignment_turned_in_outlined,
                                           size: 18),
                                       const SizedBox(width: 8),
-                                      Expanded(
-                                          child: Text(createdBy.isNotEmpty
-                                              ? '$title • $createdBy'
-                                              : title)),
+                                      Expanded(child: Text(displayText)),
                                     ],
                                   ),
                                 ),
@@ -1708,11 +1776,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 final createdAtStr =
                     (r['created_at'] ?? r['createdAt'] ?? r['created'] ?? '')
                         .toString();
-                String ts = createdAtStr;
-                try {
-                  final dt = DateTime.tryParse(createdAtStr);
-                  if (dt != null) ts = '${dt.toLocal()}';
-                } catch (_) {}
+                final ts = createdAtStr.isNotEmpty
+                    ? app_date_utils.DateUtils
+                        .formatDatabaseTimestampWithTime(createdAtStr)
+                    : '';
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
@@ -1835,12 +1902,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     String label = '';
     if (dueRaw != null) {
       final s = dueRaw.toString();
-      final dt = DateTime.tryParse(s);
-      if (dt != null) {
-        label = dt.toLocal().toString();
-      } else {
-        label = s;
-      }
+      label = app_date_utils.DateUtils.formatTimestampWithTime(s);
+      if (label == 'N/A') label = '';
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1886,10 +1949,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       return FutureBuilder<String>(
         future: _getUserNameById(ownerId),
         builder: (context, snapshot) {
-          final label = snapshot.hasData 
-              ? snapshot.data! 
-              : 'Loading...';
-          
+          final label = snapshot.hasData ? snapshot.data! : 'Loading...';
+
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
