@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: flow-space-frontend
+    name: deliverables-sprint-signoff-frontend
     env: static
     buildCommand: |
-      git clone https://github.com/flutter/flutter.git -b stable --depth 1 && ./flutter/bin/flutter pub get && ./flutter/bin/flutter build web --dart-define=API_BASE_URL=https://flow-space.onrender.com/api/v1
+      git clone https://github.com/flutter/flutter.git -b stable --depth 1 && ./flutter/bin/flutter pub get && ./flutter/bin/flutter build web --dart-define=API_BASE_URL=https://deliverables-sprint-signoff.onrender.com/api/v1
     staticPublishPath: build/web
     envVars:
       - key: FLUTTER_WEB_CANVASKIT_URL
@@ -27,7 +27,7 @@ services:
         value: "$(date)"
 
   - type: web
-    name: flow-space-backend-v2
+    name: deliverables-sprint-signoff-backend
     env: node
     rootDir: backend
     buildCommand: npm install
