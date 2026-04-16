@@ -16,7 +16,6 @@ class ProfessionalVersionDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final versionInfo = VersionService.getVersionDetails();
     final version = versionInfo['version'].toString();
-    final environment = versionInfo['environment'] as String;
 
     // Hide version when sidebar is collapsed
     if (showInSidebar && isSidebarCollapsed) {
@@ -47,7 +46,6 @@ class ProfessionalVersionDisplay extends StatelessWidget {
           ? CrossAxisAlignment.start 
           : CrossAxisAlignment.center,
         children: [
-          // Version number with professional typography
           Text(
             version,
             style: GoogleFonts.inter(
@@ -57,49 +55,9 @@ class ProfessionalVersionDisplay extends StatelessWidget {
               letterSpacing: 0.5,
             ),
           ),
-          if (showInSidebar) ...[
-            const SizedBox(height: 2),
-            // Environment indicator for sidebar
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 4,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _getEnvironmentColor(environment),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  environment,
-                  style: GoogleFonts.inter(
-                    color: Colors.white.withAlpha((0.6 * 255).round()),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
-  }
-
-  Color _getEnvironmentColor(String env) {
-    switch (env) {
-      case 'PROD':
-        return const Color(0xFFE53E3E); // Professional red
-      case 'UAT':
-        return const Color(0xFFED8936); // Professional orange
-      case 'SIT':
-        return const Color(0xFF3182CE); // Professional blue
-      default:
-        return const Color(0xFF718096); // Professional gray
-    }
   }
 }
 

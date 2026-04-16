@@ -26,8 +26,8 @@ class SidebarVersionDisplay extends StatelessWidget {
         version,
         style: GoogleFonts.inter(
           fontSize: 11,
-          fontWeight: FontWeight.w400, // Regular weight
-          color: Colors.white.withValues(alpha: 0.65), // ~0.6-0.7 opacity
+          fontWeight: FontWeight.w400,
+          color: Colors.white.withValues(alpha: 0.65),
           letterSpacing: 0.3,
         ),
         textAlign: TextAlign.center,
