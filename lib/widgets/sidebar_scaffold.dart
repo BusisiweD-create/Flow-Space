@@ -568,24 +568,33 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           width: 1,
         ),
       ),
-      child: TextButton.icon(
+      child: TextButton(
         onPressed: () => _handleLogout(context),
-        icon: AppIcons.getIconWidget(
-          'logout',
-          fallbackIcon: Icons.logout,
-          isActive: true,
-          size: 20,
-          color: FlownetColors.crimsonRed,
-        ),
-        label: const Text(
-          'Logout',
-          style: TextStyle(
-            color: FlownetColors.crimsonRed,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        ),
+        child: Row(
+          mainAxisAlignment:
+              _collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+          children: [
+            AppIcons.getIconWidget(
+              'logout',
+              fallbackIcon: Icons.logout,
+              isActive: true,
+              size: 20,
+              color: FlownetColors.crimsonRed,
+            ),
+            if (!_collapsed) ...[
+              const SizedBox(width: 8),
+              const Text(
+                'Logout',
+                style: TextStyle(
+                  color: FlownetColors.crimsonRed,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

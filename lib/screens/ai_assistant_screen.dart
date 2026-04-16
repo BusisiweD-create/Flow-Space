@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:math';
 import '../services/backend_api_service.dart';
+import '../services/report_export_service.dart';
 
 class AIAssistantScreen extends StatefulWidget {
   const AIAssistantScreen({super.key});
@@ -16,17 +18,45 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     {
       'role': 'system',
       'content':
-          'You are a helpful assistant for a project delivery and sign-off tool. Keep responses concise, practical, and safe. Do not fabricate data.',
+          'You are a helpful assistant for a project delivery and sign-off tool. Keep responses concise, practical, and safe. Do not fabricate data. If the user changes topics or asks something unrelated to the current thread, switch immediately and answer the latest request without repeating the previous response.',
     },
   ];
 
   bool _isSending = false;
-  List<String> _suggestions = [
-    'Can you show me all projects?',
-    'What are the active sprints?',
-    'Help me create a deliverable',
-    'Tell me what you can do'
-  ];
+  List<String> _suggestions = [];
+
+  List<String> _buildLocalSuggestions() {
+    final pool = <String>[
+      'Show me all projects.',
+      'What sprints are currently active?',
+      'Help me create a deliverable.',
+      'Help me set up a new sprint.',
+      'Show me what is overdue.',
+      'What should I focus on next?',
+      'Take me back to the dashboard.',
+      'Can you summarize what changed most recently?',
+    ];
+    final r = Random(DateTime.now().microsecondsSinceEpoch);
+    pool.shuffle(r);
+    return pool.take(4).toList();
+  }
+
+  Future<void> _refreshSuggestions() async {
+    setState(() => _suggestions = _buildLocalSuggestions());
+    try {
+      final resp = await BackendApiService().aiSuggestions();
+      final root = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : {};
+      final raw = root['suggestions'] ??
+          (root['data'] is Map ? (root['data']['suggestions']) : null);
+      final suggestions = raw is List
+          ? raw.map((e) => e.toString()).where((s) => s.trim().isNotEmpty).toList()
+          : <String>[];
+      if (!mounted) return;
+      if (suggestions.isNotEmpty) {
+        setState(() => _suggestions = suggestions);
+      }
+    } catch (_) {}
+  }
 
   String _sanitizeAssistantText(String text) {
     var s = text;
@@ -39,6 +69,12 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     s = s.replaceAll(RegExp(r'^\s*\*\s+', multiLine: true), '- ');
     s = s.replaceAll(RegExp(r'[^\S\r\n]+'), ' ');
     return s.trim();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshSuggestions();
   }
 
   @override
@@ -83,9 +119,9 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       String? navigateRoute;
 
       if (resp.isSuccess && actions is List && actions.isNotEmpty) {
-        final first = actions.first;
-        if (first is Map) {
-          final m = Map<String, dynamic>.from(first);
+        for (final a in actions) {
+          if (a is! Map) continue;
+          final m = Map<String, dynamic>.from(a);
           final type = (m['type'] ?? '').toString().toLowerCase();
           if (type == 'navigate') {
             final route = (m['route'] ?? '').toString().trim();
@@ -94,6 +130,16 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
               navigated = true;
               silentNavigation = silent;
               navigateRoute = route;
+              break;
+            }
+          }
+          if (type == 'export_pdf') {
+            final title = (m['title'] ?? 'Report').toString();
+            final contentForPdf = (m['content'] ?? content ?? '').toString();
+            if (contentForPdf.trim().isNotEmpty && mounted) {
+              try {
+                await ReportExportService().exportTextAsPDF(title: title, content: contentForPdf);
+              } catch (_) {}
             }
           }
         }
