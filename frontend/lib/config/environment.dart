@@ -20,7 +20,7 @@ class Environment {
 
     // Fallback if deployed but build-time URL wasn't provided
     if (isRenderDeployed) {
-      return "https://backend-532p.onrender.com/api/v1";
+      return "https://flowspace.onrender.com/api/v1";
     }
 
     // Default to localhost for development
