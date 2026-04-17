@@ -13,6 +13,9 @@ class Environment {
 
   // Production fallback detection
   static String get apiBaseUrl {
+    // EMERGENCY: Force correct backend URL
+    return "https://flow-space.onrender.com/api/v1";
+    
     // First try build-time variable
     if (_apiBaseUrl != "http://localhost:3001/api/v1") {
       return _apiBaseUrl;
