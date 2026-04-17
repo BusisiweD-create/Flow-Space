@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
 import '../services/auth_service.dart';
+import '../providers/service_providers.dart';
 import '../utils/app_icons.dart';
 import 'background_image.dart';
 import 'sidebar_version_display.dart';
@@ -255,6 +257,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final sidebarColor =
+        isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight;
+    final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
+    final sidebarSubtleText = isDarkMode ? FlownetColors.textSecondary : Colors.black87;
+
     String routeLocation = '/';
     try {
       final router = GoRouter.maybeOf(context);
@@ -283,13 +291,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 duration: const Duration(milliseconds: 200),
                 width: _collapsed ? _collapsedWidth : _sidebarWidth,
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
+                  color: sidebarColor,
                   borderRadius: const BorderRadius.only(
                     topRight: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
                   border: Border.all(
-                    color: Colors.white.withAlpha((0.1 * 255).round()),
+                    color: isDarkMode
+                        ? Colors.white.withAlpha((0.1 * 255).round())
+                        : Colors.black.withAlpha((0.08 * 255).round()),
                     width: 1,
                   ),
                 ),
@@ -331,7 +341,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                     _collapsed
                                         ? Icons.chevron_right
                                         : Icons.chevron_left,
-                                    color: FlownetColors.textSecondary,
+                                    color: sidebarSubtleText,
                                     size: 20,
                                   ),
                                 ),
@@ -358,9 +368,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 decoration: BoxDecoration(
                                   // Active item: soft pill-shaped dark highlight, no red border
                                   color: active
-                                      ? Colors.white.withAlpha(
-                                          (0.08 * 255).round(),
-                                        )
+                                      ? (isDarkMode
+                                          ? Colors.white.withAlpha((0.08 * 255).round())
+                                          : Colors.black.withAlpha((0.08 * 255).round()))
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -393,8 +403,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                               isActive: active,
                                               size: 20,
                                               color: active
-                                                  ? FlownetColors.pureWhite
-                                                  : FlownetColors.textSecondary,
+                                                  ? sidebarTextColor
+                                                  : sidebarSubtleText,
                                             ),
                                           ),
                                           if (!_collapsed) ...[
@@ -402,8 +412,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                             Expanded(
                                               child: Text(
                                                 item.label,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
+                                                style: TextStyle(
+                                                  color: sidebarTextColor,
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w500,
                                                 ),
@@ -435,9 +445,15 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               Expanded(
                 child: Container(
                   color: Colors.transparent,
-                  child: Column(
+                  child: Stack(
                     children: [
-                      Expanded(child: widget.child),
+                      Positioned.fill(child: widget.child),
+                      if (routeLocation != '/dashboard')
+                        Positioned(
+                          right: 20,
+                          bottom: 96,
+                          child: _buildThemeToggleButton(isDarkMode),
+                        ),
                     ],
                   ),
                 ),
@@ -453,8 +469,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         body: BackgroundImage(
           child: widget.child,
         ),
+        floatingActionButton:
+            routeLocation == '/dashboard' ? null : _buildThemeToggleButton(isDarkMode),
         drawer: Drawer(
-          backgroundColor: FlownetColors.charcoalBlack,
+          backgroundColor: sidebarColor,
           child: Column(
             children: [
               // Drawer header
@@ -476,11 +494,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       width: 32,
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Flow-Space',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: sidebarTextColor,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -488,7 +506,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: Icon(Icons.close, color: sidebarTextColor),
                     ),
                   ],
                 ),
@@ -511,6 +529,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       padding: EdgeInsets.zero,
       itemCount: _navItems.length,
       itemBuilder: (context, index) {
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
+        final sidebarSubtleText = isDarkMode ? FlownetColors.textSecondary : Colors.black87;
         final item = _navItems[index];
         final active = routeLocation.startsWith(item.route);
 
@@ -528,12 +549,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               fallbackIcon: item.icon,
               isActive: active,
               size: 20,
-              color: active ? Colors.white : FlownetColors.textSecondary,
+              color: active ? sidebarTextColor : sidebarSubtleText,
             ),
             title: Text(
               item.label,
               style: TextStyle(
-                color: active ? Colors.white : FlownetColors.textSecondary,
+                color: active ? sidebarTextColor : sidebarSubtleText,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
@@ -546,6 +567,20 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildThemeToggleButton(bool isDarkMode) {
+    return FloatingActionButton.small(
+      heroTag: 'theme-toggle-fab',
+      onPressed: () {
+        ProviderScope.containerOf(context, listen: false)
+            .read(themeProvider.notifier)
+            .toggleTheme();
+      },
+      backgroundColor: isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight,
+      foregroundColor: isDarkMode ? Colors.white : Colors.black,
+      child: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
     );
   }
 

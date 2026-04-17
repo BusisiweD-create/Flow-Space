@@ -12,9 +12,6 @@ class SidebarVersionDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final versionInfo = VersionService.getVersionDetails();
-    final version = versionInfo['version'].toString();
-
     // Only show version when sidebar is expanded
     if (isSidebarCollapsed) {
       return const SizedBox.shrink();
@@ -22,17 +19,38 @@ class SidebarVersionDisplay extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Text(
-        version,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w400, // Regular weight
-          color: Colors.white.withValues(alpha: 0.65), // ~0.6-0.7 opacity
-          letterSpacing: 0.3,
-        ),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      child: FutureBuilder<Map<String, dynamic>>(
+        future: VersionService.getVersionDetailsFromAsset(),
+        builder: (context, snapshot) {
+          final versionInfo = snapshot.data ?? VersionService.getVersionDetails();
+          final version = versionInfo['version'].toString();
+          final tooltip = VersionService.getLatestCommitTooltip(versionInfo);
+          return Tooltip(
+            message: tooltip,
+            waitDuration: const Duration(milliseconds: 250),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF2A1C),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+            child: Text(
+              version,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w400,
+                color: Colors.white.withValues(alpha: 0.65),
+                letterSpacing: 0.3,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        },
       ),
     );
   }
