@@ -165,41 +165,6 @@ app.use(cors({
 // VERY IMPORTANT (handles preflight requests)
 app.options("*", cors());
 
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-    
-    // Allow localhost on any port (for development)
-    if (origin.match(/^http:\/\/localhost:\d+$/) || 
-        origin.match(/^http:\/\/127\.0\.0\.1:\d+$/)) {
-      return callback(null, true);
-    }
-    
-    // Allow specific origins including 127.0.0.1 for local dev
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:8080',
-      'http://localhost:8081',
-      'http://localhost:8000',
-      'http://localhost:8001',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:8080',
-      'http://127.0.0.1:8081',
-      'http://127.0.0.1:8000',
-      'http://127.0.0.1:8001',
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('⚠️  CORS: Allowing origin (dev mode):', origin);
-      callback(null, true); // Allow all in development to fix the issue
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
 app.use(express.json());
 
 // Serve uploaded files (deliverables, profile pictures, etc.)
