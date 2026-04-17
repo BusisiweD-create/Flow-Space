@@ -174,7 +174,9 @@ app.use(cors({
       'http://127.0.0.1:8081',
       'http://127.0.0.1:8000',
       'http://127.0.0.1:8001',
-      'http://127.0.0.1:3001'
+      'http://127.0.0.1:3001',
+      'https://flow-space-1.onrender.com', // Production frontend
+      'https://flow-space.onrender.com'   // Alternative frontend URL
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
