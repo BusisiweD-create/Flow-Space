@@ -48,6 +48,7 @@ const usersRoutes = require('./routes/users');
 const approvalsRoutes = require('./routes/approvals');
 const documentsRoutes = require('./routes/documents');
 const epicFeaturesRoutes = require('./routes/epicFeatures');
+const timelineRoutes = require('./routes/timeline');
 
 // Import services
 const { presenceService } = require('./services/presenceService');
@@ -132,6 +133,7 @@ app.use('/api/v1/approvals', authenticateToken, approvalsRoutes);
 app.use('/api/v1/audit-logs', auditRoutes);
 app.use('/api/v1/documents', documentsRoutes);
 app.use('/api/v1/epic-features', epicFeaturesRoutes);
+app.use('/api/v1/timeline', timelineRoutes);
 app.post('/api/v1/iot/ingest', (req, res) => {
   try {
     const { topic, payload, roles, targetRoles, event } = req.body || {};
