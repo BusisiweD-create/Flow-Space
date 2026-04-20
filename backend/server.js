@@ -9387,8 +9387,10 @@ app.get('/api/v1/test-deployment', (req, res) => {
 });
 
 // Start the server
-// Use PORT from environment variable or default to 8000
-const PORT = parseInt(process.env.PORT, 10) || 8000;
+// Use 3001 in development; respect PORT in production
+const PORT = process.env.NODE_ENV === 'production'
+  ? (parseInt(process.env.PORT, 10) || 3001)
+  : 3001;
 
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);

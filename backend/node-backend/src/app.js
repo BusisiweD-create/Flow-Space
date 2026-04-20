@@ -8,6 +8,28 @@ const env = require('./config/env-loader');
 const fs = require('fs');
 const path = require('path');
 
+// Prefer SQLite for local development unless Postgres is explicitly forced.
+// This prevents startup failure when a local Postgres instance is not running.
+try {
+  const forcePostgres = String(process.env.FORCE_POSTGRES || '').toLowerCase() === 'true';
+  const nodeEnv = String(process.env.NODE_ENV || 'development').toLowerCase();
+  const isDevLike = nodeEnv !== 'production';
+  const sqliteFile = path.resolve(__dirname, '..', 'database.sqlite');
+  const hasLocalSqliteFile = fs.existsSync(sqliteFile);
+
+  if (isDevLike && !forcePostgres && hasLocalSqliteFile) {
+    // Set a few common env var names used by different config implementations.
+    process.env.DB_DIALECT = 'sqlite';
+    process.env.DIALECT = 'sqlite';
+    process.env.USE_SQLITE = 'true';
+    process.env.SQLITE_STORAGE = sqliteFile;
+    process.env.SQLITE_DB_PATH = sqliteFile;
+
+    // Ensure Sequelize doesn't attempt Postgres.
+    delete process.env.DATABASE_URL;
+  }
+} catch (_) {}
+
 const app = express();
 
 // Add this logging middleware at the very beginning
@@ -298,7 +320,7 @@ app.use('*', (req, res) => {
 });
 
 // Database connection and server startup
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 3001;
 
 async function startServer() {
   try {

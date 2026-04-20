@@ -482,17 +482,3 @@ module.exports = {
     DatabaseNotificationService,
     databaseNotificationService
 };
-        global.realtimeEvents.on('report_updated', async (data) => {
-            const title = data && data.reportTitle ? data.reportTitle : 'Sign-Off Report';
-            try {
-                await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report updated: ${title}`, { report_id: data && data.id, status: data && data.status }, null);
-            } catch (_) {}
-            broadcastAll('report_updated', data);
-        });
-
-        global.realtimeEvents.on('report_deleted', async (data) => {
-            try {
-                await notifyRoles(['clientReviewer','deliveryLead','systemAdmin'], 'approval', `Report deleted`, { report_id: data && data.id }, null);
-            } catch (_) {}
-            broadcastAll('report_deleted', data);
-        });
