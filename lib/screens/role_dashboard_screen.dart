@@ -57,9 +57,24 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   // Method to get user name by ID with caching
   Future<String> _getUserNameById(String userId) async {
+    if (userId.trim().isEmpty) {
+      return UserLabelUtils.unknownUserLabel;
+    }
+
     // Check cache first
     if (_userNamesCache.containsKey(userId)) {
       return _userNamesCache[userId]!;
+    }
+
+    // Current user is already loaded; prefer that over a network round trip.
+    if (_currentUser != null && _currentUser!.id == userId) {
+      final currentUserName = _currentUser!.name.trim().isNotEmpty
+          ? _currentUser!.name.trim()
+          : _currentUser!.email.trim();
+      if (currentUserName.isNotEmpty) {
+        _userNamesCache[userId] = currentUserName;
+        return currentUserName;
+      }
     }
 
     try {
@@ -469,6 +484,27 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   String? _getOwnerName(Map<String, dynamic> data) {
+    // Prefer explicit assignment/user-facing name fields first.
+    final directNameFields = [
+      data['assignedToName'],
+      data['assigned_to_name'],
+      data['ownerName'],
+      data['owner_name'],
+      data['createdByName'],
+      data['created_by_name'],
+      data['submittedByName'],
+      data['submitted_by_name'],
+    ];
+    for (final value in directNameFields) {
+      if (value != null) {
+        final safe = UserLabelUtils.sanitizeUserLabel(
+          value.toString(),
+          emptyIsUnknown: false,
+        );
+        if (safe.isNotEmpty) return safe;
+      }
+    }
+
     if (data['ownerName'] != null) {
       final safe = UserLabelUtils.sanitizeUserLabel(
         data['ownerName'].toString(),
@@ -515,7 +551,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   String? _getOwnerId(Map<String, dynamic> data) {
-    return data['ownerId']?.toString() ??
+    return data['assignedTo']?.toString() ??
+        data['assigned_to']?.toString() ??
+        data['ownerId']?.toString() ??
         data['owner_id']?.toString() ??
         // Map backend field names to frontend expectations
         data['created_by']?.toString() ??
@@ -1942,7 +1980,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     String label = '';
     if (dueRaw != null) {
       final s = dueRaw.toString();
-      label = app_date_utils.DateUtils.formatTimestampWithTime(s);
+      label = app_date_utils.DateUtils.formatTimestamp(s);
       if (label == 'N/A') label = '';
     }
     return Container(

@@ -19,7 +19,7 @@ class _ProjectsOverviewScreenState extends State<ProjectsOverviewScreen> {
 
   String _formatProjectDate(String raw) {
     if (raw.trim().isEmpty) return '';
-    return app_date_utils.DateUtils.formatTimestampWithTime(raw);
+    return app_date_utils.DateUtils.formatTimestamp(raw);
   }
 
   @override
