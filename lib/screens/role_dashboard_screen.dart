@@ -61,6 +61,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _selectedAdminFilter;
   String? _hoveredAdminFilter;
   bool _isBottomFabExpanded = false;
+  bool _hasLoadedCurrentUser = false;
 
   // Cache for user names to avoid repeated API calls
   final Map<String, String> _userNamesCache = {};
@@ -112,6 +113,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     super.initState();
     realtimeService = RealtimeService();
     realtimeService.initialize(authToken: _authService.accessToken);
+    _hasLoadedCurrentUser = true;
     _loadCurrentUser();
     _loadDashboardSprints();
     _loadDashboardDeliverables();
@@ -126,7 +128,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadCurrentUser();
+    if (!_hasLoadedCurrentUser) {
+      _hasLoadedCurrentUser = true;
+      _loadCurrentUser();
+    }
   }
 
   @override
@@ -800,6 +805,48 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildTeamQuickActionsPanel({bool compact = false}) {
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildTeamPillButton(
+            'CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
+        const SizedBox(width: 8),
+        _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
+        const SizedBox(width: 8),
+        _buildTeamPillButton('BUILD REPORT', () {
+          final first =
+              _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+          final sprintId = first != null ? _extractFirstSprintId(first) : null;
+          if (sprintId != null && sprintId.isNotEmpty) {
+            context.go('/sprint-report/$sprintId');
+            return;
+          }
+          context.go('/sprint-console');
+        }),
+      ],
+    );
+
+    final header = Row(
+      children: [
+        _buildQuickActionsBadgeIcon(),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Quick Actions',
+                  style: _dashboardTextStyle(
+                      size: compact ? 20 : 22, weight: FontWeight.w700)),
+              Text(
+                'Dream BIG, work hard and stay focused - make it a productive day!',
+                style: _dashboardTextStyle(size: 11, weight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -807,81 +854,20 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final bool stackVertically = constraints.maxWidth < 1100;
-          final actions = Wrap(
-            alignment:
-                stackVertically ? WrapAlignment.start : WrapAlignment.end,
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              _buildTeamPillButton(
-                  'CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
-              _buildTeamPillButton(
-                  'VIEW PROJECTS', () => context.go('/projects')),
-              _buildTeamPillButton('BUILD REPORT', () {
-                final first = _dashboardDeliverables.isNotEmpty
-                    ? _dashboardDeliverables.first
-                    : null;
-                final sprintId =
-                    first != null ? _extractFirstSprintId(first) : null;
-                if (sprintId != null && sprintId.isNotEmpty) {
-                  context.go('/sprint-report/$sprintId');
-                  return;
-                }
-                context.go('/sprint-console');
-              }),
-            ],
-          );
-
-          final header = Row(
-            children: [
-              _buildQuickActionsBadgeIcon(),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Quick Actions',
-                        style: _dashboardTextStyle(
-                            size: compact ? 20 : 22, weight: FontWeight.w700)),
-                    Text(
-                      'Dream BIG, work hard and stay focused - make it a productive day!',
-                      style: _dashboardTextStyle(
-                          size: 11, weight: FontWeight.w500),
-                    ),
-                  ],
-                ),
+      child: Row(
+        children: [
+          Expanded(child: header),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: actions,
               ),
-            ],
-          );
-
-          if (stackVertically) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                header,
-                const SizedBox(height: 10),
-                actions,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: header),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: actions,
-                ),
-              ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1251,17 +1237,23 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildTeamPillButton(String label, VoidCallback onTap) {
     return SizedBox(
       height: 30,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: FlownetColors.primary,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Material(
+        color: FlownetColors.primary,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Center(
+              child: Text(label,
+                  style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white)),
+            ),
+          ),
         ),
-        child: Text(label,
-            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700)),
       ),
     );
   }

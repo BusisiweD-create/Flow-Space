@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_const_constructors
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -321,15 +323,18 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 itemBuilder: (context, index) {
                   final item = _navItems[index];
                   final active = routeLocation.startsWith(item.route);
+                  final String? numberedIconAsset = index < 4
+                      ? 'assets/Team_member_sidebar/${index + 1}.png'
+                      : null;
+                  final double numberedIconSize = sidebarIconSize * 1.6;
                   return Container(
                     margin: EdgeInsets.symmetric(
                       horizontal: 6,
                       vertical: navVerticalPadding,
                     ),
                     decoration: BoxDecoration(
-                      color: active
-                          ? FlownetColors.primary.withValues(alpha: 0.18)
-                          : Colors.transparent,
+                      color:
+                          active ? const Color(0xFFC10D00) : Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Material(
@@ -352,14 +357,23 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                 width: sidebarChipSize,
                                 height: sidebarChipSize,
                                 child: Center(
-                                  child: AppIcons.getIconWidget(
-                                    item.iconName,
-                                    fallbackIcon: item.icon,
-                                    isActive: active,
-                                    size: sidebarIconSize,
-                                    color:
-                                        active ? Colors.white : unselectedColor,
-                                  ),
+                                  child: numberedIconAsset != null
+                                      ? Image.asset(
+                                          numberedIconAsset,
+                                          width: numberedIconSize,
+                                          height: numberedIconSize,
+                                          fit: BoxFit.contain,
+                                          filterQuality: FilterQuality.high,
+                                        )
+                                      : AppIcons.getIconWidget(
+                                          item.iconName,
+                                          fallbackIcon: item.icon,
+                                          isActive: active,
+                                          size: sidebarIconSize,
+                                          color: active
+                                              ? Colors.white
+                                              : unselectedColor,
+                                        ),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -395,15 +409,17 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               fallbackIcon: Icons.person_outline,
               color: unselectedColor,
               onTap: () => context.go('/profile'),
+              assetPath: 'assets/Team_member_sidebar/5.png',
+              isActive: routeLocation.startsWith('/profile'),
             ),
             const SizedBox(height: 6),
             _buildSidebarBottomAction(
               label: 'Logout',
               iconName: 'logout',
               fallbackIcon: Icons.logout,
-              color: FlownetColors.crimsonRed,
+              color: unselectedColor,
               onTap: () => _handleLogout(context),
-              emphasize: true,
+              assetPath: 'assets/Team_member_sidebar/6.png',
             ),
             SidebarVersionDisplay(isSidebarCollapsed: false),
           ],
@@ -418,45 +434,50 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     required IconData fallbackIcon,
     required Color color,
     required VoidCallback onTap,
-    bool emphasize = false,
+    bool isActive = false,
+    String? assetPath,
   }) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: emphasize
-            ? FlownetColors.crimsonRed.withValues(alpha: 0.12)
-            : Colors.white.withValues(alpha: 0.06),
+        color: isActive ? const Color(0xFFC10D00) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: emphasize
-              ? FlownetColors.crimsonRed.withValues(alpha: 0.4)
-              : Colors.white.withValues(alpha: 0.12),
-        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
             children: [
-              AppIcons.getIconWidget(
-                iconName,
-                fallbackIcon: fallbackIcon,
-                isActive: emphasize,
-                size: 18,
-                color: color,
-              ),
+              if (assetPath != null)
+                SizedBox(
+                  width: 28.8,
+                  height: 28.8,
+                  child: Image.asset(
+                    assetPath,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
+                )
+              else
+                AppIcons.getIconWidget(
+                  iconName,
+                  fallbackIcon: fallbackIcon,
+                  isActive: isActive,
+                  size: 18,
+                  color: color,
+                ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
+                    color: isActive ? Colors.white : color,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 11.2,
                     fontFamily: 'Poppins',
                   ),
                 ),
