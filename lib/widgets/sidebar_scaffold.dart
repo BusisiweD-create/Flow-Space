@@ -51,20 +51,17 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         _navigationHistory =
             _navigationHistory.take(_historyIndex + 1).toList();
       }
-
-      setState(() {
-        _navigationHistory.add(route);
-        _historyIndex = _navigationHistory.length - 1;
-      });
+      // Never call setState from build path; this method is invoked from build.
+      _navigationHistory.add(route);
+      _historyIndex = _navigationHistory.length - 1;
     }
   }
 
   List<_NavItem> get _navItems {
     final authService = AuthService();
     final currentUser = authService.currentUser;
-    final userRole = currentUser != null 
-        ? currentUser.role.toString().toLowerCase()
-        : '';
+    final userRole =
+        currentUser != null ? currentUser.role.toString().toLowerCase() : '';
 
     // Role-based navigation items
     final List<_NavItem> allItems = [
@@ -95,13 +92,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         icon: Icons.calendar_today_outlined,
         iconName: 'timeline',
         route: '/timeline',
-        requiredPermission: null,
-      ),
-      const _NavItem(
-        label: 'AI Assistant',
-        icon: Icons.smart_toy_outlined,
-        iconName: 'ai_assistant',
-        route: '/ai-assistant',
         requiredPermission: null,
       ),
     ];
@@ -221,13 +211,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     return combinedItems.where((item) {
       // Special flag: hide from sidebar even if user has permission
       if (item.requiredPermission == 'HIDE_FROM_SIDEBAR') return false;
-      
+
       // Client users should not see Projects and Deliverables
-      if (userRole.contains('client') && 
+      if (userRole.contains('client') &&
           (item.label == 'Projects' || item.label == 'Deliverables')) {
         return false;
       }
-      
+
       if (item.requiredPermission == null) return true;
       return authService.hasPermission(item.requiredPermission!);
     }).toList();
@@ -257,13 +247,235 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     _persistSidebarState();
   }
 
+  bool get _isTeamMemberUser {
+    final role = AuthService().currentUser?.role.toString().toLowerCase() ?? '';
+    return role.contains('teammember') || role.contains('team_member');
+  }
+
+  Widget _buildTeamMemberSidebar({
+    required bool isDarkMode,
+    required String routeLocation,
+  }) {
+    final theme = Theme.of(context);
+    final unselectedColor = isDarkMode
+        ? Colors.white
+        : theme.colorScheme.onSurface.withValues(alpha: 0.84);
+    final welcomeTextColor = isDarkMode
+        ? Colors.white
+        : theme.colorScheme.onSurface.withValues(alpha: 0.82);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxHeight < 760;
+        final isVeryCompact = constraints.maxHeight < 660;
+        final isUltraCompact = constraints.maxHeight < 580;
+
+        final double sidebarChipSize =
+            isUltraCompact ? 28 : (isVeryCompact ? 30 : (isCompact ? 32 : 36));
+        final double sidebarIconSize =
+            isUltraCompact ? 18 : (isVeryCompact ? 19 : (isCompact ? 21 : 23));
+        final double navVerticalPadding =
+            isUltraCompact ? 1.5 : (isVeryCompact ? 2 : 3);
+        final double navFontSize =
+            isUltraCompact ? 9.8 : (isVeryCompact ? 10.5 : 11.2);
+        final double sectionGap = isUltraCompact ? 2 : (isVeryCompact ? 4 : 6);
+        final double bottomGap = isUltraCompact ? 6 : (isVeryCompact ? 8 : 10);
+
+        return Column(
+          children: [
+            SizedBox(height: isUltraCompact ? 4 : 8),
+            Image.asset(
+              'assets/icons/khono.png',
+              width: isUltraCompact ? 150 : (isVeryCompact ? 190 : 228),
+              height: isUltraCompact ? 28 : (isVeryCompact ? 35 : 44),
+              fit: BoxFit.contain,
+            ),
+            SizedBox(height: isUltraCompact ? 4 : 6),
+            Text(
+              'Welcome to',
+              style: TextStyle(
+                color: welcomeTextColor,
+                fontWeight: FontWeight.w600,
+                fontSize: isUltraCompact ? 9.5 : (isVeryCompact ? 10.5 : 11),
+                fontFamily: 'Poppins',
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Resource Capacity & Skills Heatmap',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: welcomeTextColor,
+                fontWeight: FontWeight.w600,
+                fontSize: isUltraCompact ? 9.5 : (isVeryCompact ? 10.5 : 11),
+                fontFamily: 'Poppins',
+              ),
+            ),
+            SizedBox(height: sectionGap),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                itemCount: _navItems.length,
+                itemBuilder: (context, index) {
+                  final item = _navItems[index];
+                  final active = routeLocation.startsWith(item.route);
+                  return Container(
+                    margin: EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: navVerticalPadding,
+                    ),
+                    decoration: BoxDecoration(
+                      color: active
+                          ? FlownetColors.primary.withValues(alpha: 0.18)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          if (!routeLocation.startsWith(item.route)) {
+                            context.go(item.route);
+                          }
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: isUltraCompact ? 6 : 8,
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: sidebarChipSize,
+                                height: sidebarChipSize,
+                                child: Center(
+                                  child: AppIcons.getIconWidget(
+                                    item.iconName,
+                                    fallbackIcon: item.icon,
+                                    isActive: active,
+                                    size: sidebarIconSize,
+                                    color:
+                                        active ? Colors.white : unselectedColor,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  item.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color:
+                                        active ? Colors.white : unselectedColor,
+                                    fontWeight: active
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    fontSize: navFontSize,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: bottomGap),
+            _buildSidebarBottomAction(
+              label: 'Account Profile',
+              iconName: 'account',
+              fallbackIcon: Icons.person_outline,
+              color: unselectedColor,
+              onTap: () => context.go('/profile'),
+            ),
+            const SizedBox(height: 6),
+            _buildSidebarBottomAction(
+              label: 'Logout',
+              iconName: 'logout',
+              fallbackIcon: Icons.logout,
+              color: FlownetColors.crimsonRed,
+              onTap: () => _handleLogout(context),
+              emphasize: true,
+            ),
+            SidebarVersionDisplay(isSidebarCollapsed: false),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSidebarBottomAction({
+    required String label,
+    required String iconName,
+    required IconData fallbackIcon,
+    required Color color,
+    required VoidCallback onTap,
+    bool emphasize = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: emphasize
+            ? FlownetColors.crimsonRed.withValues(alpha: 0.12)
+            : Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: emphasize
+              ? FlownetColors.crimsonRed.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.12),
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Row(
+            children: [
+              AppIcons.getIconWidget(
+                iconName,
+                fallbackIcon: fallbackIcon,
+                isActive: emphasize,
+                size: 18,
+                color: color,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final sidebarColor =
         isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight;
     final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
-    final sidebarSubtleText = isDarkMode ? FlownetColors.textSecondary : Colors.black87;
+    final sidebarSubtleText =
+        isDarkMode ? FlownetColors.textSecondary : Colors.black87;
 
     String routeLocation = '/';
     try {
@@ -291,7 +503,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               // Sidebar with glassmorphism styling (Busisiwe branch look)
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: _collapsed ? _collapsedWidth : _sidebarWidth,
+                width: _isTeamMemberUser
+                    ? _sidebarWidth
+                    : (_collapsed ? _collapsedWidth : _sidebarWidth),
                 decoration: BoxDecoration(
                   color: sidebarColor,
                   borderRadius: const BorderRadius.only(
@@ -314,133 +528,146 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                     decoration: const BoxDecoration(
                       color: Colors.transparent,
                     ),
-                    child: Column(
-                      children: [
-                        // Header with logo and collapse toggle
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            left: 12,
-                            right: 12,
-                            top: 24,
-                            bottom: 16,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                    child: _isTeamMemberUser
+                        ? _buildTeamMemberSidebar(
+                            isDarkMode: isDarkMode,
+                            routeLocation: routeLocation,
+                          )
+                        : Column(
                             children: [
-                              Image.asset(
-                                'assets/Icons/Red_Khono_Discs.png',
-                                width: _collapsed ? 28 : 64,
-                                height: _collapsed ? 28 : 64,
-                                fit: BoxFit.contain,
-                              ),
-                              if (!_collapsed) const SizedBox(width: 40),
-                              if (!_collapsed)
-                                IconButton(
-                                  onPressed: _toggleSidebar,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    _collapsed
-                                        ? Icons.chevron_right
-                                        : Icons.chevron_left,
-                                    color: sidebarSubtleText,
-                                    size: 20,
-                                  ),
+                              // Header with logo and collapse toggle
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 12,
+                                  right: 12,
+                                  top: 24,
+                                  bottom: 16,
                                 ),
-                            ],
-                          ),
-                        ),
-                        // Navigation items (pill-style highlight like reference UI)
-                        Expanded(
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            itemCount: _navItems.length,
-                            itemExtent: 56, // Match Busisiwe sidebar height
-                            cacheExtent: 200,
-                            addAutomaticKeepAlives: true,
-                            itemBuilder: (context, index) {
-                              final item = _navItems[index];
-                              final active =
-                                  routeLocation.startsWith(item.route);
-                              return Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  // Active item: soft pill-shaped dark highlight, no red border
-                                  color: active
-                                      ? (isDarkMode
-                                          ? Colors.white.withAlpha((0.08 * 255).round())
-                                          : Colors.black.withAlpha((0.08 * 255).round()))
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () {
-                                      if (!routeLocation
-                                          .startsWith(item.route)) {
-                                        context.go(item.route);
-                                      }
-                                    },
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: _collapsed ? 8 : 16,
-                                        vertical: 12,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.asset(
+                                      'assets/Icons/Red_Khono_Discs.png',
+                                      width: _collapsed ? 28 : 64,
+                                      height: _collapsed ? 28 : 64,
+                                      fit: BoxFit.contain,
+                                    ),
+                                    if (!_collapsed) const SizedBox(width: 40),
+                                    if (!_collapsed)
+                                      IconButton(
+                                        onPressed: _toggleSidebar,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: Icon(
+                                          _collapsed
+                                              ? Icons.chevron_right
+                                              : Icons.chevron_left,
+                                          color: sidebarSubtleText,
+                                          size: 20,
+                                        ),
                                       ),
-                                      child: Row(
-                                        mainAxisAlignment: _collapsed
-                                            ? MainAxisAlignment.center
-                                            : MainAxisAlignment.start,
-                                        children: [
-                                          SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: AppIcons.getIconWidget(
-                                              item.iconName,
-                                              fallbackIcon: item.icon,
-                                              isActive: active,
-                                              size: 20,
-                                              color: active
-                                                  ? sidebarTextColor
-                                                  : sidebarSubtleText,
+                                  ],
+                                ),
+                              ),
+                              // Navigation items (pill-style highlight like reference UI)
+                              Expanded(
+                                child: ListView.builder(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  itemCount: _navItems.length,
+                                  itemExtent:
+                                      56, // Match Busisiwe sidebar height
+                                  cacheExtent: 200,
+                                  addAutomaticKeepAlives: true,
+                                  itemBuilder: (context, index) {
+                                    final item = _navItems[index];
+                                    final active =
+                                        routeLocation.startsWith(item.route);
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        // Active item: soft pill-shaped dark highlight, no red border
+                                        color: active
+                                            ? (isDarkMode
+                                                ? Colors.white.withAlpha(
+                                                    (0.08 * 255).round())
+                                                : Colors.black.withAlpha(
+                                                    (0.08 * 255).round()))
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () {
+                                            if (!routeLocation
+                                                .startsWith(item.route)) {
+                                              context.go(item.route);
+                                            }
+                                          },
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          child: Padding(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: _collapsed ? 8 : 16,
+                                              vertical: 12,
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment: _collapsed
+                                                  ? MainAxisAlignment.center
+                                                  : MainAxisAlignment.start,
+                                              children: [
+                                                SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child: AppIcons.getIconWidget(
+                                                    item.iconName,
+                                                    fallbackIcon: item.icon,
+                                                    isActive: active,
+                                                    size: 24,
+                                                    color: active
+                                                        ? sidebarTextColor
+                                                        : sidebarSubtleText,
+                                                  ),
+                                                ),
+                                                if (!_collapsed) ...[
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Text(
+                                                      item.label,
+                                                      style: TextStyle(
+                                                        color: sidebarTextColor,
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                           ),
-                                          if (!_collapsed) ...[
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                item.label,
-                                                style: TextStyle(
-                                                  color: sidebarTextColor,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
+                                        ),
                                       ),
-                                    ),
-                                  ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                                child: _buildLogoutButton(),
+                              ),
+                              SidebarVersionDisplay(
+                                isSidebarCollapsed: _collapsed,
+                              ),
+                            ],
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                          child: _buildLogoutButton(),
-                        ),
-                        SidebarVersionDisplay(
-                          isSidebarCollapsed: _collapsed,
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ),
@@ -471,8 +698,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         body: BackgroundImage(
           child: widget.child,
         ),
-        floatingActionButton:
-            routeLocation == '/dashboard' ? null : _buildThemeToggleButton(isDarkMode),
+        floatingActionButton: routeLocation == '/dashboard'
+            ? null
+            : _buildThemeToggleButton(isDarkMode),
         drawer: Drawer(
           backgroundColor: sidebarColor,
           child: Column(
@@ -533,7 +761,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       itemBuilder: (context, index) {
         final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
-        final sidebarSubtleText = isDarkMode ? FlownetColors.textSecondary : Colors.black87;
+        final sidebarSubtleText =
+            isDarkMode ? FlownetColors.textSecondary : Colors.black87;
         final item = _navItems[index];
         final active = routeLocation.startsWith(item.route);
 
@@ -550,7 +779,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               item.iconName,
               fallbackIcon: item.icon,
               isActive: active,
-              size: 20,
+              size: 24,
               color: active ? sidebarTextColor : sidebarSubtleText,
             ),
             title: Text(
@@ -580,7 +809,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
             .read(themeProvider.notifier)
             .toggleTheme();
       },
-      backgroundColor: isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight,
+      backgroundColor:
+          isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight,
       foregroundColor: isDarkMode ? Colors.white : Colors.black,
       child: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
     );
@@ -594,6 +824,32 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   }
 
   Widget _buildLogoutButton() {
+    if (_collapsed) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: FlownetColors.crimsonRed.withAlpha((0.1 * 255).round()),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: FlownetColors.crimsonRed.withAlpha((0.3 * 255).round()),
+            width: 1,
+          ),
+        ),
+        child: IconButton(
+          onPressed: () => _handleLogout(context),
+          icon: AppIcons.getIconWidget(
+            'logout',
+            fallbackIcon: Icons.logout,
+            isActive: true,
+            size: 20,
+            color: FlownetColors.crimsonRed,
+          ),
+          tooltip: 'Logout',
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 8),

@@ -14,8 +14,8 @@ class AppIcons {
       },
       // Projects folder icon (all roles)
       'projects': {
-        'active': 'assets/Icons/Project Management/Project Management_Red.png',
-        'inactive': 'assets/Icons/Project Management/Project Management_White.png',
+        'active': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
+        'inactive': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
       },
       // Deliverables rocket icon (all roles)
       'deliverables': {
