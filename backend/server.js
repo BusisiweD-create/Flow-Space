@@ -1090,12 +1090,14 @@ app.post('/api/v1/auth/login', async (req, res) => {
       let userRole = 'teamMember'; // default
       if (email.includes('admin') || email.includes('system')) {
         userRole = 'systemAdmin';
-      } else if (email.includes('lead') || email.includes('manager')) {
+      } else if (email.includes('lead') || email.includes('manager') || email.includes('delivery')) {
         userRole = 'deliveryLead';
       } else if (email.includes('client') || email.includes('customer')) {
         userRole = 'clientUser';
       } else if (email.includes('approver') || email.includes('reviewer')) {
         userRole = 'internalApprover';
+      } else if (email.includes('project') || email.includes('pm')) {
+        userRole = 'projectManager';
       }
       
       const hashedPassword = await bcrypt.hash(password, 10);
