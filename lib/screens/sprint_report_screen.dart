@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/backend_api_service.dart';
-import '../services/realtime_service.dart';
-import '../theme/flownet_theme.dart';
+import '../utils/date_utils.dart' as app_date_utils;
+import '../theme/flownet_colors.dart';
 
 class SprintReportScreen extends StatefulWidget {
   final String sprintId;
@@ -21,7 +21,6 @@ class SprintReportScreen extends StatefulWidget {
 
 class _SprintReportScreenState extends State<SprintReportScreen> {
   final _backend = BackendApiService();
-  final _realtime = RealtimeService();
 
   Map<String, dynamic>? _report;
   bool _loading = false;
@@ -32,41 +31,10 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
   DateTime? _dueFrom;
   DateTime? _dueTo;
 
-  Timer? _refreshDebounce;
-
   @override
   void initState() {
     super.initState();
     _load();
-    _setupRealtime();
-  }
-
-  @override
-  void dispose() {
-    _refreshDebounce?.cancel();
-    _realtime.offAll('deliverable_created');
-    _realtime.offAll('deliverable_updated');
-    _realtime.offAll('deliverable_deleted');
-    _realtime.offAll('sprint_updated');
-    super.dispose();
-  }
-
-  void _setupRealtime() async {
-    try {
-      await _realtime.initialize();
-    } catch (_) {}
-
-    void scheduleRefresh() {
-      _refreshDebounce?.cancel();
-      _refreshDebounce = Timer(const Duration(milliseconds: 400), () {
-        _load(silent: true);
-      });
-    }
-
-    _realtime.on('deliverable_created', (_) => scheduleRefresh());
-    _realtime.on('deliverable_updated', (_) => scheduleRefresh());
-    _realtime.on('deliverable_deleted', (_) => scheduleRefresh());
-    _realtime.on('sprint_updated', (_) => scheduleRefresh());
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -82,19 +50,18 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     }
 
     try {
-      final resp = await _backend.getSprintReport(
-        widget.sprintId,
-        statusCategory: _statusFilter.isEmpty ? null : _statusFilter,
-        ownerId: _ownerFilter.isEmpty ? null : _ownerFilter,
-        dueFrom: _dueFrom,
-        dueTo: _dueTo,
+      final resp = await _backend.getSignOffReports(
+        status: _statusFilter.isEmpty ? null : _statusFilter,
+        search: widget.sprintId,
       );
       if (!mounted) return;
       if (resp.isSuccess && resp.data != null) {
         final raw = resp.data;
         final data = raw is Map && raw['data'] is Map
             ? Map<String, dynamic>.from(raw['data'] as Map)
-            : (raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{});
+            : (raw is Map
+                ? Map<String, dynamic>.from(raw)
+                : <String, dynamic>{});
         setState(() {
           _report = data;
           _loading = false;
@@ -118,7 +85,10 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
   List<Map<String, dynamic>> _deliverables() {
     final list = _report?['deliverables'];
     if (list is List) {
-      return list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      return list
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
     return [];
   }
@@ -138,7 +108,10 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
   List<Map<String, dynamic>> _teamMembers() {
     final team = _report?['team'];
     if (team is Map && team['members'] is List) {
-      return (team['members'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      return (team['members'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
     return [];
   }
@@ -155,15 +128,7 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
   }
 
   String _fmtDate(String? iso) {
-    if (iso == null || iso.trim().isEmpty) return '-';
-    try {
-      final d = DateTime.parse(iso).toLocal();
-      final mm = d.month.toString().padLeft(2, '0');
-      final dd = d.day.toString().padLeft(2, '0');
-      return '${d.year}-$mm-$dd';
-    } catch (_) {
-      return iso;
-    }
+    return app_date_utils.DateUtils.formatDatabaseTimestamp(iso);
   }
 
   int _asInt(dynamic v) {
@@ -177,7 +142,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     final summary = _summary();
     final deliverables = _deliverables();
     final team = _teamMembers();
-    final sprintTitle = widget.sprintName ?? sprint['name']?.toString() ?? 'Sprint Report';
+    final sprintTitle =
+        widget.sprintName ?? sprint['name']?.toString() ?? 'Sprint Report';
     final health = summary['health']?.toString() ?? 'good';
 
     return Scaffold(
@@ -191,13 +157,15 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
           ),
         ],
       ),
-      floatingActionButton: _report != null ? FloatingActionButton.extended(
-        onPressed: () => _showPublishDialog(context, sprintTitle),
-        icon: const Icon(Icons.assignment_turned_in),
-        label: const Text('Sign Off & Publish'),
-        backgroundColor: FlownetColors.electricBlue,
-        foregroundColor: Colors.white,
-      ) : null,
+      floatingActionButton: _report != null
+          ? FloatingActionButton.extended(
+              onPressed: () => _showPublishDialog(context, sprintTitle),
+              icon: const Icon(Icons.assignment_turned_in),
+              label: const Text('Sign Off & Publish'),
+              backgroundColor: FlownetColors.electricBlue,
+              foregroundColor: Colors.white,
+            )
+          : null,
       body: _loading && _report == null
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _report == null
@@ -215,7 +183,10 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                       const SizedBox(height: 24),
                       Text(
                         'Deliverables',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
                       _buildDeliverablesTable(context, deliverables),
@@ -227,7 +198,11 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     );
   }
 
-  Widget _buildHeaderCard(Map<String, dynamic> sprint, Map<String, dynamic> summary, String health, List<Map<String, dynamic>> team) {
+  Widget _buildHeaderCard(
+      Map<String, dynamic> sprint,
+      Map<String, dynamic> summary,
+      String health,
+      List<Map<String, dynamic>> team) {
     final start = _fmtDate(sprint['startDate']?.toString());
     final end = _fmtDate(sprint['endDate']?.toString());
     final status = sprint['status']?.toString() ?? '-';
@@ -236,7 +211,7 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: FlownetColors.surfaceLight,
+        color: FlownetColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
@@ -248,19 +223,25 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
               Expanded(
                 child: Text(
                   sprint['name']?.toString() ?? 'Sprint',
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: _healthColor(health).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: _healthColor(health).withValues(alpha: 0.4)),
+                  border: Border.all(
+                      color: _healthColor(health).withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   health.toUpperCase(),
-                  style: TextStyle(color: _healthColor(health), fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: _healthColor(health), fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -288,7 +269,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
               value: (progress.clamp(0, 100)) / 100.0,
               minHeight: 10,
               backgroundColor: Colors.white.withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(FlownetColors.electricBlue),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                  FlownetColors.electricBlue),
             ),
           ),
           const SizedBox(height: 8),
@@ -303,14 +285,19 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
 
   Widget _buildFilters(List<Map<String, dynamic>> team) {
     final owners = team
-        .map((m) => {'id': m['id']?.toString() ?? '', 'label': (m['name'] ?? m['email'] ?? '').toString()})
-        .where((m) => (m['id'] ?? '').toString().isNotEmpty && (m['label'] ?? '').toString().isNotEmpty)
+        .map((m) => {
+              'id': m['id']?.toString() ?? '',
+              'label': (m['name'] ?? m['email'] ?? '').toString()
+            })
+        .where((m) =>
+            (m['id'] ?? '').toString().isNotEmpty &&
+            (m['label'] ?? '').toString().isNotEmpty)
         .toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isSmall = constraints.maxWidth < 600;
-        
+
         if (isSmall) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -325,9 +312,12 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                 ),
                 items: const [
                   DropdownMenuItem(value: '', child: Text('All')),
-                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                  DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
-                  DropdownMenuItem(value: 'not_started', child: Text('Not Started')),
+                  DropdownMenuItem(
+                      value: 'completed', child: Text('Completed')),
+                  DropdownMenuItem(
+                      value: 'in_progress', child: Text('In Progress')),
+                  DropdownMenuItem(
+                      value: 'not_started', child: Text('Not Started')),
                   DropdownMenuItem(value: 'overdue', child: Text('Overdue')),
                   DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
                 ],
@@ -350,7 +340,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                   ...owners.map(
                     (o) => DropdownMenuItem(
                       value: o['id']!,
-                      child: Text(o['label']!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(o['label']!,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ],
@@ -372,10 +363,13 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                           lastDate: DateTime(2100),
                         );
                         if (picked == null) return;
-                        setState(() => _dueFrom = DateTime(picked.year, picked.month, picked.day));
+                        setState(() => _dueFrom =
+                            DateTime(picked.year, picked.month, picked.day));
                         _load();
                       },
-                      child: Text(_dueFrom == null ? 'Due From' : _fmtDate(_dueFrom!.toIso8601String())),
+                      child: Text(_dueFrom == null
+                          ? 'Due From'
+                          : _fmtDate(_dueFrom!.toIso8601String())),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -389,10 +383,13 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                           lastDate: DateTime(2100),
                         );
                         if (picked == null) return;
-                        setState(() => _dueTo = DateTime(picked.year, picked.month, picked.day, 23, 59, 59));
+                        setState(() => _dueTo = DateTime(
+                            picked.year, picked.month, picked.day, 23, 59, 59));
                         _load();
                       },
-                      child: Text(_dueTo == null ? 'Due To' : _fmtDate(_dueTo!.toIso8601String())),
+                      child: Text(_dueTo == null
+                          ? 'Due To'
+                          : _fmtDate(_dueTo!.toIso8601String())),
                     ),
                   ),
                 ],
@@ -414,9 +411,12 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                 ),
                 items: const [
                   DropdownMenuItem(value: '', child: Text('All')),
-                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                  DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
-                  DropdownMenuItem(value: 'not_started', child: Text('Not Started')),
+                  DropdownMenuItem(
+                      value: 'completed', child: Text('Completed')),
+                  DropdownMenuItem(
+                      value: 'in_progress', child: Text('In Progress')),
+                  DropdownMenuItem(
+                      value: 'not_started', child: Text('Not Started')),
                   DropdownMenuItem(value: 'overdue', child: Text('Overdue')),
                   DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
                 ],
@@ -441,7 +441,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                   ...owners.map(
                     (o) => DropdownMenuItem(
                       value: o['id']!,
-                      child: Text(o['label']!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(o['label']!,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ],
@@ -462,10 +463,13 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                     lastDate: DateTime(2100),
                   );
                   if (picked == null) return;
-                  setState(() => _dueFrom = DateTime(picked.year, picked.month, picked.day));
+                  setState(() => _dueFrom =
+                      DateTime(picked.year, picked.month, picked.day));
                   _load();
                 },
-                child: Text(_dueFrom == null ? 'Due From' : _fmtDate(_dueFrom!.toIso8601String())),
+                child: Text(_dueFrom == null
+                    ? 'Due From'
+                    : _fmtDate(_dueFrom!.toIso8601String())),
               ),
             ),
             const SizedBox(width: 12),
@@ -479,10 +483,13 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                     lastDate: DateTime(2100),
                   );
                   if (picked == null) return;
-                  setState(() => _dueTo = DateTime(picked.year, picked.month, picked.day, 23, 59, 59));
+                  setState(() => _dueTo = DateTime(
+                      picked.year, picked.month, picked.day, 23, 59, 59));
                   _load();
                 },
-                child: Text(_dueTo == null ? 'Due To' : _fmtDate(_dueTo!.toIso8601String())),
+                child: Text(_dueTo == null
+                    ? 'Due To'
+                    : _fmtDate(_dueTo!.toIso8601String())),
               ),
             ),
           ],
@@ -495,8 +502,14 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     final items = [
       {'label': 'Total', 'value': _asInt(summary['totalDeliverables'])},
       {'label': 'Completed', 'value': _asInt(summary['completedDeliverables'])},
-      {'label': 'In Progress', 'value': _asInt(summary['inProgressDeliverables'])},
-      {'label': 'Not Started', 'value': _asInt(summary['notStartedDeliverables'])},
+      {
+        'label': 'In Progress',
+        'value': _asInt(summary['inProgressDeliverables'])
+      },
+      {
+        'label': 'Not Started',
+        'value': _asInt(summary['notStartedDeliverables'])
+      },
       {'label': 'Overdue', 'value': _asInt(summary['overdueDeliverables'])},
       {'label': 'Blocked', 'value': _asInt(summary['blockedDeliverables'])},
     ];
@@ -513,18 +526,23 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: FlownetColors.surfaceLight,
+                  color: FlownetColors.cardBackground,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(i['label']!.toString(), style: const TextStyle(color: Colors.white70)),
+                    Text(i['label']!.toString(),
+                        style: const TextStyle(color: Colors.white70)),
                     const SizedBox(height: 6),
                     Text(
                       i['value']!.toString(),
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -536,7 +554,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     );
   }
 
-  Widget _buildDeliverablesTable(BuildContext context, List<Map<String, dynamic>> deliverables) {
+  Widget _buildDeliverablesTable(
+      BuildContext context, List<Map<String, dynamic>> deliverables) {
     if (deliverables.isEmpty) {
       return const Text('No deliverables found for this sprint.');
     }
@@ -564,7 +583,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
               DataCell(Text(d['ownerName']?.toString() ?? '-')),
               DataCell(Text(d['status']?.toString() ?? '-')),
               DataCell(Text('$progress%')),
-              DataCell(Text(_fmtDate(d['dueDate']?.toString()), style: TextStyle(color: isOverdue ? Colors.red : null))),
+              DataCell(Text(_fmtDate(d['dueDate']?.toString()),
+                  style: TextStyle(color: isOverdue ? Colors.red : null))),
               DataCell(Text(_fmtDate(d['completionDate']?.toString()))),
             ],
           );
@@ -573,7 +593,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     );
   }
 
-  Widget _buildInsights(Map<String, dynamic> summary, List<Map<String, dynamic>> deliverables) {
+  Widget _buildInsights(
+      Map<String, dynamic> summary, List<Map<String, dynamic>> deliverables) {
     final completionRate = _asInt(summary['completionRatePercent']);
     final overdue = _asInt(summary['overdueDeliverables']);
     final blocked = _asInt(summary['blockedDeliverables']);
@@ -582,7 +603,7 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: FlownetColors.surfaceLight,
+        color: FlownetColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
@@ -591,13 +612,20 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
         children: [
           Text(
             'Sprint Insights',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
-          Text('Completion Rate: $completionRate%', style: const TextStyle(color: Colors.white70)),
-          Text('Delayed Deliverables: $overdue', style: const TextStyle(color: Colors.white70)),
-          Text('Blocked Deliverables: $blocked', style: const TextStyle(color: Colors.white70)),
-          Text('Overall Sprint Health: ${health.toUpperCase()}', style: const TextStyle(color: Colors.white70)),
+          Text('Completion Rate: $completionRate%',
+              style: const TextStyle(color: Colors.white70)),
+          Text('Delayed Deliverables: $overdue',
+              style: const TextStyle(color: Colors.white70)),
+          Text('Blocked Deliverables: $blocked',
+              style: const TextStyle(color: Colors.white70)),
+          Text('Overall Sprint Health: ${health.toUpperCase()}',
+              style: const TextStyle(color: Colors.white70)),
         ],
       ),
     );
@@ -644,7 +672,8 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: isPublishing ? null : () => Navigator.of(context).pop(),
+                  onPressed:
+                      isPublishing ? null : () => Navigator.of(context).pop(),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -653,31 +682,46 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                       : () async {
                           setLocalState(() => isPublishing = true);
                           try {
-                            final createResp = await _backend.createSprintReportFromSprint(widget.sprintId, note: noteController.text.trim());
+                            final createResp =
+                                await _backend.createSignOffReport({
+                              'sprintId': widget.sprintId,
+                              'note': noteController.text.trim(),
+                            });
                             if (!context.mounted) return;
-                            if (!createResp.isSuccess || createResp.data == null) {
-                              throw Exception(createResp.error ?? 'Failed to create report');
+                            if (!createResp.isSuccess ||
+                                createResp.data == null) {
+                              throw Exception(createResp.error ??
+                                  'Failed to create report');
                             }
-                            final reportId = (createResp.data['id'] ?? createResp.data['reportId'] ?? '').toString();
+                            final reportId = (createResp.data['id'] ??
+                                    createResp.data['reportId'] ??
+                                    '')
+                                .toString();
                             if (reportId.isEmpty) {
                               throw Exception('Invalid report id');
                             }
                             final sig = signatureController.text.trim();
                             if (sig.isNotEmpty) {
-                              final sigResp = await _backend.addReportSignature(reportId, signatureData: sig, signatureType: 'typed');
+                              final sigResp =
+                                  await _backend.approveSignOffReport(reportId,
+                                      signatureController.text.trim(), sig);
                               if (!sigResp.isSuccess) {
-                                throw Exception(sigResp.error ?? 'Failed to attach signature');
+                                throw Exception(sigResp.error ??
+                                    'Failed to attach signature');
                               }
                             }
-                            final submitResp = await _backend.submitReport(reportId);
+                            final submitResp =
+                                await _backend.submitSignOffReport(reportId);
                             if (!submitResp.isSuccess) {
-                              throw Exception(submitResp.error ?? 'Failed to submit report');
+                              throw Exception(submitResp.error ??
+                                  'Failed to submit report');
                             }
                             if (!context.mounted) return;
                             Navigator.of(context).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Report "$sprintTitle" submitted to client'),
+                                content: Text(
+                                    'Report "$sprintTitle" submitted to client'),
                                 backgroundColor: Colors.green,
                               ),
                             );
@@ -699,7 +743,13 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
                     backgroundColor: FlownetColors.electricBlue,
                     foregroundColor: FlownetColors.pureWhite,
                   ),
-                  child: isPublishing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Publish'),
+                  child: isPublishing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Publish'),
                 ),
               ],
             );

@@ -14,7 +14,7 @@ class Environment {
   // Production fallback detection
   static String get apiBaseUrl {
     // First try build-time variable
-    if (_apiBaseUrl != "http://localhost:3001/api/v1") {
+    if (_apiBaseUrl != "http://localhost:8000/api/v1") {
       return _apiBaseUrl;
     }
 
@@ -23,7 +23,7 @@ class Environment {
       return "https://backend-532p.onrender.com/api/v1";
     }
 
-    // Default to localhost for development
+    // Default to localhost for development (SIT environment)
     return _apiBaseUrl;
   }
 

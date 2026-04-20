@@ -511,7 +511,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 // Use WidgetsBinding to safely navigate after async operation
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
-                    GoRouter.of(context).go('/');
+                    GoRouter.of(context).go(AuthService.postLogoutRoute);
                   }
                 });
               }

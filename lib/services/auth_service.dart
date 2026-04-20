@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
+  static const String postLogoutRoute = '/login';
   factory AuthService() {
     // Automatically initialize when first accessed
     _instance._ensureInitialized();

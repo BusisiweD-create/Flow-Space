@@ -64,9 +64,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         ? currentUser.role.toString().toLowerCase()
         : '';
 
+    final bool includeSprints = userRole.contains('admin') ||
+        userRole.contains('system') ||
+        userRole.contains('delivery') ||
+        userRole.contains('project');
+
     // Role-based navigation items
     final List<_NavItem> allItems = [
-      // Core items for all authenticated users
       const _NavItem(
         label: 'Dashboard',
         icon: Icons.dashboard_outlined,
@@ -81,6 +85,14 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/projects',
         requiredPermission: null,
       ),
+      if (includeSprints)
+        const _NavItem(
+          label: 'Sprints',
+          icon: Icons.timer_outlined,
+          iconName: 'sprints',
+          route: '/sprint-console',
+          requiredPermission: 'view_sprints',
+        ),
       const _NavItem(
         label: 'Deliverables',
         icon: Icons.assignment_outlined,
@@ -96,7 +108,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         requiredPermission: null,
       ),
       const _NavItem(
-        label: 'AI Assistant',
+        label: 'FlowPilot',
         icon: Icons.smart_toy_outlined,
         iconName: 'ai_assistant',
         route: '/ai-assistant',
@@ -110,13 +122,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     if (userRole.contains('admin') || userRole.contains('system')) {
       // Admin/System users get full access
       roleSpecificItems.addAll([
-        const _NavItem(
-          label: 'Sprints',
-          icon: Icons.timer_outlined,
-          iconName: 'sprints',
-          route: '/sprints',
-          requiredPermission: 'view_sprints',
-        ),
         const _NavItem(
           label: 'Approval Requests',
           icon: Icons.assignment_outlined,
@@ -156,13 +161,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     } else if (userRole.contains('delivery') || userRole.contains('project')) {
       // Delivery/Project managers get project-related access
       roleSpecificItems.addAll([
-        const _NavItem(
-          label: 'Sprints',
-          icon: Icons.timer_outlined,
-          iconName: 'sprints',
-          route: '/sprints',
-          requiredPermission: 'view_sprints',
-        ),
         const _NavItem(
           label: 'Approval Requests',
           icon: Icons.assignment_outlined,
@@ -555,7 +553,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     final router = GoRouter.of(ctx);
     await AuthService().signOut();
     if (!mounted) return;
-    router.go('/');
+    router.go(AuthService.postLogoutRoute);
   }
 
   Widget _buildLogoutButton() {

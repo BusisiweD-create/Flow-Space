@@ -14,6 +14,7 @@ import '../widgets/flownet_logo.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/audit_history_widget.dart';
 import 'client_review_workflow_screen.dart';
+import '../utils/user_label_utils.dart';
 
 class ReportViewScreen extends ConsumerStatefulWidget {
   final String reportId;
@@ -549,7 +550,7 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
             ),
             const SizedBox(height: 16),
             if (_deliverable == null) ...[
-               buildStatusItem('Linked Deliverable ID', _report!.deliverableId),
+               buildStatusItem('Linked Deliverable', 'Unknown Deliverable'),
             ] else ...[
               Row(
                 children: [
@@ -698,7 +699,7 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
              _buildHistoryItem(
                details: _report!.changeRequestDetails!,
                date: _report!.reviewedAt,
-               user: _report!.reviewedBy,
+               user: _report!.reviewedByName ?? _report!.reviewedBy,
                isLatest: true,
              ),
              if (historyList.isNotEmpty) const Divider(color: Colors.orange, height: 24),
@@ -708,7 +709,7 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
              return _buildHistoryItem(
                details: i['details'] ?? '',
                date: i['requestedAt'] != null ? DateTime.parse(i['requestedAt']) : null,
-               user: i['requestedBy'],
+               user: i['requestedByName'] ?? i['requestedBy'],
                isLatest: false,
              );
           }),
@@ -752,7 +753,7 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
         if (user != null) ...[
            const SizedBox(height: 4),
            Text(
-             'Requested by: $user',
+            'Requested by: ${UserLabelUtils.sanitizeUserLabel(user, emptyIsUnknown: true)}',
              style: const TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic),
            ),
         ],

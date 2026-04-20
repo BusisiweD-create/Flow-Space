@@ -31,8 +31,8 @@ class AppIcons {
         'inactive': 'assets/Icons/Notifications inactive.png.png',
       },
       'repository': {
-        'active': 'assets/Icons/Repository_Project active.png',
-        'inactive': 'assets/Icons/Repository_Project inactive.png',
+        'active': 'assets/Icons/Repository_Project active.png.png',
+        'inactive': 'assets/Icons/Repository_Project inactive.png.png',
       },
       'approval_requests': {
         'active': 'assets/Icons/Approval Requests active.png.png',

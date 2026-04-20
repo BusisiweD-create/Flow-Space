@@ -18,6 +18,7 @@ import 'screens/client_review_workflow_screen.dart';
 import 'screens/report_editor_screen.dart';
 import 'screens/report_view_screen.dart';
 import 'screens/client_review_screen.dart';
+import 'screens/sprint_report_screen.dart';
 import 'models/sign_off_report.dart';
 import 'models/deliverable.dart';
 import 'screens/report_repository_screen.dart';
@@ -33,7 +34,6 @@ import 'screens/role_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
-import 'screens/sprint_report_screen.dart';
 import 'screens/timeline_screen.dart';
 import 'screens/system_metrics_screen.dart';
 import 'screens/system_health_screen.dart';
@@ -49,6 +49,7 @@ import 'screens/deliverables_list_screen.dart';
 import 'screens/deliverables_overview_screen.dart';
 import 'screens/skill_assessment_screen.dart';
 import 'screens/deliverable_detail_screen.dart';
+import 'screens/deliverable_detail_by_id_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
 import 'screens/project_details_screen.dart';
@@ -56,7 +57,7 @@ import 'screens/ai_assistant_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -67,7 +68,7 @@ void main() async {
     await BackendApiService().initialize();
     await AuthService().initialize();
     // RealAuthService removed - using AuthService instead
-    
+
     // Test SMTP connection on startup (optional)
     // Uncomment the lines below to test SMTP on app startup
     // final emailService = SmtpEmailService();
@@ -152,7 +153,6 @@ final GoRouter _router = GoRouter(
           email: emailFromQuery,
           verificationCode: code,
         );
-
       },
     ),
     GoRoute(
@@ -274,7 +274,8 @@ final GoRouter _router = GoRouter(
         return RouteGuard(
           route: '/report-editor',
           child: SidebarScaffold(
-            child: ReportEditorScreen(deliverableId: deliverableId, reportId: reportId),
+            child: ReportEditorScreen(
+                deliverableId: deliverableId, reportId: reportId),
           ),
         );
       },
@@ -298,7 +299,8 @@ final GoRouter _router = GoRouter(
         return RouteGuard(
           route: '/report-builder',
           child: SidebarScaffold(
-            child: ReportViewScreen(reportId: reportId, showPostSubmitBanner: true),
+            child: ReportViewScreen(
+                reportId: reportId, showPostSubmitBanner: true),
           ),
         );
       },
@@ -311,8 +313,12 @@ final GoRouter _router = GoRouter(
         SignOffReport? initialReport;
         Deliverable? initialDeliverable;
         if (extra is Map) {
-          try { initialReport = extra['report'] as SignOffReport?; } catch (_) {}
-          try { initialDeliverable = extra['deliverable'] as Deliverable?; } catch (_) {}
+          try {
+            initialReport = extra['report'] as SignOffReport?;
+          } catch (_) {}
+          try {
+            initialDeliverable = extra['deliverable'] as Deliverable?;
+          } catch (_) {}
         }
         return RouteGuard(
           route: '/client-review',
@@ -362,7 +368,7 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
-    
+
     GoRoute(
       path: '/send-reminder',
       builder: (context, state) => const RouteGuard(
@@ -383,20 +389,20 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/sprint-console',
-            builder: (context, state) {
-              final projectKey = state.uri.queryParameters['projectKey'];
-              final projectId = state.uri.queryParameters['projectId'];
-              final sprintId = state.uri.queryParameters['sprintId'];
-              return RouteGuard(
-                route: '/sprint-console',
-                child: SidebarScaffold(
-                  child: SprintConsoleScreen(
-                    initialProjectKey: projectKey ?? projectId,
-                    initialSprintId: sprintId,
-                  ),
-                ),
-              );
-            },
+      builder: (context, state) {
+        final projectKey = state.uri.queryParameters['projectKey'];
+        final projectId = state.uri.queryParameters['projectId'];
+        final sprintId = state.uri.queryParameters['sprintId'];
+        return RouteGuard(
+          route: '/sprint-console',
+          child: SidebarScaffold(
+            child: SprintConsoleScreen(
+              initialProjectKey: projectKey ?? projectId,
+              initialSprintId: sprintId,
+            ),
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/sprint-board/:sprintId',
@@ -430,24 +436,36 @@ final GoRouter _router = GoRouter(
         );
       },
     ),
-  GoRoute(
-    path: '/approvals',
-    builder: (context, state) => const RouteGuard(
-      route: '/approval-requests',
-      child: SidebarScaffold(
-        child: ApprovalRequestsScreen(),
+    GoRoute(
+      path: '/approvals',
+      builder: (context, state) => const RouteGuard(
+        route: '/approval-requests',
+        child: SidebarScaffold(
+          child: ApprovalRequestsScreen(),
+        ),
       ),
     ),
-  ),
-  GoRoute(
-    path: '/approval-requests',
-    builder: (context, state) => const RouteGuard(
-      route: '/approval-requests',
-      child: SidebarScaffold(
-        child: ApprovalRequestsScreen(),
+    GoRoute(
+      path: '/approval-requests',
+      builder: (context, state) => const RouteGuard(
+        route: '/approval-requests',
+        child: SidebarScaffold(
+          child: ApprovalRequestsScreen(),
+        ),
       ),
     ),
-  ),
+    GoRoute(
+      path: '/deliverables/:deliverableId',
+      builder: (context, state) {
+        final deliverableId = state.pathParameters['deliverableId']!;
+        return RouteGuard(
+          route: '/deliverables-overview',
+          child: SidebarScaffold(
+            child: DeliverableDetailByIdScreen(deliverableId: deliverableId),
+          ),
+        );
+      },
+    ),
     GoRoute(
       path: '/deliverables',
       builder: (context, state) => const RouteGuard(
@@ -488,7 +506,8 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => RouteGuard(
         route: '/repository',
         child: SidebarScaffold(
-          child: RepositoryScreen(projectKey: state.pathParameters['projectKey']),
+          child:
+              RepositoryScreen(projectKey: state.pathParameters['projectKey']),
         ),
       ),
     ),
@@ -520,7 +539,7 @@ final GoRouter _router = GoRouter(
       ),
     ),
     // Removed redundant user-management route; role-management covers it
-    
+
     GoRoute(
       path: '/profile',
       builder: (context, state) => RouteGuard(
@@ -571,7 +590,8 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => RouteGuard(
         route: '/skill-assessment',
         child: SidebarScaffold(
-          child: SkillAssessmentScreen(selectedSkill: state.pathParameters['skill']),
+          child: SkillAssessmentScreen(
+              selectedSkill: state.pathParameters['skill']),
         ),
       ),
     ),
@@ -632,4 +652,3 @@ final GoRouter _router = GoRouter(
     ),
   ],
 );
-

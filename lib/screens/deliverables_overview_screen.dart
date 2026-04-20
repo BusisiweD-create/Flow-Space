@@ -7,7 +7,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 // ignore: depend_on_referenced_packages
 import 'package:cross_file/cross_file.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:intl/intl.dart';
+import '../utils/date_utils.dart' as app_date_utils;
 import 'package:khono/models/deliverable.dart';
 import 'package:khono/screens/audit_log_detail_screen.dart';
 import 'package:khono/services/backend_api_service.dart';
@@ -124,17 +124,19 @@ class _DeliverablesOverviewScreenState
                     safeMap['deliverableName'] ??
                     'Untitled Deliverable';
               }
-              
+
               // Map backend field names to frontend expectations
               if (safeMap.containsKey('created_by_name')) {
                 safeMap['ownerName'] = safeMap['created_by_name'];
-                safeMap['ownerId'] = safeMap['created_by']; // Map ownerName to ownerId
+                safeMap['ownerId'] =
+                    safeMap['created_by']; // Map ownerName to ownerId
               }
               if (safeMap.containsKey('assigned_to_name')) {
                 safeMap['assignedToName'] = safeMap['assigned_to_name'];
-                safeMap['assignedTo'] = safeMap['assigned_to']; // Map assignedToName to assignedTo
+                safeMap['assignedTo'] =
+                    safeMap['assigned_to']; // Map assignedToName to assignedTo
               }
-              
+
               parsedDeliverables.add(Deliverable.fromJson(safeMap));
             }
           } catch (e) {
@@ -151,7 +153,9 @@ class _DeliverablesOverviewScreenState
             !_authService.isStakeholder) {
           final userId = _authService.currentUser?.id;
           if (userId != null) {
-            filteredList = parsedDeliverables.where((d) => d.ownerId == userId || d.createdBy == userId).toList();
+            filteredList = parsedDeliverables
+                .where((d) => d.ownerId == userId || d.createdBy == userId)
+                .toList();
           }
         }
 
@@ -690,7 +694,7 @@ class _DeliverablesOverviewScreenState
                             leading: Icon(_getFileIcon(artifact.fileType)),
                             title: Text(artifact.originalName),
                             subtitle: Text(
-                              'Uploaded by ${artifact.uploaderName ?? artifact.uploadedBy} on ${DateFormat('MMM d, HH:mm').format(artifact.createdAt)}',
+                              'Uploaded by ${artifact.uploaderName ?? artifact.uploadedBy} on ${app_date_utils.DateUtils.formatDateTime(artifact.createdAt)}',
                             ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -734,7 +738,8 @@ class _DeliverablesOverviewScreenState
 
   Future<void> _uploadArtifactFor(Deliverable deliverable) async {
     try {
-      final res = await FilePicker.platform.pickFiles(withData: true, withReadStream: true);
+      final res = await FilePicker.platform
+          .pickFiles(withData: true, withReadStream: true);
       if (res != null && res.files.isNotEmpty) {
         setState(() => _uploadingIds.add(deliverable.id));
         final file = res.files.single;
@@ -950,7 +955,7 @@ class _DeliverablesOverviewScreenState
                                       fontStyle: FontStyle.italic)),
                             TextSpan(
                                 text:
-                                    ' • ${DateFormat('MMM d, y HH:mm').format(log.createdAt)}'),
+                                    ' • ${app_date_utils.DateUtils.formatDateTime(log.createdAt)}'),
                           ],
                         ),
                         style: TextStyle(fontSize: 12, color: Colors.grey[800]),

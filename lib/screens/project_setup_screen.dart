@@ -218,7 +218,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
                 (user.name.isNotEmpty ? user.name : user.email).trim();
             final userMap = {
               'id': user.id,
-              'name': displayName.isNotEmpty ? displayName : 'Unknown User',
+              'name': displayName,
               'email': user.email,
               'role': user.role.name,
               'originalRole': user.role.name, // Store original role for removal
@@ -270,7 +270,7 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
               } else if (userData['first_name'] != null && userData['first_name'].toString().isNotEmpty) {
                 displayName = '${userData['first_name']} ${userData['last_name'] ?? ''}'.trim();
               } else {
-                displayName = userData['email'] ?? 'Unknown User';
+                displayName = (userData['email'] ?? '').toString().trim();
               }
               
               return {
@@ -281,7 +281,10 @@ class ProjectSetupScreenState extends State<ProjectSetupScreen> {
                 'isActive': userData['is_active'] ?? userData['isActive'] ?? true,
                 'emailVerified': userData['emailVerified'] ?? true,
               };
-            }).where((user) => user['isActive'] == true).toList();
+            }).where((user) =>
+                user['isActive'] == true &&
+                ((user['name']?.toString().trim().isNotEmpty ?? false) ||
+                    (user['email']?.toString().trim().isNotEmpty ?? false))).toList();
             _isLoadingUsers = false;
             
             debugPrint('✅ Final available users count (direct API): ${_availableUsers.length}');
