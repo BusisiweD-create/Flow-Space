@@ -1,7 +1,7 @@
 services:
   # Node.js Backend - Web Service
   - type: web
-    name: module4-api
+    name: flow-space-backend
     env: node
     rootDir: backend
     buildCommand: npm install
@@ -21,7 +21,7 @@ services:
 
   # Flutter Frontend - Docker Deployment
   - type: web
-    name: module4
+    name: flow-space-frontend
     env: docker
     rootDir: frontend
     dockerfilePath: ./Dockerfile

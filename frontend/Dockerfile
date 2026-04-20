@@ -10,7 +10,7 @@ COPY . .
 RUN flutter pub get
 
 # Build Flutter web app with correct API URL
-RUN flutter build web --release --base-href / --dart-define=API_BASE_URL=https://module4-api.onrender.com/api/v1
+RUN flutter build web --release --base-href / --dart-define=API_BASE_URL=https://flow-space.onrender.com/api/v1
 
 # Production stage - serve with nginx
 FROM nginx:alpine
