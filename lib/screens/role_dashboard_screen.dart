@@ -300,7 +300,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 backgroundColor: Colors.red,
               ),
             );
-            router.go('/');
+            router.go(AuthService.postLogoutRoute);
           }
         }
       }
@@ -308,7 +308,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       debugPrint('❌ Error loading current user: $e');
       // If there's an error, redirect to login
       if (mounted) {
-        context.go('/');
+        context.go(AuthService.postLogoutRoute);
       }
     }
   }
@@ -2906,12 +2906,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     try {
       await _authService.signOut();
       if (mounted) {
-        context.go('/');
+        context.go(AuthService.postLogoutRoute);
       }
     } catch (e) {
       debugPrint('Logout error: $e');
       if (mounted) {
-        context.go('/');
+        context.go(AuthService.postLogoutRoute);
       }
     }
   }

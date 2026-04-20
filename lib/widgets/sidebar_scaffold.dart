@@ -553,7 +553,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     final router = GoRouter.of(ctx);
     await AuthService().signOut();
     if (!mounted) return;
-    router.go('/');
+    router.go(AuthService.postLogoutRoute);
   }
 
   Widget _buildLogoutButton() {
