@@ -143,17 +143,13 @@ class TimelineSyncService {
     }
   }
 
-  // Create a new timeline event
-  Future<bool> createTimelineEvent({
-    required String title,
-    required String description,
-    required TimelineEventType type,
-    required DateTime startTime,
-    DateTime? endTime,
-    String? projectId,
-    String? sprintId,
-    String priority = 'medium',
-    Map<String, dynamic>? metadata,
+  // Create a new project timeline event
+  Future<bool> createProjectTimelineEvent({
+    required String projectName,
+    required String projectKey,
+    required DateTime startDate,
+    DateTime? endDate,
+    String? description,
   }) async {
     try {
       final token = await _getAuthToken();
@@ -162,22 +158,49 @@ class TimelineSyncService {
         return false;
       }
 
-      final authService = AuthService();
-      final userId = authService.currentUser?.id;
+      final response = await http.post(
+        Uri.parse('$_baseUrl/timeline'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'title': projectName,
+          'description': description ?? 'Project created',
+          'type': 'milestone',
+          'start_time': startDate.toIso8601String(),
+          'end_time': endDate?.toIso8601String() ?? startDate.toIso8601String(),
+          'project_id': projectKey,
+        }),
+      );
 
-      final eventData = {
-        'entity_type': type.name,
-        'entity_id': projectId ?? sprintId ?? '',
-        'title': title,
-        'description': description,
-        'start_date': startTime.toIso8601String(),
-        'end_date': endTime?.toIso8601String(),
-        'created_by': userId,
-        'status': 'active',
-        'priority': priority,
-        'tags': [],
-        'metadata': metadata ?? {},
-      };
+      if (response.statusCode == 201) {
+        debugPrint('TimelineSync: Successfully created project timeline event');
+        return true;
+      } else {
+        debugPrint('TimelineSync: Failed to create project timeline event - ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('TimelineSync: Error creating project timeline event - $e');
+      return false;
+    }
+  }
+
+  // Create a new sprint timeline event
+  Future<bool> createSprintTimelineEvent({
+    required String sprintName,
+    required String sprintKey,
+    required DateTime startDate,
+    DateTime? endDate,
+    String? description,
+  }) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        debugPrint('TimelineSync: No auth token available');
+        return false;
+      }
 
       final response = await http.post(
         Uri.parse('$_baseUrl/timeline'),
@@ -185,19 +208,25 @@ class TimelineSyncService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: json.encode(eventData),
+        body: json.encode({
+          'title': sprintName,
+          'description': description ?? 'Sprint created',
+          'type': 'milestone',
+          'start_time': startDate.toIso8601String(),
+          'end_time': endDate?.toIso8601String() ?? startDate.toIso8601String(),
+          'sprint_id': sprintKey,
+        }),
       );
 
       if (response.statusCode == 201) {
-        debugPrint('TimelineSync: Successfully created timeline event');
+        debugPrint('TimelineSync: Successfully created sprint timeline event');
         return true;
+      } else {
+        debugPrint('TimelineSync: Failed to create sprint timeline event - ${response.statusCode}');
+        return false;
       }
-
-      debugPrint('TimelineSync: Failed to create event - ${response.statusCode}');
-      return false;
-
     } catch (e) {
-      debugPrint('TimelineSync: Error creating timeline event - $e');
+      debugPrint('TimelineSync: Error creating sprint timeline event - $e');
       return false;
     }
   }

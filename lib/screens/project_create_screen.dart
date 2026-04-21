@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/project_service.dart';
+import '../services/timeline_sync_service.dart';
 
 class ProjectCreateScreen extends StatefulWidget {
   final String? projectId;
@@ -141,6 +142,19 @@ class _ProjectCreateScreenState extends State<ProjectCreateScreen> {
         }
       } else {
         await ProjectService.createProject(projectData);
+        
+        // Create timeline event for the new project
+        if (projectData['name'] != null && projectData['key'] != null) {
+          final timelineSync = TimelineSyncService();
+          await timelineSync.createProjectTimelineEvent(
+            projectName: projectData['name'].toString(),
+            projectKey: projectData['key'].toString(),
+            description: projectData['description']?.toString() ?? '',
+            startDate: DateTime.parse(projectData['startDate']?.toString() ?? DateTime.now().toIso8601String()),
+            endDate: DateTime.parse(projectData['endDate']?.toString() ?? DateTime.now().toIso8601String()),
+          );
+        }
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

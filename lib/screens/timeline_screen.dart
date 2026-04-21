@@ -1488,19 +1488,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
             onPageChanged: _onPageChanged,
             calendarBuilders: CalendarBuilders(
               markerBuilder: (context, date, events) {
-                if (events.isEmpty) return const SizedBox.shrink();
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 2),
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: FlownetColors.crimsonRed,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                );
+                // Remove dots - use timeline view for project strips
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -1527,7 +1516,52 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   Widget _buildTimelineView() {
     final sortedEvents = List<TimelineEvent>.from(_events)
-      ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      ..sort((a, b) => _getEventStartDateTime(a).compareTo(_getEventStartDateTime(b)));
+
+    debugPrint('🎯 Timeline View: Total events loaded: ${sortedEvents.length}');
+    for (final event in sortedEvents) {
+      debugPrint('📅 Event: ${event.title} | Start: ${_getEventStartDateTime(event)} | End: ${_getEventEndDateTime(event)} | Color: ${event.colorTag}');
+    }
+
+    // Calculate date range for the timeline
+    final now = DateTime.now();
+    final startDate = sortedEvents.isNotEmpty 
+        ? _getEventStartDateTime(sortedEvents.first).isBefore(now.subtract(const Duration(days: 30)))
+            ? now.subtract(const Duration(days: 30))
+            : _getEventStartDateTime(sortedEvents.first)
+        : now;
+    final endDate = sortedEvents.isNotEmpty
+        ? _getEventEndDateTime(sortedEvents.last).isAfter(now.add(const Duration(days: 30)))
+            ? now.add(const Duration(days: 30))
+            : _getEventEndDateTime(sortedEvents.last)
+        : now.add(const Duration(days: 30));
+
+    final totalDays = endDate.difference(startDate).inDays + 1;
+    
+    debugPrint('📊 Timeline Range: $startDate to $endDate ($totalDays days)');
+
+    // Add a test event for demonstration
+    final testEvents = sortedEvents.isEmpty ? [
+      TimelineEvent(
+        id: 'test-1',
+        title: 'Sample Project',
+        description: 'This is a test project to demonstrate timeline strips',
+        type: TimelineEventType.milestone,
+        date: DateTime.now(),
+        startTime: DateTime.now(),
+        endTime: DateTime.now().add(const Duration(days: 7)),
+        projectId: 'demo-project-1',
+        createdBy: 'test-user',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        metadata: const {},
+        isCompleted: false,
+        time: '09:00',
+        priority: 'high',
+        project: 'Demo Project',
+        colorTag: 'blue',
+      )
+    ] : sortedEvents;
 
     return GlassCard(
       padding: const EdgeInsets.all(20),
@@ -1542,7 +1576,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                 ),
           ),
           const SizedBox(height: 16),
-          if (sortedEvents.isEmpty)
+          if (testEvents.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -1555,7 +1589,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No events scheduled',
+                      'No projects or sprints scheduled',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: FlownetColors.coolGray,
                           ),
@@ -1565,153 +1599,159 @@ class _TimelineScreenState extends State<TimelineScreen> {
               ),
             )
           else
-            ...sortedEvents.map((event) => _buildTimelineItem(event)),
+            Container(
+              height: 400,
+              child: _buildJiraStyleTimeline(testEvents, startDate, totalDays),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildTimelineItem(TimelineEvent event) {
-    final color = _getColorForTag(event.colorTag);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _showEventDetails(event),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.1),
-              width: 1,
+  Widget _buildJiraStyleTimeline(List<TimelineEvent> events, DateTime startDate, int totalDays) {
+    // Create a timeline grid with date headers and horizontal strips
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        
+        return Column(
+          children: [
+            // Date headers row
+            Container(
+              height: 40,
+              child: Row(
+                children: List.generate(totalDays, (index) {
+                  final date = startDate.add(Duration(days: index));
+                  final isToday = _isSameDay(date, DateTime.now());
+                  
+                  return Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isToday 
+                            ? FlownetColors.crimsonRed.withValues(alpha: 0.2)
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: FlownetColors.slate.withValues(alpha: 0.3),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${date.day}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: isToday ? FlownetColors.crimsonRed : FlownetColors.coolGray,
+                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 48,
+            const SizedBox(height: 8),
+            // Timeline strips area
+            Expanded(
+              child: Container(
                 decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(
+                    color: FlownetColors.slate.withValues(alpha: 0.2),
+                    width: 0.5,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          app_date_utils.DateUtils.formatDate(
-                              event.date ?? DateTime.now()),
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: FlownetColors.coolGray,
-                                  ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  children: events.map((event) {
+                    final eventStart = _getEventStartDateTime(event);
+                    final eventEnd = _getEventEndDateTime(event);
+                    final color = _getColorForTag(event.colorTag);
+                    
+                    // Calculate position and width for the strip using available width
+                    final startOffset = eventStart.difference(startDate).inDays;
+                    final duration = eventEnd.difference(eventStart).inDays + 1;
+                    final leftPosition = (startOffset / totalDays) * availableWidth;
+                    final stripWidth = (duration / totalDays) * availableWidth;
+                
+                return Positioned(
+                  left: leftPosition,
+                  top: 20, // Position in the middle of the row
+                  width: stripWidth,
+                  height: 32, // Height of the strip
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => _showEventDetails(event),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: color,
+                            width: 1,
                           ),
-                          child: Text(
-                            (event.priority ?? '').toUpperCase(),
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
                             ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  event.title,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: FlownetColors.pureWhite,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (event.project != null) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    event.project!,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: FlownetColors.pureWhite,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      event.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: FlownetColors.pureWhite,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${event.time ?? ''} • ${event.project ?? ''}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: FlownetColors.coolGray,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildEventChip(TimelineEvent event) {
-    final color = _getColorForTag(event.colorTag);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => _showEventDetails(event),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: color.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event.title,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: FlownetColors.pureWhite,
-                          ),
-                    ),
-                    Text(
-                      '${event.time ?? ''} • ${event.project ?? ''}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: FlownetColors.coolGray,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
   }
 
   void _showEventDetails(TimelineEvent event) {
