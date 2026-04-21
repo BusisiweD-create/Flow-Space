@@ -3,6 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'dart:math';
 import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
+import '../services/api_client.dart';
+import '../services/signature_service.dart';
+import '../models/user_signature.dart';
+import '../widgets/signature_capture_widget.dart';
 
 class AIAssistantScreen extends StatefulWidget {
   const AIAssistantScreen({super.key});
@@ -14,11 +18,12 @@ class AIAssistantScreen extends StatefulWidget {
 class _AIAssistantScreenState extends State<AIAssistantScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  String _lastConfirmedReportTitle = '';
   final _messages = <Map<String, String>>[
     {
       'role': 'system',
       'content':
-          'You are a helpful assistant for a project delivery and sign-off tool. Keep responses concise, practical, and safe. Do not fabricate data. If the user changes topics or asks something unrelated to the current thread, switch immediately and answer the latest request without repeating the previous response.',
+          'You are FlowPilot, a proactive assistant inside a sprint and deliverables sign-off app. Write in a natural, confident, AI tone (not robotic). Keep responses concise but complete, and ask focused follow-up questions only when needed. Do not fabricate data.\n\nWhen generating a Sprint Sign-Off Report:\n- Use the sprint name as the report title.\n- Present the report in clean sections (Project, Sprint, Sprint Summary, Team Members, Deliverables, Sign-Off Notes).\n- Before exporting a PDF, prompt the user to add a digital signature for the “Prepared By” section (so the final PDF includes their signature).',
     },
   ];
 
@@ -71,6 +76,165 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     return s.trim();
   }
 
+  String _extractTitleFromPdfContent(String text) {
+    final lines = text.split('\n');
+    final limit = lines.length > 12 ? 12 : lines.length;
+    for (var i = 0; i < limit; i++) {
+      final raw = lines[i];
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+      final upper = line.toUpperCase();
+      if (upper == 'PROJECT' || upper == 'SPRINT' || upper == 'SPRINT SUMMARY' || upper == 'TEAM MEMBERS') break;
+      final m = RegExp(r'^(title|report title|suggested title)\s*:\s*(.+)$', caseSensitive: false).firstMatch(line);
+      if (m != null) {
+        final v = (m.group(2) ?? '').trim();
+        if (v.isNotEmpty && !v.toLowerCase().contains('feedback')) return v;
+      }
+    }
+    return '';
+  }
+
+  String _extractSprintNameFromPdfContent(String text) {
+    final lines = text.split('\n');
+    var inSprint = false;
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+      final upper = line.toUpperCase();
+      if (upper == 'SPRINT') {
+        inSprint = true;
+        continue;
+      }
+      if (inSprint) {
+        if (upper == 'SPRINT SUMMARY' || upper == 'TEAM MEMBERS' || upper == 'DELIVERABLES' || upper == 'SIGN-OFF NOTES' || upper == 'PROJECT') {
+          break;
+        }
+        final m = RegExp(r'^(name|sprint name)\s*:\s*(.+)$', caseSensitive: false).firstMatch(line);
+        if (m != null) {
+          final v = (m.group(2) ?? '').trim();
+          if (v.isNotEmpty) return v;
+        }
+      }
+    }
+    for (final raw in lines.take(20)) {
+      final line = raw.trim();
+      final m = RegExp(r'^(sprint)\s*:\s*(.+)$', caseSensitive: false).firstMatch(line);
+      if (m != null) {
+        final v = (m.group(2) ?? '').trim();
+        if (v.isNotEmpty) return v;
+      }
+    }
+    return '';
+  }
+
+  String _signaturePromptLine() {
+    final options = <String>[
+      'Before I finalize the PDF, let’s add your signature so the “Prepared By” section is complete.',
+      'Quick check before export: I can include your digital signature in the “Prepared By” section. Add it now?',
+      'One last step before I generate the PDF—please add your signature so the report is ready to send.',
+    ];
+    final r = Random(DateTime.now().microsecondsSinceEpoch);
+    return options[r.nextInt(options.length)];
+  }
+
+  Future<Map<String, String?>> _ensureSignatureForAiExport() async {
+    final signatureService = SignatureService(ApiClient());
+    try {
+      final sig = await signatureService.getDefaultSignature();
+      if (sig != null && sig.signatureData.trim().isNotEmpty) {
+        return {'signatureData': sig.signatureData, 'signatureType': sig.signatureType};
+      }
+    } catch (_) {}
+    try {
+      final sigs = await signatureService.getUserSignatures();
+      UserSignature? pick;
+      for (final s in sigs) {
+        if (s.isDefault && s.signatureData.trim().isNotEmpty) {
+          pick = s;
+          break;
+        }
+      }
+      if (pick == null) {
+        for (final s in sigs) {
+          if (s.signatureData.trim().isNotEmpty) {
+            pick = s;
+            break;
+          }
+        }
+      }
+      if (pick != null) {
+        return {'signatureData': pick.signatureData, 'signatureType': pick.signatureType};
+      }
+    } catch (_) {}
+
+    if (!mounted) return {};
+
+    _messages.add({'role': 'assistant', 'content': _signaturePromptLine()});
+    if (mounted) setState(() {});
+
+    final key = GlobalKey<SignatureCaptureWidgetState>();
+    final result = await showDialog<Map<String, String?>?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add your signature'),
+          content: SizedBox(
+            width: 520,
+            child: SignatureCaptureWidget(
+              key: key,
+              allowSignatureReuse: true,
+              showAuditInfo: false,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('Skip'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final sig = await key.currentState?.getSignature();
+                final signatureData = (sig ?? '').trim();
+                if (signatureData.isEmpty) return;
+                try {
+                  await signatureService.saveSignature(signatureData, 'drawn', true);
+                  if (context.mounted) {
+                    Navigator.of(context).pop({'signatureData': signatureData, 'signatureType': 'drawn'});
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    Navigator.of(context).pop({'signatureData': signatureData, 'signatureType': 'drawn'});
+                  }
+                }
+              },
+              child: const Text('Save & continue'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? {};
+  }
+
+  bool _looksLikeFeedbackOrNotes(String value) {
+    final t = value.trim();
+    if (t.isEmpty) return true;
+    if (t.contains('\n')) return true;
+    if (t.length > 120) return true;
+    final lower = t.toLowerCase();
+    if (lower.contains('feedback')) return true;
+    if (lower.contains('sign-off notes') || lower.contains('sign off notes') || lower.contains('signoff notes')) return true;
+    if (RegExp(r'^(please|kindly|can you|could you|fix|remove|add|change|update|make sure|ensure)\b', caseSensitive: false).hasMatch(t)) {
+      return true;
+    }
+    if (RegExp(r'[.?!]$').hasMatch(t) &&
+        RegExp(r'\b(fix|issue|issues|feedback)\b', caseSensitive: false).hasMatch(t)) {
+      return true;
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -87,6 +251,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
+
+    final maybeTitleFromUser = _extractTitleFromPdfContent(text);
+    if (maybeTitleFromUser.isNotEmpty) {
+      _lastConfirmedReportTitle = maybeTitleFromUser;
+    }
 
     setState(() {
       _isSending = true;
@@ -134,11 +303,35 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
             }
           }
           if (type == 'export_pdf') {
-            final title = (m['title'] ?? 'Report').toString();
+            final rawTitle = (m['title'] ?? 'Report').toString();
             final contentForPdf = (m['content'] ?? content ?? '').toString();
             if (contentForPdf.trim().isNotEmpty && mounted) {
               try {
-                await ReportExportService().exportTextAsPDF(title: title, content: contentForPdf);
+                final sig = await _ensureSignatureForAiExport();
+                final extracted = _extractTitleFromPdfContent(contentForPdf);
+                final sprintName = _extractSprintNameFromPdfContent(contentForPdf);
+                final candidates = <String>[extracted, _lastConfirmedReportTitle, rawTitle];
+                var useTitle = 'Report';
+                if (sprintName.trim().isNotEmpty) {
+                  useTitle = sprintName.trim();
+                  _lastConfirmedReportTitle = useTitle;
+                } else {
+                for (final c in candidates) {
+                  final v = c.trim();
+                  if (v.isEmpty) continue;
+                  if (_looksLikeFeedbackOrNotes(v)) continue;
+                  useTitle = v;
+                  break;
+                }
+                }
+                await ReportExportService().exportTextAsPDF(
+                  title: useTitle,
+                  content: contentForPdf,
+                  useSignOffTemplate: true,
+                  subtitle: 'SPRINT SIGN-OFF REPORT',
+                  preparedBySignatureData: (sig['signatureData'] ?? '').trim().isEmpty ? null : sig['signatureData'],
+                  preparedBySignatureType: (sig['signatureType'] ?? '').trim().isEmpty ? null : sig['signatureType'],
+                );
               } catch (_) {}
             }
           }
@@ -150,6 +343,10 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         final safeContent = resp.isSuccess
             ? (content?.isNotEmpty == true ? _sanitizeAssistantText(content!) : 'No response received.')
             : _sanitizeAssistantText(resp.error ?? 'Request failed.');
+        final maybeTitleFromAssistant = _extractTitleFromPdfContent(safeContent);
+        if (maybeTitleFromAssistant.isNotEmpty) {
+          _lastConfirmedReportTitle = maybeTitleFromAssistant;
+        }
         setState(() {
           _messages.add({
             'role': 'assistant',

@@ -95,6 +95,7 @@ flutter:
   
   assets:
     - assets/Icons/
+    - assets/Icons/Brand/
     - assets/icons/
     - "assets/Icons/Project Management/Project Management_Red.png"
     - "assets/Icons/Project Management/Project Management_White.png"
