@@ -91,10 +91,20 @@ class KhonoApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDarkMode = ref.watch(themeProvider);
+    final lightTheme = FlownetTheme.lightTheme.copyWith(
+      textTheme: FlownetTheme.lightTheme.textTheme.apply(fontFamily: 'Poppins'),
+      primaryTextTheme:
+          FlownetTheme.lightTheme.primaryTextTheme.apply(fontFamily: 'Poppins'),
+    );
+    final darkTheme = FlownetTheme.darkTheme.copyWith(
+      textTheme: FlownetTheme.darkTheme.textTheme.apply(fontFamily: 'Poppins'),
+      primaryTextTheme:
+          FlownetTheme.darkTheme.primaryTextTheme.apply(fontFamily: 'Poppins'),
+    );
     return MaterialApp.router(
       title: 'Flownet Workspaces - Project Management Hub',
-      theme: FlownetTheme.lightTheme,
-      darkTheme: FlownetTheme.darkTheme,
+      theme: lightTheme,
+      darkTheme: darkTheme,
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
