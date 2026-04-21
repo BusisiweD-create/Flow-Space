@@ -117,14 +117,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/projects',
         requiredPermission: null,
       ),
-      if (includeSprints)
-        const _NavItem(
-          label: 'Sprints',
-          icon: Icons.timer_outlined,
-          iconName: 'sprints',
-          route: '/sprint-console',
-          requiredPermission: 'view_sprints',
-        ),
+      const _NavItem(
+        label: 'Sprints',
+        icon: Icons.timer_outlined,
+        iconName: 'sprints',
+        route: '/sprint-console',
+        requiredPermission: 'view_sprints',
+      ),
       const _NavItem(
         label: 'Deliverables',
         icon: Icons.assignment_outlined,
