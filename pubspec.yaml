@@ -100,6 +100,8 @@ flutter:
     - "assets/Icons/Project Management/Project Management_White.png"
     - assets/fonts/
     - assets/logo.png
+    - assets/data/
+    - frontend/assets/
 
   fonts:
     - family: Poppins

@@ -7,7 +7,7 @@ class Environment {
   static const String appDescription =
       'A social learning platform built with Flutter';
 
-  // API Configuration - Use local backend for development, Render for production
+// API Configuration - Use local backend for development, Render for production
   static String get apiBaseUrl {
     // Check if running locally
     try {

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/flownet_theme.dart';
 import '../services/auth_service.dart';
+import '../providers/service_providers.dart';
 import '../utils/app_icons.dart';
 import 'background_image.dart';
 import 'sidebar_version_display.dart';
@@ -32,37 +34,72 @@ class SidebarScaffold extends StatefulWidget {
 }
 
 class _SidebarScaffoldState extends State<SidebarScaffold> {
-  bool _collapsed = false;
-  static const double _sidebarWidth = 280;
-  static const double _collapsedWidth = 80;
-
-  // Navigation history tracking
-  List<String> _navigationHistory = ['/dashboard'];
-  int _historyIndex = 0;
-
-  // Track navigation history
-  void _updateNavigationHistory(String route) {
-    if (_navigationHistory.isEmpty ||
-        _navigationHistory[_historyIndex] != route) {
-      // Remove any forward history when navigating to new route
-      if (_historyIndex < _navigationHistory.length - 1) {
-        _navigationHistory =
-            _navigationHistory.take(_historyIndex + 1).toList();
-      }
-
-      setState(() {
-        _navigationHistory.add(route);
-        _historyIndex = _navigationHistory.length - 1;
-      });
-    }
-  }
+  static const double _sidebarWidth = 240;
 
   List<_NavItem> get _navItems {
     final authService = AuthService();
-    final currentUser = authService.currentUser;
-    final userRole = currentUser != null 
-        ? currentUser.role.toString().toLowerCase()
-        : '';
+    final userRole = authService.currentUser?.role.toString().toLowerCase() ?? '';
+
+    final isAdminLike = userRole.contains('admin') || userRole.contains('system');
+    if (isAdminLike) {
+      // Match the new system admin sidebar layout and ordering.
+      return const [
+        _NavItem(
+          label: 'Dashboard',
+          icon: Icons.dashboard_outlined,
+          iconName: 'dashboard',
+          route: '/dashboard',
+        ),
+        _NavItem(
+          label: 'Projects',
+          icon: Icons.folder_outlined,
+          iconName: 'projects',
+          route: '/projects',
+        ),
+        _NavItem(
+          label: 'Sprints',
+          icon: Icons.timer_outlined,
+          iconName: 'sprints',
+          route: '/sprints',
+        ),
+        _NavItem(
+          label: 'Deliverables',
+          icon: Icons.assignment_outlined,
+          iconName: 'deliverables',
+          route: '/deliverables-overview',
+        ),
+        _NavItem(
+          label: 'Timeline',
+          icon: Icons.calendar_today_outlined,
+          iconName: 'timeline',
+          route: '/timeline',
+        ),
+        _NavItem(
+          label: 'Approval Requests',
+          icon: Icons.assignment_outlined,
+          iconName: 'approval_requests',
+          route: '/approval-requests',
+        ),
+        _NavItem(
+          label: 'Repository',
+          icon: Icons.folder_outlined,
+          iconName: 'repository',
+          route: '/repository',
+        ),
+        _NavItem(
+          label: 'Reports',
+          icon: Icons.assessment_outlined,
+          iconName: 'reports',
+          route: '/report-repository',
+        ),
+        _NavItem(
+          label: 'User Management',
+          icon: Icons.admin_panel_settings_outlined,
+          iconName: 'role_management',
+          route: '/role-management',
+        ),
+      ];
+    }
 
     final bool includeSprints = userRole.contains('admin') ||
         userRole.contains('system') ||
@@ -118,7 +155,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
     // Role-specific items
     final List<_NavItem> roleSpecificItems = [];
-
     if (userRole.contains('admin') || userRole.contains('system')) {
       // Admin/System users get full access
       roleSpecificItems.addAll([
@@ -158,7 +194,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           requiredPermission: null,
         ),
       ]);
-    } else if (userRole.contains('delivery') || userRole.contains('project')) {
+    if (userRole.contains('delivery') || userRole.contains('project')) {
       // Delivery/Project managers get project-related access
       roleSpecificItems.addAll([
         const _NavItem(
@@ -230,31 +266,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _restoreSidebarState();
-  }
-
-  void _restoreSidebarState() {
-    // Restore sidebar state from SharedPreferences or other storage
-    // For now, we'll use a default state
-    _collapsed = false;
-  }
-
-  void _persistSidebarState() {
-    // Save sidebar state to SharedPreferences or other storage
-    // Implementation would go here
-  }
-
-  void _toggleSidebar() {
-    setState(() {
-      _collapsed = !_collapsed;
-    });
-    _persistSidebarState();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final sidebarColor =
+        isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight;
+    final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
+
     String routeLocation = '/';
     try {
       final router = GoRouter.maybeOf(context);
@@ -269,175 +286,30 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     }
     final isDesktop = MediaQuery.of(context).size.width > 768;
 
-    // Track navigation history
-    _updateNavigationHistory(routeLocation);
-
     if (isDesktop) {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: BackgroundImage(
           child: Row(
             children: [
-              // Sidebar with glassmorphism styling (Busisiwe branch look)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: _collapsed ? _collapsedWidth : _sidebarWidth,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withAlpha((0.1 * 255).round()),
-                    width: 1,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                  ),
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.transparent,
-                    ),
-                    child: Column(
-                      children: [
-                        // Header with logo and collapse toggle
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            left: 12,
-                            right: 12,
-                            top: 24,
-                            bottom: 16,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.asset(
-                                'assets/Icons/Red_Khono_Discs.png',
-                                width: _collapsed ? 28 : 64,
-                                height: _collapsed ? 28 : 64,
-                                fit: BoxFit.contain,
-                              ),
-                              if (!_collapsed) const SizedBox(width: 40),
-                              if (!_collapsed)
-                                IconButton(
-                                  onPressed: _toggleSidebar,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    _collapsed
-                                        ? Icons.chevron_right
-                                        : Icons.chevron_left,
-                                    color: FlownetColors.textSecondary,
-                                    size: 20,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Navigation items (pill-style highlight like reference UI)
-                        Expanded(
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            itemCount: _navItems.length,
-                            itemExtent: 56, // Match Busisiwe sidebar height
-                            cacheExtent: 200,
-                            addAutomaticKeepAlives: true,
-                            itemBuilder: (context, index) {
-                              final item = _navItems[index];
-                              final active =
-                                  routeLocation.startsWith(item.route);
-                              return Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  // Active item: soft pill-shaped dark highlight, no red border
-                                  color: active
-                                      ? Colors.white.withAlpha(
-                                          (0.08 * 255).round(),
-                                        )
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () {
-                                      if (!routeLocation
-                                          .startsWith(item.route)) {
-                                        context.go(item.route);
-                                      }
-                                    },
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: _collapsed ? 8 : 16,
-                                        vertical: 12,
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: _collapsed
-                                            ? MainAxisAlignment.center
-                                            : MainAxisAlignment.start,
-                                        children: [
-                                          SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: AppIcons.getIconWidget(
-                                              item.iconName,
-                                              fallbackIcon: item.icon,
-                                              isActive: active,
-                                              size: 20,
-                                              color: active
-                                                  ? FlownetColors.pureWhite
-                                                  : FlownetColors.textSecondary,
-                                            ),
-                                          ),
-                                          if (!_collapsed) ...[
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                item.label,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                          child: _buildLogoutButton(),
-                        ),
-                        SidebarVersionDisplay(
-                          isSidebarCollapsed: _collapsed,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              _buildDesktopSidebar(routeLocation),
               Expanded(
                 child: Container(
                   color: Colors.transparent,
-                  child: Column(
+                  child: Stack(
                     children: [
-                      Expanded(child: widget.child),
+                      Positioned.fill(child: widget.child),
+                      const Positioned(
+                        left: 14,
+                        bottom: 8,
+                        child: SidebarVersionDisplay(isSidebarCollapsed: false),
+                      ),
+                      if (routeLocation != '/dashboard')
+                        Positioned(
+                          right: 20,
+                          bottom: 96,
+                          child: _buildThemeToggleButton(isDarkMode),
+                        ),
                     ],
                   ),
                 ),
@@ -453,8 +325,10 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         body: BackgroundImage(
           child: widget.child,
         ),
+        floatingActionButton:
+            routeLocation == '/dashboard' ? null : _buildThemeToggleButton(isDarkMode),
         drawer: Drawer(
-          backgroundColor: FlownetColors.charcoalBlack,
+          backgroundColor: sidebarColor,
           child: Column(
             children: [
               // Drawer header
@@ -476,11 +350,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                       width: 32,
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Flow-Space',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: sidebarTextColor,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -488,7 +362,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: Icon(Icons.close, color: sidebarTextColor),
                     ),
                   ],
                 ),
@@ -511,6 +385,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       padding: EdgeInsets.zero,
       itemCount: _navItems.length,
       itemBuilder: (context, index) {
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
+        final sidebarSubtleText = isDarkMode ? FlownetColors.textSecondary : Colors.black87;
         final item = _navItems[index];
         final active = routeLocation.startsWith(item.route);
 
@@ -528,12 +405,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
               fallbackIcon: item.icon,
               isActive: active,
               size: 20,
-              color: active ? Colors.white : FlownetColors.textSecondary,
+              color: active ? sidebarTextColor : sidebarSubtleText,
             ),
             title: Text(
               item.label,
               style: TextStyle(
-                color: active ? Colors.white : FlownetColors.textSecondary,
+                color: active ? sidebarTextColor : sidebarSubtleText,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
@@ -549,6 +426,241 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     );
   }
 
+  Widget _buildDesktopSidebar(String routeLocation) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color sidebarBackground =
+        isDarkMode ? const Color(0xFF0C0C0C) : const Color(0xFFE8E8E8);
+    final Color sidebarBorder =
+        isDarkMode ? const Color(0xFF2A2A2A) : const Color(0xFFD2D2D2);
+    final Color sidebarText =
+        isDarkMode ? Colors.white : const Color(0xFF141414);
+    final Color subtitleText = isDarkMode
+        ? Colors.white.withAlpha((0.82 * 255).round())
+        : const Color(0xFF3F3F3F);
+
+    return Container(
+      width: _sidebarWidth,
+      decoration: BoxDecoration(
+        color: sidebarBackground,
+        border: Border(
+          right: BorderSide(color: sidebarBorder, width: 1),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: sidebarBorder, width: 1),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Text(
+                  'K H O N O L O G Y',
+                  style: TextStyle(
+                    color: Color(0xFFE02020),
+                    fontSize: 13,
+                    letterSpacing: 2.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Welcome to\nDeliverable & Sprint Sign-Off Hub',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: subtitleText,
+                    fontSize: 11,
+                    height: 1.35,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              itemCount: _navItems.length,
+              itemBuilder: (context, index) {
+                final item = _navItems[index];
+                final active = routeLocation.startsWith(item.route);
+                return _buildDesktopNavItem(item, active, routeLocation);
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+            child: Divider(color: sidebarBorder, height: 1),
+          ),
+          _buildDesktopFooterItem(
+            label: 'Account Profile',
+            iconName: 'account',
+            fallbackIcon: Icons.person_outline,
+            route: '/profile',
+            currentRoute: routeLocation,
+            textColor: sidebarText,
+          ),
+          _buildDesktopFooterItem(
+            label: 'Logout',
+            iconName: 'logout',
+            fallbackIcon: Icons.logout,
+            onTap: () => _handleLogout(context),
+            currentRoute: routeLocation,
+            textColor: sidebarText,
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopNavItem(
+    _NavItem item,
+    bool active,
+    String routeLocation,
+  ) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color navText = isDarkMode ? Colors.white : const Color(0xFF141414);
+    return Container(
+      height: 32,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFFD70E0E) : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: GestureDetector(
+        onTap: () {
+          if (!routeLocation.startsWith(item.route)) {
+            context.go(item.route);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE9E9E9),
+                  shape: BoxShape.circle,
+                ),
+                clipBehavior: Clip.antiAlias,
+                alignment: Alignment.center,
+                child: AppIcons.getIconWidget(
+                  item.iconName,
+                  fallbackIcon: item.icon,
+                  isActive: false,
+                  size: 16,
+                  visualScale: 2.2,
+                  fit: BoxFit.cover,
+                  color: const Color(0xFF121212),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    color: active ? Colors.white : navText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopFooterItem({
+    required String label,
+    required String iconName,
+    required IconData fallbackIcon,
+    required String currentRoute,
+    required Color textColor,
+    String? route,
+    VoidCallback? onTap,
+  }) {
+    final bool active = route != null && currentRoute.startsWith(route);
+    return Container(
+      height: 36,
+      margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFFD70E0E) : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: GestureDetector(
+        onTap: () {
+          if (onTap != null) {
+            onTap();
+            return;
+          }
+          if (route != null && !currentRoute.startsWith(route)) {
+            context.go(route);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE9E9E9),
+                  shape: BoxShape.circle,
+                ),
+                clipBehavior: Clip.antiAlias,
+                alignment: Alignment.center,
+                child: AppIcons.getIconWidget(
+                  iconName,
+                  fallbackIcon: fallbackIcon,
+                  isActive: false,
+                  size: 16,
+                  visualScale: 2.2,
+                  fit: BoxFit.cover,
+                  color: const Color(0xFF121212),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: active ? Colors.white : textColor,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeToggleButton(bool isDarkMode) {
+    return FloatingActionButton.small(
+      heroTag: null,
+      onPressed: () {
+        ProviderScope.containerOf(context, listen: false)
+            .read(themeProvider.notifier)
+            .toggleTheme();
+      },
+      backgroundColor: isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight,
+      foregroundColor: isDarkMode ? Colors.white : Colors.black,
+      child: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
+    );
+  }
+
   Future<void> _handleLogout(BuildContext ctx) async {
     final router = GoRouter.of(ctx);
     await AuthService().signOut();
@@ -556,38 +668,4 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     router.go(AuthService.postLogoutRoute);
   }
 
-  Widget _buildLogoutButton() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: FlownetColors.crimsonRed.withAlpha((0.1 * 255).round()),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: FlownetColors.crimsonRed.withAlpha((0.3 * 255).round()),
-          width: 1,
-        ),
-      ),
-      child: TextButton.icon(
-        onPressed: () => _handleLogout(context),
-        icon: AppIcons.getIconWidget(
-          'logout',
-          fallbackIcon: Icons.logout,
-          isActive: true,
-          size: 20,
-          color: FlownetColors.crimsonRed,
-        ),
-        label: const Text(
-          'Logout',
-          style: TextStyle(
-            color: FlownetColors.crimsonRed,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        ),
-      ),
-    );
-  }
 }
