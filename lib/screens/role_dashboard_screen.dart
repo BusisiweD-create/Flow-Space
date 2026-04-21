@@ -20,6 +20,7 @@ import '../widgets/app_modal.dart';
 import '../utils/date_utils.dart' as app_date_utils;
 import '../utils/user_label_utils.dart';
 import '../providers/service_providers.dart';
+import '../theme/flownet_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -1291,33 +1292,441 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildDeliveryLeadDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+  Widget _buildDeliveryLeadTopHeader() {
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Text(
+                'Delivery Manager Dashboard',
+                style: _dashboardTextStyle(size: 28, weight: FontWeight.w700),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                'Hello, ${_currentUser?.name ?? 'Name Surname'}',
+                style: _dashboardTextStyle(size: 14, weight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+        _buildTeamHeaderIconButton(
+          icon: Icons.mail_outline,
+          onTap: () => context.go('/notifications'),
+        ),
+        const SizedBox(width: 8),
+        _buildTeamHeaderIconButton(
+          icon: Icons.notifications_none,
+          onTap: () => _loadPendingReports(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeliveryLeadApprovalRemindersPanel({bool compact = false}) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          _buildTeamRoundAssetIcon('assets/Icons/reminder_icon.png'),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Approval Reminders',
+                  style: _dashboardTextStyle(
+                    size: compact ? 20 : 22,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Dream BIG, work hard and stay focused - make it a productive day!',
+                  style: _dashboardTextStyle(size: 11, weight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildTeamPillButton('SEND REMINDER', () => context.go('/send-reminder')),
+              _buildTeamPillButton('TRIGGER ESCALATION', () => context.go('/send-reminder')),
+              _buildTeamPillButton('DELIVERABLES OVERVIEW', () => context.go('/deliverables-overview')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryLeadMetricCard(String title, String value, IconData icon) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildReminderQuickActions(),
-          const SizedBox(height: 24),
-          _buildTeamMetrics(),
-          const SizedBox(height: 24),
-          _buildReviewMetrics(),
-          const SizedBox(height: 24),
-          _buildSprintOverview(),
-          const SizedBox(height: 24),
-          _buildKanbanLinkCard(),
-          const SizedBox(height: 24),
-          _buildDeliverablesOverview(),
-          const SizedBox(height: 24),
-          _buildProjectsOverview(),
-          const SizedBox(height: 24),
-          _buildPendingReviews(),
-          const SizedBox(height: 24),
-          _buildTeamPerformance(),
+          Text(title, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+          Text('Additional detail if required.', style: _dashboardTextStyle(size: 11)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              const Spacer(),
+              _buildTeamRoundIcon(icon, size: 16),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTeamRoundAssetIcon(String assetPath, {double size = 20}) {
+    return ClipOval(
+      child: Container(
+        width: 34,
+        height: 34,
+        color: Colors.white.withValues(alpha: 0.85),
+        padding: const EdgeInsets.all(6),
+        child: Image.asset(
+          assetPath,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
+
+  Map<String, int> _computeDeliverableStatusCounts() {
+    final now = DateTime.now();
+    int completed = 0;
+    int inProgress = 0;
+    int overdue = 0;
+    for (final d in _dashboardDeliverables) {
+      final status = (d['status'] ?? '').toString().toLowerCase();
+      final isCompleted = status == 'completed' || status == 'done';
+      if (isCompleted) {
+        completed++;
+      } else {
+        inProgress++;
+      }
+      if (!isCompleted) {
+        final rawDue = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+        DateTime? due;
+        if (rawDue.isNotEmpty) {
+          try {
+            due = DateTime.parse(rawDue);
+          } catch (_) {}
+        }
+        if (due != null && due.isBefore(now)) {
+          overdue++;
+        }
+      }
+    }
+    return {
+      'total': _dashboardDeliverables.length,
+      'completed': completed,
+      'inProgress': inProgress,
+      'overdue': overdue,
+    };
+  }
+
+  Widget _buildDeliveryLeadTeamMetricsCards({bool compact = false}) {
+    final counts = _computeDeliverableStatusCounts();
+    final total = counts['total'] ?? 0;
+    final completed = counts['completed'] ?? 0;
+    final inProgress = counts['inProgress'] ?? 0;
+    final overdue = counts['overdue'] ?? 0;
+    final pendingReviews = _pendingReports.length;
+    final completionRate = total > 0 ? ((completed / total) * 100).round() : 0;
+
+    final cards = [
+      _buildDeliveryLeadMetricAssetCard('Deliverables', '$total', 'assets/Icons/deliverables_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('In Progress', '$inProgress', 'assets/Icons/progress_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Completed', '$completed', 'assets/Icons/completed_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Overdue', '$overdue', 'assets/Icons/overdue_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Active Sprints', '${_dashboardSprints.length}', 'assets/Icons/active_sprints_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Active Projects', '${_dashboardProjects.length}', 'assets/Icons/active_projects_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Pending Reviews', '$pendingReviews', 'assets/Icons/review_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Completion Rate', '$completionRate%', 'assets/Icons/completion_kpi_icon.png'),
+    ];
+
+    if (compact) {
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: cards.map((c) => SizedBox(width: 240, child: c)).toList(),
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            for (int i = 0; i < 4; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              Expanded(child: cards[i]),
+            ],
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (int i = 4; i < 8; i++) ...[
+              if (i > 4) const SizedBox(width: 10),
+              Expanded(child: cards[i]),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeliveryLeadVelocityPanel() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(Icons.trending_up),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Revenue Forecast', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Projected vs Actual Revenue', style: _dashboardTextStyle(size: 11)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 220,
+            child: SprintPerformanceChart(
+              sprints: _dashboardSprints,
+              chartType: _selectedChartType,
+              showTitle: false,
+              useCard: false,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryLeadKpiCard({
+    required String title,
+    required String value,
+    required String assetPath,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+          Text('Additional description information to include.',
+              style: _dashboardTextStyle(size: 10, weight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(value, style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              const Spacer(),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: FlownetColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: Image.asset(
+                    assetPath,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryLeadMetricAssetCard(String title, String value, String assetPath) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+          Text('Additional detail if required.', style: _dashboardTextStyle(size: 11)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              const Spacer(),
+              _buildTeamRoundAssetIcon(assetPath, size: 16),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryLeadVelocitySection({required bool compact}) {
+    final total = _dashboardDeliverables.length;
+    final completed = _dashboardDeliverables
+        .where((d) => (d['status'] ?? '').toString().toLowerCase() == 'completed')
+        .length;
+    final planned = total;
+    final carryOver = (planned - completed) < 0 ? 0 : (planned - completed);
+    final avgVelocity = planned > 0 ? ((completed / planned) * 100).round() : 0;
+
+    final cards = [
+      _buildDeliveryLeadKpiCard(title: 'Average Velocity', value: '$avgVelocity%', assetPath: 'assets/Icons/completion_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(title: 'Planned', value: '$planned', assetPath: 'assets/Icons/progress_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(title: 'Completed', value: '$completed', assetPath: 'assets/Icons/completed_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(title: 'Carry Over', value: '$carryOver', assetPath: 'assets/Icons/overdue_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(title: 'Defects', value: '0', assetPath: 'assets/Icons/review_kpi_icon.png'),
+    ];
+
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Velocity Trend',
+          style: TextStyle(
+            color: textColor,
+            fontSize: compact ? 22 : 26,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildDeliveryLeadVelocityPanel(),
+        const SizedBox(height: 10),
+        if (compact)
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: cards.map((c) => SizedBox(width: 240, child: c)).toList(),
+          )
+        else
+          Row(
+            children: [
+              for (int i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                Expanded(child: cards[i]),
+              ],
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDeliveryLeadDashboard() {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool compact = constraints.maxWidth < 980;
+        final double headingSize = compact ? 22 : 26;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 14),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1380),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDeliveryLeadTopHeader(),
+                  const SizedBox(height: 12),
+                  _buildDeliveryLeadApprovalRemindersPanel(compact: compact),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Team Metrics Overview',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: headingSize,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDeliveryLeadTeamMetricsCards(compact: compact),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Review Metrics Overview',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: headingSize,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTeamReviewMetricsCards(compact: compact),
+                  const SizedBox(height: 12),
+                  compact
+                      ? Column(
+                          children: [
+                            _buildAdminDeliverablesPanel(),
+                            const SizedBox(height: 12),
+                            _buildAdminProjectsPanel(),
+                          ],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: _buildAdminDeliverablesPanel()),
+                            const SizedBox(width: 12),
+                            Expanded(flex: 2, child: _buildAdminProjectsPanel()),
+                          ],
+                        ),
+                  const SizedBox(height: 12),
+                  _buildSprintOverview(),
+                  const SizedBox(height: 12),
+                  _buildDeliveryLeadVelocitySection(compact: compact),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

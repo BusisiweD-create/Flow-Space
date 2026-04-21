@@ -4,37 +4,47 @@ import 'package:fl_chart/fl_chart.dart';
 class SprintPerformanceChart extends StatelessWidget {
   final List<Map<String, dynamic>> sprints;
   final String chartType;
+  final bool showTitle;
+  final bool useCard;
 
   const SprintPerformanceChart({
     super.key,
     required this.sprints,
     this.chartType = 'velocity',
+    this.showTitle = true,
+    this.useCard = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    final content = Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showTitle) ...[
             Text(
               _getChartTitle(),
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 16),
-            Flexible(
-              child: SizedBox(
-                height: 200,
-                child: _buildChart(),
-              ),
-            ),
           ],
-        ),
+          Flexible(
+            child: SizedBox(
+              height: 200,
+              child: _buildChart(),
+            ),
+          ),
+        ],
       ),
     );
+
+    if (!useCard) {
+      return content;
+    }
+
+    return Card(child: content);
   }
 
   String _getChartTitle() {

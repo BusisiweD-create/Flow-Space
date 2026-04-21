@@ -96,6 +96,15 @@ flutter:
   assets:
     - assets/Icons/
     - assets/icons/
+    - assets/Icons/active_projects_kpi_icon.png
+    - assets/Icons/active_sprints_kpi_icon.png
+    - assets/Icons/completed_kpi_icon.png
+    - assets/Icons/completion_kpi_icon.png
+    - assets/Icons/deliverables_kpi_icon.png
+    - assets/Icons/overdue_kpi_icon.png
+    - assets/Icons/progress_kpi_icon.png
+    - assets/Icons/reminder_icon.png
+    - assets/Icons/review_kpi_icon.png
     - "assets/Icons/Project Management/Project Management_Red.png"
     - "assets/Icons/Project Management/Project Management_White.png"
     - assets/fonts/
