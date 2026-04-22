@@ -1,8 +1,18 @@
 {
-  "version": "Ver 2026.04DC7 SIT",
+  "version": "Ver 2026.04DC9 SIT",
   "branch": "integration/thabang",
-  "generated_at": "2026-04-22T20:53:52Z",
+  "generated_at": "2026-04-22T20:55:04Z",
   "commits": [
+    {
+      "author": "thabang127",
+      "message": "feat(sign_off_report_service): add optional comment and signature to requestChanges",
+      "timestamp": "2026-04-22T22:54:13+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update version data [2026-04-22]",
+      "timestamp": "2026-04-22T20:53:52Z"
+    },
     {
       "author": "GitHub Action",
       "message": "Update version data [2026-04-22]",
@@ -39,6 +49,6 @@
       "timestamp": "2026-04-22T11:32:36+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 9,
   "date_range": "2026-04-22"
 }
