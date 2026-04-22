@@ -375,7 +375,11 @@ class SignOffReportService {
 
   // Request changes
   Future<ApiResponse> requestChanges(
-      String reportId, String changeRequestDetails) async {
+    String reportId,
+    String changeRequestDetails, {
+    String? comment,
+    String? digitalSignature,
+  }) async {
     try {
       final token = _authService.accessToken;
       if (token == null) {
