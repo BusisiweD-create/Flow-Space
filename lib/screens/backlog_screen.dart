@@ -27,7 +27,6 @@ class _BacklogScreenState extends State<BacklogScreen> {
     
     try {
       final tickets = await TicketService.getTickets(projectId: _selectedProjectId);
-      final epics = await TicketService.getEpics();
       
       setState(() {
         _tickets = tickets;
