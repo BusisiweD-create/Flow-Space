@@ -1926,4 +1926,21 @@ class _TimelineScreenState extends State<TimelineScreen> {
         return FlownetColors.crimsonRed;
     }
   }
+
+  Widget _buildEventChip(TimelineEvent event) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _getColorForTag(event.colorTag).withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        event.title,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: FlownetColors.pureWhite,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
 }

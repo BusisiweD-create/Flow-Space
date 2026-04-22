@@ -267,6 +267,36 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Sidebar
+        Container(
+          width: _sidebarWidth,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: FlownetColors.graphiteGray.withValues(alpha: 0.1),
+            border: Border(
+              right: BorderSide(
+                color: FlownetColors.slate.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              children: _navItems.map((item) {
+                return _buildNavItem(item, context);
+              }).toList(),
+            ),
+          ),
+        ),
+        // Main content
+        Expanded(
+          child: widget.child,
+        ),
+      ],
+    );
+  }
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final sidebarColor =
         isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight;

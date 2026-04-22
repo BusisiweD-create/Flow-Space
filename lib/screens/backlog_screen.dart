@@ -11,7 +11,6 @@ class BacklogScreen extends StatefulWidget {
 }
 
 class _BacklogScreenState extends State<BacklogScreen> {
-  final TicketService _ticketService = TicketService();
   List<Ticket> _tickets = [];
   List<Epic> _epics = [];
   bool _isLoading = false;
@@ -172,7 +171,12 @@ class _BacklogScreenState extends State<BacklogScreen> {
                     const SizedBox(width: 16),
                     DropdownButton<String>(
                       value: _filterStatus,
-                      items: const ['all', 'backlog', 'active', 'completed'],
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text('All')),
+                        DropdownMenuItem(value: 'backlog', child: Text('Backlog')),
+                        DropdownMenuItem(value: 'active', child: Text('Active')),
+                        DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                      ],
                       onChanged: (value) {
                         setState(() => _filterStatus = value!);
                         _loadData();
@@ -214,7 +218,7 @@ class _BacklogScreenState extends State<BacklogScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 24),
-                                ElevatedButton.icon(
+                                ElevatedButton(
                                   onPressed: _createTicket,
                                   icon: const Icon(Icons.add, size: 20),
                                   label: 'Create First Ticket',
