@@ -446,7 +446,7 @@ class _EnhancedClientReviewScreenState
       final approvedAt = report.approvedAt ?? report.reviewedAt;
       final approver = report.approvedBy ?? report.reviewedBy ?? 'Client';
       final when =
-          approvedAt != null ? _formatDate(approvedAt) : 'Unknown time';
+          approvedAt != null ? _formatDateTime(approvedAt) : 'Unknown time';
       message = 'Approved by $approver on $when';
     } else if (report.status == ReportStatus.changeRequested) {
       final details = report.changeRequestDetails ??
@@ -1220,6 +1220,12 @@ class _EnhancedClientReviewScreenState
   }
 
   String _formatDate(DateTime date) {
+    final tz = date.toUtc().add(const Duration(hours: 2));
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(tz.day)}/${two(tz.month)}/${tz.year}';
+  }
+
+  String _formatDateTime(DateTime date) {
     final tz = date.toUtc().add(const Duration(hours: 2));
     String two(int n) => n < 10 ? '0$n' : '$n';
     return '${two(tz.day)}/${two(tz.month)}/${tz.year} ${two(tz.hour)}:${two(tz.minute)}';

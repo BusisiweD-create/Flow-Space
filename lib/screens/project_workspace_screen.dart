@@ -214,8 +214,13 @@ class _ProjectWorkspaceScreenState
             if (userData['name'] != null &&
                 userData['name'].toString().isNotEmpty) {
               displayName = userData['name'];
+            } else if ((userData['first_name']?.toString().isNotEmpty ?? false) ||
+                (userData['last_name']?.toString().isNotEmpty ?? false)) {
+              displayName =
+                  '${userData['first_name'] ?? ''} ${userData['last_name'] ?? ''}'
+                      .trim();
             } else {
-              displayName = userData['email'] ?? 'Unknown User';
+              displayName = (userData['email'] ?? '').toString().trim();
             }
 
             // Parse role string to UserRole enum

@@ -9,6 +9,7 @@ import '../theme/flownet_theme.dart';
 import '../widgets/flownet_logo.dart';
 import '../widgets/signature_capture_widget.dart';
 import '../widgets/sprint_performance_chart.dart';
+import '../utils/user_label_utils.dart';
 
 class ClientReviewScreen extends ConsumerStatefulWidget {
   final String reportId;
@@ -566,7 +567,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
             _buildHistoryItem(
               details: _report!.changeRequestDetails!,
               date: _report!.reviewedAt,
-              user: _report!.reviewedBy,
+              user: _report!.reviewedByName ?? _report!.reviewedBy,
               isLatest: true,
             ),
             if (historyList.isNotEmpty)
@@ -579,7 +580,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
               date: i['requestedAt'] != null
                   ? DateTime.parse(i['requestedAt'])
                   : null,
-              user: i['requestedBy'],
+              user: i['requestedByName'] ?? i['requestedBy'],
               isLatest: false,
             );
           }),
@@ -623,7 +624,7 @@ class _ClientReviewScreenState extends ConsumerState<ClientReviewScreen> {
         if (user != null) ...[
           const SizedBox(height: 4),
           Text(
-            'Requested by: $user',
+            'Requested by: ${UserLabelUtils.sanitizeUserLabel(user, emptyIsUnknown: true)}',
             style: const TextStyle(
                 color: Colors.white38,
                 fontSize: 11,

@@ -194,7 +194,11 @@ debugPrint('📡 Sprint creation response: ${response.statusCode}');
             if (token != null) {
               _notificationService.setAuthToken(token);
               final user = _authService.currentUser;
-              final userName = user?.name ?? 'Unknown User';
+              final userName = (user?.name.trim().isNotEmpty ?? false)
+                  ? user!.name.trim()
+                  : ((user?.email.trim().isNotEmpty ?? false)
+                      ? user!.email.trim()
+                      : 'System');
               
               await _notificationService.notifySprintCreated(
                 sprintName: name,
@@ -321,7 +325,11 @@ debugPrint('📡 Sprint creation response: ${response.statusCode}');
             if (token != null) {
               _notificationService.setAuthToken(token);
               final user = _apiClient.currentUser;
-              final userName = user?.name ?? 'Unknown User';
+              final userName = (user?.name.trim().isNotEmpty ?? false)
+                  ? user!.name.trim()
+                  : ((user?.email.trim().isNotEmpty ?? false)
+                      ? user!.email.trim()
+                      : 'System');
               
               await _notificationService.notifySprintStatusChange(
                 sprintName: sprintName,
@@ -927,7 +935,11 @@ if (response.isSuccess) {
               if (token != null) {
                 _notificationService.setAuthToken(token);
                 final user = _authService.currentUser;
-                final userName = user?.name ?? 'Unknown User';
+                final userName = (user?.name.trim().isNotEmpty ?? false)
+                    ? user!.name.trim()
+                    : ((user?.email.trim().isNotEmpty ?? false)
+                        ? user!.email.trim()
+                        : 'System');
                 
                 await _notificationService.notifySprintStatusChange(
                   sprintName: sprintName,
