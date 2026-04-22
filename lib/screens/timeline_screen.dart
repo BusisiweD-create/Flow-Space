@@ -496,8 +496,15 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   Widget _buildTaskReminders() {
     final tasks = _getUpcomingTasksForToday();
-    return GlassCard(
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: FlownetColors.slate.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: FlownetColors.slate.withValues(alpha: 0.3),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1365,8 +1372,15 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Widget _buildCalendarView() {
-    return GlassCard(
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: FlownetColors.slate.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: FlownetColors.slate.withValues(alpha: 0.3),
+        ),
+      ),
       child: Column(
         children: [
           // Calendar Header
@@ -1563,8 +1577,15 @@ class _TimelineScreenState extends State<TimelineScreen> {
       )
     ] : sortedEvents;
 
-    return GlassCard(
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: FlownetColors.slate.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: FlownetColors.slate.withValues(alpha: 0.3),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1817,8 +1838,15 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Widget _buildMyDeliverables() {
-    return GlassCard(
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: FlownetColors.slate.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: FlownetColors.slate.withValues(alpha: 0.3),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
