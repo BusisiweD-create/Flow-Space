@@ -16,6 +16,7 @@ import '../models/deliverable.dart';
 import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/app_modal.dart';
+import '../widgets/background_image.dart';
 import '../theme/flownet_theme.dart';
 import '../providers/service_providers.dart';
 import 'package:http/http.dart' as http;
@@ -527,135 +528,137 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       body: BackgroundImage(
         withGlassEffect: false,
         overlayOpacity: 0.25,
-        child: Column(
+        child: Stack(
           children: [
-            // Role header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Row(
-                children: [
-                  if (isTeamMember) ...[
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            '${_currentUser!.role.displayName} Dashboard',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: headerTextColor,
-                            ),
+            Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: Row(
+                    children: [
+                      if (isTeamMember) ...[
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Text(
+                                '${_currentUser!.role.displayName} Dashboard',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: headerTextColor,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Text(
+                                'Hello, ${_currentUser!.name}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: headerTextColor,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 14),
-                          Text(
-                            'Hello, ${_currentUser!.name}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: headerTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _buildTeamHeaderAssetButton(
-                      assetPath: 'assets/dashboard_team_member/Group_398.png',
-                      onTap: () => context.go('/notifications'),
-                    ),
-                  ] else ...[
-                    const SizedBox(width: 48),
-                    Expanded(
-                      child: Text(
-                        '${_currentUser!.role.displayName} Dashboard',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: headerTextColor,
                         ),
-                      ),
-                    ),
-                    Builder(
-                      builder: (context) => PopupMenuButton<String>(
-                        icon: Icon(Icons.menu, color: headerTextColor),
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'profile':
-                              context.go('/profile');
-                              break;
-                            case 'notifications':
-                              context.go('/notifications');
-                              break;
-                            case 'settings':
-                              context.go('/settings');
-                              break;
-                            case 'logout':
-                              _handleLogout();
-                              break;
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'profile',
-                            child: Row(
-                              children: [
-                                Icon(Icons.person),
-                                SizedBox(width: 8),
-                                Text('Profile'),
-                              ],
+                        const SizedBox(width: 12),
+                        _buildTeamHeaderAssetButton(
+                          assetPath: 'assets/dashboard_team_member/Group_398.png',
+                          onTap: () => context.go('/notifications'),
+                        ),
+                      ] else ...[
+                        const SizedBox(width: 48),
+                        Expanded(
+                          child: Text(
+                            '${_currentUser!.role.displayName} Dashboard',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: headerTextColor,
                             ),
                           ),
-                          const PopupMenuItem(
-                            value: 'notifications',
-                            child: Row(
-                              children: [
-                                Icon(Icons.notifications),
-                                SizedBox(width: 8),
-                                Text('Notifications'),
-                              ],
-                            ),
+                        ),
+                        Builder(
+                          builder: (context) => PopupMenuButton<String>(
+                            icon: Icon(Icons.menu, color: headerTextColor),
+                            onSelected: (value) {
+                              switch (value) {
+                                case 'profile':
+                                  context.go('/profile');
+                                  break;
+                                case 'notifications':
+                                  context.go('/notifications');
+                                  break;
+                                case 'settings':
+                                  context.go('/settings');
+                                  break;
+                                case 'logout':
+                                  _handleLogout();
+                                  break;
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'profile',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.person),
+                                    SizedBox(width: 8),
+                                    Text('Profile'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'notifications',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.notifications),
+                                    SizedBox(width: 8),
+                                    Text('Notifications'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'settings',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.settings),
+                                    SizedBox(width: 8),
+                                    Text('Settings'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'logout',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.logout),
+                                    SizedBox(width: 8),
+                                    Text('Logout'),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          const PopupMenuItem(
-                            value: 'settings',
-                            child: Row(
-                              children: [
-                                Icon(Icons.settings),
-                                SizedBox(width: 8),
-                                Text('Settings'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'logout',
-                            child: Row(
-                              children: [
-                                Icon(Icons.logout),
-                                SizedBox(width: 8),
-                                Text('Logout'),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _buildRoleSpecificContent(),
+                ),
+              ],
             ),
-            // Main content
-            Expanded(
-              child: _buildRoleSpecificContent(),
+            Positioned(
+              right: 16,
+              bottom: 12,
+              child: _buildBottomRightExpandableFab(),
             ),
           ],
         ),
-        Positioned(
-          right: 16,
-          bottom: 12,
-          child: _buildBottomRightExpandableFab(),
-        ),
-      ],
+      ),
     );
   }
 
@@ -1388,6 +1391,30 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       ),
       alignment: Alignment.center,
       child: Icon(icon, size: size, color: textColor),
+    );
+  }
+
+  Widget _buildDashboardAssetIcon(
+    String assetPath, {
+    required double size,
+    BoxFit fit = BoxFit.contain,
+    double visualScale = 1.0,
+  }) {
+    return ClipOval(
+      child: Container(
+        width: size,
+        height: size,
+        color: Colors.white.withValues(alpha: 0.85),
+        alignment: Alignment.center,
+        child: Transform.scale(
+          scale: visualScale,
+          child: Image.asset(
+            assetPath,
+            fit: fit,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+      ),
     );
   }
 
@@ -2209,7 +2236,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             backgroundColor: _currentUser?.roleColor ??
                 Theme.of(context).colorScheme.primary,
             foregroundColor: Colors.white,
-            onTap: _handleRoleActionTap,
           ),
           const SizedBox(width: 8),
         ],

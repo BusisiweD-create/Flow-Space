@@ -12,7 +12,6 @@ class SidebarVersionDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     // Only show version when sidebar is expanded
     if (isSidebarCollapsed) {
       return const SizedBox.shrink();
