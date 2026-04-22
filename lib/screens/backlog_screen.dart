@@ -12,7 +12,6 @@ class BacklogScreen extends StatefulWidget {
 
 class _BacklogScreenState extends State<BacklogScreen> {
   List<Ticket> _tickets = [];
-  List<Epic> _epics = [];
   bool _isLoading = false;
   String? _selectedProjectId;
   String _filterStatus = 'all';
@@ -32,7 +31,6 @@ class _BacklogScreenState extends State<BacklogScreen> {
       
       setState(() {
         _tickets = tickets;
-        _epics = epics;
         _isLoading = false;
       });
     } catch (e) {
@@ -102,7 +100,7 @@ class _BacklogScreenState extends State<BacklogScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -136,7 +134,7 @@ class _BacklogScreenState extends State<BacklogScreen> {
                         ElevatedButton.icon(
                           onPressed: _createTicket,
                           icon: const Icon(Icons.add, size: 18),
-                          label: 'Create Ticket',
+                          label: const Text('Create Ticket'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: FlownetColors.electricBlue,
                             foregroundColor: FlownetColors.pureWhite,
@@ -146,7 +144,7 @@ class _BacklogScreenState extends State<BacklogScreen> {
                         ElevatedButton.icon(
                           onPressed: _createEpic,
                           icon: const Icon(Icons.dashboard, size: 18),
-                          label: 'Create Epic',
+                          label: const Text('Create Epic'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: FlownetColors.purple,
                             foregroundColor: FlownetColors.pureWhite,
@@ -181,9 +179,8 @@ class _BacklogScreenState extends State<BacklogScreen> {
                         setState(() => _filterStatus = value!);
                         _loadData();
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: FlownetColors.slate.withValues(alpha: 0.3),
-                        foregroundColor: FlownetColors.pureWhite,
+                      style: const TextStyle(
+                        color: FlownetColors.pureWhite,
                       ),
                     ),
                   ],
