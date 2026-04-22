@@ -12,8 +12,8 @@ class AppIcons {
         'inactive': 'frontend/assets/Dashboard2.png',
       },
       'projects': {
-        'active': 'frontend/assets/Projects.png',
-        'inactive': 'frontend/assets/Projects.png',
+        'active': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
+        'inactive': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
       },
       'deliverables': {
         'active': 'frontend/assets/Deliverables.png',

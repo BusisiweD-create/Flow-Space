@@ -337,6 +337,19 @@ async function initializeDatabase() {
       );
     `);
 
+    // Legacy audit table used by many endpoints/jobs.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        action VARCHAR(100) NOT NULL,
+        resource_type VARCHAR(50),
+        resource_id TEXT,
+        details JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Ensure required columns exist across versions
     await pool.query(`
       ALTER TABLE users
@@ -480,6 +493,13 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+    await pool.query(`
+      ALTER TABLE sprint_metrics
+        ADD COLUMN IF NOT EXISTS planned_points INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS uat_pass_rate DOUBLE PRECISION DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS blockers TEXT,
+        ADD COLUMN IF NOT EXISTS decisions TEXT;
     `);
     console.log('✅ Ensured sprint_metrics table exists');
 
@@ -653,15 +673,24 @@ function validateEmail(email) {
 }
 
 // Auth routes
+function resolveUserDisplayName(user, fallbackEmail = '') {
+  if (user?.name) return user.name;
+  const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
+  return fullName || fallbackEmail.split('@')[0] || 'User';
+}
+
 // Register endpoint (matching frontend expectations)
 app.post('/api/v1/auth/register', async (req, res) => {
   console.log('📝 REGISTER endpoint called');
   try {
     const { email, password, firstName, lastName, company, role } = req.body;
+    const normalizedEmail = String(email || '').toLowerCase().trim();
+    const normalizedFirstName = String(firstName || '').trim();
+    const normalizedLastName = String(lastName || '').trim();
     
-    console.log(`📧 Register request for email: ${email}`);
+    console.log(`📧 Register request for email: ${normalizedEmail}`);
     
-    if (!email || !password || !firstName || !lastName) {
+    if (!normalizedEmail || !password || !normalizedFirstName || !normalizedLastName) {
       return res.status(400).json({ 
         success: false,
         error: 'Email, password, first name, and last name are required' 
@@ -669,7 +698,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     }
     
     // Validate email format and domain
-    const emailValidation = validateEmail(email);
+    const emailValidation = validateEmail(normalizedEmail);
     if (!emailValidation.valid) {
       console.log(`❌ Email validation failed: ${emailValidation.error}`);
       return res.status(400).json({
@@ -681,7 +710,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     // Check if user already exists
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE email ILIKE $1',
-      [email.toLowerCase().trim()]
+      [normalizedEmail]
     );
     
     if (existingUser.rows.length > 0) {
@@ -694,17 +723,29 @@ app.post('/api/v1/auth/register', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = uuidv4();
-    const fullName = `${firstName} ${lastName}`;
+    const fullName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     
-    // Insert user into users table
-    const result = await pool.query(
-      `INSERT INTO users (id, email, password_hash, name, role, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, email, name, role, created_at`,
-      [userId, email, hashedPassword, fullName, role || 'user', true, new Date().toISOString(), new Date().toISOString()]
-    );
+    // Insert user into users table (prefer first_name/last_name schema with fallback to name)
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+         RETURNING id, email, first_name, last_name, role, created_at, is_active`,
+        [userId, normalizedEmail, hashedPassword, normalizedFirstName, normalizedLastName, role || 'teamMember', true]
+      );
+    } catch (insertErr) {
+      console.log('Register primary insert error:', insertErr.message);
+      result = await pool.query(
+        `INSERT INTO users (id, email, password_hash, name, role, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+         RETURNING id, email, name, role, created_at, is_active`,
+        [userId, normalizedEmail, hashedPassword, fullName, role || 'teamMember', true]
+      );
+    }
     
     const user = result.rows[0];
+    const userName = resolveUserDisplayName(user, normalizedEmail);
     
     // Create JWT token
     const token = jwt.sign(
@@ -739,7 +780,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     // Try to send verification email via ProfessionalEmailService (SendGrid)
     try {
       const emailResult = await emailService.sendVerificationEmail(
-        email,
+        normalizedEmail,
         fullName,
         verificationCode
       );
@@ -759,7 +800,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
               user: {
                 id: user.id,
                 email: user.email,
-                name: user.name,
+                name: userName,
                 role: user.role,
                 createdAt: user.created_at,
                 isActive: user.is_active
@@ -787,7 +828,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: userName,
           role: user.role,
           createdAt: user.created_at,
           isActive: user.is_active
@@ -894,10 +935,13 @@ app.post('/api/v1/auth/signup', async (req, res) => {
   console.log('📝 SIGNUP endpoint called');
   try {
     const { email, password, firstName, lastName, company, role } = req.body;
+    const normalizedEmail = String(email || '').toLowerCase().trim();
+    const normalizedFirstName = String(firstName || '').trim();
+    const normalizedLastName = String(lastName || '').trim();
     
-    console.log(`📧 Signup request for email: ${email}`);
+    console.log(`📧 Signup request for email: ${normalizedEmail}`);
     
-    if (!email || !password || !firstName || !lastName) {
+    if (!normalizedEmail || !password || !normalizedFirstName || !normalizedLastName) {
       return res.status(400).json({ 
         success: false,
         error: 'Email, password, first name, and last name are required' 
@@ -905,7 +949,7 @@ app.post('/api/v1/auth/signup', async (req, res) => {
     }
     
     // Validate email format and domain
-    const emailValidation = validateEmail(email);
+    const emailValidation = validateEmail(normalizedEmail);
     if (!emailValidation.valid) {
       console.log(`❌ Email validation failed: ${emailValidation.error}`);
       return res.status(400).json({
@@ -917,7 +961,7 @@ app.post('/api/v1/auth/signup', async (req, res) => {
     // Check if user already exists
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE email ILIKE $1',
-      [email.toLowerCase().trim()]
+      [normalizedEmail]
     );
     
     if (existingUser.rows.length > 0) {
@@ -930,17 +974,29 @@ app.post('/api/v1/auth/signup', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = uuidv4();
-    const fullName = `${firstName} ${lastName}`;
+    const fullName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     
-    // Insert user into users table with email verification fields
-    const result = await pool.query(
-      `INSERT INTO users (id, email, password_hash, name, role, is_active, email_verified, email_verified_at, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, email, name, role, created_at, is_active, email_verified`,
-      [userId, email, hashedPassword, fullName, role || 'user', true, true, new Date().toISOString(), new Date().toISOString(), new Date().toISOString()]
-    );
+    // Insert user with first_name/last_name and fallback to name
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active, email_verified, email_verified_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW(), NOW())
+         RETURNING id, email, first_name, last_name, role, created_at, is_active, email_verified`,
+        [userId, normalizedEmail, hashedPassword, normalizedFirstName, normalizedLastName, role || 'teamMember']
+      );
+    } catch (insertErr) {
+      console.log('Signup primary insert error:', insertErr.message);
+      result = await pool.query(
+        `INSERT INTO users (id, email, password_hash, name, role, is_active, email_verified, email_verified_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, true, true, NOW(), NOW(), NOW())
+         RETURNING id, email, name, role, created_at, is_active, email_verified`,
+        [userId, normalizedEmail, hashedPassword, fullName, role || 'teamMember']
+      );
+    }
     
     const user = result.rows[0];
+    const userName = resolveUserDisplayName(user, normalizedEmail);
     
     // Create JWT token
     const token = jwt.sign(
@@ -962,7 +1018,7 @@ app.post('/api/v1/auth/signup', async (req, res) => {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: userName,
           role: user.role,
           createdAt: user.created_at,
           isActive: user.is_active,
@@ -1060,41 +1116,46 @@ app.post('/api/v1/auth/signup', async (req, res) => {
 app.post('/api/v1/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || '').toLowerCase().trim();
 
-    console.log(`🔐 Login attempt for email: ${email}`);
+    console.log(`🔐 Login attempt for email: ${normalizedEmail}`);
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({
         success: false,
         error: 'Email and password are required',
       });
     }
 
-    // Find user or create if doesn't exist (TEMPORARY FIX)
+    // Find user or create if it doesn't exist (support both schema variants)
     let result;
     try {
       result = await pool.query(
-        'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
-        [email]
+        'SELECT id, email, password_hash, first_name, last_name, role, created_at, is_active FROM users WHERE email = $1',
+        [normalizedEmail]
       );
     } catch (colErr) {
-      console.log('Login query error:', colErr.message);
-      throw colErr;
+      console.log('Login primary query error:', colErr.message);
+      // Fallback for deployments that still use a single "name" column
+      result = await pool.query(
+        'SELECT id, email, password_hash, name, role, created_at, is_active FROM users WHERE email = $1',
+        [normalizedEmail]
+      );
     }
 
     // If user doesn't exist, create them (TEMPORARY FIX)
     if (!result || result.rows.length === 0) {
-      console.log(`⚠️ Creating user: ${email}`);
+      console.log(`⚠️ Creating user: ${normalizedEmail}`);
       
       // Determine role based on email patterns
       let userRole = 'teamMember'; // default
-      if (email.includes('admin') || email.includes('system')) {
+      if (normalizedEmail.includes('admin') || normalizedEmail.includes('system')) {
         userRole = 'systemAdmin';
-      } else if (email.includes('lead') || email.includes('manager')) {
+      } else if (normalizedEmail.includes('lead') || normalizedEmail.includes('manager')) {
         userRole = 'deliveryLead';
-      } else if (email.includes('client') || email.includes('customer')) {
+      } else if (normalizedEmail.includes('client') || normalizedEmail.includes('customer')) {
         userRole = 'clientUser';
-      } else if (email.includes('approver') || email.includes('reviewer')) {
+      } else if (normalizedEmail.includes('approver') || normalizedEmail.includes('reviewer')) {
         userRole = 'internalApprover';
       }
       
@@ -1102,24 +1163,34 @@ app.post('/api/v1/auth/login', async (req, res) => {
       const userId = uuidv4();
       
       try {
+        const defaultFirstName = normalizedEmail.split('@')[0];
         result = await pool.query(
-          'INSERT INTO users (id, email, password_hash, name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), true) RETURNING id, email, password_hash, name, role, created_at, is_active',
-          [userId, email, hashedPassword, email.split('@')[0], userRole]
+          'INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), true) RETURNING id, email, password_hash, first_name, last_name, role, created_at, is_active',
+          [userId, normalizedEmail, hashedPassword, defaultFirstName, 'User', userRole]
         );
         
-        console.log(`✅ User created: ${email} with role: ${userRole}`);
+        console.log(`✅ User created: ${normalizedEmail} with role: ${userRole}`);
         console.log(`📝 User created with ID: ${userId}, Hash: ${hashedPassword.substring(0, 20)}...`);
       } catch (createErr) {
-        console.error('❌ Failed to create user:', createErr);
-        console.error('❌ Error details:', createErr.message);
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to create user',
-          details: createErr.message
-        });
+        console.log('Create user primary insert error:', createErr.message);
+        try {
+          result = await pool.query(
+            'INSERT INTO users (id, email, password_hash, name, role, created_at, updated_at, is_active) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), true) RETURNING id, email, password_hash, name, role, created_at, is_active',
+            [userId, normalizedEmail, hashedPassword, normalizedEmail.split('@')[0], userRole]
+          );
+          console.log(`✅ User created with fallback schema: ${normalizedEmail}`);
+        } catch (fallbackCreateErr) {
+          console.error('❌ Failed to create user:', fallbackCreateErr);
+          console.error('❌ Error details:', fallbackCreateErr.message);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to create user',
+            details: fallbackCreateErr.message
+          });
+        }
       }
     } else {
-      console.log(`✅ Found existing user: ${email}`);
+      console.log(`✅ Found existing user: ${normalizedEmail}`);
     }
 
     const user = result.rows[0];
@@ -1127,7 +1198,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
     // Check if user is active
     if (!user.is_active) {
-      console.log(`❌ Account deactivated: ${email}`);
+      console.log(`❌ Account deactivated: ${normalizedEmail}`);
       return res.status(401).json({
         success: false,
         error: 'Account is deactivated',
@@ -1136,22 +1207,35 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
     const passwordHash = user.password_hash;
     if (!passwordHash) {
-      console.log(`❌ No password hash for user: ${email}`);
+      console.log(`❌ No password hash for user: ${normalizedEmail}`);
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials',
       });
     }
 
-    console.log(`🔐 Comparing password for user: ${email}`);
+    console.log(`🔐 Comparing password for user: ${normalizedEmail}`);
     console.log(`📝 Stored hash: ${passwordHash.substring(0, 20)}...`);
-    console.log(`📝 Input password: ${password}`);
-
-    const isValidPassword = await bcrypt.compare(password, passwordHash);
+    let isValidPassword = false;
+    const looksLikeBcrypt = typeof passwordHash === 'string' && passwordHash.startsWith('$2');
+    if (looksLikeBcrypt) {
+      isValidPassword = await bcrypt.compare(password, passwordHash);
+    } else if (typeof passwordHash === 'string') {
+      // Support legacy/plain-text stored passwords and auto-upgrade on success.
+      isValidPassword = password === passwordHash;
+      if (isValidPassword) {
+        const upgradedHash = await bcrypt.hash(password, 10);
+        await pool.query(
+          'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+          [upgradedHash, user.id]
+        );
+        console.log(`✅ Upgraded legacy password hash for: ${normalizedEmail}`);
+      }
+    }
     console.log(`🔍 Password comparison result: ${isValidPassword}`);
     
     if (!isValidPassword) {
-      console.log(`❌ Invalid password for user: ${email}`);
+      console.log(`❌ Invalid password for user: ${normalizedEmail}`);
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials',
@@ -1169,7 +1253,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    const userName = user.name || email.split('@')[0];
+    const userName = resolveUserDisplayName(user, normalizedEmail);
 
     console.log(`✅ Login successful: ${user.email}`);
 
@@ -1560,10 +1644,18 @@ app.get('/api/v1/auth/me', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    const result = await pool.query(
-      'SELECT id, email, name, role, created_at, is_active FROM users WHERE id = $1',
-      [userId]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        'SELECT id, email, first_name, last_name, role, created_at, is_active FROM users WHERE id = $1',
+        [userId]
+      );
+    } catch (primaryErr) {
+      result = await pool.query(
+        'SELECT id, email, name, role, created_at, is_active FROM users WHERE id = $1',
+        [userId]
+      );
+    }
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -1573,7 +1665,9 @@ app.get('/api/v1/auth/me', authenticateToken, async (req, res) => {
     }
     
     const user = result.rows[0];
-    const userName = user.name || user.email;
+    const userName = user.name || (user.first_name && user.last_name
+      ? `${user.first_name} ${user.last_name}`.trim()
+      : (user.first_name || user.last_name || user.email));
     
     res.json({
       success: true,
@@ -1758,7 +1852,10 @@ app.get('/api/v1/audit-logs', authenticateToken, async (req, res) => {
           al.resource_id as entity_id,
           al.details,
           al.created_at,
-          u.name as user_name,
+          COALESCE(
+            u.name,
+            NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '')
+          ) as user_name,
           u.email as user_email
         FROM audit_logs al
         LEFT JOIN users u ON al.user_id = u.id
@@ -5371,7 +5468,10 @@ app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
         r.evidence,
         r.created_at,
         r.updated_at,
-        u.name as created_by_name,
+        COALESCE(
+          u.name,
+          NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '')
+        ) as created_by_name,
         d.title as deliverable_title,
         d.project_id,
         p.name as project_name,
@@ -5379,7 +5479,10 @@ app.get('/api/v1/sign-off-reports', authenticateToken, async (req, res) => {
         cr.status as review_status,
         cr.feedback,
         cr.approved_at,
-        u2.name as reviewer_name
+        COALESCE(
+          u2.name,
+          NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), '')
+        ) as reviewer_name
       FROM sign_off_reports r
       LEFT JOIN users u ON r.created_by = u.id
       LEFT JOIN deliverables d ON r.deliverable_id = d.id
@@ -7992,7 +8095,15 @@ const checkReportApprovalReminders = async () => {
     }
 
     const reviewersRes = await pool.query(`
-      SELECT id, email, name FROM users WHERE role = 'clientReviewer' AND is_active = true
+      SELECT
+        id,
+        email,
+        COALESCE(
+          name,
+          NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '')
+        ) AS name
+      FROM users
+      WHERE role = 'clientReviewer' AND is_active = true
     `);
 
     for (const report of dueReports.rows) {
