@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/ticket_service.dart';
-import '../widgets/glass_container.dart';
 import '../theme/flownet_theme.dart';
 
 class BacklogScreen extends StatefulWidget {
@@ -580,8 +579,15 @@ class _TicketCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final priorityColor = _getPriorityColor(ticket.priority);
     
-    return GlassCard(
+    return Container(
       padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: FlownetColors.slate.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: FlownetColors.slate.withValues(alpha: 0.3),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -632,7 +638,7 @@ class _TicketCard extends StatelessWidget {
                     Text(
                       ticket.issueType,
                       style: TextStyle(
-                        color: _ownetColors.electricBlue,
+                        color: FlownetColors.electricBlue,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
