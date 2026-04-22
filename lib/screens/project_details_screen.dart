@@ -5,6 +5,7 @@ import '../services/backend_api_service.dart';
 import '../services/sprint_database_service.dart';
 import '../widgets/glass_card.dart';
 import '../theme/flownet_theme.dart';
+import '../utils/date_utils.dart' as app_date_utils;
 
 class ProjectDetailsScreen extends ConsumerStatefulWidget {
   final String projectId;
@@ -210,7 +211,7 @@ class ProjectDetailsScreenState extends ConsumerState<ProjectDetailsScreen> {
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'Not set';
-    return '${date.day}/${date.month}/${date.year}';
+    return app_date_utils.DateUtils.formatDate(date);
   }
 
   String _projectField(String key, [String? altKey]) {

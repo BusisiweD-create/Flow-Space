@@ -19,6 +19,7 @@ import '../widgets/app_modal.dart';
 import '../widgets/background_image.dart';
 import '../theme/flownet_theme.dart';
 import '../providers/service_providers.dart';
+import '../utils/date_utils.dart' as app_date_utils;
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -56,13 +57,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
-  String? _selectedTeamFilter;
-  String? _hoveredTeamFilter;
-  String? _selectedAdminFilter;
-  String? _hoveredAdminFilter;
-  bool _isBottomFabExpanded = false;
-  bool _hasLoadedCurrentUser = false;
-
+  
   // Cache for user names to avoid repeated API calls
   final Map<String, String> _userNamesCache = {};
 
@@ -90,6 +85,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   // Missing variables
+  bool _hasLoadedCurrentUser = false;
+  bool _isBottomFabExpanded = false;
+  String? _selectedTeamFilter;
+  String? _hoveredTeamFilter;
+  String? _selectedAdminFilter;
+  String? _hoveredAdminFilter;
   String _selectedChartType = 'velocity';
   bool _isLoadingClientMetrics = false;
   Map<String, dynamic> _clientReviewMetrics = {};
@@ -3053,57 +3054,115 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                                 r['title'] ??
                                 'Sign-Off Report')
                             .toString();
-                        final createdBy = (r['createdBy'] ??
-                                r['created_by_name'] ??
-                                r['created_by'] ??
-                                '')
-                            .toString();
+                        // Extract user information from content object if available
+                        String createdBy = '';
+                        String projectName = '';
+
+                        // Check if content is a Map and extract user info
+                        final content = r['content'];
+                        if (content is Map<String, dynamic>) {
+                          createdBy = (content['createdBy'] ??
+                                  content['created_by_name'] ??
+                                  content['created_by'] ??
+                                  content['author'] ??
+                                  content['author_name'] ??
+                                  content['submitted_by'] ??
+                                  content['submitter_name'] ??
+                                  content['owner_name'] ??
+                                  content['user_name'] ??
+                                  content['name'] ??
+                                  '')
+                              .toString();
+
+                          projectName = (content['projectName'] ??
+                                  content['project_name'] ??
+                                  content['project'] ??
+                                  content['sprint_name'] ??
+                                  content['sprintName'] ??
+                                  '')
+                              .toString();
+                        }
+
+                        // Fallback to root level fields if not found in content
+                        if (createdBy.isEmpty) {
+                          createdBy = (r['createdBy'] ??
+                                  r['created_by_name'] ??
+                                  r['created_by'] ??
+                                  r['author'] ??
+                                  r['author_name'] ??
+                                  r['submitted_by'] ??
+                                  r['submitter_name'] ??
+                                  r['owner_name'] ??
+                                  r['user_name'] ??
+                                  r['name'] ??
+                                  '')
+                              .toString();
+                        }
+
+                        if (projectName.isEmpty) {
+                          projectName = (r['projectName'] ??
+                                  r['project_name'] ??
+                                  r['project'] ??
+                                  r['sprint_name'] ??
+                                  r['sprintName'] ??
+                                  '')
+                              .toString();
+                        }
+
                         final id = (r['id'] ?? r['report_id'] ?? '').toString();
+
+                        // Create user-friendly display text
+                        String displayText = title;
+                        if (createdBy.isNotEmpty && projectName.isNotEmpty) {
+                          displayText = '$title by $createdBy ($projectName)';
+                        } else if (createdBy.isNotEmpty) {
+                          displayText = '$title by $createdBy';
+                        } else if (projectName.isNotEmpty) {
+                          displayText = '$title ($projectName)';
+                        } else {
+                          // Only show ID as last resort with minimal format
+                          displayText = title;
+                        }
+
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              InkWell(
-                                onTap: () {
-                                  if (id.isNotEmpty) {
-                                    context.go('/client-review/$id');
-                                  }
-                                },
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                        Icons.assignment_turned_in_outlined,
-                                        size: 18),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                        child: Text(createdBy.isNotEmpty
-                                            ? '$title • $createdBy'
-                                            : title)),
-                                  ],
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    if (id.isNotEmpty) {
+                                      context.go('/client-review/$id');
+                                    }
+                                  },
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                          Icons.assignment_turned_in_outlined,
+                                          size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text(displayText)),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () => _approveReport(id),
-                                    icon: const Icon(Icons.check_circle_outline,
-                                        size: 18),
-                                    label: const Text('Approve'),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () => _promptChangeRequest(r),
-                                    icon: const Icon(Icons.edit_note, size: 18),
-                                    label: const Text('Request Changes'),
-                                  ),
-                                ],
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: id.isEmpty
+                                    ? null
+                                    : () => _approveReport(id),
+                                icon: const Icon(Icons.check_circle_outline,
+                                    size: 18),
+                                label: const Text('Approve'),
+                              ),
+                              const SizedBox(width: 4),
+                              TextButton.icon(
+                                onPressed: id.isEmpty
+                                    ? null
+                                    : () => _promptChangeRequest(r),
+                                icon: const Icon(Icons.edit_note, size: 18),
+                                label: const Text('Request Changes'),
                               ),
                             ],
                           ),
@@ -3143,11 +3202,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 final createdAtStr =
                     (r['created_at'] ?? r['createdAt'] ?? r['created'] ?? '')
                         .toString();
-                String ts = createdAtStr;
-                try {
-                  final dt = DateTime.tryParse(createdAtStr);
-                  if (dt != null) ts = '${dt.toLocal()}';
-                } catch (_) {}
+                final ts = createdAtStr.isNotEmpty
+                    ? app_date_utils.DateUtils
+                        .formatDatabaseTimestampWithTime(createdAtStr)
+                    : '';
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
@@ -3270,12 +3328,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     String label = '';
     if (dueRaw != null) {
       final s = dueRaw.toString();
-      final dt = DateTime.tryParse(s);
-      if (dt != null) {
-        label = dt.toLocal().toString();
-      } else {
-        label = s;
-      }
+      label = app_date_utils.DateUtils.formatTimestampWithTime(s);
+      if (label == 'N/A') label = '';
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

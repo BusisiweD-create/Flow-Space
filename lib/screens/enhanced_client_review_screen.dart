@@ -543,8 +543,12 @@ class _EnhancedClientReviewScreenState
                     'Due Date', _formatDate(_deliverable!.dueDate)),
                 const SizedBox(width: 24),
                 _buildHeaderItem('Submitted By', () {
-                  final name = (_report?.submittedByName ?? _report?.submittedBy ?? '').toString().trim();
-                  final role = (_report?.submittedByRole ?? '').toString().trim();
+                  final name =
+                      (_report?.submittedByName ?? _report?.submittedBy ?? '')
+                          .toString()
+                          .trim();
+                  final role =
+                      (_report?.submittedByRole ?? '').toString().trim();
                   if (name.isEmpty) return '—';
                   if (role.isEmpty) return name;
                   return '$name ($role)';
