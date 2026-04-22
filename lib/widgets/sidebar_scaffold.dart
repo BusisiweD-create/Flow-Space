@@ -101,11 +101,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       ];
     }
 
-    final bool includeSprints = userRole.contains('admin') ||
-        userRole.contains('system') ||
-        userRole.contains('delivery') ||
-        userRole.contains('project');
-
     // Role-based navigation items
     final List<_NavItem> allItems = [
       const _NavItem(
@@ -122,14 +117,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/projects',
         requiredPermission: null,
       ),
-      if (includeSprints)
-        const _NavItem(
-          label: 'Sprints',
-          icon: Icons.timer_outlined,
-          iconName: 'sprints',
-          route: '/sprint-console',
-          requiredPermission: 'view_sprints',
-        ),
+      const _NavItem(
+        label: 'Sprints',
+        icon: Icons.timer_outlined,
+        iconName: 'sprints',
+        route: '/sprint-console',
+        requiredPermission: 'view_sprints',
+      ),
       const _NavItem(
         label: 'Deliverables',
         icon: Icons.assignment_outlined,
@@ -144,56 +138,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/timeline',
         requiredPermission: null,
       ),
-      const _NavItem(
-        label: 'FlowPilot',
-        icon: Icons.smart_toy_outlined,
-        iconName: 'ai_assistant',
-        route: '/ai-assistant',
-        requiredPermission: null,
-      ),
     ];
 
     // Role-specific items
     final List<_NavItem> roleSpecificItems = [];
-    if (userRole.contains('admin') || userRole.contains('system')) {
-      // Admin/System users get full access
-      roleSpecificItems.addAll([
-        const _NavItem(
-          label: 'Approval Requests',
-          icon: Icons.assignment_outlined,
-          iconName: 'approval_requests',
-          route: '/approval-requests',
-          requiredPermission: 'view_approvals',
-        ),
-        const _NavItem(
-          label: 'Repository',
-          icon: Icons.folder_outlined,
-          iconName: 'repository',
-          route: '/repository',
-          requiredPermission: 'view_all_deliverables',
-        ),
-        const _NavItem(
-          label: 'Reports',
-          icon: Icons.assessment_outlined,
-          iconName: 'reports',
-          route: '/report-repository',
-          requiredPermission: 'view_all_deliverables',
-        ),
-        const _NavItem(
-          label: 'Role Management',
-          icon: Icons.admin_panel_settings_outlined,
-          iconName: 'role_management',
-          route: '/role-management',
-          requiredPermission: 'manage_users',
-        ),
-        const _NavItem(
-          label: 'Settings',
-          icon: Icons.settings_outlined,
-          iconName: 'settings',
-          route: '/settings',
-          requiredPermission: null,
-        ),
-      ]);
+
     if (userRole.contains('delivery') || userRole.contains('project')) {
       // Delivery/Project managers get project-related access
       roleSpecificItems.addAll([
@@ -267,36 +216,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // Sidebar
-        Container(
-          width: _sidebarWidth,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            color: FlownetColors.graphiteGray.withValues(alpha: 0.1),
-            border: Border(
-              right: BorderSide(
-                color: FlownetColors.slate.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              children: _navItems.map((item) {
-                return _buildNavItem(item, context);
-              }).toList(),
-            ),
-          ),
-        ),
-        // Main content
-        Expanded(
-          child: widget.child,
-        ),
-      ],
-    );
-  }
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final sidebarColor =
         isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight;
@@ -695,7 +614,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     final router = GoRouter.of(ctx);
     await AuthService().signOut();
     if (!mounted) return;
-    router.go(AuthService.postLogoutRoute);
+    router.go('/');
   }
 
 }

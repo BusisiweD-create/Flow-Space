@@ -240,8 +240,8 @@ async function postAiSprintChat(req, res) {
 }
 
 module.exports = {
+  buildSprintReportFromDb,
   getSprintReport,
   getAiSprintReport,
   postAiSprintChat,
 };
-

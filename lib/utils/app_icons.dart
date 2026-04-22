@@ -28,8 +28,13 @@ class AppIcons {
         'inactive': 'assets/Icons/Notifications inactive.png.png',
       },
       'repository': {
+<<<<<<< HEAD
         'active': 'assets/Icons/Repository_Project active.png.png',
         'inactive': 'assets/Icons/Repository_Project inactive.png.png',
+=======
+        'active': 'frontend/assets/Repository.png',
+        'inactive': 'frontend/assets/Repository.png',
+>>>>>>> 74fbd96c02e2ec876952028f119826f9e8659d60
       },
       'approval_requests': {
         'active': 'frontend/assets/Approval_Requests.png',

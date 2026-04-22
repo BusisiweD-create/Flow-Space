@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const analyticsService = require('../services/analyticsService');
-const { sequelize, Project, Sprint, Deliverable, Ticket, User, ProjectMember, DeliverableSprint } = require('../models');
+const { sequelize, Project, Sprint, Deliverable, Ticket, User, ProjectMember, DeliverableSprint, Notification } = require('../models');
 const { Op } = require('sequelize');
 const cache = new Map();
 const inflight = new Map();
@@ -66,12 +66,91 @@ function mergeDefined(target, patch) {
 
 function isConfirmText(text) {
   const t = String(text || '').trim().toLowerCase();
-  return t === 'confirm' || t === 'yes' || t === 'y' || t === 'ok' || t === 'okay' || t === 'go ahead' || t === 'proceed';
+  if (t === 'confirm' || t === 'yes' || t === 'y' || t === 'ok' || t === 'okay' || t === 'go ahead' || t === 'proceed') return true;
+  if (/^confirm\b/.test(t)) return true;
+  if (/^yes\b/.test(t)) return true;
+  if (/^ok\b/.test(t)) return true;
+  return false;
 }
 
 function isCancelText(text) {
   const t = String(text || '').trim().toLowerCase();
   return t === 'cancel' || t === 'stop' || t === 'never mind' || t === 'nevermind';
+}
+
+function isSkipText(text) {
+  const t = String(text || '').trim().toLowerCase();
+  return t === 'skip' || t === 'none' || t === 'n/a' || t === 'no feedback';
+}
+
+function normalizePossibleTitle(value) {
+  const s = String(value || '').trim().replace(/^["'`“”]+|["'`“”]+$/g, '');
+  if (!s) return '';
+  if (s.length > 160) return '';
+  if (!/[A-Za-z0-9]/.test(s)) return '';
+  if (/^(confirm|yes|y|ok|okay|go ahead|proceed|cancel|stop)$/i.test(s)) return '';
+  return s;
+}
+
+function extractReportTitleFromText(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+  const kv = parseKeyValueLines(raw);
+  if (kv.report_title) return normalizePossibleTitle(kv.report_title);
+
+  const patterns = [
+    /(?:report\s*title|title)\s*(?:is|:|-)\s*(.+)$/i,
+    /(?:name\s+this\s+report|call\s+(?:this\s+)?report)\s*(.+)$/i,
+    /(?:set\s+)?report\s+title\s+to\s+(.+)$/i,
+    /^(?:it'?s|its)\s+(.+)$/i,
+  ];
+  for (const p of patterns) {
+    const m = raw.match(p);
+    if (m && m[1]) {
+      const title = normalizePossibleTitle(m[1].replace(/[.?!]\s*$/g, ''));
+      if (title) return title;
+    }
+  }
+
+  if (raw.length <= 80 && !raw.includes('\n') && !/\?$/.test(raw)) {
+    const direct = normalizePossibleTitle(raw.replace(/[.?!]\s*$/g, ''));
+    if (direct) return direct;
+  }
+  return '';
+}
+
+function suggestSprintReportTitle(sprintData) {
+  try {
+    const sprint = sprintData && sprintData.sprint ? sprintData.sprint : {};
+    const sprintName = String(sprint.name || 'Sprint').trim() || 'Sprint';
+    const project = sprint.project || null;
+    const projectKey = project && project.key ? String(project.key).trim() : '';
+    const end = fmtIsoDate(sprint.endDate);
+    const parts = [];
+    parts.push('Sprint Report');
+    if (projectKey) parts.push(projectKey);
+    parts.push(sprintName);
+    if (end) parts.push(end);
+    return parts.join(' - ');
+  } catch (_) {
+    return 'Sprint Report';
+  }
+}
+
+function shouldAutoCancelPending(pending, userText, pendingPatch) {
+  if (!pending) return false;
+  if (isCancelText(userText) || isConfirmText(userText)) return false;
+  const t = String(userText || '').toLowerCase();
+  const nextCreate = detectCreateIntent(userText);
+  if (nextCreate && nextCreate !== pending.type) return true;
+  const isSprintReport = /\bsprint\b/.test(t) && /\breport\b/.test(t);
+  if (isSprintReport && pending.type !== 'sprint_report' && pending.type !== 'sprint_report_select') return true;
+  if (pendingPatch && Object.keys(pendingPatch).length > 0) return false;
+  if (isNavigationQuery(userText)) return true;
+  if (isNotificationsDataQuery(userText)) return true;
+  if (/\bsprint\b/.test(t) && /\breport\b/.test(t) && pending.type !== 'sprint_report') return true;
+  if (isListOrCountQuery(userText)) return true;
+  return false;
 }
 
 function normalizeProjectKeyOrName(value) {
@@ -115,11 +194,22 @@ async function ensureReportsTable() {
 
 function detectCreateIntent(text) {
   const t = String(text || '').toLowerCase();
+  const isSprintReportRequest =
+    /\bsprint\b/.test(t) && (/\breport\b/.test(t) || /\b(sign[- ]?off|signoff)\b/.test(t));
+  if (isSprintReportRequest) return null;
+  const isSignoffReport =
+    /\b(sign[- ]?off|signoff)\b.*\breport\b|\breport\b.*\b(sign[- ]?off|signoff)\b/.test(t);
+  if (isSignoffReport) return 'report';
+
+  const isAnyNonSignoffReport =
+    /\breport\b/.test(t) ||
+    (/\bsummary\b/.test(t) && (/\bsprint\b/.test(t) || /\bproject\b/.test(t)));
+  if (isAnyNonSignoffReport) return null;
+
   if (!/\b(create|add|new|make|generate)\b/.test(t)) return null;
   if (/\bdeliverable\b/.test(t)) return 'deliverable';
   if (/\bsprint\b/.test(t)) return 'sprint';
   if (/\bproject\b/.test(t)) return 'project';
-  if (/\b(sign[- ]?off|signoff)\b.*\breport\b|\breport\b.*\b(sign[- ]?off|signoff)\b/.test(t)) return 'report';
   return null;
 }
 
@@ -246,6 +336,7 @@ async function buildAppDataSnapshotData(user) {
   const maxDeliverables = Number(process.env.AI_CONTEXT_MAX_DELIVERABLES || 250);
   const maxTickets = Number(process.env.AI_CONTEXT_MAX_TICKETS || 250);
   const maxAssignees = Number(process.env.AI_CONTEXT_MAX_ASSIGNEES || 50);
+  const maxNotifications = Number(process.env.AI_CONTEXT_MAX_NOTIFICATIONS || 25);
   const includeAllUsers = String(process.env.AI_CONTEXT_INCLUDE_ALL_USERS || 'true').toLowerCase() === 'true';
   const fullAccess =
     String(process.env.AI_CONTEXT_FULL_ACCESS || '').toLowerCase() === 'true' ||
@@ -471,6 +562,32 @@ async function buildAppDataSnapshotData(user) {
     memberships = [];
   }
 
+  let notifications = { unreadCount: 0, unread: [] };
+  try {
+    if (userId) {
+      const unreadCount = await Notification.count({ where: { recipient_id: userId, is_read: false } });
+      const unreadRows = unreadCount === 0 ? [] : await Notification.findAll({
+        where: { recipient_id: userId, is_read: false },
+        attributes: ['id', 'type', 'message', 'payload', 'created_at'],
+        include: [{ model: User, as: 'sender', attributes: ['id', 'email', 'first_name', 'last_name', 'role'] }],
+        order: [['created_at', 'DESC']],
+        limit: maxNotifications,
+      });
+      notifications = {
+        unreadCount: Number(unreadCount || 0),
+        unread: (unreadRows || []).map((n) => ({
+          id: Number(n.id),
+          type: String(n.type || ''),
+          message: String(n.message || ''),
+          createdAt: n.created_at ? new Date(n.created_at).toISOString() : null,
+          sender: n.sender ? { id: String(n.sender.id), name: displayName(n.sender) } : null,
+        })),
+      };
+    }
+  } catch (_) {
+    notifications = { unreadCount: 0, unread: [] };
+  }
+
   const snapshot = {
     generatedAt: new Date().toISOString(),
     viewer: user ? { id: String(user.id || ''), name: displayName(user), role: String(user.role || '') } : null,
@@ -481,6 +598,7 @@ async function buildAppDataSnapshotData(user) {
     users,
     memberships,
     assignments,
+    notifications,
   };
 
   if ((fullAccess || isAdmin) && includeAllUsers) {
@@ -522,6 +640,13 @@ function isListOrCountQuery(text) {
   return /how many|number of|count|list|names?\b|show\b/.test(t);
 }
 
+function isNotificationsDataQuery(text) {
+  const t = String(text || '').toLowerCase().trim();
+  if (!/\bnotifications?\b|\balerts?\b/.test(t)) return false;
+  if (/\bgo to\b|\bopen\b|\bnavigate\b|\bswitch to\b|\broute me\b/.test(t)) return false;
+  return /\bhow many\b|\bnumber of\b|\bcount\b|\blist\b|\bshow\b|\bunread\b|\bnew\b/.test(t) || t === 'notifications' || t === 'alerts';
+}
+
 function answerFromSnapshot(snapshot, userText) {
   const t = String(userText || '').toLowerCase();
   if (!snapshot || typeof snapshot !== 'object') return null;
@@ -530,6 +655,7 @@ function answerFromSnapshot(snapshot, userText) {
   let wantsSprints = /\bsprints?\b/.test(t);
   let wantsUsers = /\busers?\b|\bteam\b|\bmembers?\b/.test(t);
   let wantsDeliverables = /\bdeliverables?\b/.test(t);
+  let wantsNotifications = /\bnotifications?\b|\balerts?\b/.test(t);
 
   const wantsNames = /\bnames?\b|\blist\b|\bshow\b/.test(t);
   const wantsCount = /\bhow many\b|\bnumber of\b|\bcount\b/.test(t);
@@ -583,6 +709,25 @@ function answerFromSnapshot(snapshot, userText) {
     if (users.length === 0) return 'No users found in the snapshot.';
     const lines = users.map((u) => `- ${u.name}${u.role ? ` (${u.role})` : ''}`);
     return `Users (${users.length}):\n` + lines.join('\n');
+  }
+
+  if (wantsNotifications && (wantsNames || wantsCount || /\bunread\b|\bnew\b|\bnotifications?\b|\balerts?\b/.test(t))) {
+    const notif = snapshot.notifications && typeof snapshot.notifications === 'object' ? snapshot.notifications : { unreadCount: 0, unread: [] };
+    const unreadCount = Number(notif.unreadCount || 0);
+    const unread = Array.isArray(notif.unread) ? notif.unread : [];
+    if (wantsCount && !wantsNames) {
+      return `Unread notifications: ${unreadCount}.`;
+    }
+    if (unreadCount === 0 || unread.length === 0) {
+      return 'You have no unread notifications.';
+    }
+    const lines = unread.slice(0, 10).map((n) => {
+      const created = n.createdAt ? String(n.createdAt).slice(0, 16).replace('T', ' ') : '';
+      const sender = n.sender && n.sender.name ? ` • from ${n.sender.name}` : '';
+      const type = n.type ? `[${n.type}] ` : '';
+      return `- ${type}${n.message}${created ? ` • ${created}` : ''}${sender}`;
+    });
+    return `Unread notifications (${unreadCount}):\n` + lines.join('\n');
   }
 
   return null;
@@ -939,16 +1084,31 @@ async function buildSprintDetailsData(userText, snapshotData) {
   if (uuidMatch) {
     sprintId = uuidMatch[0];
   } else {
-    const m = raw.match(/sprint\s*[:\-]?\s*["']?([A-Za-z0-9 _-]{2,60})["']?/i);
-    const sprintName = m ? m[1].trim() : '';
+    const m = raw.match(/sprint\s*[:\-]?\s*["'`“”]?([^\n"'`“”]{1,120})/i);
+    const sprintName = m ? m[1].trim().replace(/[.?!]\s*$/g, '') : '';
     if (sprintName) {
+      if (/^\d+$/.test(sprintName)) {
+        const n = parseInt(sprintName, 10);
+        sprintId = Number.isFinite(n) ? n : sprintName;
+      } else {
       const candidates = sprints || (await Sprint.findAll({ attributes: ['id', 'name'], order: [['updated_at', 'DESC']], limit: 200 }));
-      const found = candidates.find(s => String(s.name || '').toLowerCase().includes(sprintName.toLowerCase()));
+      const needle = sprintName.toLowerCase();
+      const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const found = candidates.find((s) => String(s.name || '').toLowerCase() === needle)
+        || candidates.find((s) => String(s.name || '').toLowerCase().includes(needle))
+        || candidates.find((s) => needle.includes(String(s.name || '').toLowerCase()))
+        || candidates.find((s) => normalize(String(s.name || '')) === normalize(needle))
+        || candidates.find((s) => normalize(String(s.name || '')).includes(normalize(needle)));
       if (found) sprintId = found.id;
+      }
     }
   }
 
   if (!sprintId) return null;
+  if (typeof sprintId === 'string' && /^\d+$/.test(sprintId)) {
+    const n = parseInt(sprintId, 10);
+    if (Number.isFinite(n)) sprintId = n;
+  }
 
   try {
     const sprintController = require('../controllers/sprintController');
@@ -957,6 +1117,303 @@ async function buildSprintDetailsData(userText, snapshotData) {
   } catch (_) {
     return null;
   }
+}
+
+async function buildSprintReportById(sprintIdRaw) {
+  const raw = String(sprintIdRaw || '').trim();
+  if (!raw) return { report: null, notFound: true, error: 'missing_sprint_id' };
+  let id = raw;
+  if (/^\d+$/.test(raw)) {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n)) id = n;
+  }
+  try {
+    const sprintController = require('../controllers/sprintController');
+    const report = await sprintController.buildSprintReportFromDb({ id, query: {} });
+    return { report, notFound: false, error: null };
+  } catch (e) {
+    const msg = (e && e.message) ? String(e.message) : 'sprint_report_failed';
+    const notFound =
+      (e && (e.statusCode === 404 || e.status === 404)) ||
+      /sprint not found/i.test(msg);
+    return { report: null, notFound, error: msg };
+  }
+}
+
+async function getSprintSelectionOptions(snapshotData, limit = 12) {
+  const fromSnapshot = snapshotData && Array.isArray(snapshotData.sprints)
+    ? snapshotData.sprints
+        .map((s) => ({ id: s && s.id != null ? String(s.id) : '', name: s && s.name ? String(s.name) : '' }))
+        .filter((s) => s.id && s.name)
+    : [];
+
+  if (fromSnapshot.length > 0) {
+    const seen = new Set();
+    const unique = [];
+    for (const s of fromSnapshot) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      unique.push(s);
+      if (unique.length >= limit) break;
+    }
+    return unique;
+  }
+
+  try {
+    const rows = await Sprint.findAll({ attributes: ['id', 'name'], order: [['updated_at', 'DESC']], limit: Math.max(20, limit) });
+    const list = (rows || []).map((s) => ({ id: String(s.id), name: String(s.name || '').trim() })).filter((s) => s.id && s.name);
+    return list.slice(0, limit);
+  } catch (_) {
+    return [];
+  }
+}
+
+function formatSprintOptionsForPrompt(options) {
+  if (!options || options.length === 0) return '';
+  const lines = [];
+  for (let i = 0; i < options.length; i += 1) {
+    const s = options[i];
+    lines.push(`${i + 1}) ${String(s.name)}`);
+  }
+  return lines.join('\n');
+}
+
+function resolveSprintIdFromSelectionText(userText, options) {
+  const raw = String(userText || '').trim();
+  const kv = parseKeyValueLines(raw);
+  const value = (kv.sprint ? String(kv.sprint) : raw).trim();
+  if (!value) return null;
+
+  if (/^\d+$/.test(value)) {
+    const idx = parseInt(value, 10);
+    if (Number.isFinite(idx) && idx >= 1 && idx <= (options || []).length) {
+      const chosen = options[idx - 1];
+      return chosen && chosen.id ? String(chosen.id) : null;
+    }
+    return null;
+  }
+
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const needle = value.toLowerCase();
+  const needleNorm = norm(value);
+
+  const byId = (options || []).find((o) => String(o.id) === value);
+  if (byId) return String(byId.id);
+  const byExact = (options || []).find((o) => String(o.name || '').toLowerCase() === needle);
+  if (byExact) return String(byExact.id);
+  const byIncludes = (options || []).find((o) => String(o.name || '').toLowerCase().includes(needle));
+  if (byIncludes) return String(byIncludes.id);
+  const byNorm = (options || []).find((o) => norm(o.name) === needleNorm || norm(o.name).includes(needleNorm));
+  if (byNorm) return String(byNorm.id);
+
+  return null;
+}
+
+function fmtIsoDate(iso) {
+  try {
+    if (!iso) return '';
+    return String(iso).slice(0, 10);
+  } catch (_) {
+    return '';
+  }
+}
+
+function buildManualSprintReportText(report, reportTitle, feedback) {
+  if (!report || typeof report !== 'object') return '';
+  const sprint = report.sprint && typeof report.sprint === 'object' ? report.sprint : {};
+  const summary = report.summary && typeof report.summary === 'object' ? report.summary : {};
+  const team = report.team && report.team.members && Array.isArray(report.team.members) ? report.team.members : [];
+  const deliverables = Array.isArray(report.deliverables) ? report.deliverables : [];
+
+  const sprintName = String(sprint.name || 'Sprint');
+  const title = reportTitle ? String(reportTitle) : sprintName;
+  const project = sprint.project && typeof sprint.project === 'object' ? sprint.project : null;
+  const projectLabel = project ? `${String(project.name || '').trim()}${project.key ? ` (${String(project.key)})` : ''}`.trim() : '';
+  const start = fmtIsoDate(sprint.startDate);
+  const end = fmtIsoDate(sprint.endDate);
+  const status = String(sprint.status || '').trim() || 'planning';
+  const health = String(summary.health || '').trim() || 'good';
+  const progress = Number(summary.sprintProgressPercent || 0);
+  const completionRate = Number(summary.completionRatePercent || 0);
+  const overdue = Number(summary.overdueDeliverables || 0);
+  const blocked = Number(summary.blockedDeliverables || 0);
+  const dash = (v) => (v ? String(v) : '-');
+
+  const lines = [];
+  lines.push(title);
+  if (reportTitle && title !== sprintName) lines.push(`Sprint: ${sprintName}`);
+  if (projectLabel) lines.push(`Project: ${projectLabel}`);
+  if (start || end) lines.push(`Duration: ${start || '-'} → ${end || '-'}`);
+  lines.push(`Status: ${status}`);
+  if (team.length > 0) {
+    lines.push(`Team: ${team.map((m) => String(m.name || m.email || '').trim()).filter(Boolean).slice(0, 6).join(', ')}`);
+  }
+  lines.push(`Sprint Progress: ${progress}%`);
+  if (team.length > 0) {
+    // already added above
+  }
+  lines.push('');
+  lines.push('Summary');
+  lines.push(`- Total: ${Number(summary.totalDeliverables || 0)}`);
+  lines.push(`- Completed: ${Number(summary.completedDeliverables || 0)}`);
+  lines.push(`- In Progress: ${Number(summary.inProgressDeliverables || 0)}`);
+  lines.push(`- Not Started: ${Number(summary.notStartedDeliverables || 0)}`);
+  lines.push(`- Overdue: ${Number(summary.overdueDeliverables || 0)}`);
+  lines.push(`- Blocked: ${Number(summary.blockedDeliverables || 0)}`);
+  lines.push('');
+  lines.push('Deliverables');
+  if (deliverables.length === 0) {
+    lines.push('- No deliverables found for this sprint.');
+  } else {
+    for (const d of deliverables) {
+      const name = String(d.name || d.title || '').trim() || `Deliverable ${String(d.id || '').trim()}`;
+      const owner = String(d.ownerName || '').trim() || '-';
+      const st = String(d.status || '').trim() || '-';
+      const pct = Number(d.progressPercent || 0);
+      const due = dash(fmtIsoDate(d.dueDate));
+      const completion = dash(fmtIsoDate(d.completionDate));
+      lines.push(`- ${name} | ${owner} | ${st} | ${pct}% | ${due} | ${completion}`);
+    }
+  }
+  lines.push('');
+  lines.push('Sprint Insights');
+  lines.push(`- Completion Rate: ${completionRate}%`);
+  lines.push(`- Delayed Deliverables: ${overdue}`);
+  lines.push(`- Blocked Deliverables: ${blocked}`);
+  lines.push(`- Overall Sprint Health: ${String(health).toUpperCase()}`);
+  lines.push('');
+  lines.push('Feedback');
+  lines.push((feedback && String(feedback).trim()) ? String(feedback).trim() : '-');
+
+  return lines.join('\n').trim();
+}
+
+function normalizePossibleNote(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  if (s.length > 2000) return s.slice(0, 2000);
+  return s;
+}
+
+function extractSignoffNoteFromText(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+  const kv = parseKeyValueLines(raw);
+  const note =
+    kv.signoff_note ||
+    kv.sign_off_note ||
+    kv.note ||
+    kv.notes ||
+    kv.comment ||
+    kv.comments ||
+    '';
+  if (note) return normalizePossibleNote(note);
+  const m = raw.match(/(?:sign[- ]?off\s*note|note|notes)\s*(?:is|:|-)\s*(.+)$/i);
+  if (m && m[1]) return normalizePossibleNote(m[1]);
+  return '';
+}
+
+function normalizePossibleFeedback(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  if (s.length > 2000) return s.slice(0, 2000);
+  return s;
+}
+
+function extractFeedbackFromText(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+  const kv = parseKeyValueLines(raw);
+  const fb =
+    kv.feedback ||
+    kv.user_feedback ||
+    kv.comment ||
+    kv.comments ||
+    kv.feedback_comment ||
+    '';
+  if (fb) return normalizePossibleFeedback(fb);
+  const m = raw.match(/(?:feedback|comment|comments)\s*(?:is|:|-)\s*(.+)$/i);
+  if (m && m[1]) return normalizePossibleFeedback(m[1]);
+  return '';
+}
+
+function buildSprintSignoffReportText(sprintReport, reportTitle, note, feedback) {
+  if (!sprintReport || typeof sprintReport !== 'object') return '';
+  const sprint = sprintReport.sprint && typeof sprintReport.sprint === 'object' ? sprintReport.sprint : {};
+  const project = sprint.project && typeof sprint.project === 'object' ? sprint.project : null;
+  const summary = sprintReport.summary && typeof sprintReport.summary === 'object' ? sprintReport.summary : {};
+  const team = sprintReport.team && sprintReport.team.members && Array.isArray(sprintReport.team.members)
+    ? sprintReport.team.members
+    : [];
+  const deliverables = Array.isArray(sprintReport.deliverables) ? sprintReport.deliverables : [];
+
+  const fmt = (v) => (v == null || String(v).trim() === '' ? '-' : String(v));
+  const fmtIso = (iso) => {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso);
+      return d.toISOString().slice(0, 10);
+    } catch (_) {
+      return String(iso);
+    }
+  };
+  const fmtPct = (n) => `${Number(n || 0)}%`;
+
+  const sprintName = fmt(sprint.name || 'Sprint');
+  const title = reportTitle && String(reportTitle).trim() ? String(reportTitle).trim() : `Sprint Report: ${sprintName}`;
+  const lines = [];
+  lines.push(title);
+  lines.push('');
+  lines.push('PROJECT');
+  lines.push(`Name: ${fmt(project && project.name)}`);
+  lines.push(`Key: ${fmt(project && project.key)}`);
+  lines.push(`ID: ${fmt(project && project.id)}`);
+  lines.push('');
+  lines.push('SPRINT');
+  lines.push(`Name: ${sprintName}`);
+  lines.push(`ID: ${fmt(sprint.id)}`);
+  lines.push(`Status: ${fmt(sprint.status)}`);
+  lines.push(`Start: ${fmtIso(sprint.startDate)}`);
+  lines.push(`End: ${fmtIso(sprint.endDate)}`);
+  lines.push('');
+  lines.push('SPRINT SUMMARY');
+  lines.push(`Total Deliverables: ${Number(summary.totalDeliverables || 0)}`);
+  lines.push(`Completed: ${Number(summary.completedDeliverables || 0)}`);
+  lines.push(`In Progress: ${Number(summary.inProgressDeliverables || 0)}`);
+  lines.push(`Not Started: ${Number(summary.notStartedDeliverables || 0)}`);
+  lines.push(`Overdue: ${Number(summary.overdueDeliverables || 0)}`);
+  lines.push(`Blocked: ${Number(summary.blockedDeliverables || 0)}`);
+  lines.push(`Sprint Progress: ${fmtPct(summary.sprintProgressPercent)}`);
+  lines.push(`Completion Rate: ${fmtPct(summary.completionRatePercent)}`);
+  lines.push(`Health: ${fmt(summary.health).toUpperCase()}`);
+  lines.push('');
+  lines.push('TEAM MEMBERS');
+  if (team.length === 0) {
+    lines.push('None');
+  } else {
+    for (const m of team) {
+      lines.push(`- ${fmt(m.name)} | ${fmt(m.email)} | ${fmt(m.role)}`);
+    }
+  }
+  lines.push('');
+  lines.push('DELIVERABLES');
+  if (deliverables.length === 0) {
+    lines.push('None');
+  } else {
+    for (const d of deliverables) {
+      lines.push(
+        `- ${fmt(d.name || d.title)} | Owner: ${fmt(d.ownerName)} | Status: ${fmt(d.status)} | Progress: ${fmtPct(d.progressPercent)} | Due: ${fmtIso(d.dueDate)} | Completed: ${fmtIso(d.completionDate)} | Category: ${fmt(d.category)} | Overdue: ${d.isOverdue ? 'yes' : 'no'}`
+      );
+    }
+  }
+  lines.push('');
+  lines.push('SIGN-OFF NOTES');
+  lines.push(note && String(note).trim() ? String(note).trim() : '-');
+  lines.push('');
+  lines.push('FEEDBACK');
+  lines.push((feedback && String(feedback).trim()) ? String(feedback).trim() : '-');
+  return lines.join('\n').trim();
 }
 
 async function buildAllProjectsSummaryData(snapshotData) {
@@ -1214,6 +1671,7 @@ async function formatWithOpenRouter({ userText, data, kind }) {
     'You are FlowPilot, the friendly and supportive AI assistant for the Flow app.',
     'Your goal is to provide a conversational, guided, and professional experience.',
     'Use only the provided JSON data to answer, but phrase your responses naturally like a helpful team member.',
+    'If the user changes topics, switch immediately and answer the latest request without repeating your previous response unless asked.',
     'Do not say you lack access; if something is missing, explain it gently based on the available data.',
     'Do not use markdown. Do not output *, #, or ` characters. Do not use code fences.',
     'Use plain text with "-" for lists.',
@@ -1388,7 +1846,100 @@ function generateSuggestions(userText, intent, snapshotData) {
   }
 
   // Deduplicate and limit
-  return Array.from(new Set(suggestions)).slice(0, 4);
+  const unique = Array.from(new Set(suggestions));
+  for (let i = unique.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = unique[i];
+    unique[i] = unique[j];
+    unique[j] = tmp;
+  }
+  return unique.slice(0, 4);
+}
+
+function hashStringToUInt(str) {
+  let h = 2166136261;
+  const s = String(str || '');
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function rand() {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleInPlace(arr, rand) {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function buildEntrySuggestions(snapshotData, userId) {
+  const rand = mulberry32((Date.now() ^ hashStringToUInt(userId)) >>> 0);
+  const projects = snapshotData && Array.isArray(snapshotData.projects) ? snapshotData.projects : [];
+  const sprints = snapshotData && Array.isArray(snapshotData.sprints) ? snapshotData.sprints : [];
+  const deliverables = snapshotData && Array.isArray(snapshotData.deliverables) ? snapshotData.deliverables : [];
+
+  const pool = [];
+
+  if (projects.length > 0) {
+    const picks = shuffleInPlace(projects.slice(0, Math.min(projects.length, 12)), rand).slice(0, 2);
+    for (const p of picks) {
+      const name = String(p.name || '').trim();
+      const key = String(p.key || '').trim();
+      const label = key ? `${name} (${key})` : name;
+      if (label.trim()) {
+        pool.push(`Open ${label} workspace.`);
+        pool.push(`What's the current status of ${label}?`);
+      }
+    }
+  }
+
+  const activeSprints = sprints.filter((s) => !isSprintCompletedStatus(s.status));
+  if (activeSprints.length > 0) {
+    const s = shuffleInPlace(activeSprints.slice(0, Math.min(activeSprints.length, 12)), rand)[0];
+    const sprintName = String(s.name || '').trim();
+    if (sprintName) {
+      pool.push(`Give me a quick update on sprint "${sprintName}".`);
+      pool.push(`Generate a sprint report for "${sprintName}".`);
+    }
+  }
+
+  const nowYmd = new Date().toISOString().slice(0, 10);
+  const overdueCount = deliverables.filter((d) => {
+    const due = d && d.dueDate ? String(d.dueDate) : '';
+    if (!due) return false;
+    if (due > nowYmd) return false;
+    return !isDeliverableCompletedStatus(d.status);
+  }).length;
+  if (overdueCount > 0) {
+    pool.push(`Show me what's overdue right now (${overdueCount} item${overdueCount === 1 ? '' : 's'}).`);
+  } else {
+    pool.push('What should I focus on next?');
+  }
+
+  pool.push('Show me all projects.');
+  pool.push('What sprints are currently active?');
+  pool.push('Help me create a deliverable.');
+  pool.push('Help me set up a new sprint.');
+  pool.push('Take me back to the dashboard.');
+
+  const unique = Array.from(new Set(pool.map((s) => String(s || '').trim()).filter(Boolean)));
+  shuffleInPlace(unique, rand);
+  return unique.slice(0, 4);
 }
 
 router.get('/status', (req, res) => {
@@ -1451,7 +2002,7 @@ router.post('/chat', async (req, res) => {
     } catch (_) {}
     msgs.unshift({
       role: 'system',
-      content: 'You are FlowPilot. You have access to project/sprint/deliverable/user data in APP_DATA_SNAPSHOT_JSON. Use it to answer questions about counts, names, status, assignments, and progress. If something is not present in the snapshot, say it is not present in the snapshot instead of saying you have no access.',
+      content: 'You are FlowPilot. You have access to project/sprint/deliverable/user/notification data in APP_DATA_SNAPSHOT_JSON. Use it to answer questions about counts, names, status, assignments, progress, and unread notifications. If the user changes topics, answer the latest request directly without repeating your previous response unless asked. If something is not present in the snapshot, say it is not present in the snapshot.',
     });
     let snapshotData = null;
     try {
@@ -1489,14 +2040,352 @@ router.post('/chat', async (req, res) => {
       if (topic) lastTopicByUser.set(userId, topic);
       if (snapshotData && topic) snapshotData.__topic = topic;
 
-      const pending = pendingActions.get(userId);
+      let pending = pendingActions.get(userId);
+      const pendingPatch = parseKeyValueLines(userText);
+      if (pending && shouldAutoCancelPending(pending, userText, pendingPatch)) {
+        pendingActions.delete(userId);
+        pending = null;
+      }
       if (pending && isCancelText(userText)) {
         pendingActions.delete(userId);
         return sendResponse(res, true, { content: 'Cancelled.', usage: {}, model: 'server' });
       }
       if (pending) {
-        const patch = parseKeyValueLines(userText);
-        pending.data = mergeDefined(pending.data, patch);
+        pending.data = mergeDefined(pending.data, pendingPatch);
+        if (pending.type === 'report') {
+          const tt = String(userText || '').toLowerCase();
+          if ((pendingPatch && pendingPatch.sprint) || /\bsprint\b/.test(tt)) {
+            pending.type = 'signoff_sprint_select';
+            pending.data = {
+              sprint: pendingPatch.sprint ? String(pendingPatch.sprint).trim() : '',
+              note: extractSignoffNoteFromText(userText),
+            };
+            pending.confirmAsked = true;
+          }
+        }
+        if (pending.type === 'sprint_report_select') {
+          if (!Array.isArray(pending.data.sprint_options) || pending.data.sprint_options.length === 0) {
+            pending.data.sprint_options = await getSprintSelectionOptions(snapshotData || {}, 12);
+          }
+          const options = pending.data.sprint_options || [];
+          const selectedId = resolveSprintIdFromSelectionText(userText, options);
+
+          if (!selectedId) {
+            const list = formatSprintOptionsForPrompt(options);
+            return sendResponse(res, true, {
+              content: cleanAiText(`Choose a sprint for the report by replying with the number.\n\n${list}`),
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          const sprintLoad = await buildSprintReportById(selectedId);
+          const sprintData = sprintLoad ? sprintLoad.report : null;
+          if (!sprintData) {
+            if (sprintLoad && !sprintLoad.notFound) {
+              pendingActions.delete(userId);
+              return sendResponse(res, true, {
+                content: cleanAiText(`I couldn't generate the sprint report due to an internal error: ${String(sprintLoad.error || 'unknown_error')}`),
+                usage: {},
+                model: 'server',
+              });
+            }
+            pending.data.sprint_options = await getSprintSelectionOptions(snapshotData || {}, 12);
+            const list = formatSprintOptionsForPrompt(pending.data.sprint_options);
+            return sendResponse(res, true, {
+              content: cleanAiText(`I couldn't find that sprint. Please choose again by replying with the number.\n\n${list}`),
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          const verificationText = buildManualSprintReportText(sprintData, undefined, pending.data.feedback);
+          const suggested = suggestSprintReportTitle(sprintData);
+          pending.type = 'sprint_report';
+          pending.data = {
+            sprint_ref: sprintData.sprint && sprintData.sprint.id ? String(sprintData.sprint.id) : String(selectedId),
+            suggested_title: suggested,
+            stage: 'verify',
+            feedback: pending.data.feedback || '',
+          };
+          return sendResponse(res, true, {
+            content: cleanAiText(`Here is the sprint data (deliverables and team included) for verification:\n\n${verificationText}\n\nSuggested report title: ${suggested}\nReply "confirm" to confirm the title, then you will be prompted to add feedback before the report is generated.`),
+            usage: {},
+            model: 'server',
+          });
+        }
+        if (pending.type === 'sprint_report') {
+          const stage = String(pending.data.stage || 'verify');
+          const extractedTitle = extractReportTitleFromText(userText);
+          if (extractedTitle) pending.data.report_title = extractedTitle;
+          const extractedFeedback = extractFeedbackFromText(userText);
+          if (extractedFeedback) pending.data.feedback = extractedFeedback;
+
+          if (stage === 'verify') {
+            if (!pending.data.report_title && isConfirmText(userText) && pending.data.suggested_title) {
+              pending.data.report_title = String(pending.data.suggested_title).trim();
+            }
+
+            if (pending.data.report_title && !isConfirmText(userText)) {
+              return sendResponse(res, true, {
+                content: cleanAiText(`Report title set to: ${String(pending.data.report_title)}\nReply "confirm" to confirm the title and continue to feedback, or type a new title.`),
+                usage: {},
+                model: 'server',
+              });
+            }
+
+            if (!isConfirmText(userText)) {
+              const prompt = pending.data.suggested_title
+                ? `Suggested report title: ${String(pending.data.suggested_title)}\nReply "confirm" to use it, or type your own title.`
+                : 'Please provide a report title.';
+              return sendResponse(res, true, { content: cleanAiText(prompt), usage: {}, model: 'server' });
+            }
+
+            if (!pending.data.report_title) {
+              return sendResponse(res, true, { content: cleanAiText('Please provide a report title, then reply "confirm".'), usage: {}, model: 'server' });
+            }
+
+            pending.data.stage = 'feedback';
+            pending.data.feedback_confirm_ready = false;
+            return sendResponse(res, true, {
+              content: cleanAiText(`Add feedback that will appear in the PDF report (optional).\nReply with:\n- Feedback: <your comments>\nOr just type your feedback as a message.\nOr reply "skip" to continue without feedback.\n\nAfter you add feedback (or skip), reply "confirm" to generate and export the report PDF.`),
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          if (stage === 'feedback') {
+            if (isSkipText(userText)) {
+              pending.data.feedback = '';
+              pending.data.feedback_confirm_ready = true;
+            } else if (extractedFeedback) {
+              pending.data.feedback_confirm_ready = true;
+            } else if (userText && !isConfirmText(userText) && !isCancelText(userText)) {
+              const direct = String(userText).trim();
+              if (direct) {
+                pending.data.feedback = normalizePossibleFeedback(direct);
+                pending.data.feedback_confirm_ready = true;
+              }
+            }
+
+            if (isConfirmText(userText)) {
+              if (!pending.data.feedback_confirm_ready) {
+                return sendResponse(res, true, {
+                  content: cleanAiText('Please add feedback (or reply "skip") before confirming.'),
+                  usage: {},
+                  model: 'server',
+                });
+              }
+            } else {
+              return sendResponse(res, true, {
+                content: cleanAiText(pending.data.feedback
+                  ? 'Feedback saved. Reply "confirm" to generate and export the report PDF, or update your feedback.'
+                  : 'Reply with your feedback (optional), or reply "skip". Then reply "confirm" to generate and export the report PDF.'),
+                usage: {},
+                model: 'server',
+              });
+            }
+
+            const reportTitle = String(pending.data.report_title || '').trim() || 'Sprint Report';
+            const sprintRef = pending.data.sprint_ref ? String(pending.data.sprint_ref).trim() : '';
+            const latestLoad = sprintRef ? await buildSprintReportById(sprintRef) : null;
+            const latestData = latestLoad ? latestLoad.report : null;
+            if (!latestData) {
+              return sendResponse(res, true, {
+                content: cleanAiText(latestLoad && !latestLoad.notFound
+                  ? `I couldn't generate the report due to an internal error: ${String(latestLoad.error || 'unknown_error')}`
+                  : 'I could not reload the sprint data for the report. Please try again.'),
+                usage: {},
+                model: 'server',
+              });
+            }
+            const finalText = buildManualSprintReportText(latestData, reportTitle, pending.data.feedback);
+            pendingActions.delete(userId);
+            return sendResponse(res, true, {
+              content: cleanAiText(finalText),
+              actions: [{ type: 'export_pdf', title: reportTitle, content: cleanAiText(finalText) }],
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          pending.data.stage = 'verify';
+          return sendResponse(res, true, { content: cleanAiText('Please reply "confirm" to continue.'), usage: {}, model: 'server' });
+        }
+        if (pending.type === 'signoff_sprint_select') {
+          if (!pending.data.note) {
+            const n = extractSignoffNoteFromText(userText);
+            if (n) pending.data.note = n;
+          }
+          if (!Array.isArray(pending.data.sprint_options) || pending.data.sprint_options.length === 0) {
+            pending.data.sprint_options = await getSprintSelectionOptions(snapshotData || {}, 12);
+          }
+          const options = pending.data.sprint_options || [];
+          const selectedId = resolveSprintIdFromSelectionText(userText, options);
+
+          if (!selectedId) {
+            const list = formatSprintOptionsForPrompt(options);
+            return sendResponse(res, true, {
+              content: cleanAiText(`Choose a sprint for the sign-off report by replying with the number.\n\n${list}`),
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          const sprintLoad = await buildSprintReportById(selectedId);
+          const sprintData = sprintLoad ? sprintLoad.report : null;
+          if (!sprintData) {
+            if (sprintLoad && !sprintLoad.notFound) {
+              pendingActions.delete(userId);
+              return sendResponse(res, true, {
+                content: cleanAiText(`I couldn't generate the sign-off report due to an internal error: ${String(sprintLoad.error || 'unknown_error')}`),
+                usage: {},
+                model: 'server',
+              });
+            }
+            pending.data.sprint_options = await getSprintSelectionOptions(snapshotData || {}, 12);
+            const list = formatSprintOptionsForPrompt(pending.data.sprint_options);
+            return sendResponse(res, true, {
+              content: cleanAiText(`I couldn't find that sprint. Please choose again by replying with the number.\n\n${list}`),
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          const suggestedTitle = `Sprint Report: ${String(sprintData.sprint && sprintData.sprint.name ? sprintData.sprint.name : '').trim() || 'Sprint'}`;
+          const providedTitle = extractReportTitleFromText(userText);
+          const title = providedTitle || suggestedTitle;
+          const preview = buildSprintSignoffReportText(sprintData, title, pending.data.note, pending.data.feedback);
+          pending.type = 'signoff_sprint_report';
+          pending.data = {
+            sprint_ref: String(sprintData.sprint && sprintData.sprint.id ? sprintData.sprint.id : selectedId),
+            suggested_title: suggestedTitle,
+            report_title: providedTitle || '',
+            note: pending.data.note || '',
+            feedback: pending.data.feedback || '',
+            stage: 'verify',
+          };
+          return sendResponse(res, true, {
+            content: cleanAiText(`Here is the sprint sign-off report content for verification:\n\n${preview}\n\nSuggested report title: ${suggestedTitle}\nReply "confirm" to confirm the title, then you will be prompted to add feedback before the report is created and exported.`),
+            usage: {},
+            model: 'server',
+          });
+        }
+        if (pending.type === 'signoff_sprint_report') {
+          const stage = String(pending.data.stage || 'verify');
+          const extractedTitle = extractReportTitleFromText(userText);
+          if (extractedTitle) pending.data.report_title = extractedTitle;
+          const extractedNote = extractSignoffNoteFromText(userText);
+          if (extractedNote) pending.data.note = extractedNote;
+          const extractedFeedback = extractFeedbackFromText(userText);
+          if (extractedFeedback) pending.data.feedback = extractedFeedback;
+
+          if (stage === 'verify') {
+            if (!pending.data.report_title && isConfirmText(userText) && pending.data.suggested_title) {
+              pending.data.report_title = String(pending.data.suggested_title).trim();
+            }
+
+            if (pending.data.report_title && !isConfirmText(userText)) {
+              return sendResponse(res, true, {
+                content: cleanAiText(`Report title set to: ${String(pending.data.report_title)}\nReply "confirm" to confirm the title and continue to feedback, or type a new title.`),
+                usage: {},
+                model: 'server',
+              });
+            }
+
+            if (!isConfirmText(userText)) {
+              return sendResponse(res, true, {
+                content: cleanAiText(`Suggested report title: ${String(pending.data.suggested_title || 'Sprint Report')}\nReply "confirm" to use it, or type your own title.`),
+                usage: {},
+                model: 'server',
+              });
+            }
+
+            if (!pending.data.report_title) {
+              return sendResponse(res, true, { content: cleanAiText('Please provide a report title, then reply "confirm".'), usage: {}, model: 'server' });
+            }
+
+            pending.data.stage = 'feedback';
+            pending.data.feedback_confirm_ready = false;
+            return sendResponse(res, true, {
+              content: cleanAiText(`Add feedback that will appear in the PDF report (optional).\nReply with:\n- Feedback: <your comments>\nOr just type your feedback as a message.\nOr reply "skip" to continue without feedback.\n\nAfter you add feedback (or skip), reply "confirm" to create and export the sign-off report PDF.`),
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          if (stage === 'feedback') {
+            if (isSkipText(userText)) {
+              pending.data.feedback = '';
+              pending.data.feedback_confirm_ready = true;
+            } else if (extractedFeedback) {
+              pending.data.feedback_confirm_ready = true;
+            } else if (userText && !isConfirmText(userText) && !isCancelText(userText)) {
+              const direct = String(userText).trim();
+              if (direct) {
+                pending.data.feedback = normalizePossibleFeedback(direct);
+                pending.data.feedback_confirm_ready = true;
+              }
+            }
+
+            if (isConfirmText(userText)) {
+              if (!pending.data.feedback_confirm_ready) {
+                return sendResponse(res, true, { content: cleanAiText('Please add feedback (or reply "skip") before confirming.'), usage: {}, model: 'server' });
+              }
+            } else {
+              return sendResponse(res, true, {
+                content: cleanAiText(pending.data.feedback
+                  ? 'Feedback saved. Reply "confirm" to create and export the sign-off report PDF, or update your feedback.'
+                  : 'Reply with your feedback (optional), or reply "skip". Then reply "confirm" to create and export the sign-off report PDF.'),
+                usage: {},
+                model: 'server',
+              });
+            }
+          } else {
+            pending.data.stage = 'verify';
+            return sendResponse(res, true, { content: cleanAiText('Please reply "confirm" to continue.'), usage: {}, model: 'server' });
+          }
+
+          const reportTitle = String(pending.data.report_title || pending.data.suggested_title || 'Sprint Report').trim();
+          const sprintRef = String(pending.data.sprint_ref || '').trim();
+          const latestLoad = sprintRef ? await buildSprintReportById(sprintRef) : null;
+          const latestData = latestLoad ? latestLoad.report : null;
+          if (!latestData) {
+            return sendResponse(res, true, { content: cleanAiText(latestLoad && !latestLoad.notFound
+              ? `I couldn't create the sign-off report due to an internal error: ${String(latestLoad.error || 'unknown_error')}`
+              : 'I could not reload the sprint data for the sign-off report. Please try again.'), usage: {}, model: 'server' });
+          }
+
+          const reportContent = buildSprintSignoffReportText(latestData, reportTitle, pending.data.note, pending.data.feedback);
+          await ensureReportsTable();
+          const role = normalizeRole(req.user && req.user.role);
+          const preparedByName = req.user ? displayName(req.user) : null;
+          const content = {
+            reportTitle,
+            reportContent,
+            sprintIds: [String(latestData.sprint && latestData.sprint.id ? latestData.sprint.id : sprintRef)],
+            sprintPerformanceData: '',
+            sprintReportData: latestData,
+            preparedBy: userId,
+            preparedByName,
+            preparedByRole: role || null,
+            status: 'draft',
+          };
+          const dialect = (sequelize && typeof sequelize.getDialect === 'function') ? sequelize.getDialect() : '';
+          const contentExpr = dialect === 'postgres' ? '$4::jsonb' : '$4';
+          const [results] = await sequelize.query(
+            `INSERT INTO sign_off_reports (deliverable_id, created_by, status, content) VALUES ($1, $2, $3, ${contentExpr}) RETURNING id`,
+            { bind: [null, userId, 'draft', JSON.stringify(content)] }
+          );
+          const row = results && results[0] ? results[0] : null;
+          pendingActions.delete(userId);
+          return sendResponse(res, true, {
+            content: cleanAiText(`${reportContent}\n\nSaved as a draft sign-off report (id=${row ? row.id : 'unknown'}).`),
+            actions: [{ type: 'export_pdf', title: reportTitle, content: cleanAiText(reportContent) }],
+            usage: {},
+            model: 'server',
+          });
+        }
         const ready = pending.type === 'project'
           ? !!pending.data.name
           : pending.type === 'sprint'
@@ -1509,9 +2398,9 @@ router.post('/chat', async (req, res) => {
 
         if (!ready) {
           const ask = pending.type === 'deliverable'
-            ? "I'm ready to help you create a deliverable. Could you provide the following details?\n- Project (key or name)\n- Title\n- Due Date (optional)\n- Owner Email (optional)\n- Sprint (optional)\n- Priority (low, medium, or high)"
+            ? "I'm ready to help you create a deliverable. Could you share:\n- Project (key or name)\n- Title\n- Due Date (optional)\n- Owner Email (optional)\n- Assigned To (optional)\n- Sprint (optional)\n- Priority (low, medium, or high)"
             : pending.type === 'sprint'
-              ? "Let's set up a new sprint. I'll need a few things:\n- Project (key or name)\n- Sprint Name\n- Start Date (YYYY-MM-DD)\n- End Date (YYYY-MM-DD)"
+              ? "Let's set up a new sprint. I'll need a few things:\n- Project (key or name)\n- Sprint Name\n- Start Date (YYYY-MM-DD)\n- End Date (YYYY-MM-DD)\n- Planned Points (optional)"
               : pending.type === 'project'
                 ? "I'd be happy to help you start a new project! Please provide:\n- Project Name\n- Short Key (optional)\n- Owner Email (optional)"
                 : "I'll help you draft a sign-off report. Please provide:\n- Deliverable ID\n- Report Title\n- Report Content\n- Status (draft or submitted)";
@@ -1521,9 +2410,9 @@ router.post('/chat', async (req, res) => {
         if (!isConfirmText(userText) && !pending.confirmAsked) {
           pending.confirmAsked = true;
           const summary = pending.type === 'deliverable'
-            ? `Everything looks good! I'll create the following deliverable:\n- Project: ${pending.data.project}\n- Title: ${pending.data.title}\n- Due date: ${pending.data.due_date || 'Not set'}\n\nShall I proceed with creating this? (Reply "confirm" or "cancel")`
+            ? `Great — here's what I'll set up:\n- Project: ${pending.data.project}\n- Title: ${pending.data.title}\n- Due date: ${pending.data.due_date || 'Not set'}\n- Owner email: ${pending.data.owner_email || 'Not set'}\n- Assigned to: ${pending.data.assigned_to || 'Not set'}\n- Sprint: ${pending.data.sprint || 'Not set'}\n\nShall I go ahead and create this deliverable? (Reply "confirm" or "cancel")`
             : pending.type === 'sprint'
-              ? `I've prepared the sprint details:\n- Project: ${pending.data.project}\n- Name: ${pending.data.name}\n- Dates: ${pending.data.start_date} to ${pending.data.end_date}\n\nReady to create it? (Reply "confirm" or "cancel")`
+              ? `Perfect — here are the sprint details:\n- Project: ${pending.data.project}\n- Name: ${pending.data.name}\n- Dates: ${pending.data.start_date} to ${pending.data.end_date}\n- Planned points: ${pending.data.planned_points || '0'}\n\nReady for me to create this sprint? (Reply "confirm" or "cancel")`
               : pending.type === 'project'
                 ? `I'm ready to set up your new project:\n- Name: ${pending.data.name}\n- Key: ${pending.data.key || 'Will be auto-generated'}\n\nShould I go ahead and create it? (Reply "confirm" or "cancel")`
                 : `I've drafted the sign-off report:\n- Deliverable ID: ${pending.data.deliverable_id}\n- Title: ${pending.data.report_title}\n- Status: ${pending.data.status || 'draft'}\n\nShall I save this report? (Reply "confirm" or "cancel")`;
@@ -1576,11 +2465,21 @@ router.post('/chat', async (req, res) => {
                 return sendResponse(res, true, { content: 'End date must be after start date.', usage: {}, model: 'server' });
               }
 
+              let plannedPoints = 0;
+              if (pending.data.planned_points !== undefined && pending.data.planned_points !== null) {
+                const n = parseInt(String(pending.data.planned_points).trim(), 10);
+                if (Number.isNaN(n) || n < 0) {
+                  return sendResponse(res, true, { content: 'Planned Points must be a non-negative number.', usage: {}, model: 'server' });
+                }
+                plannedPoints = n;
+              }
+
               const sprint = await Sprint.create({
                 project_id: projectId,
                 name: String(pending.data.name).trim(),
                 start_date: start,
                 end_date: end,
+                planned_points: plannedPoints,
                 status: 'planning',
                 created_by: userId,
                 created_at: new Date(),
@@ -1662,19 +2561,75 @@ router.post('/chat', async (req, res) => {
         }
       }
 
+      if (userId && userText) {
+        const tt = String(userText).toLowerCase();
+        const wantsSignoffReport = /\b(sign[- ]?off|signoff)\b/.test(tt) && /\breport\b/.test(tt);
+        const mentionsDeliverable = /\bdeliverable\b/.test(tt);
+        if (wantsSignoffReport && !mentionsDeliverable) {
+          const sprintData = await buildSprintDetailsData(userText, snapshotData || {});
+          if (!sprintData) {
+            const options = await getSprintSelectionOptions(snapshotData || {}, 12);
+            pendingActions.set(userId, { type: 'signoff_sprint_select', data: { sprint_options: options }, confirmAsked: true, createdAt: Date.now() });
+            const list = formatSprintOptionsForPrompt(options);
+            return sendResponse(res, true, {
+              content: cleanAiText(`Choose a sprint for the sign-off report by replying with the number.\n\n${list}`),
+              usage: {},
+              model: 'server',
+            });
+          }
+
+          const note = extractSignoffNoteFromText(userText);
+        const feedback = extractFeedbackFromText(userText);
+          const suggestedTitle = `Sprint Report: ${String(sprintData.sprint && sprintData.sprint.name ? sprintData.sprint.name : '').trim() || 'Sprint'}`;
+          const providedTitle = extractReportTitleFromText(userText);
+          const title = providedTitle || suggestedTitle;
+        const preview = buildSprintSignoffReportText(sprintData, title, note, feedback);
+          pendingActions.set(userId, {
+            type: 'signoff_sprint_report',
+            data: {
+              sprint_ref: String(sprintData.sprint && sprintData.sprint.id ? sprintData.sprint.id : ''),
+              suggested_title: suggestedTitle,
+              report_title: providedTitle || '',
+              note: note || '',
+            feedback: feedback || '',
+            },
+            confirmAsked: true,
+            createdAt: Date.now(),
+          });
+          return sendResponse(res, true, {
+          content: cleanAiText(`Here is the sprint sign-off report content for verification:\n\n${preview}\n\nSuggested report title: ${suggestedTitle}\nOptional: add feedback that will appear in the PDF:\n- Feedback: <your comments>\n\nReply "confirm" to create this sign-off report (draft) and export PDF, or type a new title/note/feedback and then reply "confirm".`),
+            usage: {},
+            model: 'server',
+          });
+        }
+      }
+
       const intent = detectCreateIntent(userText);
       if (intent) {
         pendingActions.set(userId, { type: intent, data: {}, confirmAsked: false, createdAt: Date.now() });
         const ask = intent === 'deliverable'
-          ? "I'm ready to help you create a deliverable. Could you provide the following details?\n- Project (key or name)\n- Title\n- Due Date (optional)\n- Owner Email (optional)\n- Sprint (optional)\n- Priority (low, medium, or high)"
+          ? "I'm ready to help you create a deliverable. Could you share:\n- Project (key or name)\n- Title\n- Due Date (optional)\n- Owner Email (optional)\n- Assigned To (optional)\n- Sprint (optional)\n- Priority (low, medium, or high)"
           : intent === 'sprint'
-            ? "Let's set up a new sprint. I'll need a few things:\n- Project (key or name)\n- Sprint Name\n- Start Date (YYYY-MM-DD)\n- End Date (YYYY-MM-DD)"
+            ? "Let's set up a new sprint. I'll need a few things:\n- Project (key or name)\n- Sprint Name\n- Start Date (YYYY-MM-DD)\n- End Date (YYYY-MM-DD)\n- Planned Points (optional)"
             : intent === 'project'
               ? "I'd be happy to help you start a new project! Please provide:\n- Project Name\n- Short Key (optional)\n- Owner Email (optional)"
               : "I'll help you draft a sign-off report. Please provide:\n- Deliverable ID\n- Report Title\n- Report Content\n- Status (draft or submitted)";
         return sendResponse(res, true, { content: ask, usage: {}, model: 'server' });
       }
     }
+
+    if (userId && userText && isNotificationsDataQuery(userText)) {
+      const direct = snapshotData ? answerFromSnapshot(snapshotData, userText) : null;
+      if (direct) {
+        try {
+          const ai = await rephraseWithOpenRouter({ question: userText, rawAnswer: direct });
+          return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
+        } catch (_) {
+          return sendResponse(res, true, { content: cleanAiText(direct), usage: {}, model: 'server' });
+        }
+      }
+    }
+
     if (userText && isNavigationQuery(userText)) {
       const nav = await buildNavigationActionFromText(userText, snapshotData || {});
       if (nav && nav.route) {
@@ -1721,12 +2676,46 @@ router.post('/chat', async (req, res) => {
     }
     if (userText && isSprintScopedQuery(userText)) {
       const sprintData = await buildSprintDetailsData(userText, snapshotData || {});
-      if (sprintData) {
-        const ai = await formatWithOpenRouter({ userText, data: sprintData, kind: 'SPRINT_REPORT' });
-        return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
+      const wantsReport = /\breport\b|\bsummary\b|\binsights?\b|\bhealth\b/.test(String(userText || '').toLowerCase());
+      if (!sprintData) {
+        if (wantsReport) {
+          const options = await getSprintSelectionOptions(snapshotData || {}, 12);
+          pendingActions.set(userId, { type: 'sprint_report_select', data: { sprint_options: options }, confirmAsked: true, createdAt: Date.now() });
+        }
+        const options = await getSprintSelectionOptions(snapshotData || {}, 12);
+        const list = formatSprintOptionsForPrompt(options);
+        return sendResponse(res, true, {
+          content: cleanAiText(`Choose a sprint for the report by replying with the number.\n\n${list}`),
+          usage: {},
+          model: 'server',
+        });
       }
-      const sprintPreview = await answerFromDb('list the sprint names', 'sprints');
-      return sendResponse(res, true, { content: cleanAiText(`Which sprint do you mean?\nReply with: Sprint: <sprint name or id>\n\n${sprintPreview || ''}`), usage: {}, model: 'server' });
+
+      if (wantsReport) {
+        const verificationText = buildManualSprintReportText(sprintData, undefined, '');
+        const providedTitle = extractReportTitleFromText(userText);
+        const suggested = providedTitle || suggestSprintReportTitle(sprintData);
+        pendingActions.set(userId, {
+          type: 'sprint_report',
+          data: {
+            sprint_ref: sprintData.sprint && sprintData.sprint.id ? String(sprintData.sprint.id) : String(sprintData.sprint && sprintData.sprint.name ? sprintData.sprint.name : ''),
+            suggested_title: suggested,
+            stage: 'verify',
+            ...(providedTitle ? { report_title: providedTitle } : {}),
+            feedback: '',
+          },
+          confirmAsked: true,
+          createdAt: Date.now(),
+        });
+        return sendResponse(res, true, {
+          content: cleanAiText(`Here is the sprint data (deliverables and team included) for verification:\n\n${verificationText}\n\nSuggested report title: ${suggested}\nReply "confirm" to confirm the title, then you will be prompted to add feedback before the report is generated.`),
+          usage: {},
+          model: 'server',
+        });
+      }
+
+      const ai = await formatWithOpenRouter({ userText, data: sprintData, kind: 'SPRINT_REPORT' });
+      return sendResponse(res, true, { content: cleanAiText(ai.content), usage: ai.usage || {}, model: ai.model || 'openrouter' });
     }
     if (userText && isProjectScopedQuery(userText)) {
       const detailsData = await buildProjectDetailsData(userText, snapshotData || {});
@@ -1815,6 +2804,34 @@ router.get('/chat', async (req, res) => {
     return res.status(405).json({ error: 'Method Not Allowed', message: 'Use POST /chat with a JSON body: { messages: [...] }' });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Internal error' });
+  }
+});
+
+router.get('/suggestions', async (req, res) => {
+  try {
+    const userId = req.user && req.user.id ? String(req.user.id) : '';
+    let snapshotData = null;
+    try {
+      if (req.user && req.user.id) {
+        snapshotData = await buildAppDataSnapshotData(req.user);
+      }
+    } catch (_) {
+      snapshotData = null;
+    }
+    const suggestions = buildEntrySuggestions(snapshotData || {}, userId);
+    return res.json({ success: true, data: { suggestions } });
+  } catch (error) {
+    return res.json({
+      success: true,
+      data: {
+        suggestions: [
+          'Show me all projects.',
+          'What sprints are currently active?',
+          'Help me create a deliverable.',
+          'What should I focus on next?',
+        ],
+      },
+    });
   }
 });
 
