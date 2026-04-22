@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../config/environment.dart';
 
 class Ticket {
@@ -280,7 +281,7 @@ class TicketService {
     try {
       final response = await _makeHttpRequest(method, url, body: body);
       
-      return response;
+      return jsonDecode(response.body);
     } catch (e) {
       throw Exception('Network error: $e');
     }

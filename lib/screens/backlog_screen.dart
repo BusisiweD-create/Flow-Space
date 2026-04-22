@@ -220,8 +220,14 @@ class _BacklogScreenState extends State<BacklogScreen> {
                                 const SizedBox(height: 24),
                                 ElevatedButton(
                                   onPressed: _createTicket,
-                                  icon: const Icon(Icons.add, size: 20),
-                                  label: 'Create First Ticket',
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.add, size: 20),
+                                      const SizedBox(width: 8),
+                                      const Text('Create First Ticket'),
+                                    ],
+                                  ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: FlownetColors.electricBlue,
                                     foregroundColor: FlownetColors.pureWhite,
