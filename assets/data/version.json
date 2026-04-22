@@ -1,8 +1,18 @@
 {
-  "version": "Ver 2026.04DC10 SIT",
+  "version": "Ver 2026.04DC12 SIT",
   "branch": "integration/thabang",
-  "generated_at": "2026-04-22T21:01:31Z",
+  "generated_at": "2026-04-22T22:24:48Z",
   "commits": [
+    {
+      "author": "thabang127",
+      "message": "fix: update local API port and add UI state safety checks",
+      "timestamp": "2026-04-23T00:23:49+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update version data [2026-04-22]",
+      "timestamp": "2026-04-22T21:01:31Z"
+    },
     {
       "author": "GitHub Action",
       "message": "Update version data [2026-04-22]",
@@ -54,6 +64,6 @@
       "timestamp": "2026-04-22T11:32:36+02:00"
     }
   ],
-  "total_commits": 10,
+  "total_commits": 12,
   "date_range": "2026-04-22"
 }
