@@ -278,57 +278,25 @@ class TicketService {
     final url = '${Environment.apiBaseUrl}$endpoint';
     
     try {
-      final request = _HttpClient();
+      final response = await _makeHttpRequest(method, url, body: body);
       
-      if (body != null) {
-        request.body = jsonEncode(body);
-      }
-      
-      final response = await _makeHttpRequest(request, method, url);
-      
-      return jsonDecode(response.body);
+      return response;
     } catch (e) {
       throw Exception('Network error: $e');
     }
   }
 
-  static Future<_HttpClientResponse> _makeHttpRequest(_HttpClient request, String method, String url) async {
-    switch (method) {
-      case 'GET':
-        return await request.get(Uri.parse(url));
-      case 'POST':
-        return await request.post(
-          Uri.parse(url),
-          headers: {'Content-Type': 'application/json'},
-          body: request.body,
-        );
-      case 'PUT':
-        return await request.put(
-          Uri.parse(url),
-          headers: {'Content-Type': 'application/json'},
-          body: request.body,
-        );
-      default:
-        throw Exception('Unsupported HTTP method: $method');
+  static Future<http.Response> _makeHttpRequest(String method, String url, {Map<String, dynamic>? body}) async {
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: body != null ? jsonEncode(body) : null,
+      );
+      
+      return response;
+    } catch (e) {
+      throw Exception('Network error: $e');
     }
-  }
-}
-
-typedef _HttpClientResponse = Future<Map<String, dynamic>> Function(Uri url);
-
-class _HttpClient {
-  Future<Map<String, dynamic>> get(Uri url) async {
-    // Implementation for HTTP GET requests
-    throw UnimplementedError('HTTP client not implemented');
-  }
-
-  Future<Map<String, dynamic>> post(Uri url, {Map<String, String>? headers, String? body}) async {
-    // Implementation for HTTP POST requests
-    throw UnimplementedError('HTTP client not implemented');
-  }
-
-  Future<Map<String, dynamic>> put(Uri url, {Map<String, String>? headers, String? body}) async {
-    // Implementation for HTTP PUT requests
-    throw UnimplementedError('HTTP client not implemented');
   }
 }

@@ -52,16 +52,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
-<<<<<<< HEAD
-
-=======
-  String? _selectedTeamFilter;
+String? _selectedTeamFilter;
   String? _hoveredTeamFilter;
   String? _selectedAdminFilter;
   String? _hoveredAdminFilter;
   bool _isBottomFabExpanded = false;
-  
->>>>>>> 4f23518a5a00887964cfa440e4bfedc715e0db2d
   // Cache for user names to avoid repeated API calls
   final Map<String, String> _userNamesCache = {};
 
