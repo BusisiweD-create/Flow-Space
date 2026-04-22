@@ -304,7 +304,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
             ),
             const SizedBox(height: 2),
             Text(
-              'Resource Capacity & Skills Heatmap',
+              'Deliverable & Sprint Sign-Off Hub',
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
