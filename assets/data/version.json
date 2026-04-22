@@ -1,8 +1,18 @@
 {
-  "version": "Ver 2026.04DC4 SIT",
+  "version": "Ver 2026.04DC6 SIT",
   "branch": "integration/thabang",
-  "generated_at": "2026-04-22T20:29:17Z",
+  "generated_at": "2026-04-22T20:38:35Z",
   "commits": [
+    {
+      "author": "thabang127",
+      "message": "refactor(widgets): remove unused sidebar navigation history code",
+      "timestamp": "2026-04-22T22:38:05+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update version data [2026-04-22]",
+      "timestamp": "2026-04-22T20:29:17Z"
+    },
     {
       "author": "GitHub Action",
       "message": "Update version data [2026-04-22]",
@@ -24,6 +34,6 @@
       "timestamp": "2026-04-22T11:32:36+02:00"
     }
   ],
-  "total_commits": 4,
+  "total_commits": 6,
   "date_range": "2026-04-22"
 }
