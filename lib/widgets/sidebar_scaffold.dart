@@ -51,6 +51,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           route: '/dashboard',
         ),
         _NavItem(
+          label: 'FlowPilot',
+          icon: Icons.smart_toy_outlined,
+          iconName: 'ai_assistant',
+          route: '/ai-assistant',
+        ),
+        _NavItem(
           label: 'Projects',
           icon: Icons.folder_outlined,
           iconName: 'projects',
@@ -60,7 +66,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           label: 'Sprints',
           icon: Icons.timer_outlined,
           iconName: 'sprints',
-          route: '/sprints',
+          route: '/sprint-console',
         ),
         _NavItem(
           label: 'Deliverables',
@@ -108,6 +114,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         icon: Icons.dashboard_outlined,
         iconName: 'dashboard',
         route: '/dashboard',
+        requiredPermission: null,
+      ),
+      const _NavItem(
+        label: 'FlowPilot',
+        icon: Icons.smart_toy_outlined,
+        iconName: 'ai_assistant',
+        route: '/ai-assistant',
         requiredPermission: null,
       ),
       const _NavItem(
@@ -234,11 +247,27 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
     }
     final isDesktop = MediaQuery.of(context).size.width > 768;
+    final bool useWelcomeBackground = <String>{
+      '/ai-assistant',
+      '/deliverables-overview',
+      '/timeline',
+      '/send-reminder',
+      '/approvals',
+      '/approval-requests',
+      '/role-management',
+      '/system-health',
+      '/audit-logs',
+    }.any((p) => routeLocation.startsWith(p));
+    final String? backgroundImagePath =
+        useWelcomeBackground ? 'assets/Icons/khono_bg.png' : null;
+    final bool backgroundWithGradient = useWelcomeBackground ? false : true;
 
     if (isDesktop) {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: BackgroundImage(
+          imagePath: backgroundImagePath,
+          withGradient: backgroundWithGradient,
           child: Row(
             children: [
               _buildDesktopSidebar(routeLocation),
@@ -272,6 +301,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: BackgroundImage(
+          imagePath: backgroundImagePath,
+          withGradient: backgroundWithGradient,
           child: widget.child,
         ),
         floatingActionButton:

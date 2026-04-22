@@ -348,7 +348,12 @@ class SignOffReportService {
   }
 
   // Request changes
-  Future<ApiResponse> requestChanges(String reportId, String changeRequestDetails) async {
+  Future<ApiResponse> requestChanges(
+    String reportId,
+    String changeRequestDetails, {
+    String? comment,
+    String? digitalSignature,
+  }) async {
     try {
       final token = _authService.accessToken;
       if (token == null) {
@@ -363,6 +368,8 @@ class SignOffReportService {
         },
         body: jsonEncode({
           'changeRequestDetails': changeRequestDetails,
+          if (comment != null) 'comment': comment,
+          if (digitalSignature != null) 'digitalSignature': digitalSignature,
         }),
       );
 

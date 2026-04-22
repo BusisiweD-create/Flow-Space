@@ -295,8 +295,38 @@ class SignOffReport {
             content['reviewed_by_role'])
         ?.toString();
 
-    final String? clientComment = (json['clientComment'] ?? content['clientComment'] ?? json['comments'])?.toString();
-    final String? changeRequestDetails = (json['changeRequestDetails'] ?? content['changeRequestDetails'])?.toString();
+    String? clientComment = (json['clientComment'] ??
+            json['client_comment'] ??
+            content['clientComment'] ??
+            content['client_comment'] ??
+            json['comment'] ??
+            json['approvalComment'] ??
+            json['approval_comment'] ??
+            json['reviewComment'] ??
+            json['review_comment'] ??
+            json['comments'])
+        ?.toString();
+
+    String? changeRequestDetails = (json['changeRequestDetails'] ??
+            json['change_request_details'] ??
+            content['changeRequestDetails'] ??
+            content['change_request_details'] ??
+            json['feedback'])
+        ?.toString();
+
+    final dynamic reviewsRaw = json['reviews'] ?? content['reviews'];
+    if ((clientComment == null || clientComment.trim().isEmpty) ||
+        (changeRequestDetails == null || changeRequestDetails.trim().isEmpty)) {
+      if (reviewsRaw is List && reviewsRaw.isNotEmpty) {
+        final first = reviewsRaw.first;
+        if (first is Map) {
+          final m = Map<String, dynamic>.from(first);
+          clientComment ??= (m['comment'] ?? m['comments'] ?? m['clientComment'] ?? m['client_comment'])?.toString();
+          changeRequestDetails ??=
+              (m['changeRequestDetails'] ?? m['change_request_details'] ?? m['feedback'] ?? m['details'])?.toString();
+        }
+      }
+    }
     final List<dynamic>? changeRequestHistory = (json['changeRequestHistory'] ?? content['changeRequestHistory']);
 
     final String approvedAtStr = (json['approvedAt'] ?? json['approved_at'] ?? '').toString();

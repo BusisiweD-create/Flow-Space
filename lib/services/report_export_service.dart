@@ -57,11 +57,21 @@ class ReportExportService {
       debugPrint('📦 Signature response: isSuccess=${response.isSuccess}, data=${response.data}');
       
       if (response.isSuccess && response.data != null) {
-        // Backend returns {success: true, data: [signatures]}
-        // So response.data already contains the array
-        final data = response.data as List?;
-        debugPrint('✅ Found ${data?.length ?? 0} signatures');
-        return data?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+        final raw = response.data;
+        List<dynamic> items = const [];
+        if (raw is List) {
+          items = raw;
+        } else if (raw is Map) {
+          final d = raw['data'];
+          if (d is List) {
+            items = d;
+          } else if (d is Map) {
+            final inner = d['items'] ?? d['data'];
+            if (inner is List) items = inner;
+          }
+        }
+        debugPrint('✅ Found ${items.length} signatures');
+        return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       }
       debugPrint('⚠️ No signatures found or request failed');
       return [];
@@ -70,12 +80,32 @@ class ReportExportService {
       return [];
     }
   }
+
+  Future<SignOffReport?> _fetchLatestReport(String reportId) async {
+    try {
+      final resp = await _apiClient.get('/sign-off-reports/$reportId');
+      if (!resp.isSuccess || resp.data == null) return null;
+      final raw = resp.data;
+      if (raw is Map) {
+        final Map<String, dynamic> body = Map<String, dynamic>.from(raw);
+        final dynamic inner = body['data'] ?? body['report'] ?? body;
+        if (inner is Map) {
+          return SignOffReport.fromJson(Map<String, dynamic>.from(inner));
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
   
   /// Export report as PDF
   Future<void> exportReportAsPDF(SignOffReport report, {String? filePath}) async {
     try {
       // Fetch signatures first
       final signatures = await _fetchSignatures(report.id);
+      final latestReport = await _fetchLatestReport(report.id);
+      final effectiveReport = latestReport ?? report;
       final header = await _getHeaderAssets();
       final footer = await _getFooterAssets();
       final fonts = await _getFontAssets();
@@ -85,11 +115,11 @@ class ReportExportService {
         defaultSignature = await SignatureService(_apiClient).getDefaultSignature();
       } catch (_) {}
 
-      if (report.sprintIds.isNotEmpty) {
-        final sprintReport = await _fetchSprintReport(report.sprintIds.first);
+      if (effectiveReport.sprintIds.isNotEmpty) {
+        final sprintReport = await _fetchSprintReport(effectiveReport.sprintIds.first);
         if (sprintReport != null) {
           final pdf = _buildSprintSignOffPdf(
-            report: report,
+            report: effectiveReport,
             sprintReport: sprintReport,
             signatures: signatures,
             header: header,
@@ -103,18 +133,18 @@ class ReportExportService {
 
           try {
             await _apiClient.post(
-              '/sign-off-reports/${report.id}/export',
+              '/sign-off-reports/${effectiveReport.id}/export',
               body: {
                 'exportFormat': 'pdf',
                 'exportType': filePath != null ? 'download' : 'share',
                 'fileSize': fileSize,
                 'fileHash': fileHash,
                 'metadata': {
-                  'reportTitle': report.reportTitle,
-                  'reportStatus': report.status.toString(),
+                  'reportTitle': effectiveReport.reportTitle,
+                  'reportStatus': effectiveReport.status.toString(),
                   'exportedAt': DateTime.now().toIso8601String(),
                   'template': 'sprint_signoff_v1',
-                  'sprintId': report.sprintIds.first,
+                  'sprintId': effectiveReport.sprintIds.first,
                 },
               },
             );
@@ -123,7 +153,8 @@ class ReportExportService {
           if (kIsWeb) {
             final blob = html.Blob([bytes], 'application/pdf');
             final url = html.Url.createObjectUrlFromBlob(blob);
-            final fileName = 'Sprint_Signoff_${report.reportTitle.replaceAll(' ', '_')}_${report.id}.pdf';
+            final fileName =
+                'Sprint_Signoff_${effectiveReport.reportTitle.replaceAll(' ', '_')}_${effectiveReport.id}.pdf';
             html.AnchorElement(href: url)
               ..setAttribute('download', fileName)
               ..click()
@@ -141,36 +172,37 @@ class ReportExportService {
           try {
             final tempDir = await getTemporaryDirectory();
             final sanitizedTitle =
-                report.reportTitle.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
-            final outPath = '${tempDir.path}/${sanitizedTitle}_${report.id}.pdf';
+                effectiveReport.reportTitle.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
+            final outPath = '${tempDir.path}/${sanitizedTitle}_${effectiveReport.id}.pdf';
             final file = _createFile(outPath);
             await file.writeAsBytes(bytes);
-            await Share.shareXFiles([XFile(outPath)], text: 'Sprint Sign-Off Report: ${report.reportTitle}');
+            await Share.shareXFiles([XFile(outPath)],
+                text: 'Sprint Sign-Off Report: ${effectiveReport.reportTitle}');
             return;
           } catch (e) {
             final base64Pdf = base64Encode(bytes);
             await Share.share(
               'data:application/pdf;base64,$base64Pdf',
-              subject: 'Sprint Sign-Off Report: ${report.reportTitle}',
+              subject: 'Sprint Sign-Off Report: ${effectiveReport.reportTitle}',
             );
             return;
           }
         }
       }
 
-      final sanitizedContent = SignOffReport.sanitizeReportContent(report.reportContent);
+      final sanitizedContent = SignOffReport.sanitizeReportContent(effectiveReport.reportContent);
       final reportBodyContent = _stripSignOffNotesFromBody(_stripFeedbackFromBody(sanitizedContent));
-      var preparedSigData = _pickPreparedBySignatureData(report: report, signatures: signatures);
-      var preparedSigType = _pickPreparedBySignatureType(report: report, signatures: signatures);
+      var preparedSigData = _pickPreparedBySignatureData(report: effectiveReport, signatures: signatures);
+      var preparedSigType = _pickPreparedBySignatureType(report: effectiveReport, signatures: signatures);
       if ((preparedSigData == null || preparedSigData.trim().isEmpty) && defaultSignature != null) {
         final data = defaultSignature.signatureData.trim();
         if (data.isNotEmpty && currentUser != null) {
           final uid = currentUser.id.trim();
           final uname = currentUser.name.trim().toLowerCase();
           final uemail = currentUser.email.trim().toLowerCase();
-          final reportPreparedId = (report.preparedBy ?? '').trim();
-          final reportCreatedId = report.createdBy.trim();
-          final reportPreparedName = (report.preparedByName ?? '').trim().toLowerCase();
+          final reportPreparedId = (effectiveReport.preparedBy ?? '').trim();
+          final reportCreatedId = effectiveReport.createdBy.trim();
+          final reportPreparedName = (effectiveReport.preparedByName ?? '').trim().toLowerCase();
           final createdLower = reportCreatedId.toLowerCase();
           final preparedLower = reportPreparedId.toLowerCase();
           if ((uid.isNotEmpty && (uid == reportPreparedId || uid == reportCreatedId)) ||
@@ -195,23 +227,67 @@ class ReportExportService {
               ? _buildSignOffReportHeader(
                   header: header,
                   reportTypeLabel: 'SIGN-OFF REPORT',
-                  reportTitle: report.reportTitle,
-                  date: report.createdAt,
+                  reportTitle: effectiveReport.reportTitle,
+                  date: effectiveReport.createdAt,
                 )
               : pw.SizedBox(height: 0),
           footer: (context) => _buildSignOffReportFooter(
             footer: footer,
-            statusText: _formatStatus(report.status),
-            createdByText: report.preparedByName ?? report.createdBy,
+            statusText: _formatStatus(effectiveReport.status),
+            createdByText: effectiveReport.preparedByName ?? effectiveReport.createdBy,
           ),
           build: (pw.Context context) {
             final signOffNotesText = _buildSignOffNotesText(
               reportContent: sanitizedContent,
-              clientComment: report.clientComment,
+              clientComment: effectiveReport.clientComment,
+              changeRequestDetails: effectiveReport.changeRequestDetails,
+              status: effectiveReport.status,
             );
+            final reviewerSigData = _pickReviewerSignatureData(report: effectiveReport, signatures: signatures);
+            final reviewerSigType = _pickReviewerSignatureType(report: effectiveReport, signatures: signatures);
+            final reviewerName = (effectiveReport.status == ReportStatus.approved
+                    ? (effectiveReport.approvedByName ??
+                        effectiveReport.reviewedByName ??
+                        effectiveReport.approvedBy ??
+                        effectiveReport.reviewedBy)
+                    : (effectiveReport.reviewedByName ??
+                        effectiveReport.approvedByName ??
+                        effectiveReport.reviewedBy ??
+                        effectiveReport.approvedBy))
+                ?.trim();
+            final reviewerRole = (effectiveReport.status == ReportStatus.approved
+                    ? (effectiveReport.approvedByRole ?? effectiveReport.reviewedByRole)
+                    : (effectiveReport.reviewedByRole ?? effectiveReport.approvedByRole))
+                ?.trim();
+            final reviewerSignedAt = effectiveReport.status == ReportStatus.approved
+                ? (effectiveReport.approvedAt ?? effectiveReport.reviewedAt)
+                : (effectiveReport.reviewedAt ?? effectiveReport.approvedAt);
+            final reviewerLabel = effectiveReport.status == ReportStatus.approved
+                ? 'APPROVED BY'
+                : (effectiveReport.status == ReportStatus.changeRequested
+                    ? 'CHANGES REQUESTED BY'
+                    : 'REVIEWED BY');
             return [
               pw.SizedBox(height: 6),
               ..._buildStructuredBodyWidgets(reportBodyContent),
+              if (effectiveReport.knownLimitations != null && effectiveReport.knownLimitations!.isNotEmpty) ...[
+                pw.SizedBox(height: 8),
+                _subSectionHeader('KNOWN LIMITATIONS'),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: pw.Text(effectiveReport.knownLimitations!, style: const pw.TextStyle(fontSize: 10)),
+                ),
+              ],
+              
+              if (effectiveReport.nextSteps != null && effectiveReport.nextSteps!.isNotEmpty) ...[
+                pw.SizedBox(height: 8),
+                _subSectionHeader('NEXT STEPS'),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: pw.Text(effectiveReport.nextSteps!, style: const pw.TextStyle(fontSize: 10)),
+                ),
+              ],
+
               pw.SizedBox(height: 8),
               pw.NewPage(),
               ..._buildKeepHeaderWithFirstParagraphSection(
@@ -219,144 +295,30 @@ class ReportExportService {
                 text: signOffNotesText,
                 fontSize: 10,
               ),
-              
-              if (report.knownLimitations != null && report.knownLimitations!.isNotEmpty) ...[
-                pw.SizedBox(height: 8),
-                _subSectionHeader('KNOWN LIMITATIONS'),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: pw.Text(report.knownLimitations!, style: const pw.TextStyle(fontSize: 10)),
-                ),
-              ],
-              
-              if (report.nextSteps != null && report.nextSteps!.isNotEmpty) ...[
-                pw.SizedBox(height: 8),
-                _subSectionHeader('NEXT STEPS'),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: pw.Text(report.nextSteps!, style: const pw.TextStyle(fontSize: 10)),
-                ),
-              ],
-
               pw.SizedBox(height: 8),
               _buildPreparedBySignatureSection(
-                preparedByName: report.preparedByName ?? report.createdBy,
-                preparedByRole: report.preparedByRole,
-                signedAt: report.createdAt,
+                preparedByName: effectiveReport.preparedByName ?? effectiveReport.createdBy,
+                preparedByRole: effectiveReport.preparedByRole,
+                signedAt: effectiveReport.createdAt,
                 signatureData: preparedSigData,
                 signatureType: preparedSigType,
               ),
-              
-              if (signatures.isNotEmpty) ...[
+              if ((reviewerSigData ?? '').trim().isNotEmpty ||
+                  (reviewerName ?? '').trim().isNotEmpty ||
+                  effectiveReport.reviewedAt != null ||
+                  effectiveReport.approvedAt != null ||
+                  effectiveReport.status == ReportStatus.approved ||
+                  effectiveReport.status == ReportStatus.changeRequested ||
+                  effectiveReport.status == ReportStatus.underReview) ...[
                 pw.SizedBox(height: 8),
-                _subSectionHeader('DIGITAL SIGNATURES'),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  child: pw.Text(
-                    'This document has been digitally signed by the following parties:',
-                    style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
-                  ),
+                _buildReviewedBySignatureSection(
+                  label: reviewerLabel,
+                  reviewerName: (reviewerName ?? '').trim().isEmpty ? '-' : reviewerName!.trim(),
+                  reviewerRole: reviewerRole,
+                  signedAt: reviewerSignedAt,
+                  signatureData: reviewerSigData,
+                  signatureType: reviewerSigType,
                 ),
-                
-                // Display all signatures
-                ..._removePreparedByFromSignatures(
-                  signatures: signatures,
-                  report: report,
-                ).map((sig) {
-                  final signerName = sig['signer_name'] as String? ?? 'Unknown';
-                  final signerRole = sig['signer_role'] as String? ?? 'Unknown';
-                  final signedAt = sig['signed_at'] as String?;
-                  final signatureData = sig['signature_data'] as String?;
-                  final signatureType = (sig['signature_type'] as String?) ?? 'manual';
-                  final signatureHash = sig['signature_hash'] as String? ?? '';
-                  
-                  return pw.Container(
-                    margin: const pw.EdgeInsets.only(bottom: 10),
-                    padding: const pw.EdgeInsets.all(10),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey400),
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                    ),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        // Signature Image
-                        if (signatureData != null && signatureData.isNotEmpty)
-                          pw.Container(
-                            width: 170,
-                            height: 80,
-                            margin: const pw.EdgeInsets.only(right: 15),
-                            decoration: pw.BoxDecoration(
-                              color: PdfColors.white,
-                              border: pw.Border.all(color: PdfColors.grey400),
-                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                            ),
-                            child: pw.ClipRRect(
-                              horizontalRadius: 4,
-                              verticalRadius: 4,
-                              child: pw.Padding(
-                                padding: const pw.EdgeInsets.all(4),
-                                child: pw.Center(child: _buildSignatureVisual(signatureData, signatureType)),
-                              ),
-                            ),
-                          ),
-                        // Signature Details
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Text(
-                                signerName,
-                                style: pw.TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Text(
-                                _formatRole(signerRole),
-                                style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
-                              ),
-                              if (signedAt != null) ...[
-                                pw.SizedBox(height: 4),
-                                pw.Text(
-                                  'Signed: ${_formatDateTime(signedAt)}',
-                                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-                                ),
-                              ],
-                              pw.SizedBox(height: 8),
-                              pw.Row(
-                                children: [
-                                  pw.Container(
-                                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: const pw.BoxDecoration(
-                                      color: PdfColors.green100,
-                                      borderRadius: pw.BorderRadius.all(pw.Radius.circular(12)),
-                                    ),
-                                    child: pw.Text(
-                                      'VERIFIED',
-                                      style: pw.TextStyle(
-                                        fontSize: 9,
-                                        color: PdfColors.green900,
-                                        fontWeight: pw.FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              pw.SizedBox(height: 6),
-                              pw.Text(
-                                'Hash: ${signatureHash.substring(0, signatureHash.length > 16 ? 16 : signatureHash.length)}...',
-                                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                pw.SizedBox(height: 15),
               ],
               
               // Status and Metadata
@@ -369,27 +331,27 @@ class ReportExportService {
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Text(
-                        'Status: ${_formatStatus(report.status)}',
+                        'Status: ${_formatStatus(effectiveReport.status)}',
                         style: const pw.TextStyle(fontSize: 12),
                       ),
                       pw.SizedBox(height: 5),
                       pw.Text(
-                        'Created by: ${report.createdBy}',
+                        'Created by: ${effectiveReport.createdBy}',
                         style: const pw.TextStyle(fontSize: 12),
                       ),
                     ],
                   ),
-                  if (report.approvedAt != null)
+                  if (effectiveReport.approvedAt != null)
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
                         pw.Text(
-                          'Approved on: ${_formatDate(report.approvedAt!)}',
+                          'Approved on: ${_formatDate(effectiveReport.approvedAt!)}',
                           style: const pw.TextStyle(fontSize: 12),
                         ),
-                        if (report.approvedBy != null)
+                        if (effectiveReport.approvedBy != null)
                           pw.Text(
-                            'Approved by: ${report.approvedBy}',
+                            'Approved by: ${effectiveReport.approvedBy}',
                             style: const pw.TextStyle(fontSize: 12),
                           ),
                       ],
@@ -408,14 +370,14 @@ class ReportExportService {
       
       // Track export in database
       try {
-        await _apiClient.post('/sign-off-reports/${report.id}/export', body: {
+        await _apiClient.post('/sign-off-reports/${effectiveReport.id}/export', body: {
           'exportFormat': 'pdf',
           'exportType': filePath != null ? 'download' : 'share',
           'fileSize': fileSize,
           'fileHash': fileHash,
           'metadata': {
-            'reportTitle': report.reportTitle,
-            'reportStatus': report.status.toString(),
+            'reportTitle': effectiveReport.reportTitle,
+            'reportStatus': effectiveReport.status.toString(),
             'exportedAt': DateTime.now().toIso8601String(),
           },
         },);
@@ -429,7 +391,8 @@ class ReportExportService {
         // Web platform - trigger browser download
         final blob = html.Blob([bytes], 'application/pdf');
         final url = html.Url.createObjectUrlFromBlob(blob);
-        final fileName = 'Report_${report.reportTitle.replaceAll(' ', '_')}_${report.id}.pdf';
+        final fileName =
+            'Report_${effectiveReport.reportTitle.replaceAll(' ', '_')}_${effectiveReport.id}.pdf';
         html.AnchorElement(href: url)
           ..setAttribute('download', fileName)
           ..click()
@@ -446,14 +409,15 @@ class ReportExportService {
           // Try to save to temp directory and share
           try {
             final tempDir = await getTemporaryDirectory();
-            final sanitizedTitle = report.reportTitle.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
-            final filePath = '${tempDir.path}/${sanitizedTitle}_${report.id}.pdf';
+            final sanitizedTitle =
+                effectiveReport.reportTitle.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(RegExp(r'\s+'), '_');
+            final filePath = '${tempDir.path}/${sanitizedTitle}_${effectiveReport.id}.pdf';
             final file = _createFile(filePath);
             await file.writeAsBytes(bytes);
             
             await Share.shareXFiles(
               [XFile(filePath)],
-              text: 'Sign-Off Report: ${report.reportTitle}',
+              text: 'Sign-Off Report: ${effectiveReport.reportTitle}',
             );
           } catch (e) {
             // Fallback: share as base64 if path_provider fails
@@ -461,7 +425,7 @@ class ReportExportService {
             final base64Pdf = base64Encode(bytes);
             await Share.share(
               'data:application/pdf;base64,$base64Pdf',
-              subject: 'Sign-Off Report: ${report.reportTitle}',
+              subject: 'Sign-Off Report: ${effectiveReport.reportTitle}',
             );
           }
         }
@@ -476,6 +440,8 @@ class ReportExportService {
   Future<void> printReport(SignOffReport report) async {
     try {
       final signatures = await _fetchSignatures(report.id);
+      final latestReport = await _fetchLatestReport(report.id);
+      final effectiveReport = latestReport ?? report;
       final header = await _getHeaderAssets();
       final footer = await _getFooterAssets();
       final fonts = await _getFontAssets();
@@ -485,11 +451,11 @@ class ReportExportService {
         defaultSignature = await SignatureService(_apiClient).getDefaultSignature();
       } catch (_) {}
 
-      if (report.sprintIds.isNotEmpty) {
-        final sprintReport = await _fetchSprintReport(report.sprintIds.first);
+      if (effectiveReport.sprintIds.isNotEmpty) {
+        final sprintReport = await _fetchSprintReport(effectiveReport.sprintIds.first);
         if (sprintReport != null) {
           final sprintPdf = _buildSprintSignOffPdf(
-            report: report,
+            report: effectiveReport,
             sprintReport: sprintReport,
             signatures: signatures,
             header: header,
@@ -506,19 +472,19 @@ class ReportExportService {
       final pdf = pw.Document(
         theme: pw.ThemeData.withFont(base: fonts.base, bold: fonts.bold),
       );
-      final sanitizedContent = SignOffReport.sanitizeReportContent(report.reportContent);
+      final sanitizedContent = SignOffReport.sanitizeReportContent(effectiveReport.reportContent);
       final reportBodyContent = _stripSignOffNotesFromBody(_stripFeedbackFromBody(sanitizedContent));
-      var preparedSigData = _pickPreparedBySignatureData(report: report, signatures: signatures);
-      var preparedSigType = _pickPreparedBySignatureType(report: report, signatures: signatures);
+      var preparedSigData = _pickPreparedBySignatureData(report: effectiveReport, signatures: signatures);
+      var preparedSigType = _pickPreparedBySignatureType(report: effectiveReport, signatures: signatures);
       if ((preparedSigData == null || preparedSigData.trim().isEmpty) && defaultSignature != null) {
         final data = defaultSignature.signatureData.trim();
         if (data.isNotEmpty && currentUser != null) {
           final uid = currentUser.id.trim();
           final uname = currentUser.name.trim().toLowerCase();
           final uemail = currentUser.email.trim().toLowerCase();
-          final reportPreparedId = (report.preparedBy ?? '').trim();
-          final reportCreatedId = report.createdBy.trim();
-          final reportPreparedName = (report.preparedByName ?? '').trim().toLowerCase();
+          final reportPreparedId = (effectiveReport.preparedBy ?? '').trim();
+          final reportCreatedId = effectiveReport.createdBy.trim();
+          final reportPreparedName = (effectiveReport.preparedByName ?? '').trim().toLowerCase();
           final createdLower = reportCreatedId.toLowerCase();
           final preparedLower = reportPreparedId.toLowerCase();
           if ((uid.isNotEmpty && (uid == reportPreparedId || uid == reportCreatedId)) ||
@@ -537,21 +503,45 @@ class ReportExportService {
           header: (context) => context.pageNumber == 1
               ? _buildSignOffReportHeader(
                   header: header,
-                  reportTypeLabel: report.sprintIds.isNotEmpty ? 'SPRINT SIGN-OFF REPORT' : 'SIGN-OFF REPORT',
-                  reportTitle: report.reportTitle,
-                  date: report.createdAt,
+                  reportTypeLabel: effectiveReport.sprintIds.isNotEmpty ? 'SPRINT SIGN-OFF REPORT' : 'SIGN-OFF REPORT',
+                  reportTitle: effectiveReport.reportTitle,
+                  date: effectiveReport.createdAt,
                 )
               : pw.SizedBox(height: 0),
           footer: (context) => _buildSignOffReportFooter(
             footer: footer,
-            statusText: _formatStatus(report.status),
-            createdByText: report.preparedByName ?? report.createdBy,
+            statusText: _formatStatus(effectiveReport.status),
+            createdByText: effectiveReport.preparedByName ?? effectiveReport.createdBy,
           ),
           build: (pw.Context context) {
             final signOffNotesText = _buildSignOffNotesText(
               reportContent: sanitizedContent,
-              clientComment: report.clientComment,
+              clientComment: effectiveReport.clientComment,
+              changeRequestDetails: effectiveReport.changeRequestDetails,
+              status: effectiveReport.status,
             );
+            final reviewerSigData = _pickReviewerSignatureData(report: effectiveReport, signatures: signatures);
+            final reviewerSigType = _pickReviewerSignatureType(report: effectiveReport, signatures: signatures);
+            final reviewerName = (effectiveReport.status == ReportStatus.approved
+                    ? (effectiveReport.approvedByName ??
+                        effectiveReport.reviewedByName ??
+                        effectiveReport.approvedBy ??
+                        effectiveReport.reviewedBy)
+                    : (effectiveReport.reviewedByName ??
+                        effectiveReport.approvedByName ??
+                        effectiveReport.reviewedBy ??
+                        effectiveReport.approvedBy))
+                ?.trim();
+            final reviewerRole = (effectiveReport.status == ReportStatus.approved
+                    ? (effectiveReport.approvedByRole ?? effectiveReport.reviewedByRole)
+                    : (effectiveReport.reviewedByRole ?? effectiveReport.approvedByRole))
+                ?.trim();
+            final reviewerSignedAt = effectiveReport.status == ReportStatus.approved
+                ? (effectiveReport.approvedAt ?? effectiveReport.reviewedAt)
+                : (effectiveReport.reviewedAt ?? effectiveReport.approvedAt);
+            final reviewerLabel = effectiveReport.status == ReportStatus.approved
+                ? 'APPROVED BY'
+                : (effectiveReport.status == ReportStatus.changeRequested ? 'CHANGES REQUESTED BY' : 'REVIEWED BY');
             return [
               pw.SizedBox(height: 6),
               ..._buildStructuredBodyWidgets(reportBodyContent),
@@ -565,89 +555,29 @@ class ReportExportService {
 
               pw.SizedBox(height: 8),
               _buildPreparedBySignatureSection(
-                preparedByName: report.preparedByName ?? report.createdBy,
-                preparedByRole: report.preparedByRole,
-                signedAt: report.createdAt,
+                preparedByName: effectiveReport.preparedByName ?? effectiveReport.createdBy,
+                preparedByRole: effectiveReport.preparedByRole,
+                signedAt: effectiveReport.createdAt,
                 signatureData: preparedSigData,
                 signatureType: preparedSigType,
               ),
 
-              if (signatures.isNotEmpty) ...[
+              if ((reviewerSigData ?? '').trim().isNotEmpty ||
+                  (reviewerName ?? '').trim().isNotEmpty ||
+                  effectiveReport.reviewedAt != null ||
+                  effectiveReport.approvedAt != null ||
+                  effectiveReport.status == ReportStatus.approved ||
+                  effectiveReport.status == ReportStatus.changeRequested ||
+                  effectiveReport.status == ReportStatus.underReview) ...[
                 pw.SizedBox(height: 8),
-                _subSectionHeader('DIGITAL SIGNATURES'),
-                pw.SizedBox(height: 8),
-                ..._removePreparedByFromSignatures(signatures: signatures, report: report).map((sig) {
-                  final signerName = sig['signer_name'] as String? ?? 'Unknown';
-                  final signerRole = sig['signer_role'] as String? ?? 'Unknown';
-                  final signedAt = sig['signed_at'] as String?;
-                  final signatureData = sig['signature_data'] as String?;
-                  final signatureType = (sig['signature_type'] as String?) ?? 'manual';
-                  final signatureHash = sig['signature_hash'] as String? ?? '';
-
-                  return pw.Container(
-                    margin: const pw.EdgeInsets.only(bottom: 10),
-                    padding: const pw.EdgeInsets.all(10),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey400),
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                    ),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        if (signatureData != null && signatureData.isNotEmpty)
-                          pw.Container(
-                            width: 170,
-                            height: 80,
-                            margin: const pw.EdgeInsets.only(right: 15),
-                            decoration: pw.BoxDecoration(
-                              color: PdfColors.white,
-                              border: pw.Border.all(color: PdfColors.grey400),
-                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                            ),
-                            child: pw.ClipRRect(
-                              horizontalRadius: 4,
-                              verticalRadius: 4,
-                              child: pw.Padding(
-                                padding: const pw.EdgeInsets.all(4),
-                                child: pw.Center(child: _buildSignatureVisual(signatureData, signatureType)),
-                              ),
-                            ),
-                          ),
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Text(
-                                signerName,
-                                style: pw.TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Text(
-                                _formatRole(signerRole),
-                                style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
-                              ),
-                              if (signedAt != null) ...[
-                                pw.SizedBox(height: 4),
-                                pw.Text(
-                                  'Signed: ${_formatDateTime(signedAt)}',
-                                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-                                ),
-                              ],
-                              pw.SizedBox(height: 6),
-                              pw.Text(
-                                'Hash: ${signatureHash.substring(0, signatureHash.length > 16 ? 16 : signatureHash.length)}...',
-                                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
+                _buildReviewedBySignatureSection(
+                  label: reviewerLabel,
+                  reviewerName: (reviewerName ?? '').trim().isEmpty ? '-' : reviewerName!.trim(),
+                  reviewerRole: reviewerRole,
+                  signedAt: reviewerSignedAt,
+                  signatureData: reviewerSigData,
+                  signatureType: reviewerSigType,
+                ),
               ],
             ];
           },
@@ -743,7 +673,12 @@ class ReportExportService {
           ),
           build: (pw.Context context) {
             final reportBodyContent = _stripSignOffNotesFromBody(_stripFeedbackFromBody(content));
-            final signOffNotesText = _buildSignOffNotesText(reportContent: content, clientComment: null);
+            final signOffNotesText = _buildSignOffNotesText(
+              reportContent: content,
+              clientComment: null,
+              changeRequestDetails: null,
+              status: ReportStatus.draft,
+            );
             return [
               pw.SizedBox(height: 6),
               ..._buildStructuredBodyWidgets(reportBodyContent),
@@ -1124,9 +1059,12 @@ class ReportExportService {
       );
     }
 
-    final signOffBase = signOffTextFromSection.isEmpty ? _extractSignOffNote(report.reportContent) : signOffTextFromSection;
-    final clientComment = (report.clientComment ?? '').trim();
-    final signOffText = _mergeNotesAndComment(signOffBase, clientComment);
+    final signOffText = _buildSignOffNotesText(
+      reportContent: report.reportContent,
+      clientComment: report.clientComment,
+      changeRequestDetails: report.changeRequestDetails,
+      status: report.status,
+    );
 
     pw.Widget twoCol(pw.Widget left, pw.Widget right) {
       return pw.Table(
@@ -1146,80 +1084,22 @@ class ReportExportService {
       final preparedByRole = report.preparedByRole;
       final preparedSigData = _pickPreparedBySignatureData(report: report, signatures: signatures);
       final preparedSigType = _pickPreparedBySignatureType(report: report, signatures: signatures);
-      final others = _removePreparedByFromSignatures(signatures: signatures, report: report);
-
-      pw.Widget card(Map<String, dynamic> sig) {
-        final signerName = (sig['signer_name'] as String?) ?? 'Unknown';
-        final signerRole = (sig['signer_role'] as String?) ?? 'Unknown';
-        final signedAt = (sig['signed_at'] as String?) ?? '';
-        final signatureData = (sig['signature_data'] as String?) ?? '';
-        final signatureType = (sig['signature_type'] as String?) ?? 'manual';
-        final isValid = signatureData.trim().isNotEmpty;
-        final badgeColor = isValid ? PdfColors.green100 : PdfColors.red100;
-        final badgeTextColor = isValid ? PdfColors.green900 : PdfColors.red900;
-        final badgeText = isValid ? 'VERIFIED' : 'Invalid signature format';
-
-        return pw.Container(
-          margin: const pw.EdgeInsets.only(bottom: 10),
-          padding: const pw.EdgeInsets.all(10),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey300),
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
-          ),
-          child: pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Container(
-                width: 18,
-                height: 18,
-                decoration: const pw.BoxDecoration(
-                  color: PdfColor.fromInt(0xFFC00000),
-                  borderRadius: pw.BorderRadius.all(pw.Radius.circular(9)),
-                ),
-              ),
-              pw.SizedBox(width: 10),
-              pw.Container(
-                width: 170,
-                height: 80,
-                margin: const pw.EdgeInsets.only(right: 12),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.white,
-                  border: pw.Border.all(color: PdfColors.grey400),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                ),
-                child: pw.ClipRRect(
-                  horizontalRadius: 4,
-                  verticalRadius: 4,
-                  child: pw.Padding(
-                    padding: const pw.EdgeInsets.all(4),
-                    child: pw.Center(child: _buildSignatureVisual(signatureData, signatureType)),
-                  ),
-                ),
-              ),
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(signerName, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                    pw.Text(_formatRole(signerRole), style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                    if (signedAt.trim().isNotEmpty)
-                      pw.Text('Signed: ${_formatDateTime(signedAt)}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
-                    pw.SizedBox(height: 6),
-                    pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: pw.BoxDecoration(
-                        color: badgeColor,
-                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
-                      ),
-                      child: pw.Text(badgeText, style: pw.TextStyle(fontSize: 8, color: badgeTextColor, fontWeight: pw.FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }
+      final reviewerSigData = _pickReviewerSignatureData(report: report, signatures: signatures);
+      final reviewerSigType = _pickReviewerSignatureType(report: report, signatures: signatures);
+      final reviewerName = (report.status == ReportStatus.approved
+              ? (report.approvedByName ?? report.reviewedByName ?? report.approvedBy ?? report.reviewedBy)
+              : (report.reviewedByName ?? report.approvedByName ?? report.reviewedBy ?? report.approvedBy))
+          ?.trim();
+      final reviewerRole = (report.status == ReportStatus.approved
+              ? (report.approvedByRole ?? report.reviewedByRole)
+              : (report.reviewedByRole ?? report.approvedByRole))
+          ?.trim();
+      final reviewerSignedAt = report.status == ReportStatus.approved
+          ? (report.approvedAt ?? report.reviewedAt)
+          : (report.reviewedAt ?? report.approvedAt);
+      final reviewerLabel = report.status == ReportStatus.approved
+          ? 'APPROVED BY'
+          : (report.status == ReportStatus.changeRequested ? 'CHANGES REQUESTED BY' : 'REVIEWED BY');
 
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -1231,11 +1111,22 @@ class ReportExportService {
             signatureData: preparedSigData,
             signatureType: preparedSigType,
           ),
-          if (others.isNotEmpty) ...[
+          if ((reviewerSigData ?? '').trim().isNotEmpty ||
+              (reviewerName ?? '').trim().isNotEmpty ||
+              report.reviewedAt != null ||
+              report.approvedAt != null ||
+              report.status == ReportStatus.approved ||
+              report.status == ReportStatus.changeRequested ||
+              report.status == ReportStatus.underReview) ...[
             pw.SizedBox(height: 8),
-            _subSectionHeader('DIGITAL SIGNATURES'),
-            pw.SizedBox(height: 8),
-            ...others.map(card),
+            _buildReviewedBySignatureSection(
+              label: reviewerLabel,
+              reviewerName: (reviewerName ?? '').trim().isEmpty ? '-' : reviewerName!.trim(),
+              reviewerRole: reviewerRole,
+              signedAt: reviewerSignedAt,
+              signatureData: reviewerSigData,
+              signatureType: reviewerSigType,
+            ),
           ],
         ],
       );
@@ -1349,6 +1240,8 @@ class ReportExportService {
     for (final line in raw.split('\n')) {
       var t = line.trim();
       if (t.isEmpty) continue;
+      t = t.replaceFirst(RegExp(r'^[-•*]+\s*'), '');
+      if (t.isEmpty) continue;
       final upper = t.toUpperCase();
       if (upper == 'USER FEEDBACK' || upper == 'CLIENT FEEDBACK' || upper == 'FEEDBACK') continue;
       t = t.replaceFirst(
@@ -1389,10 +1282,37 @@ class ReportExportService {
   String _buildSignOffNotesText({
     required String reportContent,
     required String? clientComment,
+    required String? changeRequestDetails,
+    required ReportStatus status,
   }) {
     final note = _extractSignOffNote(reportContent);
     final comment = (clientComment ?? '').trim();
-    return _mergeNotesAndComment(note, comment);
+    final changes = (changeRequestDetails ?? '').trim();
+
+    var merged = note;
+
+    if (status == ReportStatus.approved) {
+      final c = _stripFeedbackLabelPrefixes(comment);
+      if (c.isNotEmpty) {
+        merged = _mergeNotesAndComment(merged, 'Approval comment:\n$c');
+      }
+    } else if (status == ReportStatus.changeRequested) {
+      final cr = _stripFeedbackLabelPrefixes(changes);
+      if (cr.isNotEmpty) {
+        merged = _mergeNotesAndComment(merged, 'Requested changes:\n$cr');
+      }
+      final c = _stripFeedbackLabelPrefixes(comment);
+      if (c.isNotEmpty && c.toLowerCase() != cr.toLowerCase()) {
+        merged = _mergeNotesAndComment(merged, 'Comment:\n$c');
+      }
+    } else {
+      merged = _mergeNotesAndComment(merged, comment);
+      if (changes.isNotEmpty) {
+        merged = _mergeNotesAndComment(merged, changes);
+      }
+    }
+
+    return merged;
   }
 
   List<pw.Widget> _buildKeepHeaderWithFirstParagraphSection({
@@ -1706,32 +1626,7 @@ class ReportExportService {
     return '${date.day}/${date.month}/${date.year}';
   }
   
-  String _formatDateTime(String dateTimeString) {
-    try {
-      final parsed = DateTime.parse(dateTimeString);
-      // Convert to the user's local timezone for accurate display
-      final dateTime = parsed.toLocal();
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year} '
-             '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return dateTimeString;
-    }
-  }
   
-  String _formatRole(String role) {
-    switch (role.toLowerCase()) {
-      case 'deliverylead':
-        return 'Delivery Lead';
-      case 'clientreviewer':
-        return 'Client Reviewer';
-      case 'teammember':
-        return 'Team Member';
-      case 'admin':
-        return 'Administrator';
-      default:
-        return role;
-    }
-  }
   
   String _formatStatus(ReportStatus status) {
     switch (status) {
@@ -1822,18 +1717,6 @@ class ReportExportService {
     required SignOffReport report,
     required List<Map<String, dynamic>> signatures,
   }) {
-    final reportSig = (report.digitalSignature ?? '').trim();
-    if (reportSig.isNotEmpty) {
-      return {
-        'signature_data': reportSig,
-        'signature_type': 'manual',
-        'signed_at': report.createdAt.toIso8601String(),
-        'signer_id': report.preparedBy ?? report.createdBy,
-        'signer_name': report.preparedByName,
-        'signer_role': report.preparedByRole,
-      };
-    }
-
     final preparedId = (report.preparedBy ?? '').trim();
     final createdId = report.createdBy.trim();
     final preparedName = (report.preparedByName ?? '').trim().toLowerCase();
@@ -1860,7 +1743,21 @@ class ReportExportService {
         break;
       }
     }
-    return match;
+    if (match != null) return match;
+
+    final reportSig = (report.digitalSignature ?? '').trim();
+    if (reportSig.isNotEmpty) {
+      return {
+        'signature_data': reportSig,
+        'signature_type': 'manual',
+        'signed_at': report.createdAt.toIso8601String(),
+        'signer_id': report.preparedBy ?? report.createdBy,
+        'signer_name': report.preparedByName,
+        'signer_role': report.preparedByRole,
+      };
+    }
+
+    return null;
   }
 
   String? _pickPreparedBySignatureData({
@@ -1877,6 +1774,64 @@ class ReportExportService {
     required List<Map<String, dynamic>> signatures,
   }) {
     final m = _pickPreparedBySignatureMap(report: report, signatures: signatures);
+    final v = (m == null ? '' : (m['signature_type'] ?? '').toString()).trim();
+    return v.isEmpty ? 'manual' : v;
+  }
+
+  Map<String, dynamic>? _pickReviewerSignatureMap({
+    required SignOffReport report,
+    required List<Map<String, dynamic>> signatures,
+  }) {
+    final others = _removePreparedByFromSignatures(signatures: signatures, report: report);
+    if (others.isNotEmpty) {
+      DateTime? parseSignedAt(Map<String, dynamic> sig) {
+        final raw = (sig['signed_at'] ?? sig['signedAt'] ?? '').toString().trim();
+        if (raw.isEmpty) return null;
+        return DateTime.tryParse(raw);
+      }
+
+      others.sort((a, b) {
+        final da = parseSignedAt(a);
+        final db = parseSignedAt(b);
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return db.compareTo(da);
+      });
+      return others.first;
+    }
+
+    final prepared = _pickPreparedBySignatureData(report: report, signatures: signatures);
+    final reportSig = (report.digitalSignature ?? '').trim();
+    if (reportSig.isNotEmpty &&
+        (prepared == null || prepared.trim().isEmpty || prepared.trim() != reportSig)) {
+      return {
+        'signature_data': reportSig,
+        'signature_type': 'manual',
+        'signed_at': (report.approvedAt ?? report.reviewedAt ?? report.createdAt).toIso8601String(),
+        'signer_id': report.approvedBy ?? report.reviewedBy,
+        'signer_name': report.approvedByName ?? report.reviewedByName,
+        'signer_role': report.approvedByRole ?? report.reviewedByRole,
+      };
+    }
+
+    return null;
+  }
+
+  String? _pickReviewerSignatureData({
+    required SignOffReport report,
+    required List<Map<String, dynamic>> signatures,
+  }) {
+    final m = _pickReviewerSignatureMap(report: report, signatures: signatures);
+    final v = (m == null ? '' : (m['signature_data'] ?? '').toString()).trim();
+    return v.isEmpty ? null : v;
+  }
+
+  String _pickReviewerSignatureType({
+    required SignOffReport report,
+    required List<Map<String, dynamic>> signatures,
+  }) {
+    final m = _pickReviewerSignatureMap(report: report, signatures: signatures);
     final v = (m == null ? '' : (m['signature_type'] ?? '').toString()).trim();
     return v.isEmpty ? 'manual' : v;
   }
@@ -1962,6 +1917,98 @@ class ReportExportService {
                     pw.SizedBox(height: 4),
                     pw.Text(
                       'Signed: ${_formatDate(signedAt)}',
+                      style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                    ),
+                    if (hasSig) ...[
+                      pw.SizedBox(height: 8),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: const pw.BoxDecoration(
+                          color: PdfColors.green100,
+                          borderRadius: pw.BorderRadius.all(pw.Radius.circular(12)),
+                        ),
+                        child: pw.Text(
+                          'VERIFIED',
+                          style: pw.TextStyle(
+                            fontSize: 9,
+                            color: PdfColors.green900,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildReviewedBySignatureSection({
+    required String label,
+    required String reviewerName,
+    required String? reviewerRole,
+    required DateTime? signedAt,
+    required String? signatureData,
+    required String signatureType,
+  }) {
+    final name = reviewerName.trim().isEmpty ? '-' : reviewerName.trim();
+    final role = (reviewerRole ?? '').trim();
+    final hasSig = (signatureData ?? '').trim().isNotEmpty;
+    final at = signedAt ?? DateTime.now();
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        _subSectionHeader(label),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(10),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey300),
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+          ),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Container(
+                width: 210,
+                height: 100,
+                margin: const pw.EdgeInsets.only(right: 15),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey100,
+                  border: pw.Border.all(color: PdfColors.grey600),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                ),
+                child: pw.ClipRRect(
+                  horizontalRadius: 4,
+                  verticalRadius: 4,
+                  child: pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Center(child: _buildSignatureVisual(signatureData, signatureType)),
+                  ),
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      name,
+                      style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+                    ),
+                    if (role.isNotEmpty) ...[
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        role,
+                        style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
+                      ),
+                    ],
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Signed: ${_formatDate(at)}',
                       style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
                     ),
                     if (hasSig) ...[

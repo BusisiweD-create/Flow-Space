@@ -681,12 +681,14 @@ Future.microtask(() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const FlownetLogo(),
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -700,10 +702,10 @@ Future.microtask(() async {
           // Search and filter bar
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: FlownetColors.graphiteGray,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(10),
               border: Border(
-                bottom: BorderSide(color: FlownetColors.slate, width: 1),
+                bottom: BorderSide(color: Colors.white.withAlpha(30), width: 1),
               ),
             ),
             child: Column(
@@ -711,13 +713,13 @@ Future.microtask(() async {
                 // Search bar
                 TextField(
                   onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Search approval requests...',
-                    hintStyle: TextStyle(color: FlownetColors.coolGray),
-                    prefixIcon: Icon(Icons.search, color: FlownetColors.coolGray),
-                    border: OutlineInputBorder(),
+                    hintStyle: const TextStyle(color: FlownetColors.coolGray),
+                    prefixIcon: const Icon(Icons.search, color: FlownetColors.coolGray),
+                    border: const OutlineInputBorder(),
                     filled: true,
-                    fillColor: FlownetColors.charcoalBlack,
+                    fillColor: Colors.white.withAlpha(10),
                   ),
                   style: const TextStyle(color: FlownetColors.pureWhite),
                 ),
@@ -873,7 +875,7 @@ Future.microtask(() async {
                           final request = _filteredRequests[index];
                           return Card(
                             margin: const EdgeInsets.only(bottom: 16),
-                            color: FlownetColors.graphiteGray,
+                            color: Colors.white.withAlpha(10),
                             child: ListTile(
                               contentPadding: const EdgeInsets.all(16),
                               title: Row(

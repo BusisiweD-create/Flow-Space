@@ -13,6 +13,27 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
   List<Map<String, dynamic>> _logs = [];
   bool _isLoading = false;
   String? _error;
+  
+  String _actorLabel(Map<String, dynamic> log) {
+    String? pick(dynamic v) {
+      if (v == null) return null;
+      final s = v.toString().trim();
+      return s.isEmpty ? null : s;
+    }
+
+    Map<String, dynamic>? pickMap(dynamic v) {
+      if (v == null) return null;
+      if (v is Map<String, dynamic>) return v;
+      if (v is Map) return Map<String, dynamic>.from(v);
+      return null;
+    }
+
+    final user = pickMap(log['user']) ?? pickMap(log['actor']) ?? pickMap(log['performed_by']);
+    final email = pick(log['user_email']) ?? pick(log['userEmail']) ?? pick(log['actor_email']) ?? pick(log['actorEmail']) ?? pick(user?['email']);
+    final name = pick(log['actor']) ?? pick(user?['name']) ?? pick(user?['full_name']) ?? pick(user?['fullName']);
+    final id = pick(log['user_id']) ?? pick(log['userId']) ?? pick(log['actor_id']) ?? pick(log['actorId']) ?? pick(user?['id']);
+    return email ?? name ?? (id != null ? 'User $id' : 'System');
+  }
 
   @override
   void initState() {
@@ -54,8 +75,13 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Audit Logs'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(onPressed: _loadLogs, icon: const Icon(Icons.refresh)),
         ],
@@ -72,7 +98,7 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
                       itemBuilder: (context, index) {
                         final log = _logs[index];
                         final action = (log['action'] ?? log['event'] ?? log['type'] ?? 'Log').toString();
-                        final actor = (log['actor'] ?? log['user'] ?? '').toString();
+                        final actor = _actorLabel(log);
                         final createdAt = log['created_at']?.toString() ?? '';
                         return Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
@@ -88,7 +114,7 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
                                 children: [
                                   const Icon(Icons.receipt_long, size: 18),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text(actor.isNotEmpty ? '$action • $actor' : action)),
+                                  Expanded(child: Text('$action • $actor')),
                                 ],
                               ),
                               if (createdAt.isNotEmpty) ...[

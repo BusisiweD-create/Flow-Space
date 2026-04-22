@@ -448,8 +448,13 @@ class _DeliverablesOverviewScreenState
   Widget build(BuildContext context) {
     final canCreate = _authService.canCreateDeliverable();
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Deliverables'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: Colors.white,
         actions: [
           if (_hasRealTimeConnection)
             Container(
