@@ -1743,9 +1743,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
             ),
           ],
         ),
-      );
-    },
-  );
+        );
+      },
+    );
   }
 
   bool _isSameDay(DateTime date1, DateTime date2) {
