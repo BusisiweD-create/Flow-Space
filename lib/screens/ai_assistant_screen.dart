@@ -5,6 +5,7 @@ import '../services/backend_api_service.dart';
 import '../services/report_export_service.dart';
 import '../services/api_client.dart';
 import '../services/signature_service.dart';
+import '../services/auth_service.dart';
 import '../models/user_signature.dart';
 import '../widgets/signature_capture_widget.dart';
 
@@ -235,6 +236,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     return false;
   }
 
+  bool _canGenerateAiSignOffReports() {
+    final auth = AuthService();
+    return auth.isSystemAdmin || auth.isDeliveryLead;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -303,6 +309,18 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
             }
           }
           if (type == 'export_pdf') {
+            if (!_canGenerateAiSignOffReports()) {
+              if (mounted) {
+                setState(() {
+                  _messages.add({
+                    'role': 'assistant',
+                    'content':
+                        'Only Delivery Leads and System Admins can generate and export sign-off reports via FlowPilot.',
+                  });
+                });
+              }
+              continue;
+            }
             final rawTitle = (m['title'] ?? 'Report').toString();
             final contentForPdf = (m['content'] ?? content ?? '').toString();
             if (contentForPdf.trim().isNotEmpty && mounted) {

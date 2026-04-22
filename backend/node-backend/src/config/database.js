@@ -1,24 +1,27 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config({ path: '../../.env' });
 
-// Temporary hardcoded PostgreSQL connection to bypass dotenv issues
-const DATABASE_URL = 'postgresql://postgres:property007@localhost:5432/flow_space';
-const DB_HOST = '127.0.0.1';
-const DB_PORT = '5432';
-const DB_NAME = 'flow_space';
-const DB_USER = 'postgres';
-const DB_PASSWORD = 'property007';
-const NODE_ENV = 'development';
+const NODE_ENV = String(process.env.NODE_ENV || 'development').toLowerCase();
+const DATABASE_URL = (process.env.DATABASE_URL || '').trim();
+const DB_DIALECT = String(process.env.DB_DIALECT || '').trim().toLowerCase();
+const DB_HOST = (process.env.DB_HOST || process.env.PGHOST || '').trim();
+const DB_PORT = (process.env.DB_PORT || process.env.PGPORT || '5432').trim();
+const DB_NAME = (process.env.DB_NAME || process.env.PGDATABASE || '').trim();
+const DB_USER = (process.env.DB_USER || process.env.PGUSER || '').trim();
+const DB_PASSWORD = (process.env.DB_PASSWORD || process.env.PGPASSWORD || '').trim();
+const SQLITE_PATH = (process.env.SQLITE_PATH || '').trim();
 
 let sequelize;
 
-// Use SQLite for development, PostgreSQL for production
-if (NODE_ENV === 'development' && DB_USER === 'sqlite') {
+if (NODE_ENV !== 'production' &&
+    (DB_DIALECT === 'sqlite' ||
+        DB_USER.toLowerCase() === 'sqlite' ||
+        DATABASE_URL.toLowerCase().startsWith('sqlite:'))) {
   // SQLite configuration for development
   sequelize = new Sequelize({
     dialect: 'sqlite',
-    storage: DB_NAME || './database.sqlite',
-    logging: console.log,
+    storage: SQLITE_PATH || DB_NAME || './database.sqlite',
+    logging: NODE_ENV === 'development' ? console.log : false,
     pool: {
       max: 5,
       min: 0,
@@ -49,7 +52,7 @@ if (NODE_ENV === 'development' && DB_USER === 'sqlite') {
           : {}
     });
   } else {
-    if (!DB_HOST || !DB_NAME || !DB_USER || !DB_PASSWORD) {
+    if (!DB_HOST || !DB_NAME || !DB_USER) {
       throw new Error(
         'Missing PostgreSQL env vars: DATABASE_URL or DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD'
       );

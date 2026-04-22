@@ -598,8 +598,20 @@ class _TimelineScreenState extends State<TimelineScreen> {
     final isHovered = _hoveredView == view;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredView = view),
-      onExit: (_) => setState(() => _hoveredView = null),
+      onEnter: (_) {
+        if (_hoveredView == view) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _hoveredView = view);
+        });
+      },
+      onExit: (_) {
+        if (_hoveredView == null) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _hoveredView = null);
+        });
+      },
       child: AnimatedScale(
         scale: isActive ? 1.02 : (isHovered ? 1.01 : 1.0),
         duration: const Duration(milliseconds: 120),
@@ -816,10 +828,20 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
                                     return Expanded(
                                       child: MouseRegion(
-                                        onEnter: (_) => setState(() =>
-                                            _hoveredSlotStart = slotStart),
-                                        onExit: (_) => setState(
-                                            () => _hoveredSlotStart = null),
+                                        onEnter: (_) {
+                                          if (_hoveredSlotStart == slotStart) return;
+                                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                                            if (!mounted) return;
+                                            setState(() => _hoveredSlotStart = slotStart);
+                                          });
+                                        },
+                                        onExit: (_) {
+                                          if (_hoveredSlotStart == null) return;
+                                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                                            if (!mounted) return;
+                                            setState(() => _hoveredSlotStart = null);
+                                          });
+                                        },
                                         child: GestureDetector(
                                           behavior: HitTestBehavior.opaque,
                                           onTap: () => _handleTimeSlotTap(
@@ -1130,10 +1152,20 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
                             return Expanded(
                               child: MouseRegion(
-                                onEnter: (_) => setState(
-                                    () => _hoveredSlotStart = slotStart),
-                                onExit: (_) =>
-                                    setState(() => _hoveredSlotStart = null),
+                                onEnter: (_) {
+                                  if (_hoveredSlotStart == slotStart) return;
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (!mounted) return;
+                                    setState(() => _hoveredSlotStart = slotStart);
+                                  });
+                                },
+                                onExit: (_) {
+                                  if (_hoveredSlotStart == null) return;
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (!mounted) return;
+                                    setState(() => _hoveredSlotStart = null);
+                                  });
+                                },
                                 child: GestureDetector(
                                   behavior: HitTestBehavior.opaque,
                                   onTap: () => _handleTimeSlotTap(

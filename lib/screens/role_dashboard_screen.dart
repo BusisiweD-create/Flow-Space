@@ -1340,8 +1340,20 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final bool isActive =
         _selectedTeamFilter == label || _hoveredTeamFilter == label;
     return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredTeamFilter = label),
-      onExit: (_) => setState(() => _hoveredTeamFilter = null),
+      onEnter: (_) {
+        if (_hoveredTeamFilter == label) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _hoveredTeamFilter = label);
+        });
+      },
+      onExit: (_) {
+        if (_hoveredTeamFilter == null) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _hoveredTeamFilter = null);
+        });
+      },
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: () {
@@ -2069,8 +2081,20 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final bool isActive =
         _selectedAdminFilter == label || _hoveredAdminFilter == label;
     return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredAdminFilter = label),
-      onExit: (_) => setState(() => _hoveredAdminFilter = null),
+      onEnter: (_) {
+        if (_hoveredAdminFilter == label) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _hoveredAdminFilter = label);
+        });
+      },
+      onExit: (_) {
+        if (_hoveredAdminFilter == null) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _hoveredAdminFilter = null);
+        });
+      },
       child: GestureDetector(
         onTap: () {
           setState(() {

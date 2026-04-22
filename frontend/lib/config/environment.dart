@@ -9,21 +9,11 @@ class Environment {
 
   // API Configuration - Use const for production URL from build
   // Note: _apiBaseUrl kept for potential future use with build-time variables
-  static const String _apiBaseUrl = "http://localhost:3001/api/v1";
+  static const String _apiBaseUrl = "http://localhost:8000/api/v1";
 
   // Production fallback detection
   static String get apiBaseUrl {
-    // EMERGENCY: Force correct backend URL - CACHE BUST 2026-04-17-11:15
-    return "https://flow-space.onrender.com/api/v1";
-    
-    // First try build-time variable
-    if (_apiBaseUrl != "http://localhost:3001/api/v1") {
-      return _apiBaseUrl;
-    }
-
-    // Fallback if deployed but build-time URL wasn't provided
     if (isRenderDeployed) {
-      // Cache bust: 2026-04-17-10:08
       return "https://flow-space.onrender.com/api/v1";
     }
 
