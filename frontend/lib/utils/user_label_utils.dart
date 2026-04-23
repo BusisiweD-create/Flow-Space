@@ -14,7 +14,8 @@ class UserLabelUtils {
     // - 32 hex chars with no dashes
     // - dash-separated hex-like long tokens (without spaces)
     final compact = v.replaceAll('-', '');
-    if (compact.length == 32 && RegExp(r'^[0-9a-fA-F]{32}$').hasMatch(compact)) {
+    if (compact.length == 32 &&
+        RegExp(r'^[0-9a-fA-F]{32}$').hasMatch(compact)) {
       return true;
     }
 
@@ -46,4 +47,3 @@ class UserLabelUtils {
     return raw!.trim();
   }
 }
-

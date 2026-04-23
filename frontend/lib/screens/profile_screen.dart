@@ -310,10 +310,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         radius: 50,
                         backgroundImage: avatarImage,
                         child: avatarImage == null
-                            ? Image.asset(
-                                'assets/Icons/Google_Icon.png',
-                                width: 60,
-                                height: 60,
+                            ? const Icon(
+                                Icons.person_outline,
+                                size: 52,
+                                color: Colors.white70,
                               )
                             : null,
                       );

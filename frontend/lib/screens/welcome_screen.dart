@@ -7,6 +7,7 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: Stack(
         children: [
@@ -15,61 +16,75 @@ class WelcomeScreen extends StatelessWidget {
             child: Image.asset(
               'assets/images/khono_bg.png',
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(color: const Color(0xFF0D0F14));
+              },
             ),
           ),
-          // Main content
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.28),
+                    const Color(0xFF090909).withValues(alpha: 0.82),
+                  ],
+                ),
+              ),
+            ),
+          ),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 140),
-
-                  // Logo / Title
-                  Text(
-                    'DELIVERABLES & SPRINTS SIGN OFF HUB',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Red subtitle
-                  Text(
-                    'Your Growth Journey, Simplified with FlowPilot',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: const Color(0xFFC10D00),
-                          fontWeight: FontWeight.w600,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Tagline / description
-                  Text(
-                    'Build strong habits, build a strong future.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: const Color.fromRGBO(255, 255, 255, 0.85),
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Primary and secondary actions
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Center(
-                        child: SizedBox(
-                          width: 260,
-                          height: 48,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset(
+                      'assets/khono_logo.png',
+                      width: 360,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Text(
+                          'K H O N O L O G Y',
+                          style: textTheme.headlineMedium?.copyWith(
+                            color: const Color(0xFFE2173F),
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 9,
+                          ),
+                          textAlign: TextAlign.center,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Deliverable & Sprint Sign-Off Hub',
+                      style: textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Bring clarity, control, and confident sign-off to every milestone.',
+                      style: textTheme.titleMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 36),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 180,
+                          height: 42,
                           child: ElevatedButton(
                             onPressed: () => context.go('/login'),
                             style: ElevatedButton.styleFrom(
@@ -81,42 +96,54 @@ class WelcomeScreen extends StatelessWidget {
                             child: const Text(
                               'GET STARTED',
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: SizedBox(
-                          width: 260,
-                          height: 48,
+                        SizedBox(
+                          width: 180,
+                          height: 42,
                           child: OutlinedButton(
                             onPressed: () => context.go('/register'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.white,
-                              side: const BorderSide(
-                                color: Colors.white,
-                                width: 2,
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.72),
+                                width: 1.4,
                               ),
                               shape: const StadiumBorder(),
                             ),
                             child: const Text(
-                              'CREATE ACCOUNT',
+                              'LEARN MORE',
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 64),
+                    Image.asset(
+                      'assets/white_discs.png',
+                      width: 120,
+                      height: 44,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.more_horiz_rounded,
+                          color: Colors.white.withValues(alpha: 0.85),
+                          size: 34,
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -126,4 +153,5 @@ class WelcomeScreen extends StatelessWidget {
       ),
     );
   }
+
 }

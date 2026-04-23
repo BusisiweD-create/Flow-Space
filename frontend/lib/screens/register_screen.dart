@@ -114,6 +114,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Image.asset(
               'assets/images/khono_bg.png',
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(color: const Color(0xFF0D0F14));
+              },
             ),
           ),
           Positioned.fill(
@@ -130,6 +133,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
+          // Content overlay
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -143,38 +147,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       borderRadius: BorderRadius.circular(28),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.08),
+                        width: 1,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 24,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 12),
-                          color: Colors.black.withValues(alpha: 0.42),
-                        ),
-                      ],
                     ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Deliverable & Sprint Sign-Off Hub',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 30,
-                              fontWeight: FontWeight.w700,
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Logo and Title
+                            Image.asset(
+                              'assets/Icons/khono.png',
+                              height: 60,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.shield_outlined,
+                                  size: 52,
+                                  color: Colors.white70,
+                                );
+                              },
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Create your account to continue to your role dashboard.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                            const SizedBox(height: 16),
+                            Text(
+                              'Create Account',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Join Khonology and streamline your delivery process',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                  ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
                           const SizedBox(height: 24),

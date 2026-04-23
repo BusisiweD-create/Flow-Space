@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/version_service.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class SidebarVersionDisplay extends StatelessWidget {
   final bool isSidebarCollapsed;
@@ -17,40 +16,52 @@ class SidebarVersionDisplay extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: FutureBuilder<Map<String, dynamic>>(
-        future: VersionService.getVersionDetailsFromAsset(forceRefresh: true),
-        builder: (context, snapshot) {
-          final versionInfo = snapshot.data ?? VersionService.getVersionDetails();
-          final version = versionInfo['version'].toString();
-          final tooltip = VersionService.getLatestCommitTooltip(versionInfo);
-          return Tooltip(
-            message: tooltip,
-            waitDuration: const Duration(milliseconds: 250),
+    final versionInfo = VersionService.getVersionDetails();
+    final version = versionInfo['version'].toString();
+    final tooltip = VersionService.getFormattedVersionInfo();
+    String displayVersion = version.toLowerCase().startsWith('ver ')
+        ? version
+        : 'Ver $version';
+    if (displayVersion.contains('PROD-')) {
+      displayVersion = displayVersion.replaceFirst('Ver PROD-', 'Ver ');
+      displayVersion = '${displayVersion}_SIT';
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 2, 0, 4),
+        child: Tooltip(
+          message: tooltip,
+          waitDuration: const Duration(milliseconds: 250),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF2A1C),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          textStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF2A1C),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            textStyle: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+              color: const Color(0xCC101114),
+              borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
-              version,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                color: Colors.white.withValues(alpha: 0.65),
-                letterSpacing: 0.3,
+              displayVersion,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w500,
+                color: Colors.white.withValues(alpha: 0.78),
+                letterSpacing: 0.2,
               ),
-              textAlign: TextAlign.center,
+              textAlign: TextAlign.left,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

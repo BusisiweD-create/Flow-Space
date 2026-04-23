@@ -40,6 +40,7 @@ import 'screens/system_metrics_screen.dart';
 import 'screens/system_health_screen.dart';
 import 'screens/projects_overview_screen.dart';
 import 'screens/audit_logs_screen.dart';
+import 'providers/service_providers.dart';
 // Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
 //
