@@ -7,18 +7,24 @@ class Environment {
   static const String appDescription =
       'A social learning platform built with Flutter';
 
-  // API Configuration - Use const for production URL from build
-  // Note: _apiBaseUrl kept for potential future use with build-time variables
-  static const String _apiBaseUrl = "http://localhost:8000/api/v1";
+  // API Configuration (supports --dart-define=API_BASE_URL=...)
+  static const String _apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8000/api/v1',
+  );
 
   // Production fallback detection
   static String get apiBaseUrl {
-    if (isRenderDeployed) {
-      return "https://flow-space.onrender.com/api/v1";
+    // Respect build-time API base URL first (local or deployed).
+    if (_apiBaseUrl.trim().isNotEmpty) {
+      return _apiBaseUrl;
     }
 
-    // Default to localhost for development
-    return _apiBaseUrl;
+    // Fallback only if define is unexpectedly empty.
+    if (isRenderDeployed) {
+      return 'https://flow-space.onrender.com/api/v1';
+    }
+    return 'http://localhost:8000/api/v1';
   }
 
   // Base URL without version for endpoints that already include version

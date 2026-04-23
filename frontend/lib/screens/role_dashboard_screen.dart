@@ -15,8 +15,8 @@ import '../models/notification_item.dart';
 import '../models/deliverable.dart';
 import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
-import '../widgets/background_image.dart';
-import '../widgets/app_modal.dart';
+import '../theme/flownet_theme.dart';
+import '../providers/service_providers.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
@@ -49,6 +49,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
+  String? _selectedTeamFilter;
+  String? _hoveredTeamFilter;
+  String? _selectedAdminFilter;
+  String? _hoveredAdminFilter;
+  String? _hoveredAdminQuickAction;
+  bool _isBottomFabExpanded = false;
   
   // Cache for user names to avoid repeated API calls
   final Map<String, String> _userNamesCache = {};
@@ -496,112 +502,148 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_currentUser == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final headerTextColor = isDarkMode ? Colors.white : Colors.black;
+    final isTeamMember = _currentUser!.role == UserRole.teamMember;
+    final isSystemAdmin = _currentUser!.role == UserRole.systemAdmin;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: BackgroundImage(
-        imagePath: 'assets/Icons/khono_bg.png',
-        withGlassEffect: false,
-        overlayOpacity: 0.25,
-        child: Column(
+    return Stack(
+      children: [
+        Column(
           children: [
-            // Role header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Row(
-                children: [
-                  const SizedBox(
-                      width: 48), // Space for hamburger menu alignment
-                  Expanded(
-                    child: Text(
-                      '${_currentUser!.role.displayName} Dashboard',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+            if (!isSystemAdmin)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Row(
+                  children: [
+                    if (isTeamMember) ...[
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Text(
+                              '${_currentUser!.role.displayName} Dashboard',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: headerTextColor,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Text(
+                              'Hello, ${_currentUser!.name}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: headerTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  Builder(
-                    builder: (context) => PopupMenuButton<String>(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onSelected: (value) {
-                        switch (value) {
-                          case 'profile':
-                            context.go('/profile');
-                            break;
-                          case 'notifications':
-                            context.go('/notifications');
-                            break;
-                          case 'settings':
-                            context.go('/settings');
-                            break;
-                          case 'logout':
-                            _handleLogout();
-                            break;
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'profile',
-                          child: Row(
-                            children: [
-                              Icon(Icons.person),
-                              SizedBox(width: 8),
-                              Text('Profile'),
-                            ],
+                      const SizedBox(width: 12),
+                      _buildTeamHeaderIconButton(
+                        icon: Icons.mail_outline,
+                        onTap: () => context.go('/notifications'),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildTeamHeaderIconButton(
+                        icon: Icons.notifications_none,
+                        onTap: () => context.go('/notifications'),
+                      ),
+                    ] else ...[
+                      const SizedBox(width: 48),
+                      Expanded(
+                        child: Text(
+                          '${_currentUser!.role.displayName} Dashboard',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: headerTextColor,
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'notifications',
-                          child: Row(
-                            children: [
-                              Icon(Icons.notifications),
-                              SizedBox(width: 8),
-                              Text('Notifications'),
-                            ],
-                          ),
+                      ),
+                      Builder(
+                        builder: (context) => PopupMenuButton<String>(
+                          icon: Icon(Icons.menu, color: headerTextColor),
+                          onSelected: (value) {
+                            switch (value) {
+                              case 'profile':
+                                context.go('/profile');
+                                break;
+                              case 'notifications':
+                                context.go('/notifications');
+                                break;
+                              case 'settings':
+                                context.go('/settings');
+                                break;
+                              case 'logout':
+                                _handleLogout();
+                                break;
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'profile',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.person),
+                                  SizedBox(width: 8),
+                                  Text('Profile'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'notifications',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.notifications),
+                                  SizedBox(width: 8),
+                                  Text('Notifications'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'settings',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.settings),
+                                  SizedBox(width: 8),
+                                  Text('Settings'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'logout',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.logout),
+                                  SizedBox(width: 8),
+                                  Text('Logout'),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const PopupMenuItem(
-                          value: 'settings',
-                          child: Row(
-                            children: [
-                              Icon(Icons.settings),
-                              SizedBox(width: 8),
-                              Text('Settings'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'logout',
-                          child: Row(
-                            children: [
-                              Icon(Icons.logout),
-                              SizedBox(width: 8),
-                              Text('Logout'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-            // Main content
             Expanded(
               child: _buildRoleSpecificContent(),
             ),
           ],
         ),
-      ),
-      floatingActionButton: _buildRoleSpecificFAB(),
+        Positioned(
+          right: 16,
+          bottom: 12,
+          child: _buildBottomRightExpandableFab(),
+        ),
+      ],
     );
   }
 
@@ -631,24 +673,684 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildTeamMemberDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool compact = constraints.maxWidth < 980;
+        final double headingSize = compact ? 22 : 26;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 14),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1380),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTeamQuickActionsPanel(compact: compact),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Review Metrics Overview',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: headingSize,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTeamReviewMetricsCards(compact: compact),
+                  const SizedBox(height: 10),
+                  compact
+                      ? Column(
+                          children: [
+                            _buildTeamDeliverablesPanel(),
+                            const SizedBox(height: 10),
+                            _buildTeamProjectsPanel(),
+                          ],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: _buildTeamDeliverablesPanel()),
+                            const SizedBox(width: 10),
+                            Expanded(flex: 2, child: _buildTeamProjectsPanel()),
+                          ],
+                        ),
+                  const SizedBox(height: 10),
+                  _buildTeamRecentActivitiesPanel(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTeamHeaderIconButton({
+    IconData? icon,
+    String? assetPath,
+    required VoidCallback onTap,
+  }) {
+    assert(icon != null || assetPath != null);
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+    return GestureDetector(
+      onTap: onTap,
+      child: assetPath != null
+          ? SizedBox(
+              width: 36,
+              height: 36,
+              child: _buildDashboardAssetIcon(
+                assetPath,
+                size: 36,
+                fit: BoxFit.contain,
+                visualScale: 1.25,
+              ),
+            )
+          : Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xD9FFFFFF),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon!, size: 18, color: textColor),
+            ),
+    );
+  }
+
+  Widget _buildDashboardAssetIcon(
+    String assetPath, {
+    double size = 20,
+    BoxFit fit = BoxFit.contain,
+    double visualScale = 1.0,
+  }) {
+    return ClipOval(
+      child: Transform.scale(
+        scale: visualScale,
+        child: Image.asset(
+          assetPath,
+          width: size,
+          height: size,
+          fit: fit,
+          filterQuality: FilterQuality.none,
+          errorBuilder: (context, error, stackTrace) {
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+  }
+
+  Color _dashboardSurfaceColor() {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    if (isDarkMode) {
+      return FlownetColors.surface.withValues(alpha: 0.4);
+    }
+    // Light mode widgets at 60% opacity
+    return Colors.white.withValues(alpha: 0.6);
+  }
+
+  TextStyle _dashboardTextStyle({
+    double size = 14,
+    FontWeight weight = FontWeight.w500,
+  }) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return TextStyle(
+      color: isDarkMode ? Colors.white : Colors.black,
+      fontSize: size,
+      fontWeight: weight,
+    );
+  }
+
+  Color _subtitleTextColor() {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return isDarkMode ? Colors.white.withAlpha(210) : Colors.black87;
+  }
+
+  Widget _buildTeamQuickActionsPanel({bool compact = false}) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          _buildTeamRoundIcon(
+            Icons.rocket_launch_outlined,
+            assetPath: 'assets/dashboard_team_member/Group417.png',
+            containerSize: 40,
+            assetVisualScale: 1.2,
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Quick Actions', style: _dashboardTextStyle(size: compact ? 20 : 22, weight: FontWeight.w700)),
+                Text(
+                  'Dream BIG, work hard and stay focused - make it a productive day!',
+                  style: _dashboardTextStyle(size: 11, weight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildTeamPillButton('CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
+              _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
+              _buildTeamPillButton('BUILD REPORT', () {
+                final first = _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                final sprintId = first != null ? _extractFirstSprintId(first) : null;
+                if (sprintId != null && sprintId.isNotEmpty) {
+                  context.go('/sprint-report/$sprintId');
+                  return;
+                }
+                context.go('/sprint-console');
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamReviewMetricsCards({bool compact = false}) {
+    final cards = [
+      _buildTeamMetricCard(
+        'Submitted',
+        '${_clientReviewMetrics['submitted'] ?? 0}',
+        'assets/dashboard_team_member/Group519.png',
+      ),
+      _buildTeamMetricCard(
+        'Approved',
+        '${_clientReviewMetrics['approved'] ?? 0}',
+        'assets/dashboard_team_member/Group520.png',
+      ),
+      _buildTeamMetricCard(
+        'Changes Requested',
+        '${_clientReviewMetrics['changes'] ?? 0}',
+        'assets/dashboard_team_member/Group523.png',
+      ),
+      _buildTeamMetricCard(
+        'Rejected',
+        '${_clientReviewMetrics['rejected'] ?? 0}',
+        'assets/dashboard_team_member/Group_521.png',
+      ),
+      _buildTeamMetricCard(
+        'Average Review Time',
+        '${_clientReviewMetrics['avg_review_time'] ?? '-'}',
+        'assets/dashboard_team_member/Group_522.png',
+      ),
+    ];
+    if (compact) {
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: cards
+            .map((c) => SizedBox(width: 240, child: c))
+            .toList(),
+      );
+    }
+    return Row(
+      children: [
+        for (int i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: cards[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTeamMetricCard(String title, String value, String iconAssetPath) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildKanbanLinkCard(),
-          const SizedBox(height: 24),
-          _buildMyDeliverables(),
-          const SizedBox(height: 24),
-          _buildReviewMetrics(),
-          const SizedBox(height: 24),
-          _buildRecentActivity(),
+          Text(title, style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+          Text('Additional description information to include.', style: _dashboardTextStyle(size: 11)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              const Spacer(),
+              _buildTeamRoundIcon(
+                Icons.circle,
+                size: 16,
+                assetPath: iconAssetPath,
+                containerSize: 40,
+                assetVisualScale: 1.2,
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTeamDeliverablesPanel() {
+    final uid = _currentUser?.id.toString() ?? '';
+    var myDeliverables = _dashboardDeliverables.where((d) {
+      final assigned = (d['assigned_to'] ?? d['assignedTo'] ?? '').toString();
+      final created = (d['created_by'] ?? d['createdBy'] ?? '').toString();
+      return assigned == uid || created == uid;
+    }).toList();
+
+    if (_selectedTeamFilter != null) {
+      final filter = _selectedTeamFilter!;
+      if (filter == 'HIGH PRIORITY') {
+        myDeliverables = myDeliverables
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'high')
+            .toList();
+      } else if (filter == 'MEDIUM PRIORITY') {
+        myDeliverables = myDeliverables
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'medium')
+            .toList();
+      } else if (filter == 'LOW PRIORITY') {
+        myDeliverables = myDeliverables
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'low')
+            .toList();
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(
+                Icons.track_changes,
+                assetPath: 'assets/dashboard_team_member/overview.png',
+                containerSize: 40,
+                assetVisualScale: 1.2,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Deliverables Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(
+                Icons.notifications_none,
+                size: 16,
+                assetPath: 'assets/dashboard_team_member/Group_398.png',
+                containerSize: 36,
+                assetVisualScale: 1.2,
+              ),
+              const SizedBox(width: 6),
+              Text('${myDeliverables.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _buildTeamMiniFilter('VIEW ALL'),
+              const SizedBox(width: 8),
+              _buildTeamMiniFilter('HIGH PRIORITY'),
+              const SizedBox(width: 8),
+              _buildTeamMiniFilter('MEDIUM PRIORITY'),
+              const SizedBox(width: 8),
+              _buildTeamMiniFilter('LOW PRIORITY'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_isLoadingDashboardDeliverables)
+            const Center(child: CircularProgressIndicator())
+          else if (myDeliverables.isEmpty)
+            Text('No deliverables yet', style: _dashboardTextStyle())
+          else
+            ...myDeliverables.take(6).map((d) {
+              final title = (d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Document Name').toString();
+              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+              final shortDue = due.isNotEmpty && due.length >= 10 ? due.substring(0, 10) : due;
+              final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
+              final priority = (d['priority'] ?? 'medium').toString().toLowerCase();
+              final status = (d['status'] ?? '').toString();
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      status.toLowerCase() == 'completed' ? Icons.check_box : Icons.check_box_outline_blank,
+                      size: 16,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('$title - Draft Description', style: _dashboardTextStyle(size: 12)),
+                    ),
+                    if (shortDue.isNotEmpty)
+                      Text(shortDue, style: _dashboardTextStyle(size: 11)),
+                    const SizedBox(width: 8),
+                    _buildTeamPriorityBadge(priority),
+                    const SizedBox(width: 8),
+                    _buildTeamActionPill('EDIT', () => _editDeliverable(d)),
+                    const SizedBox(width: 6),
+                    _buildTeamActionPill('COMPLETE', () {
+                      if (id.isNotEmpty) {
+                        _updateDeliverableStatus(id, 'completed');
+                      }
+                    }),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamProjectsPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(
+                Icons.folder_copy_outlined,
+                assetPath: 'assets/dashboard_team_member/Group517.png',
+                containerSize: 42,
+                assetVisualScale: 1.15,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Projects Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included.', style: _dashboardTextStyle(size: 11)),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(
+                Icons.notifications_none,
+                size: 16,
+                assetPath: 'assets/dashboard_team_member/Group_398.png',
+                containerSize: 36,
+                assetVisualScale: 1.2,
+              ),
+              const SizedBox(width: 6),
+              Text('${_dashboardProjects.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 6),
+          if (_isLoadingDashboardProjects)
+            const Center(child: CircularProgressIndicator())
+          else if (_dashboardProjects.isEmpty)
+            Text('No projects found', style: _dashboardTextStyle())
+          else
+            ..._dashboardProjects.take(8).map((p) {
+              final name = (p['name'] ?? 'Project').toString();
+              final id = (p['id'] ?? '').toString();
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: InkWell(
+                  onTap: id.isNotEmpty ? () => context.go('/project-workspace/$id') : null,
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_box, size: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(name, style: _dashboardTextStyle(size: 12))),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamRecentActivitiesPanel() {
+    final userId = _currentUser?.id.toString() ?? '';
+    final userName = _currentUser?.name ?? '';
+    final my = _filteredAuditLogs.where((a) {
+      final actor = (a['actor'] ?? a['user'] ?? '').toString();
+      final uid = (a['user_id'] ?? a['actor_id'] ?? '').toString();
+      return actor == userName || uid == userId;
+    }).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _dashboardSurfaceColor(),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(
+                Icons.notifications_active_outlined,
+                assetPath: 'assets/dashboard_team_member/red_bells.png',
+                containerSize: 40,
+                assetVisualScale: 1.2,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Recent Activities', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(
+                Icons.notifications_none,
+                size: 16,
+                assetPath: 'assets/dashboard_team_member/Group_398.png',
+                containerSize: 36,
+                assetVisualScale: 1.2,
+              ),
+              const SizedBox(width: 6),
+              Text('${my.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 6),
+          if (_isLoadingAuditLogs)
+            const Center(child: CircularProgressIndicator())
+          else if (_auditLogsError != null)
+            Text(_auditLogsError!, style: _dashboardTextStyle())
+          else if (my.isEmpty)
+            Text('No Recent Activity.', style: _dashboardTextStyle())
+          else
+            ...my.take(5).map((a) {
+              final action = (a['action'] ?? a['event'] ?? a['type'] ?? 'Activity').toString();
+              final actor = (a['actor'] ?? a['user'] ?? '').toString();
+              final text = actor.isNotEmpty ? '$action • $actor' : action;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(text, style: _dashboardTextStyle(size: 12)),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamPillButton(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 22,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: FlownetColors.primary,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 8.5,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            height: 1.0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamMiniFilter(String label) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+    final bool isActive = _selectedTeamFilter == label || _hoveredTeamFilter == label;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredTeamFilter = label),
+      onExit: (_) => setState(() => _hoveredTeamFilter = null),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () {
+          setState(() {
+            _selectedTeamFilter = label == 'VIEW ALL' ? null : label;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: FlownetColors.primary),
+            color: isActive ? FlownetColors.primary : Colors.transparent,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isActive ? Colors.white : textColor,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamPriorityBadge(String priority) {
+    Color color;
+    String text;
+    switch (priority) {
+      case 'high':
+        color = const Color(0xFF4A90E2);
+        text = 'High Priority';
+        break;
+      case 'low':
+        color = const Color(0xFF7ED321);
+        text = 'Low Priority';
+        break;
+      default:
+        color = const Color(0xFFF5A623);
+        text = 'Medium Priority';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamActionPill(String label, VoidCallback onTap) {
+    final bool isComplete = label == 'COMPLETE';
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: isComplete ? FlownetColors.primary : Colors.grey.shade600,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamRoundIcon(
+    IconData icon, {
+    double size = 20,
+    double containerSize = 34,
+    double assetVisualScale = 1.7,
+    String? assetPath,
+  }) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+    if (assetPath != null) {
+      return SizedBox(
+        width: containerSize,
+        height: containerSize,
+        child: _buildDashboardAssetIcon(
+          assetPath,
+          size: containerSize,
+          fit: BoxFit.contain,
+          visualScale: assetVisualScale,
+        ),
+      );
+    }
+
+    return Container(
+      width: containerSize,
+      height: containerSize,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: size, color: textColor),
     );
   }
 
@@ -705,19 +1407,535 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildSystemAdminDashboard() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Keep side-by-side layout for desktop/tablet widths to match design.
+          final bool isNarrow = constraints.maxWidth < 900;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildAdminTopHeader(),
+              const SizedBox(height: 12),
+              _buildAdminReminderHeroPanel(),
+              const SizedBox(height: 12),
+              _buildAdminQuickActionsPanel(),
+              const SizedBox(height: 12),
+              if (isNarrow) ...[
+                _buildAdminDeliverablesPanel(),
+                const SizedBox(height: 12),
+                _buildAdminProjectsPanel(),
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: _buildAdminDeliverablesPanel()),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 2, child: _buildAdminProjectsPanel()),
+                  ],
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAdminTopHeader() {
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Text(
+                'Admin Dashboard',
+                style: _dashboardTextStyle(size: 20, weight: FontWeight.w700),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                'Hello, ${_currentUser?.name ?? 'Name Surname'}',
+                style: _dashboardTextStyle(size: 13, weight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+        _buildTeamHeaderIconButton(
+          assetPath: 'assets/Message.png',
+          icon: Icons.mail_outline,
+          onTap: () => context.go('/notifications'),
+        ),
+        const SizedBox(width: 8),
+        _buildTeamHeaderIconButton(
+          assetPath: 'assets/notification.png',
+          icon: Icons.notifications_none,
+          onTap: () => _loadPendingReports(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdminReminderHeroPanel() {
+    return Container(
+      width: double.infinity,
+      decoration: _adminPanelDecoration(),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
         children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 24),
-          _buildAdminFeatures(),
-          const SizedBox(height: 24),
-          _buildProjectsOverview(),
-          const SizedBox(height: 24),
-          _buildReminderQuickActions(),
+          _buildTeamRoundIcon(
+            Icons.notifications_active_outlined,
+            assetPath: 'assets/Approval_Reminders.png',
+            containerSize: 44,
+            assetVisualScale: 1.45,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Approval Reminders',
+                  style: _dashboardTextStyle(size: 20, weight: FontWeight.w700),
+                ),
+                Text(
+                  'Dream BIG, work hard and stay focused - make it a productive day!',
+                  style: _dashboardTextStyle(size: 9.2, weight: FontWeight.w400)
+                      .copyWith(color: _subtitleTextColor(), height: 1.0),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildTeamPillButton('SEND REMINDER', () => context.push('/send-reminder')),
+              _buildTeamPillButton('TRIGGER ESCALATION', _triggerEscalation),
+              _buildTeamPillButton('DELIVERABLES OVERVIEW', () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DeliverablesMetricsScreen(),
+                  ),
+                );
+              }),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  Widget _buildAdminQuickActionsPanel() {
+    return Container(
+      width: double.infinity,
+      decoration: _adminContentPanelDecoration(),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(
+                Icons.rocket_launch_outlined,
+                assetPath: 'assets/Quick_Actions.png',
+                containerSize: 44,
+                assetVisualScale: 1.45,
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Quick Actions',
+                      style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                  Text('Additional description can be included if required.',
+                      style: _dashboardTextStyle(size: 11)
+                          .copyWith(color: _subtitleTextColor())),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tiles = [
+                _buildAdminFeatureTile(
+                  icon: Icons.settings_applications_outlined,
+                  label: 'System Metrics',
+                  iconAssetPath: 'assets/System_metrics.png',
+                  onTap: () => context.go('/system-metrics'),
+                ),
+                _buildAdminFeatureTile(
+                  icon: Icons.manage_accounts_outlined,
+                  label: 'User Management',
+                  iconAssetPath: 'assets/User_management.png',
+                  onTap: () => context.go('/role-management'),
+                ),
+                _buildAdminFeatureTile(
+                  icon: Icons.health_and_safety_outlined,
+                  label: 'System Health',
+                  iconAssetPath: 'assets/System_Health.png',
+                  onTap: () => context.go('/system-health'),
+                ),
+                _buildAdminFeatureTile(
+                  icon: Icons.receipt_long_outlined,
+                  label: 'Audit Logs',
+                  iconAssetPath: 'assets/Audit_Logs.png',
+                  onTap: () => context.go('/audit-logs'),
+                ),
+                _buildAdminFeatureTile(
+                  icon: Icons.assignment_outlined,
+                  label: 'Deliverables Overview',
+                  iconAssetPath: 'assets/Deliverables_overview.png',
+                  onTap: () => context.go('/deliverables-overview'),
+                ),
+              ];
+
+              // Match design: desktop cards fill the full row width.
+              if (constraints.maxWidth >= 900) {
+                return Row(
+                  children: [
+                    for (int i = 0; i < tiles.length; i++) ...[
+                      Expanded(child: tiles[i]),
+                      if (i != tiles.length - 1) const SizedBox(width: 10),
+                    ],
+                  ],
+                );
+              }
+
+              // Responsive fallback for narrower widths.
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: tiles
+                    .map((tile) => SizedBox(width: 170, child: tile))
+                    .toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminFeatureTile({
+    required IconData icon,
+    required String label,
+    String? iconAssetPath,
+    required VoidCallback onTap,
+  }) {
+    final bool isHovered = _hoveredAdminQuickAction == label;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredAdminQuickAction = label),
+      onExit: (_) => setState(() => _hoveredAdminQuickAction = null),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFB01313), width: 1),
+            color: isHovered ? FlownetColors.primary : Colors.transparent,
+          ),
+          child: Column(
+            children: [
+              _buildTeamRoundIcon(
+                icon,
+                size: 16,
+                assetPath: iconAssetPath,
+                containerSize: 36,
+                assetVisualScale: 1.5,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: _dashboardTextStyle(size: 11, weight: FontWeight.w700).copyWith(
+                      color: isHovered ? Colors.white : _dashboardTextStyle().color,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminDeliverablesPanel() {
+    List<Map<String, dynamic>> items = List<Map<String, dynamic>>.from(_dashboardDeliverables);
+    if (_selectedAdminFilter != null) {
+      switch (_selectedAdminFilter) {
+        case 'HIGH PRIORITY':
+          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'high').toList();
+          break;
+        case 'MEDIUM PRIORITY':
+          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'medium').toList();
+          break;
+        case 'LOW PRIORITY':
+          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'low').toList();
+          break;
+      }
+    }
+
+    return Container(
+      decoration: _adminContentPanelDecoration(),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(
+                Icons.track_changes,
+                assetPath: 'assets/Deliverables_overview.png',
+                containerSize: 44,
+                assetVisualScale: 1.45,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Deliverables Overview',
+                        style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.',
+                        style: _dashboardTextStyle(size: 11)
+                            .copyWith(color: _subtitleTextColor())),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(
+                Icons.notifications_none,
+                size: 16,
+                assetPath: 'assets/notification.png',
+              ),
+              const SizedBox(width: 6),
+              Text('${items.length}',
+                  style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(color: _adminDividerColor, height: 1),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _buildAdminMiniFilter('VIEW ALL'),
+              const SizedBox(width: 8),
+              _buildAdminMiniFilter('HIGH PRIORITY'),
+              const SizedBox(width: 8),
+              _buildAdminMiniFilter('MEDIUM PRIORITY'),
+              const SizedBox(width: 8),
+              _buildAdminMiniFilter('LOW PRIORITY'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_isLoadingDashboardDeliverables)
+            const Center(child: CircularProgressIndicator())
+          else if (items.isEmpty)
+            Text('No deliverables yet', style: _dashboardTextStyle())
+          else
+            ...items.take(8).map((d) {
+              final title =
+                  (d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Document Name').toString();
+              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+              final shortDue = due.isNotEmpty && due.length >= 10 ? due.substring(0, 10) : due;
+              final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
+              final priority = (d['priority'] ?? 'medium').toString().toLowerCase();
+              final status = (d['status'] ?? '').toString().toLowerCase();
+              final isCompleted = status == 'completed' || status == 'approved' || status == 'signed_off';
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      isCompleted ? Icons.check_box : Icons.check_box_outline_blank,
+                      size: 16,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('$title - Draft Description',
+                          style: _dashboardTextStyle(size: 12)),
+                    ),
+                    if (shortDue.isNotEmpty)
+                      Text(shortDue, style: _dashboardTextStyle(size: 11)),
+                    const SizedBox(width: 8),
+                    _buildTeamPriorityBadge(priority),
+                    const SizedBox(width: 8),
+                    _buildTeamActionPill('EDIT', () => _editDeliverable(d)),
+                    const SizedBox(width: 6),
+                    _buildTeamActionPill('COMPLETE', () {
+                      if (id.isNotEmpty) {
+                        _updateDeliverableStatus(id, 'completed');
+                      }
+                    }),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminProjectsPanel() {
+    return Container(
+      decoration: _adminContentPanelDecoration(),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildTeamRoundIcon(
+                Icons.folder_copy_outlined,
+                assetPath: 'assets/Projects_overview.png',
+                containerSize: 44,
+                assetVisualScale: 1.45,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Projects Overview',
+                        style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included.',
+                        style: _dashboardTextStyle(size: 11)
+                            .copyWith(color: _subtitleTextColor())),
+                  ],
+                ),
+              ),
+              _buildTeamRoundIcon(
+                Icons.notifications_none,
+                size: 16,
+                assetPath: 'assets/notification.png',
+              ),
+              const SizedBox(width: 6),
+              Text('${_dashboardProjects.length}',
+                  style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(color: _adminDividerColor, height: 1),
+          const SizedBox(height: 8),
+          if (_isLoadingDashboardProjects)
+            const Center(child: CircularProgressIndicator())
+          else if (_dashboardProjects.isEmpty)
+            Text('No projects found', style: _dashboardTextStyle())
+          else
+            ..._dashboardProjects.take(8).map((p) {
+              final name = (p['name'] ?? 'Project').toString();
+              final id = (p['id'] ?? '').toString();
+              final description =
+                  (p['description'] ?? 'Completed ${name.toLowerCase()}').toString();
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: GestureDetector(
+                  onTap: id.isNotEmpty ? () => context.go('/project-workspace/$id') : null,
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_box,
+                          size: 16,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$name: $description',
+                          style: _dashboardTextStyle(size: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminMiniFilter(String label) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black;
+    final bool isActive = _selectedAdminFilter == label || _hoveredAdminFilter == label;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredAdminFilter = label),
+      onExit: (_) => setState(() => _hoveredAdminFilter = null),
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedAdminFilter = label == 'VIEW ALL' ? null : label;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFB01313)),
+            color: isActive ? FlownetColors.primary : Colors.transparent,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isActive ? Colors.white : textColor,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Match Figma: only the reminder card uses the light grey fill.
+  BoxDecoration _adminPanelDecoration() {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return BoxDecoration(
+      color: isDarkMode
+          ? const Color(0x99818298)
+          : const Color(0xFFA8A9B7),
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(
+        color: isDarkMode
+            ? const Color(0xFF979797)
+            : const Color(0xFF9FA0AE),
+        width: 0.9,
+      ),
+    );
+  }
+
+  // Other content cards stay darker, not light-grey.
+  BoxDecoration _adminContentPanelDecoration() {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return BoxDecoration(
+      color: isDarkMode
+          ? const Color(0xCC1F1F23)
+          : const Color(0xFFE8E8E8),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(
+        color: isDarkMode
+            ? const Color(0xFF2F3138)
+            : const Color(0xFFD5D5D9),
+        width: isDarkMode ? 0.9 : 0.8,
+      ),
+    );
+  }
+
+  Color get _adminDividerColor {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return isDarkMode
+        ? const Color(0x66BFC3CC)
+        : const Color(0xFFCFCFCF);
   }
 
   Widget _buildReminderQuickActions() {
@@ -802,98 +2020,119 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
-  Widget? _buildRoleSpecificFAB() {
+  bool _canShowRoleAction() {
     final auth = AuthService();
     final canCreateDeliverable = auth.canCreateDeliverable();
     final canManageUsers = auth.canManageUsers();
+    return canCreateDeliverable || canManageUsers;
+  }
 
-    if (!canCreateDeliverable && !canManageUsers) return null;
-
-    return FloatingActionButton(
-      onPressed: () {
-        if ((_currentUser!.role == UserRole.teamMember ||
-                _currentUser!.role == UserRole.deliveryLead) &&
-            canCreateDeliverable) {
-          _showCreateDeliverableModal();
-          return;
-        }
-
-        showAppModalBottomSheet(
-          context: context,
-          builder: (context) {
-            final items = <Widget>[];
-
-            if (canCreateDeliverable) {
-              items.add(
-                ListTile(
-                  leading: const Icon(Icons.assignment_outlined),
-                  title: const Text('Create Deliverable'),
-                  onTap: () => context.go('/deliverable-setup'),
-                ),
-              );
-            }
-
-            if (canManageUsers) {
-              items.add(
-                ListTile(
-                  leading: const Icon(Icons.admin_panel_settings),
-                  title: const Text('Role Management'),
-                  onTap: () => context.go('/role-management'),
-                ),
-              );
-            }
-
-            return SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: items,
-              ),
-            );
+  Widget _buildBottomRightExpandableFab() {
+    if (!_canShowRoleAction()) return const SizedBox.shrink();
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color primaryColor =
+        _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_isBottomFabExpanded) ...[
+          _buildFabCircleButton(
+            icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+            backgroundColor:
+                isDarkMode ? FlownetColors.surface : FlownetColors.pureWhite,
+            foregroundColor: isDarkMode ? Colors.white : Colors.black,
+            onTap: () {
+              ProviderScope.containerOf(context, listen: false)
+                  .read(themeProvider.notifier)
+                  .toggleTheme();
+            },
+          ),
+          const SizedBox(width: 8),
+          _buildAgentFabButton(
+            onTap: () => context.go('/ai-assistant'),
+          ),
+          const SizedBox(width: 8),
+        ],
+        _buildFabCircleButton(
+          icon: _isBottomFabExpanded
+              ? Icons.keyboard_arrow_right
+              : Icons.keyboard_arrow_left,
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          onTap: () {
+            setState(() {
+              _isBottomFabExpanded = !_isBottomFabExpanded;
+            });
           },
-        );
-      },
-      backgroundColor:
-          _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
-      child: const Icon(Icons.add, color: Colors.white),
+        ),
+      ],
     );
   }
 
-  void _showCreateDeliverableModal() {
-    showAppDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create New Deliverable'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Choose the type of deliverable setup:'),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.speed),
-              title: const Text('Quick Setup'),
-              subtitle: const Text('Basic deliverable creation'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/deliverable-setup');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.engineering),
-              title: const Text('Enhanced Setup'),
-              subtitle: const Text('Full DoD, evidence, and readiness check'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/enhanced-deliverable-setup');
-              },
+  Widget _buildFabCircleButton({
+    IconData? icon,
+    Widget? child,
+    required VoidCallback onTap,
+    required Color backgroundColor,
+    required Color foregroundColor,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: backgroundColor,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
+        alignment: Alignment.center,
+        child: child ?? Icon(icon, color: foregroundColor, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildAgentFabButton({required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.asset(
+          'assets/red_icon.png',
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFD10D00),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.smart_toy,
+                size: 22,
+                color: Colors.white,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -937,6 +2176,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     }
   }
 
+  // ignore: unused_element
   Widget _buildQuickActions() {
     final canCreate = _authService.canCreateDeliverable();
     final tiles = <Widget>[
@@ -1017,6 +2257,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildMyDeliverables() {
     return Card(
       child: Padding(
@@ -1272,6 +2513,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildRecentActivity() {
     return Card(
       child: Padding(
@@ -2127,7 +3369,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Future<void> _loadClientReviewMetrics() async {
-    setState(() {});
+    if (!mounted) return;
+    setState(() => _isLoadingClientMetrics = true);
     try {
       final resp = await _reportService.getSignOffReports();
       final m = {
@@ -2204,8 +3447,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           m['avg_review_time'] = '${avg.toStringAsFixed(1)}h';
         }
       }
+      if (!mounted) return;
       setState(() {
-        _clientReviewMetrics = {};
+        _clientReviewMetrics = m;
       });
     } finally {
       if (mounted) setState(() => _isLoadingClientMetrics = false);
@@ -2246,59 +3490,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           _metricTile('Defects', defects.toStringAsFixed(0), Icons.bug_report,
               Colors.purple),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAdminFeatures() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCardHeader(Icons.settings_applications, 'Admin Features',
-                route: '/settings'),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _featureTile(Icons.dashboard_outlined, 'System Metrics',
-                    () => context.go('/system-metrics')),
-                _featureTile(Icons.security, 'Role Management',
-                    () => context.go('/role-management')),
-                _featureTile(Icons.health_and_safety, 'System Health',
-                    () => context.go('/system-health')),
-                _featureTile(Icons.receipt_long, 'Audit Logs',
-                    () => context.go('/audit-logs')),
-                _featureTile(Icons.assignment, 'Deliverables Overview',
-                    () => context.go('/deliverables-overview')),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _featureTile(IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).dividerColor),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon),
-            const SizedBox(width: 8),
-            Text(label),
-          ],
-        ),
       ),
     );
   }

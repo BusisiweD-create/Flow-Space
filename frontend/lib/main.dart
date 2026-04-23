@@ -39,6 +39,7 @@ import 'screens/system_metrics_screen.dart';
 import 'screens/system_health_screen.dart';
 import 'screens/projects_overview_screen.dart';
 import 'screens/audit_logs_screen.dart';
+import 'providers/service_providers.dart';
 // Removed imports for non-existent screens to resolve analyzer errors
 import 'widgets/sidebar_scaffold.dart';
 //
@@ -81,14 +82,27 @@ void main() async {
   runApp(const ProviderScope(child: KhonoApp()));
 }
 
-class KhonoApp extends StatelessWidget {
+class KhonoApp extends ConsumerWidget {
   const KhonoApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDarkMode = ref.watch(themeProvider);
+    final lightTheme = FlownetTheme.lightTheme.copyWith(
+      textTheme: FlownetTheme.lightTheme.textTheme.apply(fontFamily: 'Poppins'),
+      primaryTextTheme:
+          FlownetTheme.lightTheme.primaryTextTheme.apply(fontFamily: 'Poppins'),
+    );
+    final darkTheme = FlownetTheme.darkTheme.copyWith(
+      textTheme: FlownetTheme.darkTheme.textTheme.apply(fontFamily: 'Poppins'),
+      primaryTextTheme:
+          FlownetTheme.darkTheme.primaryTextTheme.apply(fontFamily: 'Poppins'),
+    );
     return MaterialApp.router(
       title: 'Flownet Workspaces - Project Management Hub',
-      theme: FlownetTheme.darkTheme, // Dark mode as default
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {

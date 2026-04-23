@@ -541,34 +541,29 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
     // BYPASSES DISABLED: Backend is now working correctly on Render
     // The deployed app should use real API calls to backend-532p.onrender.com
 
-    // Add retry logic for Render cold starts
-    ApiResponse response = ApiResponse.error('Initial response not set');
-    int attempts = 0;
+    // Retry a limited number of times for transient startup/network failures.
+    ApiResponse response = ApiResponse.error('Login request not sent');
     const maxAttempts = 2;
 
-    while (attempts < maxAttempts) {
-      try {
-        debugPrint('🔐 Login attempt ${attempts + 1} for: $email');
-        response = await post('/auth/login', body: {
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      debugPrint('🔐 Login attempt $attempt for: $email');
+
+      response = await post(
+        '/auth/login',
+        body: {
           'email': email,
           'password': password,
-        },);
+        },
+      );
 
-        // If we get a response (success or error), break
-        if (response.statusCode != 0) {
-          break;
-        }
-      } catch (e) {
-        debugPrint('🔐 Login attempt ${attempts + 1} failed: $e');
-        attempts++;
-        
-        // If last attempt, rethrow
-        if (attempts >= maxAttempts) {
-          rethrow;
-        }
-        
-        // Wait before retry (for backend to wake up)
-        await Future.delayed(const Duration(seconds: 3));
+      // Any HTTP response (2xx/4xx/5xx) should stop retrying immediately.
+      if (response.statusCode != 0) {
+        break;
+      }
+
+      // statusCode == 0 means transport-level failure (e.g. Failed to fetch).
+      if (attempt < maxAttempts) {
+        await Future.delayed(const Duration(seconds: 2));
       }
     }
 
