@@ -101,6 +101,7 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'role_management_add_user_fab',
         onPressed: () => _showAddUserDialog(),
         icon: const Icon(Icons.person_add),
         label: const Text('Add User'),

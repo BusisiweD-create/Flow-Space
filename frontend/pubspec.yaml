@@ -93,4 +93,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/images/
+    - assets/Icons/
+    - assets/Icons/Project_Direction_Acceleration/
+    - assets/Icons/images/
+    - assets/Team_member_sidebar/
     - assets/dashboard_team_member/

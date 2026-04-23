@@ -756,6 +756,7 @@ class _SprintBoardScreenState extends ConsumerState<SprintBoardScreen> {
       ),
       floatingActionButton: canCreateDeliverable
           ? FloatingActionButton.extended(
+              heroTag: 'sprint_board_create_deliverable_fab',
               onPressed: _showCreateDeliverableDialog,
               backgroundColor: FlownetColors.electricBlue,
               foregroundColor: FlownetColors.pureWhite,

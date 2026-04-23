@@ -164,6 +164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
+              heroTag: 'dashboard_new_deliverable_fab',
               onPressed: () {
                 _showCreateDeliverableDialog();
               },

@@ -159,6 +159,7 @@ class _SprintReportScreenState extends State<SprintReportScreen> {
       ),
       floatingActionButton: _report != null
           ? FloatingActionButton.extended(
+              heroTag: 'sprint_report_signoff_publish_fab',
               onPressed: () => _showPublishDialog(context, sprintTitle),
               icon: const Icon(Icons.assignment_turned_in),
               label: const Text('Sign Off & Publish'),

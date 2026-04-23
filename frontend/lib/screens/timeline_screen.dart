@@ -1845,6 +1845,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
       children: [
         // Sync button
         FloatingActionButton.extended(
+          heroTag: 'timeline_sync_fab',
           onPressed: _isSyncing ? null : _refreshTimeline,
           backgroundColor:
               _isSyncing ? FlownetColors.coolGray : FlownetColors.electricBlue,
@@ -1866,6 +1867,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
         const SizedBox(width: 12),
         // Add event button
         FloatingActionButton.extended(
+          heroTag: 'timeline_add_event_fab',
           onPressed: () {
             showAppDialog(
               context: context,

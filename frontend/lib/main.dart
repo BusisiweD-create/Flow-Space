@@ -46,7 +46,6 @@ import 'widgets/sidebar_scaffold.dart';
 //
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
-import 'providers/service_providers.dart';
 import 'screens/deadlines_screen.dart';
 import 'screens/deliverables_list_screen.dart';
 import 'screens/deliverables_overview_screen.dart';

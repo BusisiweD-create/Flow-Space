@@ -243,6 +243,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
     }
     final isDesktop = MediaQuery.of(context).size.width > 768;
+    final useWelcomeBackground =
+        routeLocation == '/' || routeLocation == '/login' || routeLocation == '/register';
+    final String? backgroundImagePath =
+        useWelcomeBackground ? 'assets/images/khono_bg.png' : null;
+    const bool backgroundWithGradient = true;
 
     if (isDesktop) {
       return Scaffold(
@@ -307,9 +312,16 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                 child: Row(
                   children: [
                     Image.asset(
-                      'assets/images/flownet_logo.png',
+                      'assets/Icons/Brand/khonodemy-sidebar-logo-red.png',
                       height: 32,
                       width: 32,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const SizedBox(
+                          height: 32,
+                          width: 32,
+                          child: Icon(Icons.grid_view_rounded),
+                        );
+                      },
                     ),
                     const SizedBox(width: 12),
                     Expanded(

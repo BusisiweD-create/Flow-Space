@@ -368,6 +368,7 @@ class _EpicManagementScreenState extends State<EpicManagementScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'epic_management_new_epic_fab',
         onPressed: _showCreateEpicDialog,
         backgroundColor: FlownetColors.electricBlue,
         icon: const Icon(Icons.add),

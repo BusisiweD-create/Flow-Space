@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
@@ -114,9 +116,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Image.asset(
               'assets/images/khono_bg.png',
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(color: const Color(0xFF0D0F14));
-              },
+              errorBuilder: (context, error, stackTrace) =>
+                  Container(color: const Color(0xFF0D0F14)),
             ),
           ),
           Positioned.fill(
@@ -133,7 +134,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
-          // Content overlay
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -192,138 +192,151 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ),
                               textAlign: TextAlign.center,
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _firstNameController,
-                                  style: const TextStyle(color: Colors.white),
-                                  decoration: _fieldDecoration(label: 'First Name'),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
+                            const SizedBox(height: 24),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _firstNameController,
+                                    style: const TextStyle(color: Colors.white),
+                                    decoration:
+                                        _fieldDecoration(label: 'First Name'),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      return null;
+                                    },
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _lastNameController,
-                                  style: const TextStyle(color: Colors.white),
-                                  decoration: _fieldDecoration(label: 'Last Name'),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _lastNameController,
+                                    style: const TextStyle(color: Colors.white),
+                                    decoration:
+                                        _fieldDecoration(label: 'Last Name'),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Required';
+                                      }
+                                      return null;
+                                    },
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: _fieldDecoration(label: 'Email'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: _fieldDecoration(label: 'Email'),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your email';
+                                }
 
-                              final email = value.toLowerCase().trim();
+                                final email = value.toLowerCase().trim();
 
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                  .hasMatch(email)) {
-                                return 'Please enter a valid email';
-                              }
+                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                    .hasMatch(email)) {
+                                  return 'Please enter a valid email';
+                                }
 
-                              final [username, domain] = email.split('@');
+                                final parts = email.split('@');
+                                if (parts.length != 2) {
+                                  return 'Please enter a valid email';
+                                }
+                                final username = parts[0];
+                                final domain = parts[1];
 
-                              final disposableDomains = [
-                                '10minutemail.com',
-                                'tempmail.org',
-                                'guerrillamail.com',
-                                'mailinator.com',
-                                'yopmail.com',
-                                'temp-mail.org',
-                                'throwaway.email',
-                                'maildrop.cc',
-                                'fakeemail.com',
-                                'tempemail.org',
-                                'sharklasers.com',
-                                'getairmail.com'
-                              ];
+                                final disposableDomains = [
+                                  '10minutemail.com',
+                                  'tempmail.org',
+                                  'guerrillamail.com',
+                                  'mailinator.com',
+                                  'yopmail.com',
+                                  'temp-mail.org',
+                                  'throwaway.email',
+                                  'maildrop.cc',
+                                  'fakeemail.com',
+                                  'tempemail.org',
+                                  'sharklasers.com',
+                                  'getairmail.com',
+                                ];
 
-                              if (disposableDomains.any(
-                                  (disposable) => domain.contains(disposable))) {
-                                return 'Disposable email addresses are not allowed';
-                              }
+                                if (disposableDomains.any(
+                                    (disposable) => domain.contains(disposable))) {
+                                  return 'Disposable email addresses are not allowed';
+                                }
 
-                              if (domain.contains('..') || !domain.contains('.')) {
-                                return 'Invalid email domain';
-                              }
+                                if (domain.contains('..') || !domain.contains('.')) {
+                                  return 'Invalid email domain';
+                                }
 
-                              final suspiciousUsernamePatterns = [
-                                RegExp(
+                                final suspiciousUsernamePatterns = [
+                                  RegExp(
                                     r'^(test|fake|dummy|sample|example|demo|user|admin|support|info|contact)',
-                                    caseSensitive: false),
-                                RegExp(r'^[a-z]+\d{3,}$'),
-                                RegExp(r'^[a-z]{1,2}\d{2,}$'),
-                                RegExp(
+                                    caseSensitive: false,
+                                  ),
+                                  RegExp(r'^[a-z]+\d{3,}$'),
+                                  RegExp(r'^[a-z]{1,2}\d{2,}$'),
+                                  RegExp(
                                     r'^(no|not|fake|invalid|nonexistent|random|temp|temporal)',
-                                    caseSensitive: false),
-                                RegExp(r'^.{1,3}\d{2,}$'),
-                                RegExp(r'^[a-z]{20,}$'),
-                                RegExp(r'^(test|demo|sample)\d*@',
-                                    caseSensitive: false),
-                              ];
+                                    caseSensitive: false,
+                                  ),
+                                  RegExp(r'^.{1,3}\d{2,}$'),
+                                  RegExp(r'^[a-z]{20,}$'),
+                                  RegExp(
+                                    r'^(test|demo|sample)\d*@',
+                                    caseSensitive: false,
+                                  ),
+                                ];
 
-                              if (suspiciousUsernamePatterns
-                                  .any((pattern) => pattern.hasMatch(username))) {
-                                return 'This email address appears to be invalid or non-existent';
-                              }
+                                if (suspiciousUsernamePatterns
+                                    .any((pattern) => pattern.hasMatch(username))) {
+                                  return 'This email address appears to be invalid or non-existent';
+                                }
 
-                              final fakeCombinations = [
-                                RegExp(
+                                final fakeCombinations = [
+                                  RegExp(
                                     r'^(test|fake|dummy|sample|example|demo)@(gmail|yahoo|outlook|hotmail)\.com$',
-                                    caseSensitive: false),
-                                RegExp(
+                                    caseSensitive: false,
+                                  ),
+                                  RegExp(
                                     r'^(user|admin|support|info|contact)@(gmail|yahoo|outlook|hotmail)\.com$',
-                                    caseSensitive: false),
-                                RegExp(
+                                    caseSensitive: false,
+                                  ),
+                                  RegExp(
                                     r'^[a-z]{1,3}\d{2,}@(gmail|yahoo|outlook|hotmail)\.com$',
-                                    caseSensitive: false),
-                              ];
+                                    caseSensitive: false,
+                                  ),
+                                ];
 
-                              if (fakeCombinations
-                                  .any((pattern) => pattern.hasMatch(email))) {
-                                return 'This email address appears to be invalid or non-existent';
-                              }
+                                if (fakeCombinations
+                                    .any((pattern) => pattern.hasMatch(email))) {
+                                  return 'This email address appears to be invalid or non-existent';
+                                }
 
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _companyController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: _fieldDecoration(label: 'Company'),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your company';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _buildRoleSelection(),
-                          const SizedBox(height: 12),
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _companyController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: _fieldDecoration(label: 'Company'),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your company';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            _buildRoleSelection(),
+                            const SizedBox(height: 12),
                           TextFormField(
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
@@ -492,6 +505,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
+        ),
           const FixedFooterVersionDisplay(),
         ],
       ),
