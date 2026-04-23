@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/backend_api_service.dart';
+import '../utils/user_label_utils.dart';
 
 class AuditLogsScreen extends StatefulWidget {
   const AuditLogsScreen({super.key});
@@ -54,8 +55,13 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Audit Logs'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(onPressed: _loadLogs, icon: const Icon(Icons.refresh)),
         ],
@@ -73,6 +79,10 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
                         final log = _logs[index];
                         final action = (log['action'] ?? log['event'] ?? log['type'] ?? 'Log').toString();
                         final actor = (log['actor'] ?? log['user'] ?? '').toString();
+                        final safeActor = UserLabelUtils.sanitizeUserLabel(
+                          actor,
+                          emptyIsUnknown: false,
+                        );
                         final createdAt = log['created_at']?.toString() ?? '';
                         return Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
@@ -88,7 +98,7 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
                                 children: [
                                   const Icon(Icons.receipt_long, size: 18),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text(actor.isNotEmpty ? '$action • $actor' : action)),
+                                  Expanded(child: Text(actor.isNotEmpty ? '$action • $safeActor' : action)),
                                 ],
                               ),
                               if (createdAt.isNotEmpty) ...[

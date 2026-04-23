@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-// import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'widgets/app_container.dart';
 import 'screens/welcome_screen.dart';
-// import 'firebase_options.dart';
+import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/backend_api_service.dart';
+import 'services/version_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/email_verification_screen.dart';
@@ -18,6 +19,7 @@ import 'screens/client_review_workflow_screen.dart';
 import 'screens/report_editor_screen.dart';
 import 'screens/report_view_screen.dart';
 import 'screens/client_review_screen.dart';
+import 'screens/sprint_report_screen.dart';
 import 'models/sign_off_report.dart';
 import 'models/deliverable.dart';
 import 'screens/report_repository_screen.dart';
@@ -33,7 +35,6 @@ import 'screens/role_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sprint_board_screen.dart';
-import 'screens/sprint_report_screen.dart';
 import 'screens/timeline_screen.dart';
 import 'screens/system_metrics_screen.dart';
 import 'screens/system_health_screen.dart';
@@ -44,11 +45,13 @@ import 'widgets/sidebar_scaffold.dart';
 //
 import 'widgets/role_guard.dart';
 import 'theme/flownet_theme.dart';
+import 'providers/service_providers.dart';
 import 'screens/deadlines_screen.dart';
 import 'screens/deliverables_list_screen.dart';
 import 'screens/deliverables_overview_screen.dart';
 import 'screens/skill_assessment_screen.dart';
 import 'screens/deliverable_detail_screen.dart';
+import 'screens/deliverable_detail_by_id_screen.dart';
 import 'screens/environment_management_screen.dart';
 import 'screens/project_workspace_screen.dart';
 import 'screens/project_details_screen.dart';
@@ -56,20 +59,21 @@ import 'screens/ai_assistant_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Firebase initialization commented out for deployment
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
+
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   try {
     // Initialize API Services
     await BackendApiService().initialize();
     await AuthService().initialize();
+    await VersionService.getVersionDetailsFromAsset(forceRefresh: true);
     // RealAuthService removed - using AuthService instead
-    
+
     // Test SMTP connection on startup (optional)
-    // Uncomment to test SMTP on app startup
+    // Uncomment the lines below to test SMTP on app startup
     // final emailService = SmtpEmailService();
     // final isConnected = await emailService.testSmtpConnection();
     // debugPrint('SMTP Connection: ${isConnected ? "✅ Success" : "❌ Failed"}');
@@ -81,14 +85,27 @@ void main() async {
   runApp(const ProviderScope(child: KhonoApp()));
 }
 
-class KhonoApp extends StatelessWidget {
+class KhonoApp extends ConsumerWidget {
   const KhonoApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDarkMode = ref.watch(themeProvider);
+    final lightTheme = FlownetTheme.lightTheme.copyWith(
+      textTheme: FlownetTheme.lightTheme.textTheme.apply(fontFamily: 'Poppins'),
+      primaryTextTheme:
+          FlownetTheme.lightTheme.primaryTextTheme.apply(fontFamily: 'Poppins'),
+    );
+    final darkTheme = FlownetTheme.darkTheme.copyWith(
+      textTheme: FlownetTheme.darkTheme.textTheme.apply(fontFamily: 'Poppins'),
+      primaryTextTheme:
+          FlownetTheme.darkTheme.primaryTextTheme.apply(fontFamily: 'Poppins'),
+    );
     return MaterialApp.router(
       title: 'Flownet Workspaces - Project Management Hub',
-      theme: FlownetTheme.darkTheme, // Dark mode as default
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
@@ -152,7 +169,6 @@ final GoRouter _router = GoRouter(
           email: emailFromQuery,
           verificationCode: code,
         );
-
       },
     ),
     GoRoute(
@@ -274,7 +290,8 @@ final GoRouter _router = GoRouter(
         return RouteGuard(
           route: '/report-editor',
           child: SidebarScaffold(
-            child: ReportEditorScreen(deliverableId: deliverableId, reportId: reportId),
+            child: ReportEditorScreen(
+                deliverableId: deliverableId, reportId: reportId),
           ),
         );
       },
@@ -298,7 +315,8 @@ final GoRouter _router = GoRouter(
         return RouteGuard(
           route: '/report-builder',
           child: SidebarScaffold(
-            child: ReportViewScreen(reportId: reportId, showPostSubmitBanner: true),
+            child: ReportViewScreen(
+                reportId: reportId, showPostSubmitBanner: true),
           ),
         );
       },
@@ -311,8 +329,12 @@ final GoRouter _router = GoRouter(
         SignOffReport? initialReport;
         Deliverable? initialDeliverable;
         if (extra is Map) {
-          try { initialReport = extra['report'] as SignOffReport?; } catch (_) {}
-          try { initialDeliverable = extra['deliverable'] as Deliverable?; } catch (_) {}
+          try {
+            initialReport = extra['report'] as SignOffReport?;
+          } catch (_) {}
+          try {
+            initialDeliverable = extra['deliverable'] as Deliverable?;
+          } catch (_) {}
         }
         return RouteGuard(
           route: '/client-review',
@@ -362,7 +384,7 @@ final GoRouter _router = GoRouter(
         ),
       ),
     ),
-    
+
     GoRoute(
       path: '/send-reminder',
       builder: (context, state) => const RouteGuard(
@@ -383,20 +405,20 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/sprint-console',
-            builder: (context, state) {
-              final projectKey = state.uri.queryParameters['projectKey'];
-              final projectId = state.uri.queryParameters['projectId'];
-              final sprintId = state.uri.queryParameters['sprintId'];
-              return RouteGuard(
-                route: '/sprint-console',
-                child: SidebarScaffold(
-                  child: SprintConsoleScreen(
-                    initialProjectKey: projectKey ?? projectId,
-                    initialSprintId: sprintId,
-                  ),
-                ),
-              );
-            },
+      builder: (context, state) {
+        final projectKey = state.uri.queryParameters['projectKey'];
+        final projectId = state.uri.queryParameters['projectId'];
+        final sprintId = state.uri.queryParameters['sprintId'];
+        return RouteGuard(
+          route: '/sprint-console',
+          child: SidebarScaffold(
+            child: SprintConsoleScreen(
+              initialProjectKey: projectKey ?? projectId,
+              initialSprintId: sprintId,
+            ),
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/sprint-board/:sprintId',
@@ -430,24 +452,36 @@ final GoRouter _router = GoRouter(
         );
       },
     ),
-  GoRoute(
-    path: '/approvals',
-    builder: (context, state) => const RouteGuard(
-      route: '/approval-requests',
-      child: SidebarScaffold(
-        child: ApprovalRequestsScreen(),
+    GoRoute(
+      path: '/approvals',
+      builder: (context, state) => const RouteGuard(
+        route: '/approval-requests',
+        child: SidebarScaffold(
+          child: ApprovalRequestsScreen(),
+        ),
       ),
     ),
-  ),
-  GoRoute(
-    path: '/approval-requests',
-    builder: (context, state) => const RouteGuard(
-      route: '/approval-requests',
-      child: SidebarScaffold(
-        child: ApprovalRequestsScreen(),
+    GoRoute(
+      path: '/approval-requests',
+      builder: (context, state) => const RouteGuard(
+        route: '/approval-requests',
+        child: SidebarScaffold(
+          child: ApprovalRequestsScreen(),
+        ),
       ),
     ),
-  ),
+    GoRoute(
+      path: '/deliverables/:deliverableId',
+      builder: (context, state) {
+        final deliverableId = state.pathParameters['deliverableId']!;
+        return RouteGuard(
+          route: '/deliverables-overview',
+          child: SidebarScaffold(
+            child: DeliverableDetailByIdScreen(deliverableId: deliverableId),
+          ),
+        );
+      },
+    ),
     GoRoute(
       path: '/deliverables',
       builder: (context, state) => const RouteGuard(
@@ -488,7 +522,8 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => RouteGuard(
         route: '/repository',
         child: SidebarScaffold(
-          child: RepositoryScreen(projectKey: state.pathParameters['projectKey']),
+          child:
+              RepositoryScreen(projectKey: state.pathParameters['projectKey']),
         ),
       ),
     ),
@@ -520,7 +555,7 @@ final GoRouter _router = GoRouter(
       ),
     ),
     // Removed redundant user-management route; role-management covers it
-    
+
     GoRoute(
       path: '/profile',
       builder: (context, state) => RouteGuard(
@@ -571,7 +606,8 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => RouteGuard(
         route: '/skill-assessment',
         child: SidebarScaffold(
-          child: SkillAssessmentScreen(selectedSkill: state.pathParameters['skill']),
+          child: SkillAssessmentScreen(
+              selectedSkill: state.pathParameters['skill']),
         ),
       ),
     ),
@@ -632,4 +668,3 @@ final GoRouter _router = GoRouter(
     ),
   ],
 );
-

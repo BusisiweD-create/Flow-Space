@@ -44,9 +44,6 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
     await _loadStoredTokens();
     DebugHelper.logEnvironmentInfo();
     debugPrint('API Client initialized with base URL: $_baseUrlWithVersion');
-    debugPrint('DEBUG: Environment.apiBaseUrl = ${Environment.apiBaseUrl}');
-    debugPrint('DEBUG: Environment.isRenderDeployed = ${Environment.isRenderDeployed}');
-    debugPrint('FINAL DEBUG: _baseUrlWithVersion = $_baseUrlWithVersion');
     _initialized = true;
   }
 

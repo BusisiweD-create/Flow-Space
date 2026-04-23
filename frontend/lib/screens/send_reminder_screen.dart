@@ -248,8 +248,13 @@ class _SendReminderScreenState extends State<SendReminderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Send Reminder For Report'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -277,16 +282,20 @@ class _SendReminderScreenState extends State<SendReminderScreen> {
                     
                     const Text(
                       'Select Report',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       key: ValueKey(_selectedReportId),
                       initialValue: _selectedReportId,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
                         hintText: 'Choose a report...',
+                        filled: true,
+                        fillColor: Colors.white.withAlpha(10),
                       ),
+                      dropdownColor: Colors.black87,
+                      style: const TextStyle(color: Colors.white),
                       items: _reports.map((r) {
                         final title = _getReportTitle(r);
                         final id = r['id']?.toString() ?? '';
@@ -295,6 +304,7 @@ class _SendReminderScreenState extends State<SendReminderScreen> {
                           child: Text(
                             '$title (ID: $id)',
                             overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white),
                           ),
                         );
                       }).toList(),
@@ -309,26 +319,30 @@ class _SendReminderScreenState extends State<SendReminderScreen> {
                     
                     const Text(
                       'Select Recipient',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<User>(
                       key: ValueKey(_selectedUser),
                       initialValue: _selectedUser,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
                         hintText: 'Choose a recipient...',
+                        filled: true,
+                        fillColor: Colors.white.withAlpha(10),
                       ),
+                      dropdownColor: Colors.black87,
+                      style: const TextStyle(color: Colors.white),
                       items: _users.isEmpty 
                           ? null 
                           : _users.map((u) {
                               final displayName = _formatUserName(u);
                               return DropdownMenuItem<User>(
                                 value: u,
-                                child: Text(displayName),
+                                child: Text(displayName, style: const TextStyle(color: Colors.white)),
                               );
                             }).toList(),
-                      disabledHint: const Text('No users found'),
+                      disabledHint: const Text('No users found', style: TextStyle(color: Colors.white)),
                       onChanged: (value) {
                         setState(() => _selectedUser = value);
                       },

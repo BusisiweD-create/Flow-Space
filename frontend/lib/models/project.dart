@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/date_utils.dart' as app_date_utils;
 
 enum ProjectStatus {
   planning,
@@ -366,11 +367,11 @@ class Project {
 
   String get formattedEndDate {
     if (endDate == null) return 'No end date';
-    return '${endDate!.day.toString().padLeft(2, '0')}/${endDate!.month.toString().padLeft(2, '0')}/${endDate!.year}';
+    return app_date_utils.DateUtils.formatDate(endDate!);
   }
 
   String get formattedStartDate {
-    return '${startDate.day.toString().padLeft(2, '0')}/${startDate.month.toString().padLeft(2, '0')}/${startDate.year}';
+    return app_date_utils.DateUtils.formatDate(startDate);
   }
 
   Map<String, dynamic> get auditMetadata {

@@ -34,7 +34,9 @@ class _ClientReviewWorkflowScreenState
   final _commentController = TextEditingController();
   final _changeRequestController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final GlobalKey<SignatureCaptureWidgetState> _signatureKey =
+  final GlobalKey<SignatureCaptureWidgetState> _approveSignatureKey =
+      GlobalKey<SignatureCaptureWidgetState>();
+  final GlobalKey<SignatureCaptureWidgetState> _requestChangesSignatureKey =
       GlobalKey<SignatureCaptureWidgetState>();
 
   final SignOffReportService _reportService =
@@ -234,8 +236,8 @@ class _ClientReviewWorkflowScreenState
           }
         } else {
           String? signature;
-          if (_signatureKey.currentState != null) {
-            signature = await _signatureKey.currentState!.getSignature();
+          if (_approveSignatureKey.currentState != null) {
+            signature = await _approveSignatureKey.currentState!.getSignature();
           }
           if (signature == null || signature.isEmpty) {
             if (mounted) {
@@ -259,15 +261,32 @@ class _ClientReviewWorkflowScreenState
           );
         }
       } else {
+        String? signature;
+        if (_requestChangesSignatureKey.currentState != null) {
+          signature = await _requestChangesSignatureKey.currentState!.getSignature();
+        }
+        if (signature == null || signature.isEmpty) {
+          if (mounted) {
+            setState(() => _isSubmitting = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Digital signature is required to request changes for this report.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
         response = await _reportService.requestChanges(
           widget.reportId,
           _changeRequestController.text.trim(),
+          digitalSignature: signature,
         );
       }
 
       if (response.isSuccess) {
         // Reload signatures after approval to show the new signature
-        if (_selectedAction == 'approve') {
+        if (_selectedAction == 'approve' || _selectedAction == 'request_changes') {
           await _loadSignatures();
         }
         try {
@@ -819,7 +838,7 @@ class _ClientReviewWorkflowScreenState
                                 ),
                               ] else ...[
                                 SignatureCaptureWidget(
-                                  key: _signatureKey,
+                                  key: _approveSignatureKey,
                                   existingSignature: _report?.digitalSignature,
                                   allowSignatureReuse: true,
                                   showAuditInfo: true,
@@ -828,7 +847,7 @@ class _ClientReviewWorkflowScreenState
                               ],
                             ] else ...[
                               SignatureCaptureWidget(
-                                key: _signatureKey,
+                                key: _approveSignatureKey,
                                 existingSignature: _report?.digitalSignature,
                                 allowSignatureReuse: true,
                                 showAuditInfo: true,
@@ -868,6 +887,14 @@ class _ClientReviewWorkflowScreenState
                                 icon: const Icon(Icons.auto_awesome),
                                 label: const Text('Suggest with AI'),
                               ),
+                            ),
+                            const SizedBox(height: 16),
+                            SignatureCaptureWidget(
+                              key: _requestChangesSignatureKey,
+                              existingSignature: null,
+                              allowSignatureReuse: true,
+                              showAuditInfo: true,
+                              reportId: _report?.id,
                             ),
                           ],
 

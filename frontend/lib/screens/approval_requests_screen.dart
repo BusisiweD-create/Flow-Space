@@ -126,6 +126,27 @@ Future.microtask(() async {
           final reviewedAt = DateTime.tryParse(reviewedAtStr);
           final comment = (m['clientComment'] ?? m['client_comment'] ?? m['changeRequestDetails'] ?? m['change_request_details'] ?? '').toString();
           final deliverableId = (m['deliverableId'] ?? m['deliverable_id'] ?? '').toString();
+          final deliverableTitle = (m['deliverableTitle'] ??
+                  m['deliverable_title'] ??
+                  m['deliverableName'] ??
+                  m['deliverable_name'] ??
+                  (m['deliverable'] is Map
+                      ? (m['deliverable']['title'] ??
+                              m['deliverable']['name'] ??
+                              m['deliverable']['deliverableTitle'])
+                          ?.toString()
+                      : null) ??
+                  '')
+              .toString();
+          final deliverableDescription = (m['deliverableDescription'] ??
+                  m['deliverable_description'] ??
+                  (m['deliverable'] is Map
+                      ? (m['deliverable']['description'] ??
+                              m['deliverable']['deliverableDescription'])
+                          ?.toString()
+                      : null) ??
+                  '')
+              .toString();
           String status = statusOverride;
           final s = (m['status'] ?? '').toString().toLowerCase();
           if (s.isNotEmpty) {
@@ -151,6 +172,8 @@ Future.microtask(() async {
             priority: 'medium',
             category: 'Sign-off Report',
             deliverableId: deliverableId.isNotEmpty ? deliverableId : null,
+            deliverableTitle: deliverableTitle.isNotEmpty ? deliverableTitle : null,
+            deliverableDescription: deliverableDescription.isNotEmpty ? deliverableDescription : null,
             evidenceLinks: [],
             definitionOfDone: [],
           ));
@@ -532,10 +555,17 @@ Future.microtask(() async {
               const SizedBox(height: 8),
               Text(request.description, style: const TextStyle(color: FlownetColors.pureWhite)),
               
-              if (request.deliverableId != null) ...[
+              if (request.deliverableTitle != null) ...[
                 const SizedBox(height: 16),
-                const Text('Deliverable ID:', style: TextStyle(color: FlownetColors.coolGray)),
-                Text(request.deliverableId!, style: const TextStyle(color: FlownetColors.pureWhite)),
+                const Text('Deliverable:', style: TextStyle(color: FlownetColors.coolGray)),
+                Text(request.deliverableTitle!, style: const TextStyle(color: FlownetColors.pureWhite)),
+                if ((request.deliverableDescription ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    request.deliverableDescription!,
+                    style: const TextStyle(color: FlownetColors.coolGray),
+                  ),
+                ],
               ],
               
               if (request.evidenceLinks?.isNotEmpty ?? false) ...[
@@ -642,7 +672,7 @@ Future.microtask(() async {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Deliverable: ${request.deliverableId ?? 'N/A'}'),
+        title: Text('Deliverable: ${request.deliverableTitle ?? 'Unknown Deliverable'}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -681,12 +711,14 @@ Future.microtask(() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FlownetColors.charcoalBlack,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const FlownetLogo(),
-        backgroundColor: FlownetColors.charcoalBlack,
+        backgroundColor: Colors.transparent,
         foregroundColor: FlownetColors.pureWhite,
         centerTitle: false,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -700,10 +732,10 @@ Future.microtask(() async {
           // Search and filter bar
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: FlownetColors.graphiteGray,
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(10),
               border: Border(
-                bottom: BorderSide(color: FlownetColors.slate, width: 1),
+                bottom: BorderSide(color: Colors.white.withAlpha(30), width: 1),
               ),
             ),
             child: Column(
@@ -711,13 +743,13 @@ Future.microtask(() async {
                 // Search bar
                 TextField(
                   onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Search approval requests...',
-                    hintStyle: TextStyle(color: FlownetColors.coolGray),
-                    prefixIcon: Icon(Icons.search, color: FlownetColors.coolGray),
-                    border: OutlineInputBorder(),
+                    hintStyle: const TextStyle(color: FlownetColors.coolGray),
+                    prefixIcon: const Icon(Icons.search, color: FlownetColors.coolGray),
+                    border: const OutlineInputBorder(),
                     filled: true,
-                    fillColor: FlownetColors.charcoalBlack,
+                    fillColor: Colors.white.withAlpha(10),
                   ),
                   style: const TextStyle(color: FlownetColors.pureWhite),
                 ),
@@ -873,7 +905,7 @@ Future.microtask(() async {
                           final request = _filteredRequests[index];
                           return Card(
                             margin: const EdgeInsets.only(bottom: 16),
-                            color: FlownetColors.graphiteGray,
+                            color: Colors.white.withAlpha(10),
                             child: ListTile(
                               contentPadding: const EdgeInsets.all(16),
                               title: Row(
