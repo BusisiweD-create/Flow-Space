@@ -16,8 +16,6 @@ import '../models/deliverable.dart';
 import '../screens/deliverables_metrics/deliverables_metrics_screen.dart';
 import '../widgets/sprint_performance_chart.dart';
 import '../widgets/app_modal.dart';
-import '../utils/date_utils.dart' as app_date_utils;
-import '../utils/user_label_utils.dart';
 import '../theme/flownet_theme.dart';
 import '../providers/service_providers.dart';
 import 'package:http/http.dart' as http;
@@ -32,11 +30,6 @@ class RoleDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
-  static const double _teamQuickActionIconSize = 60;
-  static const double _teamMetricIconSize = 42;
-  static const double _teamSectionHeaderIconSize = 48;
-  static const double _teamBellIconSize = 30;
-
   User? _currentUser;
   final AuthService _authService = AuthService();
   late RealtimeService realtimeService;
@@ -57,39 +50,20 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   String? _pendingReportsError;
   Map<String, dynamic> _teamMetrics = {};
   bool _isLoadingTeamMetrics = false;
-String? _selectedTeamFilter;
+  String? _selectedTeamFilter;
   String? _hoveredTeamFilter;
   String? _selectedAdminFilter;
   String? _hoveredAdminFilter;
   bool _isBottomFabExpanded = false;
-<<<<<<< HEAD
-=======
-  bool _hasLoadedCurrentUser = false;
-
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
+  
   // Cache for user names to avoid repeated API calls
   final Map<String, String> _userNamesCache = {};
 
   // Method to get user name by ID with caching
   Future<String> _getUserNameById(String userId) async {
-    if (userId.trim().isEmpty) {
-      return UserLabelUtils.unknownUserLabel;
-    }
-
     // Check cache first
     if (_userNamesCache.containsKey(userId)) {
       return _userNamesCache[userId]!;
-    }
-
-    // Current user is already loaded; prefer that over a network round trip.
-    if (_currentUser != null && _currentUser!.id == userId) {
-      final currentUserName = _currentUser!.name.trim().isNotEmpty
-          ? _currentUser!.name.trim()
-          : _currentUser!.email.trim();
-      if (currentUserName.isNotEmpty) {
-        _userNamesCache[userId] = currentUserName;
-        return currentUserName;
-      }
     }
 
     try {
@@ -104,8 +78,8 @@ String? _selectedTeamFilter;
     }
 
     // Fallback to showing the ID
-    _userNamesCache[userId] = UserLabelUtils.unknownUserLabel;
-    return UserLabelUtils.unknownUserLabel;
+    _userNamesCache[userId] = 'User $userId';
+    return 'User $userId';
   }
 
   // Missing variables
@@ -132,7 +106,6 @@ String? _selectedTeamFilter;
     super.initState();
     realtimeService = RealtimeService();
     realtimeService.initialize(authToken: _authService.accessToken);
-    _hasLoadedCurrentUser = true;
     _loadCurrentUser();
     _loadDashboardSprints();
     _loadDashboardDeliverables();
@@ -147,10 +120,7 @@ String? _selectedTeamFilter;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_hasLoadedCurrentUser) {
-      _hasLoadedCurrentUser = true;
-      _loadCurrentUser();
-    }
+    _loadCurrentUser();
   }
 
   @override
@@ -195,15 +165,13 @@ String? _selectedTeamFilter;
   }
 
   // Preload user names for all deliverables to avoid multiple API calls
-  Future<void> _preloadUserNames(
-      List<Map<String, dynamic>> deliverables) async {
+  Future<void> _preloadUserNames(List<Map<String, dynamic>> deliverables) async {
     final Set<String> userIds = {};
-
+    
     for (final deliverable in deliverables) {
       final ownerId = _getOwnerId(deliverable);
-      final assignedToId = deliverable['assigned_to']?.toString() ??
-          deliverable['assignedTo']?.toString();
-
+      final assignedToId = deliverable['assigned_to']?.toString() ?? deliverable['assignedTo']?.toString();
+      
       if (ownerId != null && ownerId.isNotEmpty) {
         userIds.add(ownerId);
       }
@@ -319,7 +287,7 @@ String? _selectedTeamFilter;
                 backgroundColor: Colors.red,
               ),
             );
-            router.go(AuthService.postLogoutRoute);
+            router.go('/');
           }
         }
       }
@@ -327,7 +295,7 @@ String? _selectedTeamFilter;
       debugPrint('❌ Error loading current user: $e');
       // If there's an error, redirect to login
       if (mounted) {
-        context.go(AuthService.postLogoutRoute);
+        context.go('/');
       }
     }
   }
@@ -503,85 +471,26 @@ String? _selectedTeamFilter;
   }
 
   String? _getOwnerName(Map<String, dynamic> data) {
-<<<<<<< HEAD
-    // Prefer explicit assignment/user-facing name fields first.
-    final directNameFields = [
-      data['assignedToName'],
-      data['assigned_to_name'],
-      data['ownerName'],
-      data['owner_name'],
-      data['createdByName'],
-      data['created_by_name'],
-      data['submittedByName'],
-      data['submitted_by_name'],
-    ];
-    for (final value in directNameFields) {
-      if (value != null) {
-        final safe = UserLabelUtils.sanitizeUserLabel(
-          value.toString(),
-          emptyIsUnknown: false,
-        );
-        if (safe.isNotEmpty) return safe;
-      }
-    }
-
-    if (data['ownerName'] != null) {
-      final safe = UserLabelUtils.sanitizeUserLabel(
-        data['ownerName'].toString(),
-        emptyIsUnknown: false,
-      );
-      return safe.isNotEmpty ? safe : null;
-    }
-    if (data['owner_name'] != null) {
-      final safe = UserLabelUtils.sanitizeUserLabel(
-        data['owner_name'].toString(),
-        emptyIsUnknown: false,
-      );
-      return safe.isNotEmpty ? safe : null;
-    }
-
-    // Map backend field names to frontend expectations
-    if (data['created_by_name'] != null) {
-      final safe = UserLabelUtils.sanitizeUserLabel(
-        data['created_by_name'].toString(),
-        emptyIsUnknown: false,
-      );
-      return safe.isNotEmpty ? safe : null;
-=======
     if (data['ownerName'] != null) return data['ownerName'].toString();
     if (data['owner_name'] != null) return data['owner_name'].toString();
-
+    
     // Map backend field names to frontend expectations
-    if (data['created_by_name'] != null) {
-      return data['created_by_name'].toString();
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
-    }
+    if (data['created_by_name'] != null) return data['created_by_name'].toString();
 
     if (data['owner'] != null && data['owner'] is Map) {
       final owner = data['owner'];
       final first = owner['first_name'] ?? owner['firstName'] ?? '';
       final last = owner['last_name'] ?? owner['lastName'] ?? '';
       if (first.toString().isNotEmpty || last.toString().isNotEmpty) {
-        final candidate = '$first $last'.trim();
-        final safe = UserLabelUtils.sanitizeUserLabel(
-          candidate,
-          emptyIsUnknown: false,
-        );
-        return safe.isNotEmpty ? safe : null;
+        return '$first $last'.trim();
       }
-      final safe = UserLabelUtils.sanitizeUserLabel(
-        owner['email']?.toString(),
-        emptyIsUnknown: false,
-      );
-      return safe.isNotEmpty ? safe : null;
+      return owner['email']?.toString();
     }
     return null;
   }
 
   String? _getOwnerId(Map<String, dynamic> data) {
-    return data['assignedTo']?.toString() ??
-        data['assigned_to']?.toString() ??
-        data['ownerId']?.toString() ??
+    return data['ownerId']?.toString() ??
         data['owner_id']?.toString() ??
         // Map backend field names to frontend expectations
         data['created_by']?.toString() ??
@@ -631,29 +540,7 @@ String? _selectedTeamFilter;
                                 color: headerTextColor,
                               ),
                             ),
-<<<<<<< HEAD
                           ],
-=======
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _buildTeamHeaderAssetButton(
-                      assetPath: 'assets/dashboard_team_member/Group_398.png',
-                      onTap: () => context.go('/notifications'),
-                    ),
-                  ] else ...[
-                    const SizedBox(width: 48),
-                    Expanded(
-                      child: Text(
-                        '${_currentUser!.role.displayName} Dashboard',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: headerTextColor,
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -825,8 +712,7 @@ String? _selectedTeamFilter;
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                                flex: 3, child: _buildTeamDeliverablesPanel()),
+                            Expanded(flex: 3, child: _buildTeamDeliverablesPanel()),
                             const SizedBox(width: 10),
                             Expanded(flex: 2, child: _buildTeamProjectsPanel()),
                           ],
@@ -899,28 +785,6 @@ String? _selectedTeamFilter;
     );
   }
 
-  Widget _buildTeamHeaderAssetButton({
-    required String assetPath,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: SizedBox(
-        width: 47,
-        height: 47,
-        child: Padding(
-          padding: const EdgeInsets.all(3),
-          child: Image.asset(
-            assetPath,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-          ),
-        ),
-      ),
-    );
-  }
-
   Color _dashboardSurfaceColor() {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     if (isDarkMode) {
@@ -948,48 +812,6 @@ String? _selectedTeamFilter;
   }
 
   Widget _buildTeamQuickActionsPanel({bool compact = false}) {
-    final actions = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildTeamPillButton(
-            'CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
-        const SizedBox(width: 8),
-        _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
-        const SizedBox(width: 8),
-        _buildTeamPillButton('BUILD REPORT', () {
-          final first =
-              _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
-          final sprintId = first != null ? _extractFirstSprintId(first) : null;
-          if (sprintId != null && sprintId.isNotEmpty) {
-            context.go('/sprint-report/$sprintId');
-            return;
-          }
-          context.go('/sprint-console');
-        }),
-      ],
-    );
-
-    final header = Row(
-      children: [
-        _buildQuickActionsBadgeIcon(),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Quick Actions',
-                  style: _dashboardTextStyle(
-                      size: compact ? 20 : 22, weight: FontWeight.w700)),
-              Text(
-                'Dream BIG, work hard and stay focused - make it a productive day!',
-                style: _dashboardTextStyle(size: 11, weight: FontWeight.w500),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -999,16 +821,38 @@ String? _selectedTeamFilter;
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Expanded(child: header),
-          const SizedBox(width: 12),
+          _buildTeamRoundIcon(Icons.rocket_launch_outlined),
+          const SizedBox(width: 10),
           Flexible(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: actions,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Quick Actions', style: _dashboardTextStyle(size: compact ? 20 : 22, weight: FontWeight.w700)),
+                Text(
+                  'Dream BIG, work hard and stay focused - make it a productive day!',
+                  style: _dashboardTextStyle(size: 11, weight: FontWeight.w500),
+                ),
+              ],
             ),
+          ),
+          const Spacer(),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildTeamPillButton('CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
+              _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
+              _buildTeamPillButton('BUILD REPORT', () {
+                final first = _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                final sprintId = first != null ? _extractFirstSprintId(first) : null;
+                if (sprintId != null && sprintId.isNotEmpty) {
+                  context.go('/sprint-report/$sprintId');
+                  return;
+                }
+                context.go('/sprint-console');
+              }),
+            ],
           ),
         ],
       ),
@@ -1017,32 +861,19 @@ String? _selectedTeamFilter;
 
   Widget _buildTeamReviewMetricsCards({bool compact = false}) {
     final cards = [
-      _buildTeamMetricCard(
-          'Submitted',
-          '${_clientReviewMetrics['submitted'] ?? 0}',
-          'assets/dashboard_team_member/Group_521.png'),
-      _buildTeamMetricCard(
-          'Approved',
-          '${_clientReviewMetrics['approved'] ?? 0}',
-          'assets/dashboard_team_member/Group_522.png'),
-      _buildTeamMetricCard(
-          'Changes Requested',
-          '${_clientReviewMetrics['changes'] ?? 0}',
-          'assets/dashboard_team_member/Group523.png'),
-      _buildTeamMetricCard(
-          'Rejected',
-          '${_clientReviewMetrics['rejected'] ?? 0}',
-          'assets/dashboard_team_member/Group_521.png'),
-      _buildTeamMetricCard(
-          'Average Review Time',
-          '${_clientReviewMetrics['avg_review_time'] ?? '-'}',
-          'assets/dashboard_team_member/Group520.png'),
+      _buildTeamMetricCard('Submitted', '${_clientReviewMetrics['submitted'] ?? 0}', Icons.send_outlined),
+      _buildTeamMetricCard('Approved', '${_clientReviewMetrics['approved'] ?? 0}', Icons.check_circle_outline),
+      _buildTeamMetricCard('Changes Requested', '${_clientReviewMetrics['changes'] ?? 0}', Icons.error_outline),
+      _buildTeamMetricCard('Rejected', '${_clientReviewMetrics['rejected'] ?? 0}', Icons.close),
+      _buildTeamMetricCard('Average Review Time', '${_clientReviewMetrics['avg_review_time'] ?? '-'}', Icons.av_timer),
     ];
     if (compact) {
       return Wrap(
         spacing: 10,
         runSpacing: 10,
-        children: cards.map((c) => SizedBox(width: 240, child: c)).toList(),
+        children: cards
+            .map((c) => SizedBox(width: 240, child: c))
+            .toList(),
       );
     }
     return Row(
@@ -1055,7 +886,7 @@ String? _selectedTeamFilter;
     );
   }
 
-  Widget _buildTeamMetricCard(String title, String value, String iconAsset) {
+  Widget _buildTeamMetricCard(String title, String value, IconData icon) {
     return Container(
       decoration: BoxDecoration(
         color: _dashboardSurfaceColor(),
@@ -1065,21 +896,14 @@ String? _selectedTeamFilter;
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-          Text('Additional description information to include.',
-              style: _dashboardTextStyle(size: 11)),
+          Text(title, style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+          Text('Additional description information to include.', style: _dashboardTextStyle(size: 11)),
           const SizedBox(height: 6),
           Row(
             children: [
-              Text(value,
-                  style:
-                      _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
               const Spacer(),
-              _buildTeamDashboardAssetBadge(
-                iconAsset,
-                size: _teamMetricIconSize,
-              ),
+              _buildTeamRoundIcon(icon, size: 16),
             ],
           ),
         ],
@@ -1099,18 +923,15 @@ String? _selectedTeamFilter;
       final filter = _selectedTeamFilter!;
       if (filter == 'HIGH PRIORITY') {
         myDeliverables = myDeliverables
-            .where(
-                (d) => (d['priority'] ?? '').toString().toLowerCase() == 'high')
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'high')
             .toList();
       } else if (filter == 'MEDIUM PRIORITY') {
         myDeliverables = myDeliverables
-            .where((d) =>
-                (d['priority'] ?? '').toString().toLowerCase() == 'medium')
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'medium')
             .toList();
       } else if (filter == 'LOW PRIORITY') {
         myDeliverables = myDeliverables
-            .where(
-                (d) => (d['priority'] ?? '').toString().toLowerCase() == 'low')
+            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'low')
             .toList();
       }
     }
@@ -1126,31 +947,20 @@ String? _selectedTeamFilter;
         children: [
           Row(
             children: [
-              _buildTeamDashboardAssetBadge(
-                'assets/dashboard_team_member/overview.png',
-                size: _teamSectionHeaderIconSize,
-              ),
+              _buildTeamRoundIcon(Icons.track_changes),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Deliverables Overview',
-                        style: _dashboardTextStyle(
-                            size: 20, weight: FontWeight.w700)),
-                    Text('Additional description can be included if required.',
-                        style: _dashboardTextStyle(size: 11)),
+                    Text('Deliverables Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
               ),
-              _buildTeamDashboardAssetBadge(
-                'assets/dashboard_team_member/red_bells.png',
-                size: _teamBellIconSize,
-              ),
+              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
-              Text('${myDeliverables.length}',
-                  style:
-                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              Text('${myDeliverables.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1174,37 +984,24 @@ String? _selectedTeamFilter;
             Text('No deliverables yet', style: _dashboardTextStyle())
           else
             ...myDeliverables.take(6).map((d) {
-              final title = (d['title'] ??
-                      d['name'] ??
-                      d['deliverableName'] ??
-                      'Document Name')
-                  .toString();
-              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '')
-                  .toString();
-              final shortDue = due.isNotEmpty && due.length >= 10
-                  ? due.substring(0, 10)
-                  : due;
+              final title = (d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Document Name').toString();
+              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+              final shortDue = due.isNotEmpty && due.length >= 10 ? due.substring(0, 10) : due;
               final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
-              final priority =
-                  (d['priority'] ?? 'medium').toString().toLowerCase();
+              final priority = (d['priority'] ?? 'medium').toString().toLowerCase();
               final status = (d['status'] ?? '').toString();
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
                     Icon(
-                      status.toLowerCase() == 'completed'
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
+                      status.toLowerCase() == 'completed' ? Icons.check_box : Icons.check_box_outline_blank,
                       size: 16,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.white
-                          : Colors.black,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('$title - Draft Description',
-                          style: _dashboardTextStyle(size: 12)),
+                      child: Text('$title - Draft Description', style: _dashboardTextStyle(size: 12)),
                     ),
                     if (shortDue.isNotEmpty)
                       Text(shortDue, style: _dashboardTextStyle(size: 11)),
@@ -1239,39 +1036,25 @@ String? _selectedTeamFilter;
         children: [
           Row(
             children: [
-<<<<<<< HEAD
               _buildTeamRoundIcon(
                 Icons.folder_copy_outlined,
                 assetPath: 'frontend/assets/Projects_overview.png',
                 containerSize: 44,
                 assetVisualScale: 1.45,
-=======
-              _buildTeamDashboardAssetBadge(
-                'assets/dashboard_team_member/Group517.png',
-                size: _teamSectionHeaderIconSize,
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Projects Overview',
-                        style: _dashboardTextStyle(
-                            size: 20, weight: FontWeight.w700)),
-                    Text('Additional description can be included.',
-                        style: _dashboardTextStyle(size: 11)),
+                    Text('Projects Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included.', style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
               ),
-              _buildTeamDashboardAssetBadge(
-                'assets/dashboard_team_member/red_bells.png',
-                size: _teamBellIconSize,
-              ),
+              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
-              Text('${_dashboardProjects.length}',
-                  style:
-                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              Text('${_dashboardProjects.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1288,20 +1071,12 @@ String? _selectedTeamFilter;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: InkWell(
-                  onTap: id.isNotEmpty
-                      ? () => context.go('/project-workspace/$id')
-                      : null,
+                  onTap: id.isNotEmpty ? () => context.go('/project-workspace/$id') : null,
                   child: Row(
                     children: [
-                      Icon(Icons.check_box,
-                          size: 16,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white
-                              : Colors.black),
+                      Icon(Icons.check_box, size: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
                       const SizedBox(width: 8),
-                      Expanded(
-                          child:
-                              Text(name, style: _dashboardTextStyle(size: 12))),
+                      Expanded(child: Text(name, style: _dashboardTextStyle(size: 12))),
                     ],
                   ),
                 ),
@@ -1332,31 +1107,20 @@ String? _selectedTeamFilter;
         children: [
           Row(
             children: [
-              _buildTeamDashboardAssetBadge(
-                'assets/dashboard_team_member/red_bells.png',
-                size: _teamSectionHeaderIconSize,
-              ),
+              _buildTeamRoundIcon(Icons.notifications_active_outlined),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Recent Activities',
-                        style: _dashboardTextStyle(
-                            size: 20, weight: FontWeight.w700)),
-                    Text('Additional description can be included if required.',
-                        style: _dashboardTextStyle(size: 11)),
+                    Text('Recent Activities', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
               ),
-              _buildTeamDashboardAssetBadge(
-                'assets/dashboard_team_member/red_bells.png',
-                size: _teamBellIconSize,
-              ),
+              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
-              Text('${my.length}',
-                  style:
-                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              Text('${my.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1370,9 +1134,7 @@ String? _selectedTeamFilter;
             Text('No Recent Activity.', style: _dashboardTextStyle())
           else
             ...my.take(5).map((a) {
-              final action =
-                  (a['action'] ?? a['event'] ?? a['type'] ?? 'Activity')
-                      .toString();
+              final action = (a['action'] ?? a['event'] ?? a['type'] ?? 'Activity').toString();
               final actor = (a['actor'] ?? a['user'] ?? '').toString();
               final text = actor.isNotEmpty ? '$action • $actor' : action;
               return Padding(
@@ -1386,7 +1148,6 @@ String? _selectedTeamFilter;
   }
 
   Widget _buildTeamPillButton(String label, VoidCallback onTap) {
-<<<<<<< HEAD
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1404,25 +1165,6 @@ String? _selectedTeamFilter;
             fontWeight: FontWeight.w700,
             color: Colors.white,
             height: 1.0,
-=======
-    return SizedBox(
-      height: 30,
-      child: Material(
-        color: FlownetColors.primary,
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Center(
-              child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white)),
-            ),
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
           ),
         ),
       ),
@@ -1432,8 +1174,7 @@ String? _selectedTeamFilter;
   Widget _buildTeamMiniFilter(String label) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDarkMode ? Colors.white : Colors.black;
-    final bool isActive =
-        _selectedTeamFilter == label || _hoveredTeamFilter == label;
+    final bool isActive = _selectedTeamFilter == label || _hoveredTeamFilter == label;
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredTeamFilter = label),
       onExit: (_) => setState(() => _hoveredTeamFilter = null),
@@ -1551,32 +1292,6 @@ String? _selectedTeamFilter;
       ),
       alignment: Alignment.center,
       child: Icon(icon, size: size, color: textColor),
-    );
-  }
-
-  Widget _buildQuickActionsBadgeIcon() {
-    return SizedBox(
-      width: _teamQuickActionIconSize,
-      height: _teamQuickActionIconSize,
-      child: ClipOval(
-        child: Image.asset(
-          'assets/dashboard_team_member/Group_398.png',
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.high,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTeamDashboardAssetBadge(String assetPath, {double size = 34}) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Image.asset(
-        assetPath,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-      ),
     );
   }
 
@@ -1704,7 +1419,6 @@ String? _selectedTeamFilter;
       width: double.infinity,
       decoration: _adminPanelDecoration(),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-<<<<<<< HEAD
       child: Row(
         children: [
           _buildTeamRoundIcon(
@@ -1736,19 +1450,10 @@ String? _selectedTeamFilter;
           const SizedBox(width: 10),
           Wrap(
             alignment: WrapAlignment.end,
-=======
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final bool stackVertically = constraints.maxWidth < 1100;
-          final actions = Wrap(
-            alignment:
-                stackVertically ? WrapAlignment.start : WrapAlignment.end,
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
             spacing: 8,
             runSpacing: 6,
             children: [
-              _buildTeamPillButton(
-                  'SEND REMINDER', () => context.push('/send-reminder')),
+              _buildTeamPillButton('SEND REMINDER', () => context.push('/send-reminder')),
               _buildTeamPillButton('TRIGGER ESCALATION', _triggerEscalation),
               _buildTeamPillButton('DELIVERABLES OVERVIEW', () {
                 Navigator.push(
@@ -1759,52 +1464,8 @@ String? _selectedTeamFilter;
                 );
               }),
             ],
-          );
-
-          final header = Row(
-            children: [
-              _buildTeamRoundIcon(Icons.notifications_active_outlined),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Approval Reminders',
-                      style: _dashboardTextStyle(
-                          size: 28, weight: FontWeight.w700),
-                    ),
-                    Text(
-                      'Dream BIG, work hard and stay focused - make it a productive day!',
-                      style: _dashboardTextStyle(
-                          size: 11, weight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-
-          if (stackVertically) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                header,
-                const SizedBox(height: 10),
-                actions,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: header),
-              const SizedBox(width: 12),
-              Flexible(child: actions),
-            ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -1819,27 +1480,18 @@ String? _selectedTeamFilter;
         children: [
           Row(
             children: [
-<<<<<<< HEAD
               _buildTeamRoundIcon(
                 Icons.rocket_launch_outlined,
                 assetPath: 'frontend/assets/Quick_Actions.png',
                 containerSize: 44,
                 assetVisualScale: 1.45,
               ),
-=======
-              _buildQuickActionsBadgeIcon(),
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Quick Actions',
-<<<<<<< HEAD
                       style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-=======
-                      style: _dashboardTextStyle(
-                          size: 28, weight: FontWeight.w700)),
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
                   Text('Additional description can be included if required.',
                       style: _dashboardTextStyle(size: 11)
                           .copyWith(color: _subtitleTextColor())),
@@ -1923,15 +1575,8 @@ String? _selectedTeamFilter;
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-<<<<<<< HEAD
           border: Border.all(color: const Color(0xFFB01313), width: 1),
           color: label == 'Audit Logs' ? FlownetColors.primary : Colors.transparent,
-=======
-          border: Border.all(color: FlownetColors.primary),
-          color: label == 'Audit Logs'
-              ? FlownetColors.primary
-              : Colors.transparent,
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
         ),
         child: Column(
           children: [
@@ -1946,20 +1591,11 @@ String? _selectedTeamFilter;
             Text(
               label,
               textAlign: TextAlign.center,
-<<<<<<< HEAD
               style: _dashboardTextStyle(size: 11, weight: FontWeight.w700).copyWith(
                     color: label == 'Audit Logs'
                         ? Colors.white
                         : _dashboardTextStyle().color,
                   ),
-=======
-              style: _dashboardTextStyle(size: 12, weight: FontWeight.w700)
-                  .copyWith(
-                color: label == 'Audit Logs'
-                    ? Colors.white
-                    : _dashboardTextStyle().color,
-              ),
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
             ),
           ],
         ),
@@ -1968,27 +1604,17 @@ String? _selectedTeamFilter;
   }
 
   Widget _buildAdminDeliverablesPanel() {
-    List<Map<String, dynamic>> items =
-        List<Map<String, dynamic>>.from(_dashboardDeliverables);
+    List<Map<String, dynamic>> items = List<Map<String, dynamic>>.from(_dashboardDeliverables);
     if (_selectedAdminFilter != null) {
       switch (_selectedAdminFilter) {
         case 'HIGH PRIORITY':
-          items = items
-              .where((d) =>
-                  (d['priority'] ?? '').toString().toLowerCase() == 'high')
-              .toList();
+          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'high').toList();
           break;
         case 'MEDIUM PRIORITY':
-          items = items
-              .where((d) =>
-                  (d['priority'] ?? '').toString().toLowerCase() == 'medium')
-              .toList();
+          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'medium').toList();
           break;
         case 'LOW PRIORITY':
-          items = items
-              .where((d) =>
-                  (d['priority'] ?? '').toString().toLowerCase() == 'low')
-              .toList();
+          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'low').toList();
           break;
       }
     }
@@ -2013,12 +1639,7 @@ String? _selectedTeamFilter;
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Deliverables Overview',
-<<<<<<< HEAD
                         style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-=======
-                        style: _dashboardTextStyle(
-                            size: 28, weight: FontWeight.w700)),
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
                     Text('Additional description can be included if required.',
                         style: _dashboardTextStyle(size: 11)
                             .copyWith(color: _subtitleTextColor())),
@@ -2032,8 +1653,7 @@ String? _selectedTeamFilter;
               ),
               const SizedBox(width: 6),
               Text('${items.length}',
-                  style:
-                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+                  style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 8),
@@ -2057,31 +1677,20 @@ String? _selectedTeamFilter;
             Text('No deliverables yet', style: _dashboardTextStyle())
           else
             ...items.take(8).map((d) {
-              final title = (d['title'] ??
-                      d['name'] ??
-                      d['deliverableName'] ??
-                      'Document Name')
-                  .toString();
-              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '')
-                  .toString();
-              final shortDue = due.isNotEmpty && due.length >= 10
-                  ? due.substring(0, 10)
-                  : due;
+              final title =
+                  (d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Document Name').toString();
+              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+              final shortDue = due.isNotEmpty && due.length >= 10 ? due.substring(0, 10) : due;
               final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
-              final priority =
-                  (d['priority'] ?? 'medium').toString().toLowerCase();
+              final priority = (d['priority'] ?? 'medium').toString().toLowerCase();
               final status = (d['status'] ?? '').toString().toLowerCase();
-              final isCompleted = status == 'completed' ||
-                  status == 'approved' ||
-                  status == 'signed_off';
+              final isCompleted = status == 'completed' || status == 'approved' || status == 'signed_off';
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
                     Icon(
-                      isCompleted
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
+                      isCompleted ? Icons.check_box : Icons.check_box_outline_blank,
                       size: 16,
                       color: Theme.of(context).brightness == Brightness.dark
                           ? Colors.white
@@ -2134,12 +1743,7 @@ String? _selectedTeamFilter;
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Projects Overview',
-<<<<<<< HEAD
                         style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-=======
-                        style: _dashboardTextStyle(
-                            size: 28, weight: FontWeight.w700)),
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
                     Text('Additional description can be included.',
                         style: _dashboardTextStyle(size: 11)
                             .copyWith(color: _subtitleTextColor())),
@@ -2153,8 +1757,7 @@ String? _selectedTeamFilter;
               ),
               const SizedBox(width: 6),
               Text('${_dashboardProjects.length}',
-                  style:
-                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+                  style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 8),
@@ -2169,19 +1772,11 @@ String? _selectedTeamFilter;
               final name = (p['name'] ?? 'Project').toString();
               final id = (p['id'] ?? '').toString();
               final description =
-                  (p['description'] ?? 'Completed ${name.toLowerCase()}')
-                      .toString();
+                  (p['description'] ?? 'Completed ${name.toLowerCase()}').toString();
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
-<<<<<<< HEAD
                 child: GestureDetector(
                   onTap: id.isNotEmpty ? () => context.go('/project-workspace/$id') : null,
-=======
-                child: InkWell(
-                  onTap: id.isNotEmpty
-                      ? () => context.go('/project-workspace/$id')
-                      : null,
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
                   child: Row(
                     children: [
                       Icon(Icons.check_box,
@@ -2210,8 +1805,7 @@ String? _selectedTeamFilter;
   Widget _buildAdminMiniFilter(String label) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDarkMode ? Colors.white : Colors.black;
-    final bool isActive =
-        _selectedAdminFilter == label || _hoveredAdminFilter == label;
+    final bool isActive = _selectedAdminFilter == label || _hoveredAdminFilter == label;
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredAdminFilter = label),
       onExit: (_) => setState(() => _hoveredAdminFilter = null),
@@ -2439,17 +2033,9 @@ String? _selectedTeamFilter;
             },
           ),
           const SizedBox(width: 8),
-<<<<<<< HEAD
           _buildFabCircleButton(
             icon: Icons.add,
             backgroundColor: primaryColor,
-=======
-          FloatingActionButton.small(
-            heroTag: 'dashboard-action-mini',
-            onPressed: _handleRoleActionTap,
-            backgroundColor: _currentUser?.roleColor ??
-                Theme.of(context).colorScheme.primary,
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
             foregroundColor: Colors.white,
             onTap: _handleRoleActionTap,
           ),
@@ -2633,11 +2219,9 @@ String? _selectedTeamFilter;
                 icon: Icons.description_outlined,
                 label: 'Build Report',
                 onTap: () {
-                  final first = _dashboardDeliverables.isNotEmpty
-                      ? _dashboardDeliverables.first
-                      : null;
-                  final sprintId =
-                      first != null ? _extractFirstSprintId(first) : null;
+                  final first =
+                      _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
+                  final sprintId = first != null ? _extractFirstSprintId(first) : null;
                   if (sprintId != null && sprintId.isNotEmpty) {
                     context.go('/sprint-report/$sprintId');
                     return;
@@ -2874,10 +2458,7 @@ String? _selectedTeamFilter;
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
+                          Row(
                             children: [
                               TextButton.icon(
                                 onPressed: id.isEmpty
@@ -2886,6 +2467,7 @@ String? _selectedTeamFilter;
                                 icon: const Icon(Icons.edit_outlined, size: 18),
                                 label: const Text('Edit'),
                               ),
+                              const SizedBox(width: 4),
                               TextButton.icon(
                                 onPressed: id.isEmpty
                                     ? null
@@ -2895,6 +2477,7 @@ String? _selectedTeamFilter;
                                     size: 18),
                                 label: const Text('Complete'),
                               ),
+                              const Spacer(),
                               IconButton(
                                 onPressed: () {
                                   if (id.isNotEmpty) {
@@ -2951,10 +2534,6 @@ String? _selectedTeamFilter;
                                 a['type'] ??
                                 'Activity';
                             final actor = a['actor'] ?? a['user'] ?? '';
-                            final safeActor = UserLabelUtils.sanitizeUserLabel(
-                              actor.toString(),
-                              emptyIsUnknown: false,
-                            );
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: InkWell(
@@ -2967,7 +2546,7 @@ String? _selectedTeamFilter;
                                     const SizedBox(width: 8),
                                     Expanded(
                                         child: Text(actor.toString().isNotEmpty
-                                            ? '$action • $safeActor'
+                                            ? '$action • $actor'
                                             : action)),
                                   ],
                                 ),
@@ -3273,88 +2852,16 @@ String? _selectedTeamFilter;
                                 r['title'] ??
                                 'Sign-Off Report')
                             .toString();
-                        // Extract user information from content object if available
-                        String createdBy = '';
-                        String projectName = '';
-
-                        // Check if content is a Map and extract user info
-                        final content = r['content'];
-                        if (content is Map<String, dynamic>) {
-                          createdBy = (content['createdBy'] ??
-                                  content['created_by_name'] ??
-                                  content['created_by'] ??
-                                  content['author'] ??
-                                  content['author_name'] ??
-                                  content['submitted_by'] ??
-                                  content['submitter_name'] ??
-                                  content['owner_name'] ??
-                                  content['user_name'] ??
-                                  content['name'] ??
-                                  '')
-                              .toString();
-
-                          projectName = (content['projectName'] ??
-                                  content['project_name'] ??
-                                  content['project'] ??
-                                  content['sprint_name'] ??
-                                  content['sprintName'] ??
-                                  '')
-                              .toString();
-                        }
-
-                        // Fallback to root level fields if not found in content
-                        if (createdBy.isEmpty) {
-                          createdBy = (r['createdBy'] ??
-                                  r['created_by_name'] ??
-                                  r['created_by'] ??
-                                  r['author'] ??
-                                  r['author_name'] ??
-                                  r['submitted_by'] ??
-                                  r['submitter_name'] ??
-                                  r['owner_name'] ??
-                                  r['user_name'] ??
-                                  r['name'] ??
-                                  '')
-                              .toString();
-                        }
-
-                        // Prevent UUIDs from leaking into UI.
-                        createdBy = UserLabelUtils.sanitizeUserLabel(
-                          createdBy,
-                          emptyIsUnknown: false,
-                        );
-
-                        if (projectName.isEmpty) {
-                          projectName = (r['projectName'] ??
-                                  r['project_name'] ??
-                                  r['project'] ??
-                                  r['sprint_name'] ??
-                                  r['sprintName'] ??
-                                  '')
-                              .toString();
-                        }
-
+                        final createdBy = (r['createdBy'] ??
+                                r['created_by_name'] ??
+                                r['created_by'] ??
+                                '')
+                            .toString();
                         final id = (r['id'] ?? r['report_id'] ?? '').toString();
-
-                        // Create user-friendly display text
-                        String displayText = title;
-                        if (createdBy.isNotEmpty && projectName.isNotEmpty) {
-                          displayText = '$title by $createdBy ($projectName)';
-                        } else if (createdBy.isNotEmpty) {
-                          displayText = '$title by $createdBy';
-                        } else if (projectName.isNotEmpty) {
-                          displayText = '$title ($projectName)';
-                        } else {
-                          // Only show ID as last resort with minimal format
-                          displayText = title;
-                        }
-
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-<<<<<<< HEAD
                               Expanded(
                                 child: InkWell(
                                   onTap: () {
@@ -3368,51 +2875,30 @@ String? _selectedTeamFilter;
                                           Icons.assignment_turned_in_outlined,
                                           size: 18),
                                       const SizedBox(width: 8),
-                                      Expanded(child: Text(displayText)),
+                                      Expanded(
+                                          child: Text(createdBy.isNotEmpty
+                                              ? '$title • $createdBy'
+                                              : title)),
                                     ],
                                   ),
-=======
-                              InkWell(
-                                onTap: () {
-                                  if (id.isNotEmpty) {
-                                    context.go('/client-review/$id');
-                                  }
-                                },
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                        Icons.assignment_turned_in_outlined,
-                                        size: 18),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                        child: Text(createdBy.isNotEmpty
-                                            ? '$title • $createdBy'
-                                            : title)),
-                                  ],
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () => _approveReport(id),
-                                    icon: const Icon(Icons.check_circle_outline,
-                                        size: 18),
-                                    label: const Text('Approve'),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: id.isEmpty
-                                        ? null
-                                        : () => _promptChangeRequest(r),
-                                    icon: const Icon(Icons.edit_note, size: 18),
-                                    label: const Text('Request Changes'),
-                                  ),
-                                ],
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: id.isEmpty
+                                    ? null
+                                    : () => _approveReport(id),
+                                icon: const Icon(Icons.check_circle_outline,
+                                    size: 18),
+                                label: const Text('Approve'),
+                              ),
+                              const SizedBox(width: 4),
+                              TextButton.icon(
+                                onPressed: id.isEmpty
+                                    ? null
+                                    : () => _promptChangeRequest(r),
+                                icon: const Icon(Icons.edit_note, size: 18),
+                                label: const Text('Request Changes'),
                               ),
                             ],
                           ),
@@ -3452,10 +2938,11 @@ String? _selectedTeamFilter;
                 final createdAtStr =
                     (r['created_at'] ?? r['createdAt'] ?? r['created'] ?? '')
                         .toString();
-                final ts = createdAtStr.isNotEmpty
-                    ? app_date_utils.DateUtils
-                        .formatDatabaseTimestampWithTime(createdAtStr)
-                    : '';
+                String ts = createdAtStr;
+                try {
+                  final dt = DateTime.tryParse(createdAtStr);
+                  if (dt != null) ts = '${dt.toLocal()}';
+                } catch (_) {}
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
@@ -3493,10 +2980,6 @@ String? _selectedTeamFilter;
                         final action =
                             a['action'] ?? a['event'] ?? a['type'] ?? 'Review';
                         final actor = a['actor'] ?? a['user'] ?? '';
-                        final safeActor = UserLabelUtils.sanitizeUserLabel(
-                          actor.toString(),
-                          emptyIsUnknown: false,
-                        );
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: InkWell(
@@ -3510,7 +2993,7 @@ String? _selectedTeamFilter;
                                 const SizedBox(width: 8),
                                 Expanded(
                                     child: Text(actor.toString().isNotEmpty
-                                        ? '$action • $safeActor'
+                                        ? '$action • $actor'
                                         : action)),
                               ],
                             ),
@@ -3582,8 +3065,12 @@ String? _selectedTeamFilter;
     String label = '';
     if (dueRaw != null) {
       final s = dueRaw.toString();
-      label = app_date_utils.DateUtils.formatTimestamp(s);
-      if (label == 'N/A') label = '';
+      final dt = DateTime.tryParse(s);
+      if (dt != null) {
+        label = dt.toLocal().toString();
+      } else {
+        label = s;
+      }
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -3629,8 +3116,10 @@ String? _selectedTeamFilter;
       return FutureBuilder<String>(
         future: _getUserNameById(ownerId),
         builder: (context, snapshot) {
-          final label = snapshot.hasData ? snapshot.data! : 'Loading...';
-
+          final label = snapshot.hasData 
+              ? snapshot.data! 
+              : 'Loading...';
+          
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -3820,104 +3309,36 @@ String? _selectedTeamFilter;
             }
           }
         }
-        final parsed = items.whereType<Map>().map((e) {
-          final m = e.cast<String, dynamic>();
-          final c = m['content'];
-          if (c is String) {
-            try {
-              final decoded = jsonDecode(c);
-              if (decoded is Map) {
-                m['content'] = Map<String, dynamic>.from(decoded);
-              }
-            } catch (_) {}
-          }
-          return m;
-        }).toList();
-
-        final pending = parsed.where((m) {
-          final content = m['content'];
-          final statusRaw = (m['status'] ??
-                  m['review_status'] ??
-                  (content is Map ? content['status'] : null) ??
-                  '')
-              .toString()
-              .toLowerCase();
-          if (statusRaw.isEmpty) {
-            return true; // Default to include when unknown
-          }
-          return statusRaw == 'submitted' ||
-              statusRaw == 'under_review' ||
-              statusRaw == 'underreview';
-        }).toList();
-
-        // Resolve likely user identifiers that are returned as UUIDs.
-        final userIdsToResolve = <String>{};
-        void collectMaybeUserId(dynamic v) {
-          final s = v?.toString().trim() ?? '';
-          if (s.isEmpty) return;
-          if (UserLabelUtils.looksLikeUuid(s)) {
-            userIdsToResolve.add(s);
-          }
-        }
-
-        for (final m in pending) {
-          collectMaybeUserId(m['createdBy']);
-          collectMaybeUserId(m['created_by']);
-          collectMaybeUserId(m['submittedBy']);
-          collectMaybeUserId(m['submitted_by']);
-
-          final content = m['content'];
-          if (content is Map<String, dynamic>) {
-            collectMaybeUserId(content['createdBy']);
-            collectMaybeUserId(content['created_by']);
-            collectMaybeUserId(content['submittedBy']);
-            collectMaybeUserId(content['submitted_by']);
-            collectMaybeUserId(content['author']);
-            collectMaybeUserId(content['author_id']);
-            collectMaybeUserId(content['userId']);
-            collectMaybeUserId(content['user_id']);
-          }
-        }
-
-        final resolvedNames = <String, String>{};
-        await Future.wait(userIdsToResolve.map((id) async {
-          resolvedNames[id] = await _getUserNameById(id);
-        }));
-
-        // Overwrite UUID fields with resolved display names so UI never shows IDs.
-        String resolve(String id) => resolvedNames[id] ?? UserLabelUtils.unknownUserLabel;
-
-        for (final m in pending) {
-          void replaceIfUuid(Map<String, dynamic> map, String key) {
-            final raw = map[key]?.toString().trim() ?? '';
-            if (raw.isEmpty) return;
-            if (!UserLabelUtils.looksLikeUuid(raw)) return;
-            map[key] = resolve(raw);
-          }
-
-          final content = m['content'];
-          if (content is Map<String, dynamic>) {
-            replaceIfUuid(content, 'createdBy');
-            replaceIfUuid(content, 'created_by');
-            replaceIfUuid(content, 'submittedBy');
-            replaceIfUuid(content, 'submitted_by');
-            replaceIfUuid(content, 'author');
-            replaceIfUuid(content, 'author_id');
-            replaceIfUuid(content, 'userId');
-            replaceIfUuid(content, 'user_id');
-          }
-
-          if (m.containsKey('createdBy')) replaceIfUuid(m, 'createdBy');
-          if (m.containsKey('created_by')) replaceIfUuid(m, 'created_by');
-          if (m.containsKey('submittedBy')) replaceIfUuid(m, 'submittedBy');
-          if (m.containsKey('submitted_by')) replaceIfUuid(m, 'submitted_by');
-        }
-
-        if (mounted) {
-          setState(() {
-            _pendingReports = pending;
+        setState(() {
+          final parsed = items.whereType<Map>().map((e) {
+            final m = e.cast<String, dynamic>();
+            final c = m['content'];
+            if (c is String) {
+              try {
+                final decoded = jsonDecode(c);
+                if (decoded is Map) {
+                  m['content'] = Map<String, dynamic>.from(decoded);
+                }
+              } catch (_) {}
+            }
+            return m;
           });
-        }
+          _pendingReports = parsed.where((m) {
+            final content = m['content'];
+            final statusRaw = (m['status'] ??
+                    m['review_status'] ??
+                    (content is Map ? content['status'] : null) ??
+                    '')
+                .toString()
+                .toLowerCase();
+            if (statusRaw.isEmpty) {
+              return true; // Default to include when unknown
+            }
+            return statusRaw == 'submitted' ||
+                statusRaw == 'under_review' ||
+                statusRaw == 'underreview';
+          }).toList();
+        });
         _computeTeamMetrics();
       } else {
         setState(() {
@@ -4455,12 +3876,12 @@ String? _selectedTeamFilter;
     try {
       await _authService.signOut();
       if (mounted) {
-        context.go(AuthService.postLogoutRoute);
+        context.go('/');
       }
     } catch (e) {
       debugPrint('Logout error: $e');
       if (mounted) {
-        context.go(AuthService.postLogoutRoute);
+        context.go('/');
       }
     }
   }

@@ -195,7 +195,7 @@ class _BacklogScreenState extends State<BacklogScreen> {
                         ),
                       )
                     : _tickets.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -215,17 +215,17 @@ class _BacklogScreenState extends State<BacklogScreen> {
                                 const SizedBox(height: 24),
                                 ElevatedButton(
                                   onPressed: _createTicket,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.add, size: 20),
-                                      const SizedBox(width: 8),
-                                      const Text('Create First Ticket'),
-                                    ],
-                                  ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: FlownetColors.electricBlue,
                                     foregroundColor: FlownetColors.pureWhite,
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.add, size: 20),
+                                      SizedBox(width: 8),
+                                      Text('Create First Ticket'),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -250,7 +250,7 @@ class _BacklogScreenState extends State<BacklogScreen> {
 class _CreateTicketForm extends StatefulWidget {
   final Function(Ticket) onTicketCreated;
 
-  const _CreateTicketForm({super.key, required this.onTicketCreated});
+  const _CreateTicketForm({required this.onTicketCreated});
 
   @override
   State<_CreateTicketForm> createState() => _CreateTicketFormState();
@@ -317,7 +317,7 @@ class _CreateTicketFormState extends State<_CreateTicketForm> {
         children: [
           // Project Selection
           DropdownButtonFormField<String>(
-            value: _selectedProjectId,
+            initialValue: _selectedProjectId,
             decoration: const InputDecoration(
               labelText: 'Project',
               labelStyle: TextStyle(color: FlownetColors.pureWhite),
@@ -333,7 +333,7 @@ class _CreateTicketFormState extends State<_CreateTicketForm> {
           
           // Sprint Selection
           DropdownButtonFormField<String>(
-            value: _selectedSprintId,
+            initialValue: _selectedSprintId,
             decoration: const InputDecoration(
               labelText: 'Sprint (Optional)',
               labelStyle: TextStyle(color: FlownetColors.pureWhite),
@@ -374,7 +374,7 @@ class _CreateTicketFormState extends State<_CreateTicketForm> {
           
           // Issue Type
           DropdownButtonFormField<String>(
-            value: _issueTypeController.text,
+            initialValue: _issueTypeController.text,
             decoration: const InputDecoration(
               labelText: 'Issue Type',
               labelStyle: TextStyle(color: FlownetColors.pureWhite),
@@ -390,7 +390,7 @@ class _CreateTicketFormState extends State<_CreateTicketForm> {
           
           // Priority
           DropdownButtonFormField<String>(
-            value: _priorityController.text,
+            initialValue: _priorityController.text,
             decoration: const InputDecoration(
               labelText: 'Priority',
               labelStyle: TextStyle(color: FlownetColors.pureWhite),
@@ -446,7 +446,7 @@ class _CreateTicketFormState extends State<_CreateTicketForm> {
 class _CreateEpicForm extends StatefulWidget {
   final Function(Epic) onEpicCreated;
 
-  const _CreateEpicForm({super.key, required this.onEpicCreated});
+  const _CreateEpicForm({required this.onEpicCreated});
 
   @override
   State<_CreateEpicForm> createState() => _CreateEpicFormState();
@@ -523,7 +523,7 @@ class _CreateEpicFormState extends State<_CreateEpicForm> {
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _colorController.text,
+                  initialValue: _colorController.text,
                   decoration: const InputDecoration(
                     labelText: 'Epic Color',
                     labelStyle: TextStyle(color: FlownetColors.pureWhite),
@@ -573,7 +573,7 @@ class _CreateEpicFormState extends State<_CreateEpicForm> {
 class _TicketCard extends StatelessWidget {
   final Ticket ticket;
 
-  const _TicketCard({super.key, required this.ticket});
+  const _TicketCard({required this.ticket});
 
   @override
   Widget build(BuildContext context) {
@@ -637,7 +637,7 @@ class _TicketCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       ticket.issueType,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: FlownetColors.electricBlue,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
