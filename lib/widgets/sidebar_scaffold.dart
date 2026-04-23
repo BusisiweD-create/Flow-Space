@@ -109,13 +109,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
         route: '/timeline',
         requiredPermission: null,
       ),
-      const _NavItem(
-        label: 'FlowPilot',
-        icon: Icons.smart_toy_outlined,
-        iconName: 'ai_assistant',
-        route: '/ai-assistant',
-        requiredPermission: null,
-      ),
     ];
 
     // Role-specific items
@@ -255,13 +248,36 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     _persistSidebarState();
   }
 
+  Widget _buildSidebarBadgeIcon(
+    Widget icon, {
+    double diameter = 36,
+    double padding = 6,
+  }) {
+    return ClipOval(
+      child: Container(
+        width: diameter,
+        height: diameter,
+        color: Colors.white.withAlpha((0.88 * 255).round()),
+        padding: EdgeInsets.all(padding),
+        child: icon,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final sidebarColor =
-        isDarkMode ? FlownetColors.sidebarDark : FlownetColors.sidebarLight;
+    final sidebarColor = const Color(0xFF2A2A2A);
     final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
     final sidebarSubtleText = isDarkMode ? FlownetColors.textSecondary : Colors.black87;
+
+    final authService = AuthService();
+    final currentUser = authService.currentUser;
+    final userRole = currentUser != null
+        ? currentUser.role.toString().toLowerCase()
+        : '';
+    final bool useStandaloneLargeIcons =
+        userRole.contains('delivery') || userRole.contains('project');
 
     String routeLocation = '/';
     try {
@@ -322,31 +338,89 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                             top: 24,
                             bottom: 16,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.asset(
-                                'assets/Icons/Red_Khono_Discs.png',
-                                width: _collapsed ? 28 : 64,
-                                height: _collapsed ? 28 : 64,
-                                fit: BoxFit.contain,
-                              ),
-                              if (!_collapsed) const SizedBox(width: 40),
-                              if (!_collapsed)
-                                IconButton(
-                                  onPressed: _toggleSidebar,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    _collapsed
-                                        ? Icons.chevron_right
-                                        : Icons.chevron_left,
-                                    color: sidebarSubtleText,
-                                    size: 20,
-                                  ),
+                          child: useStandaloneLargeIcons
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.topCenter,
+                                      child: InkWell(
+                                        onTap: _toggleSidebar,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            8,
+                                            6,
+                                            8,
+                                            6,
+                                          ),
+                                          child: ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              maxWidth: _collapsed ? 56 : 220,
+                                            ),
+                                            child: Image.asset(
+                                              'assets/Icons/khonology_name_icon.png',
+                                              height: _collapsed ? 18 : 46,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return const SizedBox.shrink();
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (!_collapsed) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Welcome to',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: sidebarTextColor,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Deliverable & Sprint Sign-Off Hub',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: sidebarTextColor,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.asset(
+                                      'assets/Icons/khonology_name_icon.png',
+                                      height: _collapsed ? 18 : 46,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
+                                    if (!_collapsed) const SizedBox(width: 40),
+                                    if (!_collapsed)
+                                      IconButton(
+                                        onPressed: _toggleSidebar,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: Icon(
+                                          _collapsed
+                                              ? Icons.chevron_right
+                                              : Icons.chevron_left,
+                                          color: sidebarSubtleText,
+                                          size: 20,
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                            ],
-                          ),
                         ),
                         // Navigation items (pill-style highlight like reference UI)
                         Expanded(
@@ -395,17 +469,31 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                                             : MainAxisAlignment.start,
                                         children: [
                                           SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: AppIcons.getIconWidget(
-                                              item.iconName,
-                                              fallbackIcon: item.icon,
-                                              isActive: active,
-                                              size: 20,
-                                              color: active
-                                                  ? sidebarTextColor
-                                                  : sidebarSubtleText,
-                                            ),
+                                            width: 30,
+                                            height: 30,
+                                            child: useStandaloneLargeIcons
+                                                ? AppIcons.getIconWidget(
+                                                    item.iconName,
+                                                    fallbackIcon: item.icon,
+                                                    isActive: active,
+                                                    size: 26,
+                                                    color: active
+                                                        ? sidebarTextColor
+                                                        : sidebarSubtleText,
+                                                  )
+                                                : _buildSidebarBadgeIcon(
+                                                    AppIcons.getIconWidget(
+                                                      item.iconName,
+                                                      fallbackIcon: item.icon,
+                                                      isActive: active,
+                                                      size: 20,
+                                                      color: active
+                                                          ? sidebarTextColor
+                                                          : sidebarSubtleText,
+                                                    ),
+                                                    diameter: 30,
+                                                    padding: 5,
+                                                  ),
                                           ),
                                           if (!_collapsed) ...[
                                             const SizedBox(width: 12),
@@ -524,6 +612,13 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   Widget _buildNavigationItems({required bool isMobile}) {
     final routeLocation = GoRouterState.of(context).uri.path;
+    final authService = AuthService();
+    final currentUser = authService.currentUser;
+    final userRole = currentUser != null
+        ? currentUser.role.toString().toLowerCase()
+        : '';
+    final bool useStandaloneLargeIcons =
+        userRole.contains('delivery') || userRole.contains('project');
 
     return ListView.builder(
       padding: EdgeInsets.zero,
@@ -544,13 +639,25 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: ListTile(
-            leading: AppIcons.getIconWidget(
-              item.iconName,
-              fallbackIcon: item.icon,
-              isActive: active,
-              size: 20,
-              color: active ? sidebarTextColor : sidebarSubtleText,
-            ),
+            leading: useStandaloneLargeIcons
+                ? AppIcons.getIconWidget(
+                    item.iconName,
+                    fallbackIcon: item.icon,
+                    isActive: active,
+                    size: 26,
+                    color: active ? sidebarTextColor : sidebarSubtleText,
+                  )
+                : _buildSidebarBadgeIcon(
+                    AppIcons.getIconWidget(
+                      item.iconName,
+                      fallbackIcon: item.icon,
+                      isActive: active,
+                      size: 20,
+                      color: active ? sidebarTextColor : sidebarSubtleText,
+                    ),
+                    diameter: 30,
+                    padding: 5,
+                  ),
             title: Text(
               item.label,
               style: TextStyle(
@@ -605,12 +712,16 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       ),
       child: TextButton.icon(
         onPressed: () => _handleLogout(context),
-        icon: AppIcons.getIconWidget(
-          'logout',
-          fallbackIcon: Icons.logout,
-          isActive: true,
-          size: 20,
-          color: FlownetColors.crimsonRed,
+        icon: _buildSidebarBadgeIcon(
+          AppIcons.getIconWidget(
+            'logout',
+            fallbackIcon: Icons.logout,
+            isActive: true,
+            size: 18,
+            color: FlownetColors.crimsonRed,
+          ),
+          diameter: 30,
+          padding: 5,
         ),
         label: const Text(
           'Logout',

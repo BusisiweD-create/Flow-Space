@@ -717,6 +717,20 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  Widget _buildStandaloneAssetIcon(
+    String assetPath, {
+    double size = 34,
+  }) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.asset(
+        assetPath,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
   Widget _buildRoleSpecificContent() {
     switch (_currentUser!.role) {
       case UserRole.teamMember:
@@ -1278,12 +1292,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildTeamRoundIcon(IconData icon, {double size = 20}) {
+  Widget _buildTeamRoundIcon(
+    IconData icon, {
+    double size = 20,
+    double diameter = 40,
+  }) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDarkMode ? Colors.white : Colors.black;
     return Container(
-      width: 34,
-      height: 34,
+      width: diameter,
+      height: diameter,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.85),
         shape: BoxShape.circle,
@@ -1333,7 +1351,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          _buildTeamRoundAssetIcon('assets/Icons/reminder_icon.png'),
+          _buildStandaloneAssetIcon('assets/Icons/reminder_icon.png', size: 44),
           const SizedBox(width: 10),
           Flexible(
             child: Column(
@@ -1394,13 +1412,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildTeamRoundAssetIcon(String assetPath, {double size = 20}) {
+  Widget _buildTeamRoundAssetIcon(
+    String assetPath, {
+    double size = 20,
+    double diameter = 40,
+    double padding = 7,
+  }) {
     return ClipOval(
       child: Container(
-        width: 34,
-        height: 34,
+        width: diameter,
+        height: diameter,
         color: Colors.white.withValues(alpha: 0.85),
-        padding: const EdgeInsets.all(6),
+        padding: EdgeInsets.all(padding),
         child: Image.asset(
           assetPath,
           width: size,
@@ -1509,7 +1532,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         children: [
           Row(
             children: [
-              _buildTeamRoundIcon(Icons.trending_up),
+              Icon(
+                Icons.trending_up,
+                size: 38,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : Colors.black,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -1559,21 +1588,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             children: [
               Text(value, style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
               const Spacer(),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: FlownetColors.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: Image.asset(
-                    assetPath,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
+              _buildStandaloneAssetIcon(assetPath, size: 38),
             ],
           ),
         ],
@@ -1598,7 +1613,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             children: [
               Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
               const Spacer(),
-              _buildTeamRoundAssetIcon(assetPath, size: 16),
+              _buildStandaloneAssetIcon(assetPath, size: 42),
             ],
           ),
         ],

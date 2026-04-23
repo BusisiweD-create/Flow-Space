@@ -96,6 +96,15 @@ flutter:
   assets:
     - assets/Icons/
     - assets/icons/
+    - assets/Icons/approval_request_icon.png
+    - assets/Icons/dashboard_icon.png
+    - assets/Icons/deliverables_icon.png
+    - assets/Icons/khonology_name_icon.png
+    - assets/Icons/projects_icon.png
+    - assets/Icons/reports_icon.png
+    - assets/Icons/repository_icon.png
+    - assets/Icons/sprints_icon.png
+    - assets/Icons/timeline_icon.png
     - assets/Icons/active_projects_kpi_icon.png
     - assets/Icons/active_sprints_kpi_icon.png
     - assets/Icons/completed_kpi_icon.png
