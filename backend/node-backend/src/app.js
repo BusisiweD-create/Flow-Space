@@ -70,6 +70,7 @@ const usersRoutes = require('./routes/users');
 const approvalsRoutes = require('./routes/approvals');
 const documentsRoutes = require('./routes/documents');
 const epicFeaturesRoutes = require('./routes/epicFeatures');
+const timelineRoutes = require('./routes/timeline');
 
 // Import services
 const { presenceService } = require('./services/presenceService');
@@ -154,6 +155,7 @@ app.use('/api/v1/approvals', authenticateToken, approvalsRoutes);
 app.use('/api/v1/audit-logs', auditRoutes);
 app.use('/api/v1/documents', documentsRoutes);
 app.use('/api/v1/epic-features', epicFeaturesRoutes);
+app.use('/api/v1/timeline', timelineRoutes);
 app.post('/api/v1/iot/ingest', (req, res) => {
   try {
     const { topic, payload, roles, targetRoles, event } = req.body || {};
@@ -322,14 +324,24 @@ app.use('*', (req, res) => {
 // Database connection and server startup
 const PORT = process.env.PORT || 3001;
 
+function isTruthy(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
 async function startServer() {
   try {
     // Test database connection
     await sequelize.authenticate();
-    const syncOk = await syncDatabase({ alter: true });
+    const shouldSync =
+      process.env.NODE_ENV === 'development' || isTruthy(process.env.DB_AUTO_SYNC, false);
+    const shouldAlter = isTruthy(process.env.DB_AUTO_ALTER, false);
+    const syncOk = shouldSync ? await syncDatabase({ alter: shouldAlter }) : true;
     console.log('✅ Database connection established successfully');
     if (!syncOk) {
       console.warn('⚠️ Database sync failed; continuing without alter sync');
+    } else if (!shouldSync) {
+      console.log('ℹ️ Database auto-sync disabled by environment settings');
     }
 
     try {
@@ -337,13 +349,28 @@ async function startServer() {
         await sequelize.query("ALTER TABLE sprints ADD COLUMN IF NOT EXISTS created_by VARCHAR(255)");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner_id UUID");
         await sequelize.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by UUID");
+        // Ensure legacy audit_logs schema is compatible with current model.
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_role VARCHAR(100)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS session_id VARCHAR(500)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(50)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent VARCHAR(500)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action_category VARCHAR(100)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_name VARCHAR(255)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS old_values JSONB");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_values JSONB");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS changed_fields JSONB");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(500)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS endpoint VARCHAR(500)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS http_method VARCHAR(10)");
+        await sequelize.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status_code INTEGER");
       }
     } catch (e) {
-      console.warn('⚠️ Unable to ensure sprints.created_by column; continuing', e?.message || e);
+      console.warn('⚠️ Unable to ensure compatibility columns; continuing', e?.message || e);
     }
     
-    // Sync database (use with caution in production)
-    if (process.env.NODE_ENV === 'development') {
+    // Development-only safe sync (never run when DB_AUTO_SYNC is explicitly false)
+    if (process.env.NODE_ENV === 'development' && shouldSync) {
       // Use safe sync instead of alter to prevent infinite loops
       try {
         await sequelize.sync({ force: false });
