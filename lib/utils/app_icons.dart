@@ -7,66 +7,64 @@ class AppIcons {
     // Map app iconName keys to the exact icon filenames.
     // NOTE: icon files use a double extension: *.png.png
     final iconPaths = <String, Map<String, String>>{
+      // Use Home_Dashboard artwork for the main dashboard icon
       'dashboard': {
-        'active': 'frontend/assets/Dashboard2.png',
-        'inactive': 'frontend/assets/Dashboard2.png',
+        'active': 'assets/Icons/Home_Dashboard active.png.png',
+        'inactive': 'assets/Icons/Home_Dashboard inactive.png.png',
       },
+      // Projects folder icon (all roles)
       'projects': {
-        'active': 'frontend/assets/Projects.png',
-        'inactive': 'frontend/assets/Projects.png',
+        'active': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
+        'inactive': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
       },
+      // Deliverables rocket icon (all roles)
       'deliverables': {
-        'active': 'frontend/assets/Deliverables.png',
-        'inactive': 'frontend/assets/Deliverables.png',
+        'active': 'assets/Icons/Deliverables_rocket_active.png',
+        'inactive': 'assets/Icons/Deliverables_rocket_inactive.png',
       },
       'sprints': {
-        'active': 'frontend/assets/Sprints.png',
-        'inactive': 'frontend/assets/Sprints.png',
+        'active': 'assets/Icons/Sprints console active.png.png',
+        'inactive': 'assets/Icons/Sprints console inactive.png.png',
       },
       'notifications': {
         'active': 'assets/Icons/Notifications active.png.png',
         'inactive': 'assets/Icons/Notifications inactive.png.png',
       },
       'repository': {
-<<<<<<< HEAD
-        'active': 'assets/Icons/Repository_Project active.png.png',
-        'inactive': 'assets/Icons/Repository_Project inactive.png.png',
-=======
-        'active': 'frontend/assets/Repository.png',
-        'inactive': 'frontend/assets/Repository.png',
->>>>>>> 74fbd96c02e2ec876952028f119826f9e8659d60
+        'active': 'assets/Icons/Repository_Project active.png',
+        'inactive': 'assets/Icons/Repository_Project inactive.png',
       },
       'approval_requests': {
-        'active': 'frontend/assets/Approval_Requests.png',
-        'inactive': 'frontend/assets/Approval_Requests.png',
+        'active': 'assets/Icons/Approval Requests active.png.png',
+        'inactive': 'assets/Icons/Approval Requests inactive.png.png',
       },
       'approvals': {
         'active': 'assets/Icons/Data_Approvals active.png.png',
         'inactive': 'assets/Icons/Data_Approvals inactive.png.png',
       },
       'reports': {
-        'active': 'frontend/assets/reports.png',
-        'inactive': 'frontend/assets/reports.png',
+        'active': 'assets/Icons/Reports active.png.png',
+        'inactive': 'assets/Icons/Reports inactive.png.png',
       },
       'role_management': {
-        'active': 'frontend/assets/User_management_blue.png',
-        'inactive': 'frontend/assets/User_management_blue.png',
+        'active': 'assets/Icons/Role Managemet active.png.png',
+        'inactive': 'assets/Icons/Role Managemet inactive.png.png',
       },
       'settings': {
         'active': 'assets/Icons/Settings active.png.png',
         'inactive': 'assets/Icons/Settings inactive.png.png',
       },
       'account': {
-        'active': 'frontend/assets/Profile2.png',
-        'inactive': 'frontend/assets/Profile2.png',
+        'active': 'assets/Icons/Profile page active.png.png',
+        'inactive': 'assets/Icons/Profile page inactive.png.png',
       },
       'logout': {
-        'active': 'frontend/assets/Logout.png',
-        'inactive': 'frontend/assets/Logout.png',
+        'active': 'assets/Icons/Logout button active.png.png',
+        'inactive': 'assets/Icons/Logout button inactive.png.png',
       },
       'timeline': {
-        'active': 'frontend/assets/Timeline.png',
-        'inactive': 'frontend/assets/Timeline.png',
+        'active': 'assets/Icons/Timeline Page active.png.png',
+        'inactive': 'assets/Icons/Timeline Page inactive.png.png',
       },
       'ai_assistant': {
         'active': 'assets/Icons/AI_Red.png',
@@ -123,28 +121,22 @@ class AppIcons {
     bool isActive = false,
     double size = 24.0,
     Color? color,
-    double visualScale = 1.0,
-    BoxFit fit = BoxFit.contain,
   }) {
     final assetPath = _getIconPath(iconName, isActive);
     if (assetPath.isNotEmpty) {
-      return Transform.scale(
-        scale: visualScale,
-        child: Image.asset(
-          assetPath,
-          width: size,
-          height: size,
-          fit: fit,
-          filterQuality: FilterQuality.none,
-          errorBuilder: (context, error, stackTrace) {
-            debugPrint('Failed to load icon asset: $assetPath -> $error');
-            return Icon(
-              getIcon(iconName, fallbackIcon: fallbackIcon),
-              size: size,
-              color: color,
-            );
-          },
-        ),
+      return Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('Failed to load icon asset: $assetPath -> $error');
+          return Icon(
+            getIcon(iconName, fallbackIcon: fallbackIcon),
+            size: size,
+            color: color,
+          );
+        },
       );
     }
 
