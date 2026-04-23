@@ -293,8 +293,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         setState(() {
           _currentUser = user;
         });
-        debugPrint(
-            '✅ Loaded user: ${user.name} (${user.email}) - Role: ${user.role}');
 
         // Load audit logs after user is loaded
         _loadAuditLogs();
@@ -306,7 +304,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         }
       } else {
         if (!_authService.isAuthenticated) {
-          debugPrint('❌ Inactive or no user found, redirecting to login');
           if (mounted) {
             final messenger = ScaffoldMessenger.of(context);
             final router = GoRouter.of(context);
@@ -322,7 +319,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         }
       }
     } catch (e) {
-      debugPrint('❌ Error loading current user: $e');
       // If there's an error, redirect to login
       if (mounted) {
         context.go(AuthService.postLogoutRoute);
@@ -1626,13 +1622,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           ),
         ),
         _buildTeamHeaderIconButton(
-          assetPath: 'frontend/assets/Message.png',
+          assetPath: 'assets/Message.png',
           icon: Icons.mail_outline,
           onTap: () => context.go('/notifications'),
         ),
         const SizedBox(width: 8),
         _buildTeamHeaderIconButton(
-          assetPath: 'frontend/assets/notification.png',
+          assetPath: 'assets/notification.png',
           icon: Icons.notifications_none,
           onTap: () => _loadPendingReports(),
         ),
@@ -1748,31 +1744,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 _buildAdminFeatureTile(
                   icon: Icons.settings_applications_outlined,
                   label: 'System Metrics',
-                  iconAssetPath: 'frontend/assets/System_metrics.png',
+                  iconAssetPath: 'assets/System_metrics.png',
                   onTap: () => context.go('/system-metrics'),
                 ),
                 _buildAdminFeatureTile(
                   icon: Icons.manage_accounts_outlined,
                   label: 'User Management',
-                  iconAssetPath: 'frontend/assets/User_management.png',
+                  iconAssetPath: 'assets/User_management.png',
                   onTap: () => context.go('/role-management'),
                 ),
                 _buildAdminFeatureTile(
                   icon: Icons.health_and_safety_outlined,
                   label: 'System Health',
-                  iconAssetPath: 'frontend/assets/System_Health.png',
+                  iconAssetPath: 'assets/System_Health.png',
                   onTap: () => context.go('/system-health'),
                 ),
                 _buildAdminFeatureTile(
                   icon: Icons.receipt_long_outlined,
                   label: 'Audit Logs',
-                  iconAssetPath: 'frontend/assets/Audit_Logs.png',
+                  iconAssetPath: 'assets/Audit_Logs.png',
                   onTap: () => context.go('/audit-logs'),
                 ),
                 _buildAdminFeatureTile(
                   icon: Icons.assignment_outlined,
                   label: 'Deliverables Overview',
-                  iconAssetPath: 'frontend/assets/Deliverables_overview.png',
+                  iconAssetPath: 'assets/Deliverables_overview.png',
                   onTap: () => context.go('/deliverables-overview'),
                 ),
               ];
@@ -1884,7 +1880,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             children: [
               _buildTeamRoundIcon(
                 Icons.track_changes,
-                assetPath: 'frontend/assets/Deliverables_overview.png',
+                assetPath: 'assets/Deliverables_overview.png',
                 containerSize: 44,
                 assetVisualScale: 1.45,
               ),
@@ -1905,7 +1901,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               _buildTeamRoundIcon(
                 Icons.notifications_none,
                 size: 16,
-                assetPath: 'frontend/assets/notification.png',
+                assetPath: 'assets/notification.png',
               ),
               const SizedBox(width: 6),
               Text('${items.length}',
@@ -2001,7 +1997,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             children: [
               _buildTeamRoundIcon(
                 Icons.folder_copy_outlined,
-                assetPath: 'frontend/assets/Projects_overview.png',
+                assetPath: 'assets/Projects_overview.png',
                 containerSize: 44,
                 assetVisualScale: 1.45,
               ),
@@ -2022,7 +2018,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               _buildTeamRoundIcon(
                 Icons.notifications_none,
                 size: 16,
-                assetPath: 'frontend/assets/notification.png',
+                assetPath: 'assets/notification.png',
               ),
               const SizedBox(width: 6),
               Text('${_dashboardProjects.length}',

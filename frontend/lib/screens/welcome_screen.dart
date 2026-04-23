@@ -13,7 +13,7 @@ class WelcomeScreen extends StatelessWidget {
           // Background image
           Positioned.fill(
             child: Image.asset(
-              'assets/Icons/khono_bg.png',
+              'assets/images/khono_bg.png',
               fit: BoxFit.cover,
             ),
           ),

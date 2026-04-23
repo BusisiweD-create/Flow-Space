@@ -769,7 +769,7 @@ class ReportExportService {
 
   Future<_PdfHeaderAssets> _loadHeaderAssets() async {
     try {
-      final bgData = await rootBundle.load('assets/Icons/khono_bg.png');
+      final bgData = await rootBundle.load('assets/images/khono_bg.png');
       final logoData = await rootBundle.load('assets/Icons/khono.png');
       final iconData = await rootBundle.load('assets/Icons/Group 268.png');
       final bgBytes = bgData.buffer.asUint8List();

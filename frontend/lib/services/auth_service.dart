@@ -63,8 +63,6 @@ class AuthService {
         if (_currentUser != null &&
             (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
-          debugPrint(
-              'User session restored: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
           try {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('current_user_id', _currentUser!.id);
@@ -98,8 +96,6 @@ class AuthService {
         if (_currentUser != null &&
             (_currentUser!.isActive || _currentUser!.isSystemAdmin)) {
           _isAuthenticated = true;
-          debugPrint(
-              'User signed in: ${_currentUser!.name} (${_currentUser!.roleDisplayName})');
           try {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('current_user_id', _currentUser!.id);
@@ -114,9 +110,6 @@ class AuthService {
           return false;
         }
       } else {
-        debugPrint('Sign in failed: ${response.error}');
-        debugPrint('Sign in response data: ${response.data}');
-        debugPrint('Sign in response status: ${response.statusCode}');
         _lastAuthError = response.error;
       }
       return false;

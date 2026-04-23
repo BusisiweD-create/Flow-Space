@@ -8,60 +8,60 @@ class AppIcons {
     // NOTE: icon files use a double extension: *.png.png
     final iconPaths = <String, Map<String, String>>{
       'dashboard': {
-        'active': 'frontend/assets/Dashboard2.png',
-        'inactive': 'frontend/assets/Dashboard2.png',
+        'active': 'assets/Dashboard2.png',
+        'inactive': 'assets/Dashboard2.png',
       },
       'projects': {
         'active': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
         'inactive': 'assets/Icons/Project_Direction_Acceleration/Project_Direction_Acceleration_White Badge_Red.png',
       },
       'deliverables': {
-        'active': 'frontend/assets/Deliverables.png',
-        'inactive': 'frontend/assets/Deliverables.png',
+        'active': 'assets/Deliverables.png',
+        'inactive': 'assets/Deliverables.png',
       },
       'sprints': {
-        'active': 'frontend/assets/Sprints.png',
-        'inactive': 'frontend/assets/Sprints.png',
+        'active': 'assets/Sprints.png',
+        'inactive': 'assets/Sprints.png',
       },
       'notifications': {
         'active': 'assets/Icons/Notifications active.png.png',
         'inactive': 'assets/Icons/Notifications inactive.png.png',
       },
       'repository': {
-        'active': 'frontend/assets/Repository.png',
-        'inactive': 'frontend/assets/Repository.png',
+        'active': 'assets/Repository.png',
+        'inactive': 'assets/Repository.png',
       },
       'approval_requests': {
-        'active': 'frontend/assets/Approval_Requests.png',
-        'inactive': 'frontend/assets/Approval_Requests.png',
+        'active': 'assets/Approval_Requests.png',
+        'inactive': 'assets/Approval_Requests.png',
       },
       'approvals': {
         'active': 'assets/Icons/Data_Approvals active.png.png',
         'inactive': 'assets/Icons/Data_Approvals inactive.png.png',
       },
       'reports': {
-        'active': 'frontend/assets/reports.png',
-        'inactive': 'frontend/assets/reports.png',
+        'active': 'assets/reports.png',
+        'inactive': 'assets/reports.png',
       },
       'role_management': {
-        'active': 'frontend/assets/User_management_blue.png',
-        'inactive': 'frontend/assets/User_management_blue.png',
+        'active': 'assets/User_management_blue.png',
+        'inactive': 'assets/User_management_blue.png',
       },
       'settings': {
         'active': 'assets/Icons/Settings active.png.png',
         'inactive': 'assets/Icons/Settings inactive.png.png',
       },
       'account': {
-        'active': 'frontend/assets/Profile2.png',
-        'inactive': 'frontend/assets/Profile2.png',
+        'active': 'assets/Profile2.png',
+        'inactive': 'assets/Profile2.png',
       },
       'logout': {
-        'active': 'frontend/assets/Logout.png',
-        'inactive': 'frontend/assets/Logout.png',
+        'active': 'assets/Logout.png',
+        'inactive': 'assets/Logout.png',
       },
       'timeline': {
-        'active': 'frontend/assets/Timeline.png',
-        'inactive': 'frontend/assets/Timeline.png',
+        'active': 'assets/Timeline.png',
+        'inactive': 'assets/Timeline.png',
       },
       'ai_assistant': {
         'active': 'assets/Icons/AI_Red.png',

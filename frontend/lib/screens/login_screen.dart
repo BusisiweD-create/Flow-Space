@@ -96,7 +96,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/Icons/khono_bg.png',
+                  'assets/images/khono_bg.png',
               fit: BoxFit.cover,
             ),
           ),

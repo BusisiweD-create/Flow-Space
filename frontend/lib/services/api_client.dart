@@ -278,8 +278,6 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
       if (_accessToken != null) {
         headers['Authorization'] = 'Bearer $_accessToken';
       }
-      
-      debugPrint('Request Headers: $headers');
 
       // Make request
       http.Response response;
@@ -288,8 +286,6 @@ static String get _baseUrlWithVersion => Environment.apiBaseUrl;
           response = await http.get(Uri.parse(url), headers: headers).timeout(_timeout);
           break;
         case 'POST':
-          debugPrint('🌐 API POST to: $url');
-          debugPrint('📤 POST body: ${body != null ? jsonEncode(body) : 'null'}');
           response = await http.post(
             Uri.parse(url),
             headers: headers,

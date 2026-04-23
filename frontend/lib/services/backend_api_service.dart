@@ -853,38 +853,17 @@ class BackendApiService {
   // Helper methods for data transformation
   User? parseUserFromResponse(ApiResponse response) {
     if (!response.isSuccess || response.data == null) {
-      debugPrint('Response not successful or data is null');
       return null;
     }
 
     try {
-      // Debug: print the entire response structure
-      debugPrint('Full response data: ${response.data}');
-
       // The user data might be nested under 'user' key or at the root level
       // Handle different response structures from different endpoints
       final userData = response.data!['user'] ?? response.data!;
 
       if (userData == null || userData.isEmpty) {
-        debugPrint('No user data found in response');
         return null;
       }
-
-      debugPrint('User data from response: $userData');
-      debugPrint('User ID: ${userData['id']}');
-      debugPrint('User email: ${userData['email']}');
-      debugPrint(
-          'User first name: ${userData['first_name'] ?? userData['firstName'] ?? userData['firstname']}');
-      debugPrint(
-          'User last name: ${userData['last_name'] ?? userData['lastName'] ?? userData['lastname']}');
-      debugPrint('User role: ${userData['role']}');
-      debugPrint(
-          'User is_active: ${userData['is_active'] ?? userData['isActive'] ?? userData['isactive']}');
-      debugPrint('User status: ${userData['status']}');
-      debugPrint(
-          'User created_at: ${userData['created_at'] ?? userData['createdAt'] ?? userData['createdat']}');
-      debugPrint(
-          'User last_login: ${userData['last_login'] ?? userData['lastLoginAt'] ?? userData['lastlogin'] ?? userData['lastLogin']}');
 
       // Create a proper user object for the User.fromJson method
       // Handle both snake_case and camelCase fields from backend
@@ -978,8 +957,6 @@ class BackendApiService {
             userData['emailVerifiedAt'] ??
             userData['emailverifiedat'],
       };
-
-      debugPrint('Final user JSON for parsing: $userJsonForParsing');
 
       return User.fromJson(userJsonForParsing);
     } catch (e) {

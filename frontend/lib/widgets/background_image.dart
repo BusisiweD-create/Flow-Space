@@ -36,8 +36,8 @@ class BackgroundImage extends StatelessWidget {
     final String resolvedImagePath =
         imagePath ??
         (isDarkMode
-            ? 'assets/Icons/khono_bg.png'
-            : 'assets/Icons/light_mode_bg.png');
+            ? 'assets/images/khono_bg.png'
+            : 'assets/images/khono_bg.png');
     final List<Color> resolvedGradientColors =
         gradientColors ??
         (isDarkMode

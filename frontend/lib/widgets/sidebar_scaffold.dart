@@ -228,7 +228,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           children: [
             SizedBox(height: isUltraCompact ? 4 : 8),
             Image.asset(
-              'assets/icons/khono.png',
+              'assets/Icons/khono.png',
               width: isUltraCompact ? 150 : (isVeryCompact ? 190 : 228),
               height: isUltraCompact ? 28 : (isVeryCompact ? 35 : 44),
               fit: BoxFit.contain,
@@ -464,7 +464,7 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       '/audit-logs',
     }.any((p) => routeLocation.startsWith(p));
     final String? backgroundImagePath =
-        useWelcomeBackground ? 'assets/Icons/khono_bg.png' : null;
+        useWelcomeBackground ? 'assets/images/khono_bg.png' : null;
     final bool backgroundWithGradient = useWelcomeBackground ? false : true;
 
     if (isDesktop) {
