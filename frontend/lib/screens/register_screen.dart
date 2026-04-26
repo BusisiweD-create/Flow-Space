@@ -116,6 +116,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Image.asset(
               'assets/Icons/khono_bg.png',
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(color: const Color(0xFF0D0F14));
+              },
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.35),
+                    const Color(0xFF090909).withValues(alpha: 0.9),
+                  ],
+                ),
+              ),
             ),
           ),
           // Content overlay
@@ -147,6 +164,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               'assets/Icons/khono.png',
                               height: 60,
                               fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.shield_outlined,
+                                  size: 52,
+                                  color: Colors.white70,
+                                );
+                              },
                             ),
                             const SizedBox(height: 16),
                             Text(

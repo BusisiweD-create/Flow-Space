@@ -2200,10 +2200,12 @@ router.post('/chat', async (req, res) => {
               });
             }
             const finalText = buildManualSprintReportText(latestData, reportTitle, pending.data.feedback);
+            const role = normalizeRole(req.user && req.user.role);
+            const allowSignoff = ['admin', 'systemadmin', 'deliverylead'].includes(role);
             pendingActions.delete(userId);
             return sendResponse(res, true, {
               content: cleanAiText(finalText),
-              actions: [{ type: 'export_pdf', title: reportTitle, content: cleanAiText(finalText) }],
+              actions: allowSignoff ? [{ type: 'export_pdf', title: reportTitle, content: cleanAiText(finalText) }] : [],
               usage: {},
               model: 'server',
             });
@@ -2213,6 +2215,16 @@ router.post('/chat', async (req, res) => {
           return sendResponse(res, true, { content: cleanAiText('Please reply "confirm" to continue.'), usage: {}, model: 'server' });
         }
         if (pending.type === 'signoff_sprint_select') {
+          const role = normalizeRole(req.user && req.user.role);
+          const allowSignoff = ['admin', 'systemadmin', 'deliverylead'].includes(role);
+          if (!allowSignoff) {
+            pendingActions.delete(userId);
+            return sendResponse(res, true, {
+              content: cleanAiText('Only Delivery Leads and System Admins can generate sign-off reports with FlowPilot.'),
+              usage: {},
+              model: 'server',
+            });
+          }
           if (!pending.data.note) {
             const n = extractSignoffNoteFromText(userText);
             if (n) pending.data.note = n;
@@ -2272,6 +2284,16 @@ router.post('/chat', async (req, res) => {
           });
         }
         if (pending.type === 'signoff_sprint_report') {
+          const role = normalizeRole(req.user && req.user.role);
+          const allowSignoff = ['admin', 'systemadmin', 'deliverylead'].includes(role);
+          if (!allowSignoff) {
+            pendingActions.delete(userId);
+            return sendResponse(res, true, {
+              content: cleanAiText('Only Delivery Leads and System Admins can generate sign-off reports with FlowPilot.'),
+              usage: {},
+              model: 'server',
+            });
+          }
           const stage = String(pending.data.stage || 'verify');
           const extractedTitle = extractReportTitleFromText(userText);
           if (extractedTitle) pending.data.report_title = extractedTitle;
@@ -2358,7 +2380,6 @@ router.post('/chat', async (req, res) => {
 
           const reportContent = buildSprintSignoffReportText(latestData, reportTitle, pending.data.note, pending.data.feedback);
           await ensureReportsTable();
-          const role = normalizeRole(req.user && req.user.role);
           const preparedByName = req.user ? displayName(req.user) : null;
           const content = {
             reportTitle,
@@ -2424,7 +2445,7 @@ router.post('/chat', async (req, res) => {
           const allowProject = ['admin', 'systemadmin', 'deliverylead', 'projectmanager'].includes(role);
           const allowSprint = ['admin', 'systemadmin', 'deliverylead', 'scrummaster', 'projectmanager'].includes(role);
           const allowDeliverable = ['admin', 'systemadmin', 'deliverylead', 'teammember', 'developer', 'projectmanager', 'scrummaster', 'qaengineer'].includes(role);
-          const allowReport = ['admin', 'systemadmin', 'deliverylead', 'projectmanager', 'scrummaster', 'developer', 'teammember', 'qaengineer'].includes(role);
+          const allowReport = ['admin', 'systemadmin', 'deliverylead'].includes(role);
 
           try {
             if (pending.type === 'project') {
@@ -2537,7 +2558,14 @@ router.post('/chat', async (req, res) => {
             }
 
             if (pending.type === 'report') {
-              if (!allowReport) return res.status(403).json({ error: 'Insufficient permissions' });
+              if (!allowReport) {
+                pendingActions.delete(userId);
+                return sendResponse(res, true, {
+                  content: cleanAiText('Only Delivery Leads and System Admins can generate sign-off reports with FlowPilot.'),
+                  usage: {},
+                  model: 'server',
+                });
+              }
               await ensureReportsTable();
               const deliverableId = String(pending.data.deliverable_id).trim();
               const reportTitle = String(pending.data.report_title).trim();
@@ -2566,6 +2594,15 @@ router.post('/chat', async (req, res) => {
         const wantsSignoffReport = /\b(sign[- ]?off|signoff)\b/.test(tt) && /\breport\b/.test(tt);
         const mentionsDeliverable = /\bdeliverable\b/.test(tt);
         if (wantsSignoffReport && !mentionsDeliverable) {
+          const role = normalizeRole(req.user && req.user.role);
+          const allowSignoff = ['admin', 'systemadmin', 'deliverylead'].includes(role);
+          if (!allowSignoff) {
+            return sendResponse(res, true, {
+              content: cleanAiText('Only Delivery Leads and System Admins can generate sign-off reports with FlowPilot.'),
+              usage: {},
+              model: 'server',
+            });
+          }
           const sprintData = await buildSprintDetailsData(userText, snapshotData || {});
           if (!sprintData) {
             const options = await getSprintSelectionOptions(snapshotData || {}, 12);

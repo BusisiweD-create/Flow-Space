@@ -60,8 +60,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         final msg = authService.lastAuthError ??
             'Invalid email or password. Please check your credentials and try again.';
         ErrorHandler().showErrorSnackBar(context, msg);
-        ErrorHandler().showErrorSnackBar(context,
-            'Invalid email or password. Please check your credentials and try again.');
       }
     } catch (e) {
       if (mounted) {
@@ -99,6 +97,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Image.asset(
               'assets/Icons/khono_bg.png',
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(color: const Color(0xFF0D0F14));
+              },
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.35),
+                    const Color(0xFF090909).withValues(alpha: 0.9),
+                  ],
+                ),
+              ),
             ),
           ),
           // Main content
@@ -108,19 +123,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 padding: const EdgeInsets.all(8.0),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 400),
-                  child: KeyboardListener(
-                    focusNode: _keyboardFocusNode,
-                    onKeyEvent: (KeyEvent event) {
-                      // Handle Enter key press
-                      if (event is KeyDownEvent &&
-                          event.logicalKey == LogicalKeyboardKey.enter) {
-                        // Prevent default behavior and trigger login
-                        if (!_isLoading) {
-                          _handleLogin();
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF121217).withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          blurRadius: 24,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 12),
+                          color: Colors.black.withValues(alpha: 0.42),
+                        ),
+                      ],
+                    ),
+                    child: KeyboardListener(
+                      focusNode: _keyboardFocusNode,
+                      onKeyEvent: (KeyEvent event) {
+                        if (event is KeyDownEvent &&
+                            event.logicalKey == LogicalKeyboardKey.enter) {
+                          if (!_isLoading) {
+                            _handleLogin();
+                          }
                         }
-                      }
-                    },
-                    child: Form(
+                      },
+                      child: Form(
                       key: _formKey,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -130,6 +160,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             'assets/Icons/khono.png',
                             height: 80,
                             fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.shield_outlined,
+                                size: 56,
+                                color: Colors.white70,
+                              );
+                            },
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -330,6 +367,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ),
             ),
+          ),
           ),
           // Fixed footer version display at bottom
           const FixedFooterVersionDisplay(),

@@ -8,24 +8,48 @@ class FixedFooterVersionDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final versionInfo = VersionService.getVersionDetails();
     final version = versionInfo['version'].toString();
-    
+    final tooltip = VersionService.getFormattedVersionInfo();
+    String displayVersion =
+        version.toLowerCase().startsWith('ver ') ? version : 'Ver $version';
+    if (displayVersion.contains('PROD-')) {
+      displayVersion = displayVersion.replaceFirst('Ver PROD-', 'Ver ');
+      displayVersion = '${displayVersion}_SIT';
+    }
+
     return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
+      bottom: 12,
+      left: 14,
       child: SafeArea(
         child: Container(
-          padding: const EdgeInsets.only(bottom: 16, top: 8),
-          child: Center(
-            child: Text(
-              version,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w400, // Regular weight
-                color: Colors.white.withValues(alpha: 0.65), // ~0.65 opacity
-                letterSpacing: 0.3,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Tooltip(
+            message: tooltip,
+            waitDuration: const Duration(milliseconds: 250),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF2A1C),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: const Color(0xCC101114),
+                borderRadius: BorderRadius.circular(3),
               ),
-              textAlign: TextAlign.center,
+              child: Text(
+              displayVersion,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w500,
+                color: Colors.white.withValues(alpha: 0.78),
+                letterSpacing: 0.2,
+              ),
+              textAlign: TextAlign.left,
+              ),
             ),
           ),
         ),
