@@ -152,16 +152,12 @@ const app = express();
 // Middleware - Configure CORS for Flutter Web
 // Allow all origins for local development
 app.use(cors({
-<<<<<<< HEAD
-  origin: true,
-=======
-  origin: [
+origin: [
     "https://flow-space-1.onrender.com",
     "https://flow-space.onrender.com",
     "http://localhost:3000",
     "http://localhost:8080"
   ],
->>>>>>> 74fbd96c02e2ec876952028f119826f9e8659d60
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
@@ -1156,14 +1152,6 @@ app.post('/api/v1/auth/login', async (req, res) => {
       let userRole = 'teamMember'; // default
       if (normalizedEmail.includes('admin') || normalizedEmail.includes('system')) {
         userRole = 'systemAdmin';
-<<<<<<< HEAD
-      } else if (email.includes('lead') || email.includes('manager') || email.includes('delivery')) {
-=======
-      } else if (normalizedEmail.includes('lead') || normalizedEmail.includes('manager')) {
->>>>>>> cb1c028b9b998b1970073c7e6451e70a2e688e76
-        userRole = 'deliveryLead';
-      } else if (normalizedEmail.includes('client') || normalizedEmail.includes('customer')) {
-        userRole = 'clientUser';
       } else if (normalizedEmail.includes('approver') || normalizedEmail.includes('reviewer')) {
         userRole = 'internalApprover';
       } else if (email.includes('project') || email.includes('pm')) {
@@ -9488,17 +9476,11 @@ app.get('/api/v1/test-deployment', (req, res) => {
 });
 
 // Start the server
-<<<<<<< HEAD
 // Use PORT from environment variable or default to 3001
 const PORT = parseInt(process.env.PORT, 10) || 3001;
-=======
-// Use PORT from environment variable or default to 8000
-const PORT = parseInt(process.env.PORT, 10) || 8000;
->>>>>>> 74fbd96c02e2ec876952028f119826f9e8659d60
-
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);
-const io = new SocketIOServer(server, {
+const io = require('socket.io')(server, {
   cors: {
     origin: [
       /^http:\/\/localhost:\d+$/,
@@ -9506,6 +9488,11 @@ const io = new SocketIOServer(server, {
     ],
     credentials: true
   }
+});
+
+// Add semicolon to close the database initialization section
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
 
 // ============================================================
