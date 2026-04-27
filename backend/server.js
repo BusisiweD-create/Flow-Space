@@ -155,8 +155,8 @@ app.use(cors({
 origin: [
     "https://flow-space-1.onrender.com",
     "https://flow-space.onrender.com",
-    "http://localhost:3000",
-    "http://localhost:8080"
+    /^http:\/\/localhost:\d+$/,
+    /^http:\/\/127\.0\.0\.1:\d+$/
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -9480,7 +9480,7 @@ app.get('/api/v1/test-deployment', (req, res) => {
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);
-const io = require('socket.io')(server, {
+const io = new SocketIOServer(server, {
   cors: {
     origin: [
       /^http:\/\/localhost:\d+$/,
@@ -9488,11 +9488,6 @@ const io = require('socket.io')(server, {
     ],
     credentials: true
   }
-});
-
-// Add semicolon to close the database initialization section
-server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
 });
 
 // ============================================================

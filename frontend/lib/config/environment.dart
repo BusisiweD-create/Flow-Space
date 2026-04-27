@@ -8,7 +8,7 @@ class Environment {
   // API Configuration (supports --dart-define=API_BASE_URL=...)
   static const String _apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000/api/v1',
+    defaultValue: 'http://localhost:3001/api/v1',
   );
 
   // Production fallback detection
@@ -22,7 +22,7 @@ class Environment {
     if (isRenderDeployed) {
       return 'https://flow-space.onrender.com/api/v1';
     }
-    return 'http://localhost:8000/api/v1';
+    return 'http://localhost:3001/api/v1';
   }
 
   // Base URL without version for endpoints that already include version
