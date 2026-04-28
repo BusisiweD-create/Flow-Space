@@ -774,6 +774,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       child: Image.asset(
         assetPath,
         fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(
+            Icons.image_not_supported_outlined,
+            size: size,
+            color: FlownetColors.crimsonRed,
+          );
+        },
       ),
     );
   }
@@ -1660,7 +1667,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             children: [
               Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
               const Spacer(),
-              _buildStandaloneAssetIcon(assetPath, size: 42),
+              _buildStandaloneAssetIcon(assetPath, size: 38),
             ],
           ),
         ],
