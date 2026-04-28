@@ -578,6 +578,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final headerTextColor = isDarkMode ? Colors.white : Colors.black;
     final isTeamMember = _currentUser!.role == UserRole.teamMember;
+    final hideTopBanner = _currentUser!.role == UserRole.deliveryLead ||
+        _currentUser!.role == UserRole.projectManager;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -586,126 +588,103 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         overlayOpacity: 0.25,
         child: Column(
           children: [
-            // Role header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Row(
-                children: [
-                  if (isTeamMember) ...[
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            '${_currentUser!.role.displayName} Dashboard',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: headerTextColor,
+            if (!hideTopBanner)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Row(
+                  children: [
+                    if (isTeamMember) ...[
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Text(
+                              '${_currentUser!.role.displayName} Dashboard',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: headerTextColor,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 14),
-                          Text(
-                            'Hello, ${_currentUser!.name}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: headerTextColor,
+                            const SizedBox(width: 14),
+                            Text(
+                              'Hello, ${_currentUser!.name}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: headerTextColor,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _buildTeamHeaderIconButton(
-                      icon: Icons.mail_outline,
-                      onTap: () => context.go('/notifications'),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildTeamHeaderIconButton(
-                      icon: Icons.notifications_none,
-                      onTap: () => context.go('/notifications'),
-                    ),
-                  ] else ...[
-                    const SizedBox(width: 48),
-                    Expanded(
-                      child: Text(
-                        '${_currentUser!.role.displayName} Dashboard',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: headerTextColor,
+                          ],
                         ),
                       ),
-                    ),
-                    Builder(
-                      builder: (context) => PopupMenuButton<String>(
-                        icon: Icon(Icons.menu, color: headerTextColor),
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'profile':
-                              context.go('/profile');
-                              break;
-                            case 'notifications':
-                              context.go('/notifications');
-                              break;
-                            case 'settings':
-                              context.go('/settings');
-                              break;
-                            case 'logout':
-                              _handleLogout();
-                              break;
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'profile',
-                            child: Row(
-                              children: [
-                                Icon(Icons.person),
-                                SizedBox(width: 8),
-                                Text('Profile'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'notifications',
-                            child: Row(
-                              children: [
-                                Icon(Icons.notifications),
-                                SizedBox(width: 8),
-                                Text('Notifications'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'settings',
-                            child: Row(
-                              children: [
-                                Icon(Icons.settings),
-                                SizedBox(width: 8),
-                                Text('Settings'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'logout',
-                            child: Row(
-                              children: [
-                                Icon(Icons.logout),
-                                SizedBox(width: 8),
-                                Text('Logout'),
-                              ],
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      _buildTeamHeaderIconButton(
+                        icon: Icons.mail_outline,
+                        onTap: () => context.go('/notifications'),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      _buildTeamHeaderIconButton(
+                        icon: Icons.notifications_none,
+                        onTap: () => context.go('/notifications'),
+                      ),
+                    ] else ...[
+                      const SizedBox(width: 48),
+                      Expanded(
+                        child: Text(
+                          '${_currentUser!.role.displayName} Dashboard',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: headerTextColor,
+                          ),
+                        ),
+                      ),
+                      Builder(
+                        builder: (context) => PopupMenuButton<String>(
+                          icon: Icon(Icons.menu, color: headerTextColor),
+                          onSelected: (value) {
+                            switch (value) {
+                              case 'profile':
+                                context.go('/profile');
+                                break;
+                              case 'notifications':
+                                context.go('/notifications');
+                                break;
+                              case 'settings':
+                                context.go('/settings');
+                                break;
+                              case 'logout':
+                                _handleLogout();
+                                break;
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'profile',
+                              child: Text('Profile'),
+                            ),
+                            PopupMenuItem(
+                              value: 'notifications',
+                              child: Text('Notifications'),
+                            ),
+                            PopupMenuItem(
+                              value: 'settings',
+                              child: Text('Settings'),
+                            ),
+                            PopupMenuItem(
+                              value: 'logout',
+                              child: Text('Logout'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
             // Main content
             Expanded(
               child: _buildRoleSpecificContent(),
@@ -1452,6 +1431,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             ],
           ),
         ),
+        _buildTeamHeaderIconButton(
+          icon: Icons.smart_toy_outlined,
+          onTap: () => context.go('/ai-assistant'),
+        ),
+        const SizedBox(width: 8),
         _buildTeamHeaderIconButton(
           icon: Icons.mail_outline,
           onTap: () => context.go('/notifications'),

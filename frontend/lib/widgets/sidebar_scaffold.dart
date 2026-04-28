@@ -40,9 +40,11 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
 
   List<_NavItem> get _navItems {
     final authService = AuthService();
-    final userRole = authService.currentUser?.role.toString().toLowerCase() ?? '';
+    final userRole =
+        authService.currentUser?.role.toString().toLowerCase() ?? '';
 
-    final isAdminLike = userRole.contains('admin') || userRole.contains('system');
+    final isAdminLike =
+        userRole.contains('admin') || userRole.contains('system');
     if (isAdminLike) {
       // Match the new system admin sidebar layout and ordering.
       return const [
@@ -99,6 +101,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           icon: Icons.admin_panel_settings_outlined,
           iconName: 'role_management',
           route: '/role-management',
+        ),
+        _NavItem(
+          label: 'FlowPilot',
+          icon: Icons.smart_toy_outlined,
+          iconName: 'ai_assistant',
+          route: '/ai-assistant',
         ),
       ];
     }
@@ -212,6 +220,12 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       // Special flag: hide from sidebar even if user has permission
       if (item.requiredPermission == 'HIDE_FROM_SIDEBAR') return false;
 
+      // Delivery/Project managers access FlowPilot from the dashboard header, not sidebar
+      if ((userRole.contains('delivery') || userRole.contains('project')) &&
+          item.label == 'FlowPilot') {
+        return false;
+      }
+
       // Client users should not see Projects and Deliverables
       if (userRole.contains('client') &&
           (item.label == 'Projects' || item.label == 'Deliverables')) {
@@ -243,8 +257,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       routeLocation = ModalRoute.of(context)?.settings.name ?? '/';
     }
     final isDesktop = MediaQuery.of(context).size.width > 768;
-    final useWelcomeBackground =
-        routeLocation == '/' || routeLocation == '/login' || routeLocation == '/register';
+    final useWelcomeBackground = routeLocation == '/' ||
+        routeLocation == '/login' ||
+        routeLocation == '/register';
     final String? backgroundImagePath =
         useWelcomeBackground ? 'assets/images/khono_bg.png' : null;
     const bool backgroundWithGradient = true;
@@ -292,8 +307,9 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           withGradient: backgroundWithGradient,
           child: widget.child,
         ),
-        floatingActionButton:
-            routeLocation == '/dashboard' ? null : _buildThemeToggleButton(isDarkMode),
+        floatingActionButton: routeLocation == '/dashboard'
+            ? null
+            : _buildThemeToggleButton(isDarkMode),
         drawer: Drawer(
           backgroundColor: sidebarColor,
           child: Column(
@@ -361,7 +377,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
       itemBuilder: (context, index) {
         final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final sidebarTextColor = isDarkMode ? Colors.white : Colors.black;
-        final sidebarSubtleText = isDarkMode ? FlownetColors.textSecondary : Colors.black87;
+        final sidebarSubtleText =
+            isDarkMode ? FlownetColors.textSecondary : Colors.black87;
         final item = _navItems[index];
         final active = routeLocation.startsWith(item.route);
 
@@ -629,7 +646,8 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
             .read(themeProvider.notifier)
             .toggleTheme();
       },
-      backgroundColor: isDarkMode ? FlownetColors.surface : FlownetColors.pureWhite,
+      backgroundColor:
+          isDarkMode ? FlownetColors.surface : FlownetColors.pureWhite,
       foregroundColor: isDarkMode ? Colors.white : Colors.black,
       child: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
     );
@@ -641,5 +659,4 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
     if (!mounted) return;
     router.go('/');
   }
-
 }
