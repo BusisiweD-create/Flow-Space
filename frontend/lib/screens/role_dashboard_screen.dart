@@ -1435,7 +1435,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           icon: Icons.smart_toy_outlined,
           onTap: () => context.go('/ai-assistant'),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 14),
         _buildTeamHeaderIconButton(
           icon: Icons.mail_outline,
           onTap: () => context.go('/notifications'),
@@ -2574,15 +2574,29 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           ),
           const SizedBox(width: 8),
           FloatingActionButton.small(
+            heroTag: 'dashboard-chatbot-mini',
+            onPressed: () => context.go('/ai-assistant'),
+            backgroundColor: isDarkMode
+                ? FlownetColors.sidebarDark
+                : FlownetColors.sidebarLight,
+            child: Image.asset(
+              'assets/Icons/Chatbot_Red.png',
+              width: 18,
+              height: 18,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(Icons.smart_toy_outlined, size: 18);
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          FloatingActionButton.small(
             heroTag: 'dashboard-action-mini',
             onPressed: _handleRoleActionTap,
             backgroundColor: _currentUser?.roleColor ??
                 Theme.of(context).colorScheme.primary,
             foregroundColor: Colors.white,
-            child: _buildStandaloneAssetIcon(
-              'assets/Icons/Chatbot_Red.png',
-              size: 20,
-            ),
+            child: const Icon(Icons.add),
           ),
           const SizedBox(width: 8),
         ],
