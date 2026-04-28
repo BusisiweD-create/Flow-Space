@@ -859,7 +859,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(flex: 3, child: _buildTeamDeliverablesPanel()),
+                            Expanded(
+                                flex: 3, child: _buildTeamDeliverablesPanel()),
                             const SizedBox(width: 10),
                             Expanded(flex: 2, child: _buildTeamProjectsPanel()),
                           ],
@@ -933,7 +934,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Quick Actions', style: _dashboardTextStyle(size: compact ? 20 : 22, weight: FontWeight.w700)),
+                Text('Quick Actions',
+                    style: _dashboardTextStyle(
+                        size: compact ? 20 : 22, weight: FontWeight.w700)),
                 Text(
                   'Dream BIG, work hard and stay focused - make it a productive day!',
                   style: _dashboardTextStyle(size: 11, weight: FontWeight.w500),
@@ -947,11 +950,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             spacing: 8,
             runSpacing: 6,
             children: [
-              _buildTeamPillButton('CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
-              _buildTeamPillButton('VIEW PROJECTS', () => context.go('/projects')),
+              _buildTeamPillButton(
+                  'CREATE DELIVERABLE', () => context.go('/deliverable-setup')),
+              _buildTeamPillButton(
+                  'VIEW PROJECTS', () => context.go('/projects')),
               _buildTeamPillButton('BUILD REPORT', () {
-                final first = _dashboardDeliverables.isNotEmpty ? _dashboardDeliverables.first : null;
-                final sprintId = first != null ? _extractFirstSprintId(first) : null;
+                final first = _dashboardDeliverables.isNotEmpty
+                    ? _dashboardDeliverables.first
+                    : null;
+                final sprintId =
+                    first != null ? _extractFirstSprintId(first) : null;
                 if (sprintId != null && sprintId.isNotEmpty) {
                   context.go('/sprint-report/$sprintId');
                   return;
@@ -967,19 +975,24 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
 
   Widget _buildTeamReviewMetricsCards({bool compact = false}) {
     final cards = [
-      _buildTeamMetricCard('Submitted', '${_clientReviewMetrics['submitted'] ?? 0}', Icons.send_outlined),
-      _buildTeamMetricCard('Approved', '${_clientReviewMetrics['approved'] ?? 0}', Icons.check_circle_outline),
-      _buildTeamMetricCard('Changes Requested', '${_clientReviewMetrics['changes'] ?? 0}', Icons.error_outline),
-      _buildTeamMetricCard('Rejected', '${_clientReviewMetrics['rejected'] ?? 0}', Icons.close),
-      _buildTeamMetricCard('Average Review Time', '${_clientReviewMetrics['avg_review_time'] ?? '-'}', Icons.av_timer),
+      _buildTeamMetricCard('Submitted',
+          '${_clientReviewMetrics['submitted'] ?? 0}', Icons.send_outlined),
+      _buildTeamMetricCard(
+          'Approved',
+          '${_clientReviewMetrics['approved'] ?? 0}',
+          Icons.check_circle_outline),
+      _buildTeamMetricCard('Changes Requested',
+          '${_clientReviewMetrics['changes'] ?? 0}', Icons.error_outline),
+      _buildTeamMetricCard(
+          'Rejected', '${_clientReviewMetrics['rejected'] ?? 0}', Icons.close),
+      _buildTeamMetricCard('Average Review Time',
+          '${_clientReviewMetrics['avg_review_time'] ?? '-'}', Icons.av_timer),
     ];
     if (compact) {
       return Wrap(
         spacing: 10,
         runSpacing: 10,
-        children: cards
-            .map((c) => SizedBox(width: 240, child: c))
-            .toList(),
+        children: cards.map((c) => SizedBox(width: 240, child: c)).toList(),
       );
     }
     return Row(
@@ -1002,12 +1015,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-          Text('Additional description information to include.', style: _dashboardTextStyle(size: 11)),
+          Text(title,
+              style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
+          Text('Additional description information to include.',
+              style: _dashboardTextStyle(size: 11)),
           const SizedBox(height: 6),
           Row(
             children: [
-              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              Text(value,
+                  style:
+                      _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
               const Spacer(),
               _buildTeamRoundIcon(icon, size: 16),
             ],
@@ -1029,15 +1046,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       final filter = _selectedTeamFilter!;
       if (filter == 'HIGH PRIORITY') {
         myDeliverables = myDeliverables
-            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'high')
+            .where(
+                (d) => (d['priority'] ?? '').toString().toLowerCase() == 'high')
             .toList();
       } else if (filter == 'MEDIUM PRIORITY') {
         myDeliverables = myDeliverables
-            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'medium')
+            .where((d) =>
+                (d['priority'] ?? '').toString().toLowerCase() == 'medium')
             .toList();
       } else if (filter == 'LOW PRIORITY') {
         myDeliverables = myDeliverables
-            .where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'low')
+            .where(
+                (d) => (d['priority'] ?? '').toString().toLowerCase() == 'low')
             .toList();
       }
     }
@@ -1059,14 +1079,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Deliverables Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
+                    Text('Deliverables Overview',
+                        style: _dashboardTextStyle(
+                            size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.',
+                        style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
               ),
               _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
-              Text('${myDeliverables.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              Text('${myDeliverables.length}',
+                  style:
+                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1090,24 +1115,37 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             Text('No deliverables yet', style: _dashboardTextStyle())
           else
             ...myDeliverables.take(6).map((d) {
-              final title = (d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Document Name').toString();
-              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
-              final shortDue = due.isNotEmpty && due.length >= 10 ? due.substring(0, 10) : due;
+              final title = (d['title'] ??
+                      d['name'] ??
+                      d['deliverableName'] ??
+                      'Document Name')
+                  .toString();
+              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '')
+                  .toString();
+              final shortDue = due.isNotEmpty && due.length >= 10
+                  ? due.substring(0, 10)
+                  : due;
               final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
-              final priority = (d['priority'] ?? 'medium').toString().toLowerCase();
+              final priority =
+                  (d['priority'] ?? 'medium').toString().toLowerCase();
               final status = (d['status'] ?? '').toString();
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
                     Icon(
-                      status.toLowerCase() == 'completed' ? Icons.check_box : Icons.check_box_outline_blank,
+                      status.toLowerCase() == 'completed'
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
                       size: 16,
-                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('$title - Draft Description', style: _dashboardTextStyle(size: 12)),
+                      child: Text('$title - Draft Description',
+                          style: _dashboardTextStyle(size: 12)),
                     ),
                     if (shortDue.isNotEmpty)
                       Text(shortDue, style: _dashboardTextStyle(size: 11)),
@@ -1148,14 +1186,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Projects Overview', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-                    Text('Additional description can be included.', style: _dashboardTextStyle(size: 11)),
+                    Text('Projects Overview',
+                        style: _dashboardTextStyle(
+                            size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included.',
+                        style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
               ),
               _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
-              Text('${_dashboardProjects.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              Text('${_dashboardProjects.length}',
+                  style:
+                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1172,12 +1215,20 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: InkWell(
-                  onTap: id.isNotEmpty ? () => context.go('/project-workspace/$id') : null,
+                  onTap: id.isNotEmpty
+                      ? () => context.go('/project-workspace/$id')
+                      : null,
                   child: Row(
                     children: [
-                      Icon(Icons.check_box, size: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                      Icon(Icons.check_box,
+                          size: 16,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(name, style: _dashboardTextStyle(size: 12))),
+                      Expanded(
+                          child:
+                              Text(name, style: _dashboardTextStyle(size: 12))),
                     ],
                   ),
                 ),
@@ -1214,14 +1265,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Recent Activities', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-                    Text('Additional description can be included if required.', style: _dashboardTextStyle(size: 11)),
+                    Text('Recent Activities',
+                        style: _dashboardTextStyle(
+                            size: 20, weight: FontWeight.w700)),
+                    Text('Additional description can be included if required.',
+                        style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
               ),
               _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
-              Text('${my.length}', style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              Text('${my.length}',
+                  style:
+                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1235,7 +1291,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             Text('No Recent Activity.', style: _dashboardTextStyle())
           else
             ...my.take(5).map((a) {
-              final action = (a['action'] ?? a['event'] ?? a['type'] ?? 'Activity').toString();
+              final action =
+                  (a['action'] ?? a['event'] ?? a['type'] ?? 'Activity')
+                      .toString();
               final actor = (a['actor'] ?? a['user'] ?? '').toString();
               final text = actor.isNotEmpty ? '$action • $actor' : action;
               return Padding(
@@ -1257,9 +1315,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           backgroundColor: FlownetColors.primary,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700)),
+        child: Text(label,
+            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700)),
       ),
     );
   }
@@ -1267,7 +1327,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildTeamMiniFilter(String label) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDarkMode ? Colors.white : Colors.black;
-    final bool isActive = _selectedTeamFilter == label || _hoveredTeamFilter == label;
+    final bool isActive =
+        _selectedTeamFilter == label || _hoveredTeamFilter == label;
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredTeamFilter = label),
       onExit: (_) => setState(() => _hoveredTeamFilter = null),
@@ -1440,9 +1501,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             spacing: 8,
             runSpacing: 6,
             children: [
-              _buildTeamPillButton('SEND REMINDER', () => context.go('/send-reminder')),
-              _buildTeamPillButton('TRIGGER ESCALATION', () => context.go('/send-reminder')),
-              _buildTeamPillButton('DELIVERABLES OVERVIEW', () => context.go('/deliverables-overview')),
+              _buildTeamPillButton(
+                  'SEND REMINDER', () => context.go('/send-reminder')),
+              _buildTeamPillButton(
+                  'TRIGGER ESCALATION', () => context.go('/send-reminder')),
+              _buildTeamPillButton('DELIVERABLES OVERVIEW',
+                  () => context.go('/deliverables-overview')),
             ],
           ),
         ],
@@ -1450,7 +1514,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildDeliveryLeadMetricCard(String title, String value, IconData icon) {
+  Widget _buildDeliveryLeadMetricCard(
+      String title, String value, IconData icon) {
     return Container(
       decoration: BoxDecoration(
         color: _dashboardSurfaceColor(),
@@ -1460,12 +1525,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
-          Text('Additional detail if required.', style: _dashboardTextStyle(size: 11)),
+          Text(title,
+              style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+          Text('Additional detail if required.',
+              style: _dashboardTextStyle(size: 11)),
           const SizedBox(height: 6),
           Row(
             children: [
-              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              Text(value,
+                  style:
+                      _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
               const Spacer(),
               _buildTeamRoundIcon(icon, size: 16),
             ],
@@ -1529,7 +1598,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         inProgress++;
       }
       if (!isCompleted) {
-        final rawDue = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
+        final rawDue =
+            (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
         DateTime? due;
         if (rawDue.isNotEmpty) {
           try {
@@ -1559,14 +1629,26 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final completionRate = total > 0 ? ((completed / total) * 100).round() : 0;
 
     final cards = [
-      _buildDeliveryLeadMetricAssetCard('Deliverables', '$total', 'assets/Icons/deliverables_kpi_icon.png'),
-      _buildDeliveryLeadMetricAssetCard('In Progress', '$inProgress', 'assets/Icons/progress_kpi_icon.png'),
-      _buildDeliveryLeadMetricAssetCard('Completed', '$completed', 'assets/Icons/completed_kpi_icon.png'),
-      _buildDeliveryLeadMetricAssetCard('Overdue', '$overdue', 'assets/Icons/overdue_kpi_icon.png'),
-      _buildDeliveryLeadMetricAssetCard('Active Sprints', '${_dashboardSprints.length}', 'assets/Icons/active_sprints_kpi_icon.png'),
-      _buildDeliveryLeadMetricAssetCard('Active Projects', '${_dashboardProjects.length}', 'assets/Icons/active_projects_kpi_icon.png'),
-      _buildDeliveryLeadMetricAssetCard('Pending Reviews', '$pendingReviews', 'assets/Icons/review_kpi_icon.png'),
-      _buildDeliveryLeadMetricAssetCard('Completion Rate', '$completionRate%', 'assets/Icons/completion_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard(
+          'Deliverables', '$total', 'assets/Icons/deliverables_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard(
+          'In Progress', '$inProgress', 'assets/Icons/progress_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard(
+          'Completed', '$completed', 'assets/Icons/completed_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard(
+          'Overdue', '$overdue', 'assets/Icons/overdue_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard(
+          'Active Sprints',
+          '${_dashboardSprints.length}',
+          'assets/Icons/active_sprints_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard(
+          'Active Projects',
+          '${_dashboardProjects.length}',
+          'assets/Icons/active_projects_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Pending Reviews', '$pendingReviews',
+          'assets/Icons/review_kpi_icon.png'),
+      _buildDeliveryLeadMetricAssetCard('Completion Rate', '$completionRate%',
+          'assets/Icons/completion_kpi_icon.png'),
     ];
 
     if (compact) {
@@ -1625,8 +1707,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Revenue Forecast', style: _dashboardTextStyle(size: 20, weight: FontWeight.w700)),
-                    Text('Projected vs Actual Revenue', style: _dashboardTextStyle(size: 11)),
+                    Text('Revenue Forecast',
+                        style: _dashboardTextStyle(
+                            size: 20, weight: FontWeight.w700)),
+                    Text('Projected vs Actual Revenue',
+                        style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
               ),
@@ -1661,13 +1746,16 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+          Text(title,
+              style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
           Text('Additional description information to include.',
               style: _dashboardTextStyle(size: 10, weight: FontWeight.w500)),
           const SizedBox(height: 8),
           Row(
             children: [
-              Text(value, style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+              Text(value,
+                  style:
+                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
               const Spacer(),
               _buildStandaloneAssetIcon(assetPath, size: 38),
             ],
@@ -1677,7 +1765,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
-  Widget _buildDeliveryLeadMetricAssetCard(String title, String value, String assetPath) {
+  Widget _buildDeliveryLeadMetricAssetCard(
+      String title, String value, String assetPath) {
     return Container(
       decoration: BoxDecoration(
         color: _dashboardSurfaceColor(),
@@ -1687,19 +1776,18 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
-          Text('Additional detail if required.', style: _dashboardTextStyle(size: 11)),
+          Text(title,
+              style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+          Text('Additional detail if required.',
+              style: _dashboardTextStyle(size: 11)),
           const SizedBox(height: 6),
           Row(
             children: [
-              Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
+              Text(value,
+                  style:
+                      _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
               const Spacer(),
-              _buildTeamRoundAssetIcon(
-                assetPath,
-                diameter: 34,
-                size: 18,
-                padding: 6,
-              ),
+              _buildStandaloneAssetIcon(assetPath, size: 38),
             ],
           ),
         ],
@@ -1710,18 +1798,34 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildDeliveryLeadVelocitySection({required bool compact}) {
     final total = _dashboardDeliverables.length;
     final completed = _dashboardDeliverables
-        .where((d) => (d['status'] ?? '').toString().toLowerCase() == 'completed')
+        .where(
+            (d) => (d['status'] ?? '').toString().toLowerCase() == 'completed')
         .length;
     final planned = total;
     final carryOver = (planned - completed) < 0 ? 0 : (planned - completed);
     final avgVelocity = planned > 0 ? ((completed / planned) * 100).round() : 0;
 
     final cards = [
-      _buildDeliveryLeadKpiCard(title: 'Average Velocity', value: '$avgVelocity%', assetPath: 'assets/Icons/completion_kpi_icon.png'),
-      _buildDeliveryLeadKpiCard(title: 'Planned', value: '$planned', assetPath: 'assets/Icons/progress_kpi_icon.png'),
-      _buildDeliveryLeadKpiCard(title: 'Completed', value: '$completed', assetPath: 'assets/Icons/completed_kpi_icon.png'),
-      _buildDeliveryLeadKpiCard(title: 'Carry Over', value: '$carryOver', assetPath: 'assets/Icons/overdue_kpi_icon.png'),
-      _buildDeliveryLeadKpiCard(title: 'Defects', value: '0', assetPath: 'assets/Icons/review_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(
+          title: 'Average Velocity',
+          value: '$avgVelocity%',
+          assetPath: 'assets/Icons/completion_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(
+          title: 'Planned',
+          value: '$planned',
+          assetPath: 'assets/Icons/progress_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(
+          title: 'Completed',
+          value: '$completed',
+          assetPath: 'assets/Icons/completed_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(
+          title: 'Carry Over',
+          value: '$carryOver',
+          assetPath: 'assets/Icons/overdue_kpi_icon.png'),
+      _buildDeliveryLeadKpiCard(
+          title: 'Defects',
+          value: '0',
+          assetPath: 'assets/Icons/review_kpi_icon.png'),
     ];
 
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -1813,9 +1917,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(flex: 3, child: _buildAdminDeliverablesPanel()),
+                            Expanded(
+                                flex: 3, child: _buildAdminDeliverablesPanel()),
                             const SizedBox(width: 12),
-                            Expanded(flex: 2, child: _buildAdminProjectsPanel()),
+                            Expanded(
+                                flex: 2, child: _buildAdminProjectsPanel()),
                           ],
                         ),
                   const SizedBox(height: 12),
@@ -1950,7 +2056,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             spacing: 8,
             runSpacing: 6,
             children: [
-              _buildTeamPillButton('SEND REMINDER', () => context.push('/send-reminder')),
+              _buildTeamPillButton(
+                  'SEND REMINDER', () => context.push('/send-reminder')),
               _buildTeamPillButton('TRIGGER ESCALATION', _triggerEscalation),
               _buildTeamPillButton('DELIVERABLES OVERVIEW', () {
                 Navigator.push(
@@ -1986,7 +2093,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Quick Actions',
-                      style: _dashboardTextStyle(size: 28, weight: FontWeight.w700)),
+                      style: _dashboardTextStyle(
+                          size: 28, weight: FontWeight.w700)),
                   Text('Additional description can be included if required.',
                       style: _dashboardTextStyle(size: 11)),
                 ],
@@ -2039,7 +2147,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: FlownetColors.primary),
-          color: label == 'Audit Logs' ? FlownetColors.primary : Colors.transparent,
+          color: label == 'Audit Logs'
+              ? FlownetColors.primary
+              : Colors.transparent,
         ),
         child: Column(
           children: [
@@ -2048,11 +2158,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             Text(
               label,
               textAlign: TextAlign.center,
-              style: _dashboardTextStyle(size: 12, weight: FontWeight.w700).copyWith(
-                    color: label == 'Audit Logs'
-                        ? Colors.white
-                        : _dashboardTextStyle().color,
-                  ),
+              style: _dashboardTextStyle(size: 12, weight: FontWeight.w700)
+                  .copyWith(
+                color: label == 'Audit Logs'
+                    ? Colors.white
+                    : _dashboardTextStyle().color,
+              ),
             ),
           ],
         ),
@@ -2061,17 +2172,27 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   }
 
   Widget _buildAdminDeliverablesPanel() {
-    List<Map<String, dynamic>> items = List<Map<String, dynamic>>.from(_dashboardDeliverables);
+    List<Map<String, dynamic>> items =
+        List<Map<String, dynamic>>.from(_dashboardDeliverables);
     if (_selectedAdminFilter != null) {
       switch (_selectedAdminFilter) {
         case 'HIGH PRIORITY':
-          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'high').toList();
+          items = items
+              .where((d) =>
+                  (d['priority'] ?? '').toString().toLowerCase() == 'high')
+              .toList();
           break;
         case 'MEDIUM PRIORITY':
-          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'medium').toList();
+          items = items
+              .where((d) =>
+                  (d['priority'] ?? '').toString().toLowerCase() == 'medium')
+              .toList();
           break;
         case 'LOW PRIORITY':
-          items = items.where((d) => (d['priority'] ?? '').toString().toLowerCase() == 'low').toList();
+          items = items
+              .where((d) =>
+                  (d['priority'] ?? '').toString().toLowerCase() == 'low')
+              .toList();
           break;
       }
     }
@@ -2094,7 +2215,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Deliverables Overview',
-                        style: _dashboardTextStyle(size: 28, weight: FontWeight.w700)),
+                        style: _dashboardTextStyle(
+                            size: 28, weight: FontWeight.w700)),
                     Text('Additional description can be included if required.',
                         style: _dashboardTextStyle(size: 11)),
                   ],
@@ -2103,7 +2225,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
               Text('${items.length}',
-                  style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+                  style:
+                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 8),
@@ -2127,20 +2250,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             Text('No deliverables yet', style: _dashboardTextStyle())
           else
             ...items.take(8).map((d) {
-              final title =
-                  (d['title'] ?? d['name'] ?? d['deliverableName'] ?? 'Document Name').toString();
-              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '').toString();
-              final shortDue = due.isNotEmpty && due.length >= 10 ? due.substring(0, 10) : due;
+              final title = (d['title'] ??
+                      d['name'] ??
+                      d['deliverableName'] ??
+                      'Document Name')
+                  .toString();
+              final due = (d['due_date'] ?? d['dueDate'] ?? d['deadline'] ?? '')
+                  .toString();
+              final shortDue = due.isNotEmpty && due.length >= 10
+                  ? due.substring(0, 10)
+                  : due;
               final id = (d['id']?.toString() ?? d['uuid']?.toString() ?? '');
-              final priority = (d['priority'] ?? 'medium').toString().toLowerCase();
+              final priority =
+                  (d['priority'] ?? 'medium').toString().toLowerCase();
               final status = (d['status'] ?? '').toString().toLowerCase();
-              final isCompleted = status == 'completed' || status == 'approved' || status == 'signed_off';
+              final isCompleted = status == 'completed' ||
+                  status == 'approved' ||
+                  status == 'signed_off';
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
                     Icon(
-                      isCompleted ? Icons.check_box : Icons.check_box_outline_blank,
+                      isCompleted
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
                       size: 16,
                       color: Theme.of(context).brightness == Brightness.dark
                           ? Colors.white
@@ -2191,7 +2325,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Projects Overview',
-                        style: _dashboardTextStyle(size: 28, weight: FontWeight.w700)),
+                        style: _dashboardTextStyle(
+                            size: 28, weight: FontWeight.w700)),
                     Text('Additional description can be included.',
                         style: _dashboardTextStyle(size: 11)),
                   ],
@@ -2200,7 +2335,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               _buildTeamRoundIcon(Icons.notifications_none, size: 16),
               const SizedBox(width: 6),
               Text('${_dashboardProjects.length}',
-                  style: _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
+                  style:
+                      _dashboardTextStyle(size: 16, weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 8),
@@ -2215,11 +2351,14 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               final name = (p['name'] ?? 'Project').toString();
               final id = (p['id'] ?? '').toString();
               final description =
-                  (p['description'] ?? 'Completed ${name.toLowerCase()}').toString();
+                  (p['description'] ?? 'Completed ${name.toLowerCase()}')
+                      .toString();
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: InkWell(
-                  onTap: id.isNotEmpty ? () => context.go('/project-workspace/$id') : null,
+                  onTap: id.isNotEmpty
+                      ? () => context.go('/project-workspace/$id')
+                      : null,
                   child: Row(
                     children: [
                       Icon(Icons.check_box,
@@ -2248,7 +2387,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
   Widget _buildAdminMiniFilter(String label) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDarkMode ? Colors.white : Colors.black;
-    final bool isActive = _selectedAdminFilter == label || _hoveredAdminFilter == label;
+    final bool isActive =
+        _selectedAdminFilter == label || _hoveredAdminFilter == label;
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredAdminFilter = label),
       onExit: (_) => setState(() => _hoveredAdminFilter = null),
@@ -2439,8 +2579,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           FloatingActionButton.small(
             heroTag: 'dashboard-action-mini',
             onPressed: _handleRoleActionTap,
-            backgroundColor:
-                _currentUser?.roleColor ?? Theme.of(context).colorScheme.primary,
+            backgroundColor: _currentUser?.roleColor ??
+                Theme.of(context).colorScheme.primary,
             foregroundColor: Colors.white,
             child: const Icon(Icons.add),
           ),
@@ -3393,8 +3533,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     (r['created_at'] ?? r['createdAt'] ?? r['created'] ?? '')
                         .toString();
                 final ts = createdAtStr.isNotEmpty
-                    ? app_date_utils.DateUtils
-                        .formatDatabaseTimestampWithTime(createdAtStr)
+                    ? app_date_utils.DateUtils.formatDatabaseTimestampWithTime(
+                        createdAtStr)
                     : '';
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -3825,7 +3965,8 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         }));
 
         // Overwrite UUID fields with resolved display names so UI never shows IDs.
-        String resolve(String id) => resolvedNames[id] ?? UserLabelUtils.unknownUserLabel;
+        String resolve(String id) =>
+            resolvedNames[id] ?? UserLabelUtils.unknownUserLabel;
 
         for (final m in pending) {
           void replaceIfUuid(Map<String, dynamic> map, String key) {
