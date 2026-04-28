@@ -14,7 +14,7 @@ class WelcomeScreen extends StatelessWidget {
           // Background image
           Positioned.fill(
             child: Image.asset(
-              'assets/images/khono_bg.png',
+              'Icons/khono_bg.png',
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return Container(color: const Color(0xFF0D0F14));
@@ -43,7 +43,7 @@ class WelcomeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
-                      'assets/khono_logo.png',
+                      'khono_logo.png',
                       width: 360,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
@@ -130,7 +130,7 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 64),
                     Image.asset(
-                      'assets/white_discs.png',
+                      'white_discs.png',
                       width: 120,
                       height: 44,
                       fit: BoxFit.contain,

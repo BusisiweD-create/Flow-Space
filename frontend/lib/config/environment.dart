@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_single_quotes
-
 class Environment {
   // App Configuration
   static const String appName = 'Khonology';
@@ -24,8 +22,7 @@ class Environment {
     if (isRenderDeployed) {
       return "https://backend-532p.onrender.com/api/v1";
     }
-
-    return _apiBaseUrl;
+    return 'http://localhost:3001/api/v1';
   }
 
   // Base URL without version for endpoints that already include version

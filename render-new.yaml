@@ -19,7 +19,7 @@ services:
         value: 10000
     healthCheckPath: /health
 
-  # Flutter Frontend - Docker Deployment
+  # Flutter Frontend - Fresh Service Name
   - type: web
     name: flow-space-frontend
     env: docker

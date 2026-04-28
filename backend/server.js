@@ -150,12 +150,13 @@ console.log('Email service temporarily disabled - configure SENDGRID_API_KEY to 
 const app = express();
 
 // Middleware - Configure CORS for Flutter Web
+// Allow all origins for local development
 app.use(cors({
-  origin: [
+origin: [
     "https://flow-space-1.onrender.com",
     "https://flow-space.onrender.com",
-    "http://localhost:3000",
-    "http://localhost:8080"
+    /^http:\/\/localhost:\d+$/,
+    /^http:\/\/127\.0\.0\.1:\d+$/
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -1151,12 +1152,10 @@ app.post('/api/v1/auth/login', async (req, res) => {
       let userRole = 'teamMember'; // default
       if (normalizedEmail.includes('admin') || normalizedEmail.includes('system')) {
         userRole = 'systemAdmin';
-      } else if (normalizedEmail.includes('lead') || normalizedEmail.includes('manager')) {
-        userRole = 'deliveryLead';
-      } else if (normalizedEmail.includes('client') || normalizedEmail.includes('customer')) {
-        userRole = 'clientUser';
       } else if (normalizedEmail.includes('approver') || normalizedEmail.includes('reviewer')) {
         userRole = 'internalApprover';
+      } else if (email.includes('project') || email.includes('pm')) {
+        userRole = 'projectManager';
       }
       
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -9477,11 +9476,8 @@ app.get('/api/v1/test-deployment', (req, res) => {
 });
 
 // Start the server
-// Use 3001 in development; respect PORT in production
-const PORT = process.env.NODE_ENV === 'production'
-  ? (parseInt(process.env.PORT, 10) || 3001)
-  : 3001;
-
+// Use PORT from environment variable or default to 3001
+const PORT = parseInt(process.env.PORT, 10) || 3001;
 // Create HTTP server and attach Socket.IO
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
@@ -9491,6 +9487,279 @@ const io = new SocketIOServer(server, {
       /^http:\/\/127\.0\.0\.1:\d+$/
     ],
     credentials: true
+  }
+});
+
+// ============================================================
+// TICKET MANAGEMENT API ENDPOINTS
+// ============================================================
+
+// Create a new ticket
+app.post('/api/v1/tickets', authenticateToken, async (req, res) => {
+  try {
+    const { ticket_key, summary, description, issue_type, priority, assignee, project_id, sprint_id } = req.body;
+    const userId = req.user.id;
+    
+    // Validate required fields
+    if (!ticket_key || !summary || !project_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: ticket_key, summary, project_id'
+      });
+    }
+    
+    // Generate unique ticket key if not provided
+    const finalTicketKey = ticket_key || `TICKET-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    
+    const result = await pool.query(
+      'INSERT INTO tickets (ticket_key, summary, description, issue_type, priority, assignee, reporter, project_id, sprint_id, user_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW()) RETURNING *',
+      [finalTicketKey, summary, description || '', issue_type || 'Task', priority || 'Medium', assignee || null, userId, project_id, sprint_id || null, userId]
+    );
+    
+    // Create timeline event for the ticket
+    if (result.rows.length > 0) {
+      const ticket = result.rows[0];
+      await pool.query(
+        'INSERT INTO timeline_events (id, title, description, type, date, start_time, end_time, project_id, sprint_id, deliverable_id, assigned_to, created_by, created_at, updated_at, metadata, is_completed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), NOW(), $12, $13, $14, $15, $16, NOW(), NOW(), $17, NOW(), $18, $19)',
+        [ticket.ticket_id, ticket.summary, ticket.description, 'task', new Date(), new Date(), new Date(), ticket.project_id, ticket.sprint_id, null, ticket.assignee, userId, userId, {}, false]
+      );
+    }
+    
+    res.json({
+      success: true,
+      message: 'Ticket created successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Create ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create ticket'
+    });
+  }
+});
+
+// Get all tickets (with optional filtering)
+app.get('/api/v1/tickets', authenticateToken, async (req, res) => {
+  try {
+    const { project_id, sprint_id, status, assignee } = req.query;
+    const userId = req.user.id;
+    
+    let query = `
+      SELECT t.*, p.name as project_name, s.name as sprint_name 
+      FROM tickets t 
+      LEFT JOIN projects p ON t.project_id = p.id 
+      LEFT JOIN sprints s ON t.sprint_id = s.id 
+      WHERE t.user_id = $1
+    `;
+    const params = [userId];
+    
+    if (project_id) {
+      query += ' AND t.project_id = $' + (params.length + 1);
+      params.push(project_id);
+    }
+    
+    if (sprint_id) {
+      query += ' AND t.sprint_id = $' + (params.length + 1);
+      params.push(sprint_id);
+    }
+    
+    if (status) {
+      query += ' AND t.status = $' + (params.length + 1);
+      params.push(status);
+    }
+    
+    if (assignee) {
+      query += ' AND t.assignee = $' + (params.length + 1);
+      params.push(assignee);
+    }
+    
+    query += ' ORDER BY t.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get tickets error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch tickets'
+    });
+  }
+});
+
+// Update ticket status
+app.put('/api/v1/tickets/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        error: 'Status is required'
+      });
+    }
+    
+    const result = await pool.query(
+      'UPDATE tickets SET status = $1, updated_at = NOW() WHERE ticket_id = $2 AND user_id = $3 RETURNING *',
+      [status, id, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ticket not found'
+      });
+    }
+    
+    // Update timeline event if ticket is completed
+    if (status === 'Done') {
+      await pool.query(
+        'UPDATE timeline_events SET is_completed = true, updated_at = NOW() WHERE id = $1',
+        [result.rows[0].ticket_id]
+      );
+    }
+    
+    res.json({
+      success: true,
+      message: 'Ticket updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Update ticket error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update ticket'
+    });
+  }
+});
+
+// ============================================================
+// EPIC MANAGEMENT API ENDPOINTS
+// ============================================================
+
+// Create a new epic
+app.post('/api/v1/epics', authenticateToken, async (req, res) => {
+  try {
+    const { epic_key, name, description, color } = req.body;
+    const userId = req.user.id;
+    
+    // Validate required fields
+    if (!epic_key || !name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: epic_key, name'
+      });
+    }
+    
+    // Generate unique epic key if not provided
+    const finalEpicKey = epic_key || `EPIC-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    
+    const result = await pool.query(
+      'INSERT INTO epics (epic_key, name, description, color, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *',
+      [finalEpicKey, name, description || '', color || '#6F42C1', userId, userId]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Epic created successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Create epic error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create epic'
+    });
+  }
+});
+
+// Get all epics
+app.get('/api/v1/epics', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT e.*, COUNT(se.id) as ticket_count FROM epics e LEFT JOIN sprint_epics se ON e.epic_key = se.epic_id LEFT JOIN sprints s ON se.sprint_id = s.id LEFT JOIN tickets se2 ON se2.sprint_id = s.id AND se2.epic_id = e.epic_key WHERE e.created_by = $1 GROUP BY e.epic_key, e.id, e.name, e.description, e.color, e.created_by, e.created_at, e.updated_at ORDER BY e.created_at DESC',
+      [req.user.id]
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get epics error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch epics'
+    });
+  }
+});
+
+// Link epic to sprint
+app.post('/api/v1/epics/:epic_key/sprints/:sprint_id', authenticateToken, async (req, res) => {
+  try {
+    const { epic_key, sprint_id } = req.params;
+    const userId = req.user.id;
+    
+    const result = await pool.query(
+      'INSERT INTO sprint_epics (sprint_id, epic_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (sprint_id, epic_id) DO NOTHING RETURNING *',
+      [sprint_id, epic_key]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Epic linked to sprint successfully'
+    });
+  } catch (error) {
+    console.error('Link epic to sprint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to link epic to sprint'
+    });
+  }
+});
+
+// Get tickets for backlog (Jira board view)
+app.get('/api/v1/backlog', authenticateToken, async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    const userId = req.user.id;
+    
+    let query = `
+      SELECT t.*, p.name as project_name, s.name as sprint_name, s.start_date, s.end_date,
+             CASE WHEN s.end_date < NOW() THEN 'completed'
+                  WHEN s.start_date <= NOW() AND s.end_date >= NOW() THEN 'active'
+                  ELSE 'backlog' END as sprint_status
+      FROM tickets t 
+      LEFT JOIN projects p ON t.project_id = p.id 
+      LEFT JOIN sprints s ON t.sprint_id = s.id 
+      WHERE t.user_id = $1
+    `;
+    const params = [userId];
+    
+    if (project_id) {
+      query += ' AND t.project_id = $' + (params.length + 1);
+      params.push(project_id);
+    }
+    
+    query += ' ORDER BY sprint_status DESC, t.priority DESC, t.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get backlog error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch backlog'
+    });
   }
 });
 
