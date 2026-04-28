@@ -2579,7 +2579,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             backgroundColor: _currentUser?.roleColor ??
                 Theme.of(context).colorScheme.primary,
             foregroundColor: Colors.white,
-            child: const Icon(Icons.add),
+            child: _buildStandaloneAssetIcon(
+              'assets/Icons/Chatbot_Red.png',
+              size: 20,
+            ),
           ),
           const SizedBox(width: 8),
         ],
