@@ -1695,12 +1695,9 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.trending_up,
+              _buildStandaloneAssetIcon(
+                'assets/Icons/revenue_forecast_icon.png',
                 size: 38,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white
-                    : Colors.black,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1714,6 +1711,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                         style: _dashboardTextStyle(size: 11)),
                   ],
                 ),
+              ),
+              _buildStandaloneAssetIcon(
+                'assets/Icons/notification_icon.png',
+                size: 18,
               ),
             ],
           ),
@@ -2208,7 +2209,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         children: [
           Row(
             children: [
-              _buildTeamRoundIcon(Icons.track_changes),
+              _buildStandaloneAssetIcon(
+                'assets/Icons/deliverables_overview_icon.png',
+                size: 38,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -2222,7 +2226,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   ],
                 ),
               ),
-              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
+              _buildStandaloneAssetIcon(
+                'assets/Icons/notification_icon.png',
+                size: 18,
+              ),
               const SizedBox(width: 6),
               Text('${items.length}',
                   style:
@@ -2318,7 +2325,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         children: [
           Row(
             children: [
-              _buildTeamRoundIcon(Icons.folder_copy_outlined),
+              _buildStandaloneAssetIcon(
+                'assets/Icons/project_overview_icon.png',
+                size: 38,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -2332,7 +2342,10 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                   ],
                 ),
               ),
-              _buildTeamRoundIcon(Icons.notifications_none, size: 16),
+              _buildStandaloneAssetIcon(
+                'assets/Icons/notification_icon.png',
+                size: 18,
+              ),
               const SizedBox(width: 6),
               Text('${_dashboardProjects.length}',
                   style:
@@ -3151,9 +3164,31 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildCardHeader(Icons.flag_outlined,
-                      'Sprint Overview (${_dashboardSprints.length})',
-                      route: '/sprint-console'),
+                  InkWell(
+                    onTap: () => context.go('/sprint-console'),
+                    child: Row(
+                      children: [
+                        _buildStandaloneAssetIcon(
+                          'assets/Icons/sprint_overview_icon.png',
+                          size: 24,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Sprint Overview (${_dashboardSprints.length})',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        _buildStandaloneAssetIcon(
+                          'assets/Icons/notification_icon.png',
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   ..._dashboardSprints.take(5).map((s) {
                     final name =
@@ -3203,9 +3238,27 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             child: Row(
               children: [
                 Expanded(
-                    child: _buildCardHeader(
-                        Icons.insights_outlined, 'Team Performance',
-                        route: null)),
+                    child: Row(
+                  children: [
+                    _buildStandaloneAssetIcon(
+                      'assets/Icons/team_performance_icon.png',
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Team Performance',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                )),
+                const SizedBox(width: 12),
+                _buildStandaloneAssetIcon(
+                  'assets/Icons/notification_icon.png',
+                  size: 18,
+                ),
                 const SizedBox(width: 12),
                 DropdownButton<String>(
                   value: _selectedChartType,
