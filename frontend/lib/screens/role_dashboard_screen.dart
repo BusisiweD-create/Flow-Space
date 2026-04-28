@@ -717,6 +717,53 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  Widget _buildDeliveryLeadReviewMetricsCards({bool compact = false}) {
+    final cards = [
+      _buildDeliveryLeadMetricAssetCard(
+        'Submitted',
+        '${_clientReviewMetrics['submitted'] ?? 0}',
+        'assets/Icons/submitted_red_icon.png',
+      ),
+      _buildDeliveryLeadMetricAssetCard(
+        'Approved',
+        '${_clientReviewMetrics['approved'] ?? 0}',
+        'assets/Icons/approved_red_icon.png',
+      ),
+      _buildDeliveryLeadMetricAssetCard(
+        'Changes Requested',
+        '${_clientReviewMetrics['changes'] ?? 0}',
+        'assets/Icons/changes_request_red_icon.png',
+      ),
+      _buildDeliveryLeadMetricAssetCard(
+        'Rejected',
+        '${_clientReviewMetrics['rejected'] ?? 0}',
+        'assets/Icons/rejected_red_icon.png',
+      ),
+      _buildDeliveryLeadMetricAssetCard(
+        'Average Review Time',
+        '${_clientReviewMetrics['avg_review_time'] ?? '-'}',
+        'assets/Icons/review_time_red_icon.png',
+      ),
+    ];
+
+    if (compact) {
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: cards.map((c) => SizedBox(width: 240, child: c)).toList(),
+      );
+    }
+
+    return Row(
+      children: [
+        for (int i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: cards[i]),
+        ],
+      ],
+    );
+  }
+
   Widget _buildStandaloneAssetIcon(
     String assetPath, {
     double size = 34,
@@ -1714,7 +1761,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _buildTeamReviewMetricsCards(compact: compact),
+                  _buildDeliveryLeadReviewMetricsCards(compact: compact),
                   const SizedBox(height: 12),
                   compact
                       ? Column(
