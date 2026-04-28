@@ -1810,23 +1810,23 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
       _buildDeliveryLeadKpiCard(
           title: 'Average Velocity',
           value: '$avgVelocity%',
-          assetPath: 'assets/Icons/completion_kpi_icon.png'),
+          assetPath: 'assets/Icons/average_red_icon.png'),
       _buildDeliveryLeadKpiCard(
           title: 'Planned',
           value: '$planned',
-          assetPath: 'assets/Icons/progress_kpi_icon.png'),
+          assetPath: 'assets/Icons/planned_red_icon.png'),
       _buildDeliveryLeadKpiCard(
           title: 'Completed',
           value: '$completed',
-          assetPath: 'assets/Icons/completed_kpi_icon.png'),
+          assetPath: 'assets/Icons/completed_red_icon.png'),
       _buildDeliveryLeadKpiCard(
           title: 'Carry Over',
           value: '$carryOver',
-          assetPath: 'assets/Icons/overdue_kpi_icon.png'),
+          assetPath: 'assets/Icons/carry_over_red_icon.png'),
       _buildDeliveryLeadKpiCard(
           title: 'Defects',
           value: '0',
-          assetPath: 'assets/Icons/review_kpi_icon.png'),
+          assetPath: 'assets/Icons/defects_red_icon.png'),
     ];
 
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
