@@ -775,10 +775,19 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
         assetPath,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
-          return Icon(
-            Icons.image_not_supported_outlined,
-            size: size,
-            color: FlownetColors.crimsonRed,
+          final altPath = assetPath.startsWith('frontend/')
+              ? assetPath.replaceFirst('frontend/', '')
+              : 'frontend/$assetPath';
+          return Image.asset(
+            altPath,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Icon(
+                Icons.image_not_supported_outlined,
+                size: size,
+                color: FlownetColors.crimsonRed,
+              );
+            },
           );
         },
       ),
@@ -1483,6 +1492,24 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           width: size,
           height: size,
           fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            final altPath = assetPath.startsWith('frontend/')
+                ? assetPath.replaceFirst('frontend/', '')
+                : 'frontend/$assetPath';
+            return Image.asset(
+              altPath,
+              width: size,
+              height: size,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  Icons.image_not_supported_outlined,
+                  size: size,
+                  color: FlownetColors.crimsonRed,
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -1667,7 +1694,12 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             children: [
               Text(value, style: _dashboardTextStyle(size: 18, weight: FontWeight.w700)),
               const Spacer(),
-              _buildStandaloneAssetIcon(assetPath, size: 38),
+              _buildTeamRoundAssetIcon(
+                assetPath,
+                diameter: 34,
+                size: 18,
+                padding: 6,
+              ),
             ],
           ),
         ],
