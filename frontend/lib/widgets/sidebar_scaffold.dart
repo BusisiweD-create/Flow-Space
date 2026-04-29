@@ -284,12 +284,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
                         bottom: 8,
                         child: SidebarVersionDisplay(isSidebarCollapsed: false),
                       ),
-                      if (routeLocation != '/dashboard')
-                        Positioned(
-                          right: 20,
-                          bottom: 96,
-                          child: _buildThemeToggleButton(isDarkMode),
-                        ),
                     ],
                   ),
                 ),
@@ -307,9 +301,6 @@ class _SidebarScaffoldState extends State<SidebarScaffold> {
           withGradient: backgroundWithGradient,
           child: widget.child,
         ),
-        floatingActionButton: routeLocation == '/dashboard'
-            ? null
-            : _buildThemeToggleButton(isDarkMode),
         drawer: Drawer(
           backgroundColor: sidebarColor,
           child: Column(
