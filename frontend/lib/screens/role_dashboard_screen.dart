@@ -876,6 +876,41 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     );
   }
 
+  Widget _buildTeamHeaderAssetIconButton({
+    required String assetPath,
+    required VoidCallback onTap,
+    double buttonSize = 40,
+    double iconSize = 22,
+  }) {
+    return Material(
+      color: _dashboardSurfaceColor(),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: buttonSize,
+          height: buttonSize,
+          child: Center(
+            child: Image.asset(
+              assetPath,
+              width: iconSize,
+              height: iconSize,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  Icons.image_not_supported_outlined,
+                  size: iconSize,
+                  color: FlownetColors.crimsonRed,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Color _dashboardSurfaceColor() {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     if (isDarkMode) {
@@ -1436,13 +1471,13 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
           onTap: () => context.go('/ai-assistant'),
         ),
         const SizedBox(width: 14),
-        _buildTeamHeaderIconButton(
-          icon: Icons.mail_outline,
+        _buildTeamHeaderAssetIconButton(
+          assetPath: 'assets/Message.png',
           onTap: () => context.go('/notifications'),
         ),
-        const SizedBox(width: 8),
-        _buildTeamHeaderIconButton(
-          icon: Icons.notifications_none,
+        const SizedBox(width: 10),
+        _buildTeamHeaderAssetIconButton(
+          assetPath: 'assets/notification.png',
           onTap: () => _loadPendingReports(),
         ),
       ],
