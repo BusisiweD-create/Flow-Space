@@ -1466,11 +1466,6 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
             ],
           ),
         ),
-        _buildTeamHeaderIconButton(
-          icon: Icons.smart_toy_outlined,
-          onTap: () => context.go('/ai-assistant'),
-        ),
-        const SizedBox(width: 14),
         _buildTeamHeaderAssetIconButton(
           assetPath: 'assets/Message.png',
           onTap: () => context.go('/notifications'),
