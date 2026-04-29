@@ -1733,7 +1733,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ),
               _buildStandaloneAssetIcon(
                 'assets/Icons/notification_icon.png',
-                size: 18,
+                size: 24,
               ),
             ],
           ),
@@ -2247,7 +2247,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ),
               _buildStandaloneAssetIcon(
                 'assets/Icons/notification_icon.png',
-                size: 18,
+                size: 24,
               ),
               const SizedBox(width: 6),
               Text('${items.length}',
@@ -2363,7 +2363,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
               ),
               _buildStandaloneAssetIcon(
                 'assets/Icons/notification_icon.png',
-                size: 18,
+                size: 24,
               ),
               const SizedBox(width: 6),
               Text('${_dashboardProjects.length}',
@@ -3220,7 +3220,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                         ),
                         _buildStandaloneAssetIcon(
                           'assets/Icons/notification_icon.png',
-                          size: 18,
+                          size: 24,
                         ),
                       ],
                     ),
